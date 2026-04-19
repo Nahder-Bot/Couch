@@ -1,10 +1,11 @@
 ---
 phase: 3
 slug: mood-tags
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-04-19
+reviewed_at: 2026-04-19
 ---
 
 # Phase 3 — UI Design Contract: Mood Tags
@@ -27,19 +28,25 @@ Source: `index.html` `:root` block (line 55) + CLAUDE.md. shadcn gate: not appli
 
 ---
 
+## Focal Point
+
+Primary focal point: active mood chips (`.mood-chip.on`) — accent fill (`--accent` #e8a04a on `--bg` #14110d) draws eye first in both the Tonight filter row's active-mood inline row and the detail view's mood section. All other chip states (off-state, add affordance) recede visually to reinforce this hierarchy.
+
+---
+
 ## Spacing Scale
 
 The project uses a custom `--s{N}` token scale (not 8-point). All new elements must reference these tokens exclusively — never raw pixel values.
 
-| Token | Value | Usage in this phase |
-|-------|-------|---------------------|
-| --s1 | 4px | Icon-to-label gap inside a mood chip |
-| --s2 | 8px | Gap between chips in a chip row; chip row gap |
-| --s3 | 12px | Internal margin between mood section and adjacent detail sections |
-| --s4 | 16px | Horizontal chip padding (matches existing `.mood-chip` padding) |
-| --s5 | 20px | Vertical margin above mood section in detail view |
-| --s6 | 28px | Not used in this phase |
-| --s7 | 40px | Not used in this phase |
+| Token | Value | Usage in this phase | Note |
+|-------|-------|---------------------|------|
+| --s1 | 4px | Icon-to-label gap inside a mood chip | standard 4px grid |
+| --s2 | 8px | Gap between chips in a chip row; chip row gap | standard 8px grid |
+| --s3 | 12px | Internal margin between mood section and adjacent detail sections | project-native token (multiple of 4); not a deviation from spec |
+| --s4 | 16px | Horizontal chip padding (matches existing `.mood-chip` padding) | standard 16px grid |
+| --s5 | 20px | Vertical margin above mood section in detail view | project-native token (multiple of 4); not a deviation from spec |
+| --s6 | 28px | Not used in this phase | — |
+| --s7 | 40px | Not used in this phase | — |
 
 Exceptions:
 - Touch target for the × remove button on active-filter chips: minimum 36×36px tap area (achieved by padding the × within the chip element, not by changing chip height). The × itself renders at `--t-meta` (13px).
@@ -53,12 +60,14 @@ Source: existing `:root` tokens; confirmed by `.mood-chip` definition at line 62
 
 All typography reuses existing tokens. No new type sizes or weights are introduced.
 
+**Weights in use this phase: 2 — weight 500 (chip labels and utility glyphs) + weight 600 (section eyebrow and on-state chip label).**
+
 | Role | Token | Resolved Value | Weight | Line Height | Usage |
 |------|-------|----------------|--------|-------------|-------|
 | Chip label | --t-meta | 13px | 500 (Inter) | 1 (single-line pill) | Mood chip labels in filter row and detail view |
 | Chip icon | --t-body | 15px | — (emoji) | 1 | `.mood-icon` emoji glyph inside chip |
 | Section label / eyebrow | --t-micro | 10px | 600 (Inter) | — | Optional "Moods" section header in detail if needed |
-| Active-chip × button | --t-meta | 13px | 400 | 1 | Remove glyph (×) inside active filter chip |
+| Active-chip × button | --t-meta | 13px | 500 | 1 | Remove glyph (×) inside active filter chip — inherits chip context weight (500); weight 400 not used in this phase |
 
 Source: existing `.mood-chip` CSS (line 628–638), `.mood-chips-edit` (line 639–642), `.detail-section h4` (line 1322).
 
@@ -143,7 +152,7 @@ Source: lines 628–638 (mood-chip CSS), line 74 (--accent), line 83 (--bad).
 
 **Per-chip structure:** Each active mood renders as a `.mood-chip.on` with an appended `<button class="mood-chip-remove">` inside it. The × button:
 - Content: `×` character (U+00D7) or an `aria-label="Remove [mood name]"` span
-- Style: `background: transparent; border: none; color: var(--bg); font-size: var(--t-meta); cursor: pointer; padding: 0 0 0 var(--s1); line-height: 1; opacity: 0.75;`
+- Style: `background: transparent; border: none; color: var(--bg); font-size: var(--t-meta); font-weight: 500; cursor: pointer; padding: 0 0 0 var(--s1); line-height: 1; opacity: 0.75;`
 - Hover: `opacity: 1`
 - Tap/click: removes that mood from `state.filters.moods`, updates the spin candidate pool, re-renders this row and the count badge
 
