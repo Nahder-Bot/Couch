@@ -12,9 +12,9 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 Phase: 3 of 6 (Mood Tags) — Phases 1-2 shipped pre-GSD
 Plan: 0 of 3 in current phase (plans not yet drafted)
-Status: Context gathered — ready to plan
-Last activity: 2026-04-19 — Phase 3 context gathered via discuss-phase; ready for /gsd-plan-phase 3
-Resume file: .planning/phases/03-mood-tags/03-CONTEXT.md
+Status: UI-SPEC approved — ready to plan
+Last activity: 2026-04-19 — Phase 3 UI design contract approved; ready for /gsd-plan-phase 3
+Resume file: .planning/phases/03-mood-tags/03-UI-SPEC.md
 
 Progress: [░░░░░░░░░░] 0% (0 of ~13 v1 plans complete)
 
