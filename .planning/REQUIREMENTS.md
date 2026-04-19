@@ -77,41 +77,39 @@ Deferred to post-v1. Tracked but not in current roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MOOD-01 | — | Pending |
-| MOOD-02 | — | Pending |
-| MOOD-03 | — | Pending |
-| MOOD-04 | — | Pending |
-| MOOD-05 | — | Pending |
-| MOOD-06 | — | Pending |
-| MOOD-07 | — | Pending |
-| VETO-01 | — | Pending |
-| VETO-02 | — | Pending |
-| VETO-03 | — | Pending |
-| VETO-04 | — | Pending |
-| VETO-05 | — | Pending |
-| VETO-06 | — | Pending |
-| PARTY-01 | — | Pending |
-| PARTY-02 | — | Pending |
-| PARTY-03 | — | Pending |
-| PARTY-04 | — | Pending |
-| PARTY-05 | — | Pending |
-| PARTY-06 | — | Pending |
-| PARTY-07 | — | Pending |
-| YEAR-01 | — | Pending |
-| YEAR-02 | — | Pending |
-| YEAR-03 | — | Pending |
-| YEAR-04 | — | Pending |
-| YEAR-05 | — | Pending |
+| MOOD-01 | Phase 3 | Pending |
+| MOOD-02 | Phase 3 | Pending |
+| MOOD-03 | Phase 3 | Pending |
+| MOOD-04 | Phase 3 | Pending |
+| MOOD-05 | Phase 3 | Pending |
+| MOOD-06 | Phase 3 | Pending |
+| MOOD-07 | Phase 3 | Pending |
+| VETO-01 | Phase 4 | Pending |
+| VETO-02 | Phase 4 | Pending |
+| VETO-03 | Phase 4 | Pending |
+| VETO-04 | Phase 4 | Pending |
+| VETO-05 | Phase 4 | Pending |
+| VETO-06 | Phase 4 | Pending |
+| PARTY-01 | Phase 5 | Pending |
+| PARTY-02 | Phase 5 | Pending |
+| PARTY-03 | Phase 5 | Pending |
+| PARTY-04 | Phase 5 | Pending |
+| PARTY-05 | Phase 5 | Pending |
+| PARTY-06 | Phase 5 | Pending |
+| PARTY-07 | Phase 5 | Pending |
+| YEAR-01 | Phase 6 | Pending |
+| YEAR-02 | Phase 6 | Pending |
+| YEAR-03 | Phase 6 | Pending |
+| YEAR-04 | Phase 6 | Pending |
+| YEAR-05 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total
-- Mapped to phases: 0 (roadmapper will populate)
-- Unmapped: 25 ⚠️ (expected — roadmapper runs next)
+- Mapped to phases: 25 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-19*
-*Last updated: 2026-04-19 after initialization*
+*Last updated: 2026-04-19 after roadmap creation (traceability populated)*
