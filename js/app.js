@@ -1066,6 +1066,24 @@ function myVetoToday() {
   return arr.length ? arr[0] : null;
 }
 function isVetoed(titleId) { return !!getVetoes()[titleId]; }
+function isFairnessLocked() {
+  if (!state.me || !state.session) return false;
+  // D-08: solo member waiver
+  if ((state.selectedMembers || []).length <= 1) return false;
+  const vetoes = getVetoes();
+  let latestMine = 0;
+  for (const id in vetoes) {
+    const v = vetoes[id];
+    if (v && v.memberId === state.me.id) {
+      if ((v.at || 0) > latestMine) latestMine = v.at || 0;
+    }
+  }
+  if (!latestMine) return false;
+  const lastSpin = state.session.spinnerAt || 0;
+  // D-07: rule clears when any spin lands (spinnerAt is written in showSpinResult for manual spins).
+  // My veto is "newer" than the last spin → I'm the most recent vetoer and the last spin hasn't happened yet → locked.
+  return latestMine > lastSpin;
+}
 
 // ===== Watchparty =====
 const WP_ARCHIVE_MS = 25 * 60 * 60 * 1000; // 25h after start time
@@ -2061,7 +2079,11 @@ function renderTonight() {
   // Section-level actions: spin + veto-undo note, quietly
   const actions = [];
   if (matches.length >= 2) {
-    actions.push(`<button class="t-spin" onclick="spinPick()">🎲 Spin</button>`);
+    if (isFairnessLocked()) {
+      actions.push(`<button class="t-spin disabled" disabled title="Someone else spins this one">🎲 Spin</button>`);
+    } else {
+      actions.push(`<button class="t-spin" onclick="spinPick()">🎲 Spin</button>`);
+    }
   }
   const mv = myVetoToday();
   if (mv) {
