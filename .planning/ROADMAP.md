@@ -15,7 +15,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - Integer phases (3, 4, 5, 6): Planned v1 milestone work — numbering continues from shipped phases 1-2
 - Decimal phases (e.g., 3.1): Reserved for urgent insertions
 
-- [ ] **Phase 3: Mood Tags** — Members can tag titles with moods and filter the Tonight spin by mood
+- [x] **Phase 3: Mood Tags** — Members can tag titles with moods and filter the Tonight spin by mood ✓ 2026-04-20
 - [ ] **Phase 4: Veto System** — Any member can veto pre- or post-spin and the family sees it instantly
 - [ ] **Phase 5: Watchparty** — Synced multi-device playback sessions with real-time reactions
 - [ ] **Phase 6: Year-in-Review** — End-of-year recap aggregating mood, veto, and watchparty activity

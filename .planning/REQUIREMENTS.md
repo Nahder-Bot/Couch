@@ -9,13 +9,13 @@
 
 ### Mood Tags (Phase 3)
 
-- [ ] **MOOD-01**: User can view automatically-suggested moods on a title (derived from TMDB genres + runtime)
-- [ ] **MOOD-02**: User can add a personal mood tag to a title from the title's detail view
-- [ ] **MOOD-03**: User can remove a personal mood tag they previously added
-- [ ] **MOOD-04**: Mood tags added by any member in a family are visible to all members on that title
-- [ ] **MOOD-05**: Tonight screen shows a mood filter control in the filter bar
-- [ ] **MOOD-06**: Selecting one or more moods in the filter narrows the candidate pool for the spin
-- [ ] **MOOD-07**: Active mood filters are visible and easily clearable without opening the filter panel
+- [x] **MOOD-01**: User can view automatically-suggested moods on a title (derived from TMDB genres + runtime)
+- [x] **MOOD-02**: User can add a personal mood tag to a title from the title's detail view
+- [x] **MOOD-03**: User can remove a personal mood tag they previously added
+- [x] **MOOD-04**: Mood tags added by any member in a family are visible to all members on that title
+- [x] **MOOD-05**: Tonight screen shows a mood filter control in the filter bar
+- [x] **MOOD-06**: Selecting one or more moods in the filter narrows the candidate pool for the spin
+- [x] **MOOD-07**: Active mood filters are visible and easily clearable without opening the filter panel
 
 ### Veto System (Phase 4)
 
@@ -79,13 +79,13 @@ Deferred to post-v1. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MOOD-01 | Phase 3 | Pending |
-| MOOD-02 | Phase 3 | Pending |
-| MOOD-03 | Phase 3 | Pending |
-| MOOD-04 | Phase 3 | Pending |
-| MOOD-05 | Phase 3 | Pending |
-| MOOD-06 | Phase 3 | Pending |
-| MOOD-07 | Phase 3 | Pending |
+| MOOD-01 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-02 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-03 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-04 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-05 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-06 | Phase 3 | Complete ✓ 2026-04-20 |
+| MOOD-07 | Phase 3 | Complete ✓ 2026-04-20 |
 | VETO-01 | Phase 4 | Pending |
 | VETO-02 | Phase 4 | Pending |
 | VETO-03 | Phase 4 | Pending |
