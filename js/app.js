@@ -71,6 +71,7 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
     }
   } catch(e){}
   return out;
+}
 // Escape user-provided strings before interpolating into HTML
 // Local notifications. We don't need a backend — Firestore already pushes watchparty
 // events to every tab in real time. We just surface those events as OS notifications
