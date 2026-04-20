@@ -1509,11 +1509,39 @@ function renderGroupSwitcher() {
   }).join('');
 }
 
+let prevVetoKeys = new Set();
+let vetoSubscribeIsFirstSnapshot = true;
+
 function subscribeSession() {
   if (state.unsubSession) { state.unsubSession(); state.unsubSession = null; }
+  // Assumption A3: reset diff state on every (re-)subscribe so yesterday's keys don't leak through midnight.
+  prevVetoKeys = new Set();
+  vetoSubscribeIsFirstSnapshot = true;
   state.sessionDate = todayKey();
   state.unsubSession = onSnapshot(sessionRef(state.sessionDate), s => {
-    state.session = s.exists() ? s.data() : { vetoes: {} };
+    const incoming = s.exists() ? s.data() : { vetoes: {} };
+    const incomingVetoes = incoming.vetoes || {};
+    const incomingKeys = new Set(Object.keys(incomingVetoes));
+    // D-13: warm toast for vetoes authored by OTHER members. Skip the very first snapshot so we
+    // don't flood on subscribe (the initial state is the baseline, not a delta).
+    if (!vetoSubscribeIsFirstSnapshot) {
+      for (const titleId of incomingKeys) {
+        if (prevVetoKeys.has(titleId)) continue;
+        const v = incomingVetoes[titleId];
+        if (!v || v.memberId === (state.me && state.me.id)) continue;
+        const t = state.titles.find(x => x.id === titleId);
+        const titleName = (t && t.name) || 'a title';
+        flashToast(v.memberName + ' passed on ' + titleName + ' — spinning again…', { kind: 'info' });
+        // D-14: if the observing device has the spin modal open, surface the cross-device shimmer
+        const bg = document.getElementById('spin-modal-bg');
+        if (bg && bg.classList.contains('on')) {
+          showRespinShimmer();
+        }
+      }
+    }
+    prevVetoKeys = incomingKeys;
+    vetoSubscribeIsFirstSnapshot = false;
+    state.session = incoming;
     renderTonight();
   }, e => {});
 }
