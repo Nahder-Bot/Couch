@@ -645,6 +645,10 @@ h3{font-size:var(--t-h3)}
 .mood-chip--add:hover{border-color:var(--accent);color:var(--ink)}
 .mood-chip--add-active{border-color:var(--accent);color:var(--accent)}
 .mood-chip--palette{background:var(--surface-2)}
+/* Phase 3: Tonight active-mood inline row (MOOD-07) */
+.t-mood-active-row{display:flex;gap:var(--s2);flex-wrap:wrap;padding:var(--s2) 0 var(--s1)}
+.mood-chip-remove{background:transparent;border:none;color:var(--bg);font-size:var(--t-meta);font-weight:500;cursor:pointer;padding:0 0 0 var(--s1);line-height:1;opacity:0.75;min-width:24px;min-height:24px}
+.mood-chip-remove:hover{opacity:1}
 .wp-banner{margin:var(--s4) 0;padding:16px;background:linear-gradient(135deg,rgba(232,160,74,0.15) 0%,rgba(139,58,78,0.10) 60%,rgba(229,49,112,0.06) 100%);border:1px solid rgba(232,160,74,0.4);border-radius:var(--r-xl);display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.2)}
 .wp-banner::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--velvet))}
 .wp-banner-poster{width:50px;height:75px;border-radius:8px;background-size:cover;background-position:center;background-color:var(--surface);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
@@ -2045,6 +2049,8 @@ h3{font-size:var(--t-h3)}
         <div class="mood-filter" id="mood-filter-tonight"></div>
       </div>
     </div>
+    <div class="t-mood-active-row" id="t-mood-active-row"
+         aria-label="Active mood filters" style="display:none;"></div>
 
     <div class="t-section">
       <div class="t-section-head">
