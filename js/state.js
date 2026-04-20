@@ -5,3 +5,5 @@ export let state = { familyCode:null, me:null, members:[], titles:[], selectedMe
 export function membersRef() { return collection(db, 'families', state.familyCode, 'members'); }
 export function titlesRef() { return collection(db, 'families', state.familyCode, 'titles'); }
 export function familyDocRef() { return doc(db, 'families', state.familyCode); }
+export function vetoHistoryRef() { return collection(db, 'families', state.familyCode, 'vetoHistory'); }
+export function vetoHistoryDoc(id) { return doc(db, 'families', state.familyCode, 'vetoHistory', id); }
