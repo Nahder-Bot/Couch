@@ -6011,7 +6011,7 @@ async function autoBackfill() {
   try {
     // Phase 1: titles missing moods get tagged from whatever metadata we have (instant, no network).
     // No cap needed since this is local-only work.
-    const needsMoods = state.titles.filter(t => !Array.isArray(t.moods) || t.moods.length === 0);
+    const needsMoods = state.titles.filter(t => (!Array.isArray(t.moods) || t.moods.length === 0) && !t.moodsUserEdited);
     if (needsMoods.length) qnLog('[QN] Backfilling moods for', needsMoods.length, 'titles');
     for (const t of needsMoods) {
       const moods = suggestMoods(t.genres || [], t.runtime);
@@ -6039,7 +6039,7 @@ async function autoBackfill() {
         if (!t.tmdbId) update.tmdbId = tmdbId;
         if (!t.mediaType) update.mediaType = mediaType;
         // If this is our first time getting runtime for a title that didn't have moods, recompute moods
-        if (extras.runtime && (!Array.isArray(t.moods) || t.moods.length === 0)) {
+        if (extras.runtime && (!Array.isArray(t.moods) || t.moods.length === 0) && !t.moodsUserEdited) {
           const moods = suggestMoods(t.genres || [], extras.runtime);
           if (moods.length) update.moods = moods;
         }
@@ -6992,6 +6992,8 @@ async function fetchTmdbDetails(mediaType, tmdbId) {
 }
 
 let detailTitleId = null;
+let detailMoodPaletteOpen = false;
+let detailMoodPaletteOutsideHandler = null;
 
 window.openDetailModal = async function(id) {
   const t = state.titles.find(x => x.id === id);
@@ -7023,6 +7025,11 @@ window.openDetailModal = async function(id) {
 
 window.closeDetailModal = function() {
   document.getElementById('detail-modal-bg').classList.remove('on');
+  detailMoodPaletteOpen = false;
+  if (detailMoodPaletteOutsideHandler) {
+    document.removeEventListener('click', detailMoodPaletteOutsideHandler);
+    detailMoodPaletteOutsideHandler = null;
+  }
   detailTitleId = null;
 };
 
@@ -7155,6 +7162,80 @@ window.addSimilar = async function(id) {
   const merged = state.titles.find(x => x.id === detailTitleId);
   if (merged) document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
 };
+
+// Phase 3 (Mood Tags): inline detail-view mood editing
+window.openDetailMoodPalette = function() {
+  detailMoodPaletteOpen = true;
+  _rerenderDetailFromState();
+  // Defer listener registration so the click that opened the palette
+  // doesn't immediately trigger the outside-click dismiss (Pitfall 1).
+  setTimeout(() => {
+    if (detailMoodPaletteOutsideHandler) document.removeEventListener('click', detailMoodPaletteOutsideHandler);
+    detailMoodPaletteOutsideHandler = function(e) {
+      if (!e.target.closest('.detail-moods-palette') && !e.target.closest('.mood-chip--add')) {
+        window.closeDetailMoodPalette();
+      }
+    };
+    document.addEventListener('click', detailMoodPaletteOutsideHandler);
+  }, 0);
+};
+
+window.closeDetailMoodPalette = function() {
+  detailMoodPaletteOpen = false;
+  if (detailMoodPaletteOutsideHandler) {
+    document.removeEventListener('click', detailMoodPaletteOutsideHandler);
+    detailMoodPaletteOutsideHandler = null;
+  }
+  _rerenderDetailFromState();
+};
+
+window.addDetailMood = async function(titleId, moodId) {
+  if (!moodById(moodId)) return;                    // ASVS V5: reject any id not in MOODS[]
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const current = Array.isArray(t.moods) ? t.moods : [];
+  if (current.includes(moodId)) return;             // idempotent
+  const newMoods = [...current, moodId];
+  haptic('light');
+  // Optimistic local update + re-render (mirrors addSimilar pattern)
+  t.moods = newMoods;
+  t.moodsUserEdited = true;
+  detailMoodPaletteOpen = false;
+  if (detailMoodPaletteOutsideHandler) {
+    document.removeEventListener('click', detailMoodPaletteOutsideHandler);
+    detailMoodPaletteOutsideHandler = null;
+  }
+  _rerenderDetailFromState();
+  try { await updateDoc(doc(titlesRef(), titleId), { moods: newMoods, moodsUserEdited: true }); }
+  catch(e) { console.error('[QN] addDetailMood failed', e); }
+};
+
+window.removeDetailMood = async function(titleId, moodId) {
+  if (!moodById(moodId)) return;                    // ASVS V5: reject any id not in MOODS[]
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const current = Array.isArray(t.moods) ? t.moods : [];
+  if (!current.includes(moodId)) return;            // idempotent
+  const newMoods = current.filter(m => m !== moodId);
+  haptic('light');
+  t.moods = newMoods;
+  t.moodsUserEdited = true;
+  _rerenderDetailFromState();
+  try { await updateDoc(doc(titlesRef(), titleId), { moods: newMoods, moodsUserEdited: true }); }
+  catch(e) { console.error('[QN] removeDetailMood failed', e); }
+};
+
+// Shared scroll-preserving re-render helper for detail modal (Pitfall 3)
+function _rerenderDetailFromState() {
+  if (!detailTitleId) return;
+  const t = state.titles.find(x => x.id === detailTitleId);
+  if (!t) return;
+  const content = document.getElementById('detail-modal-content');
+  if (!content) return;
+  const scrollTop = content.scrollTop;
+  content.innerHTML = renderDetailShell(t);
+  content.scrollTop = scrollTop;
+}
 
 // Build per-member genre affinity: avg stars given to each genre across watched titles
 function buildGenreAffinity(memberId) {
