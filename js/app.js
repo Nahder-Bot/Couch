@@ -1,6 +1,6 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField } from './firebase.js';
 import { TMDB_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
-import { state, membersRef, titlesRef, familyDocRef } from './state.js';
+import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter } from './utils.js';
 async function fetchTmdbExtras(mediaType, tmdbId) {
   const out = { trailerKey: null, rating: null, providers: [], rentProviders: [], buyProviders: [], providersChecked: true, providersSchemaVersion: 3, runtime: null };
@@ -5265,28 +5265,56 @@ window.closeVetoModal = function() {
 window.submitVeto = async function() {
   if (!vetoTitleId || !state.me) return;
   const comment = document.getElementById('veto-comment').value.trim().slice(0, 200);
-  const entry = {
+  const t = state.titles.find(x => x.id === vetoTitleId);
+  const titleName = (t && t.name) || 'a title';
+  const baseEntry = {
     memberId: state.me.id,
     memberName: state.me.name,
     comment: comment || '',
     at: Date.now()
   };
   try {
-    await setDoc(sessionRef(), { vetoes: { [vetoTitleId]: entry } }, { merge: true });
-    logActivity('vetoed', { titleName: (state.titles.find(x => x.id === vetoTitleId) || {}).name || 'a title' });
+    // Pitfall 6: dotted field path — safe against concurrent vetoes on sibling titles
+    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId]: baseEntry });
+    // VETO-05: history doc survives midnight session rollover
+    const histRef = await addDoc(vetoHistoryRef(), {
+      ...baseEntry,
+      titleId: vetoTitleId,
+      titleName,
+      sessionDate: todayKey()
+    });
+    // Pitfall 1: optimistic local update so downstream callers (Plan 02 auto re-spin) see the veto before onSnapshot fires
+    state.session = state.session || { vetoes: {} };
+    state.session.vetoes = { ...(state.session.vetoes || {}), [vetoTitleId]: { ...baseEntry, historyDocId: histRef.id } };
+    // Persist the historyDocId back into the session doc so unveto() can find it after page reload
+    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId + '.historyDocId']: histRef.id });
+    logActivity('vetoed', { titleName });
     closeVetoModal();
-  } catch(e) { alert('Could not save veto: ' + e.message); }
+  } catch(e) {
+    flashToast('Could not save veto: ' + e.message, { kind: 'warn' });
+  }
 };
 window.unveto = async function(titleId) {
   if (!state.me) return;
   const v = getVetoes()[titleId];
   if (!v || v.memberId !== state.me.id) return;
+  // D-11: history is immutable after midnight rollover. If the entry has a sessionDate and it
+  // doesn't match the current session, refuse. Cross-midnight is also refused by the existing
+  // session-doc re-subscription (new-session vetoes map is empty, so v is undefined).
+  if (v.sessionDate && v.sessionDate !== state.sessionDate) {
+    flashToast('this veto is locked', { kind: 'warn' });
+    return;
+  }
   try {
-    // Firestore needs field delete; easiest is to rewrite vetoes without this key
     const current = { ...getVetoes() };
     delete current[titleId];
     await setDoc(sessionRef(), { vetoes: current });
-  } catch(e) { alert('Could not undo veto: ' + e.message); }
+    if (v.historyDocId) {
+      await deleteDoc(vetoHistoryDoc(v.historyDocId));
+    }
+  } catch(e) {
+    flashToast('Could not undo veto.', { kind: 'warn' });
+  }
 };
 
 // === Watchparty ===
