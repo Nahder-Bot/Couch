@@ -4921,6 +4921,12 @@ window.clearMoodFilter = function() {
   state.selectedMoods = [];
   renderTonight();
 };
+window.removeMoodFilter = function(id) {
+  if (!moodById(id)) return;                      // ASVS V5: reject any id not in MOODS[]
+  haptic('light');
+  state.selectedMoods = state.selectedMoods.filter(m => m !== id);
+  renderTonight();
+};
 
 function renderTonight() {
   renderPickerCard();
@@ -5077,6 +5083,25 @@ function updateFiltersBar() {
   if (paidWrap && paidCheck) {
     paidWrap.style.display = state.limitToServices ? '' : 'none';
     paidCheck.checked = !!state.includePaid;
+  }
+  // Phase 3: Active-mood inline row (MOOD-07). Renders after the filter toggle,
+  // outside the collapsible panel. Pitfall 2: outer wrapper is <div>, not <button>,
+  // so the × <button> is not a nested interactive element.
+  const activeRow = document.getElementById('t-mood-active-row');
+  if (activeRow) {
+    if (state.selectedMoods.length > 0) {
+      const html = state.selectedMoods.map(id => {
+        const m = moodById(id);
+        if (!m) return '';                            // ASVS V5: silently skip any id not in MOODS[]
+        return `<div class="mood-chip on" role="group" aria-label="${escapeHtml(m.label)} filter active"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}<button class="mood-chip-remove" onclick="removeMoodFilter('${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)} filter">×</button></div>`;
+      }).join('');
+      // Pitfall 4: avoid flicker — only write innerHTML when content actually changes.
+      if (activeRow.innerHTML !== html) activeRow.innerHTML = html;
+      activeRow.style.display = '';
+    } else {
+      if (activeRow.innerHTML !== '') activeRow.innerHTML = '';
+      activeRow.style.display = 'none';
+    }
   }
 }
 
