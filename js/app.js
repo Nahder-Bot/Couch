@@ -4397,9 +4397,38 @@ function scoreTitle(t, affinityByMember) {
   return { score: Math.max(0.1, score), reason: reasons[0] || 'Random pick from your matches' };
 }
 
-window.spinPick = function() {
-  const matches = getCurrentMatches();
-  if (!matches.length) return;
+function showRespinShimmer() {
+  const poster = document.querySelector('#spin-modal-content .spin-result-poster');
+  if (poster) poster.classList.add('sk');
+  // The next spinPick() call will overwrite #spin-modal-content.innerHTML, detaching this element.
+  // No cleanup needed.
+}
+
+window.spinPick = function(opts) {
+  opts = opts || {};
+  let matches = getCurrentMatches();
+  // D-04: progressive filter relaxation — inline, no state mutation persisted beyond this call (Pitfall 8)
+  if (!matches.length && (state.selectedMoods || []).length) {
+    const saved = state.selectedMoods;
+    state.selectedMoods = [];
+    matches = getCurrentMatches();
+    state.selectedMoods = saved;
+    if (matches.length) flashToast('Relaxed mood filter for this spin.', { kind: 'info' });
+  }
+  // D-04 / UI-SPEC line 169: once all relaxations have failed, surface the empty-state in the spin modal.
+  // Mirror the #spin-modal-content.innerHTML pattern at the flicker init below.
+  if (!matches.length) {
+    const bg2 = document.getElementById('spin-modal-bg');
+    const content2 = document.getElementById('spin-modal-content');
+    if (bg2 && content2) {
+      bg2.classList.add('on');
+      content2.innerHTML = `<div style="padding:32px 20px;text-align:center;">
+          <div style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h2);color:var(--fg);margin-bottom:14px;">Nothing left to spin — try clearing some filters</div>
+          <button class="spin-cancel" onclick="closeSpinModal()">Close</button>
+        </div>`;
+    }
+    return;
+  }
   const bg = document.getElementById('spin-modal-bg');
   const content = document.getElementById('spin-modal-content');
   bg.classList.add('on');
@@ -4438,16 +4467,21 @@ window.spinPick = function() {
     } else {
       // Land on the winner
       flickerEl.innerHTML = `<div class="spin-flicker-poster landing" style="background-image:url('${pick.title.poster || ''}')"></div>`;
-      setTimeout(() => showSpinResult(pick), 500);
+      setTimeout(() => showSpinResult(pick, { auto: !!opts.auto }), 500);
     }
   }
   showFlickerStep();
 };
 
-function showSpinResult(pick) {
+function showSpinResult(pick, meta) {
   const t = pick.title;
   lastSpinId = t.id;
   haptic('success');
+  // D-05 / D-07: only manual spins claim spinnership. Auto re-spins (from post-spin veto per D-01) are
+  // exempt per Pitfall 2 — they don't re-lock fairness for the vetoer.
+  if (state.me && !(meta && meta.auto)) {
+    setDoc(sessionRef(), { spinnerId: state.me.id, spinnerAt: Date.now() }, { merge: true });
+  }
   const content = document.getElementById('spin-modal-content');
   // Build provider strip
   let provHtml = '';
@@ -4477,6 +4511,7 @@ function showSpinResult(pick) {
     <div class="spin-actions">
       <button class="spin-accept" onclick="acceptSpin('${t.id}')">Watch this tonight</button>
       <button class="spin-reroll" onclick="spinPick()">🎲 Spin again</button>
+      <button class="spin-veto" onclick="openVetoModal('${t.id}', {fromSpinResult: true})">Pass on it</button>
       <button class="spin-cancel" onclick="closeSpinModal()">Cancel</button>
     </div>`;
 }
@@ -5244,14 +5279,18 @@ window.saveEditTitle = async function() {
 
 // === Veto ===
 let vetoTitleId = null;
-window.openVetoModal = function(titleId) {
+let vetoFromSpinResult = false;
+window.openVetoModal = function(titleId, opts) {
   if (!state.me) { alert('Join the group first.'); return; }
+  // ASVS V5: validate id against known title set before mutating module state
+  if (!state.titles.find(x => x.id === titleId)) return;
   const mine = myVetoesToday();
   if (mine.length >= 2) {
     flashToast("you've used both vetoes tonight", { kind: 'warn' });
     return;
   }
   vetoTitleId = titleId;
+  vetoFromSpinResult = !!(opts && opts.fromSpinResult);
   document.getElementById('veto-comment').value = '';
   const t = state.titles.find(x => x.id === titleId);
   const meta = document.getElementById('veto-modal-meta');
@@ -5261,6 +5300,7 @@ window.openVetoModal = function(titleId) {
 window.closeVetoModal = function() {
   document.getElementById('veto-modal-bg').classList.remove('on');
   vetoTitleId = null;
+  vetoFromSpinResult = false;
 };
 window.submitVeto = async function() {
   if (!vetoTitleId || !state.me) return;
@@ -5289,7 +5329,12 @@ window.submitVeto = async function() {
     // Persist the historyDocId back into the session doc so unveto() can find it after page reload
     await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId + '.historyDocId']: histRef.id });
     logActivity('vetoed', { titleName });
+    const wasFromSpin = vetoFromSpinResult;
     closeVetoModal();
+    if (wasFromSpin) {
+      showRespinShimmer();
+      setTimeout(() => { if (window.spinPick) window.spinPick({ auto: true }); }, 400);
+    }
   } catch(e) {
     flashToast('Could not save veto: ' + e.message, { kind: 'warn' });
   }
