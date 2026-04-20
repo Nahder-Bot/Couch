@@ -574,23 +574,23 @@ No missing dependencies. Phase 4 is self-contained within existing client stack.
 
 **If this table is empty:** It isn't — six assumptions flagged for user/planner confirmation.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `spinnerId` be written on spin initiation or on spin-landed?**
    - What we know: D-07 says fairness clears once "that spin lands." Writing at initiation is simpler; writing at landing aligns better with the spec.
-   - Recommendation: Write at **landing** (inside `showSpinResult`) — this makes `spinnerAt` the timestamp of a completed spin, which is exactly what the fairness check compares against.
+   - RESOLVED: Write at **landing** (inside `showSpinResult`) — this makes `spinnerAt` the timestamp of a completed spin, which is exactly what the fairness check compares against.
 
 2. **Does `unveto()` need a confirmation step?**
    - What we know: UI-SPEC says single-tap, no confirmation, "reversible within session."
-   - Recommendation: Follow UI-SPEC. No confirmation.
+   - RESOLVED: Follow UI-SPEC. No confirmation.
 
 3. **Should the "relaxed filter" toast be suppressed during an auto re-spin to avoid toast-stacking?**
    - What we know: D-13 already emits a toast for the veto event. D-04 relaxation could add a 2nd toast.
-   - Recommendation: Merge messages: "Sam passed on X — spinning again (mood filter relaxed)". Claude's discretion per copy rules.
+   - RESOLVED: Merge messages: "Sam passed on X — spinning again (mood filter relaxed)". Claude's discretion per copy rules.
 
 4. **Does the existing `myVetoToday()` need renaming once cap is 2?**
    - What we know: Returns first match. D-12 allows 2.
-   - Recommendation: Introduce `myVetoesToday()` (plural) returning an array; keep `myVetoToday()` as a compat alias that returns `arr[0]` or null. Planner to choose pace of rename.
+   - RESOLVED: Introduce `myVetoesToday()` (plural) returning an array; keep `myVetoToday()` as a compat alias that returns `arr[0]` or null. Planner to choose pace of rename.
 
 ## Project Constraints (from CLAUDE.md)
 
