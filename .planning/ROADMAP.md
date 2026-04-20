@@ -32,7 +32,10 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
   3. A member can remove a mood tag they added, and it disappears for all family members.
   4. The Tonight filter bar shows a mood control; selecting moods narrows the spin candidate pool and the active moods are visible + clearable without reopening the panel.
   5. Spinning with active mood filters only picks from titles matching at least one selected mood.
-**Plans**: 3 plans (TBD — finalized at plan-phase)
+**Plans**: 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — Detail-view mood editing: render moods between genre pills and overview; add/remove via inline chips and palette; autoBackfill moodsUserEdited guard (MOOD-01, MOOD-02, MOOD-03, MOOD-04)
+- [ ] 03-02-PLAN.md — Tonight active-mood inline row: × clear per chip outside the collapsible panel; MOOD-05/06 regression-confirmed (MOOD-05, MOOD-06, MOOD-07)
 **UI hint**: yes
 
 ### Phase 4: Veto System
@@ -83,7 +86,7 @@ Phases 3, 4, 5 are largely independent and can be executed in any order (or para
 |-------|----------------|--------|-----------|
 | 1. Catalog (shipped pre-GSD) | — | Complete | Pre-2026-04-19 |
 | 2. Tonight + Voting (shipped pre-GSD) | — | Complete | Pre-2026-04-19 |
-| 3. Mood Tags | 0/3 | Not started | - |
+| 3. Mood Tags | 0/2 | Not started | - |
 | 4. Veto System | 0/3 | Not started | - |
 | 5. Watchparty | 0/4 | Not started | - |
 | 6. Year-in-Review | 0/3 | Not started | - |
