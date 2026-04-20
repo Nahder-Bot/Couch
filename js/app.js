@@ -1050,13 +1050,20 @@ function todayKey() {
 }
 function sessionRef(dateKey) { return doc(db, 'families', state.familyCode, 'sessions', dateKey || todayKey()); }
 function getVetoes() { return (state.session && state.session.vetoes) || {}; }
-function myVetoToday() {
-  if (!state.me) return null;
+function myVetoesToday() {
+  if (!state.me) return [];
   const vetoes = getVetoes();
+  const out = [];
   for (const titleId in vetoes) {
-    if (vetoes[titleId].memberId === state.me.id) return { titleId, ...vetoes[titleId] };
+    if (vetoes[titleId].memberId === state.me.id) out.push({ titleId, ...vetoes[titleId] });
   }
-  return null;
+  return out;
+}
+// Compat alias — existing callers at Tonight inline note and action sheet
+// expect the first-match-or-null shape. Keep until those sites are updated.
+function myVetoToday() {
+  const arr = myVetoesToday();
+  return arr.length ? arr[0] : null;
 }
 function isVetoed(titleId) { return !!getVetoes()[titleId]; }
 
@@ -5239,10 +5246,9 @@ window.saveEditTitle = async function() {
 let vetoTitleId = null;
 window.openVetoModal = function(titleId) {
   if (!state.me) { alert('Join the group first.'); return; }
-  const existing = myVetoToday();
-  if (existing) {
-    const t = state.titles.find(x => x.id === existing.titleId);
-    alert(`You already used your veto tonight${t?` on ${t.name}`:''}. Vetoes reset at midnight or when someone logs a watch.`);
+  const mine = myVetoesToday();
+  if (mine.length >= 2) {
+    flashToast("you've used both vetoes tonight", { kind: 'warn' });
     return;
   }
   vetoTitleId = titleId;
