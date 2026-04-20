@@ -638,6 +638,13 @@ h3{font-size:var(--t-h3)}
 .mood-chip.all{padding:var(--s2) var(--s4)}
 .mood-chips-edit{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
 .mood-chips-edit .mood-chip{font-size:var(--t-meta)}
+/* Phase 3: detail-view mood editing */
+.detail-moods{display:flex;flex-wrap:wrap;gap:var(--s2);margin-bottom:var(--s4)}
+.detail-moods-palette{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
+.mood-chip--add{border-style:dashed;border-color:var(--border-strong);background:transparent;color:var(--ink-dim)}
+.mood-chip--add:hover{border-color:var(--accent);color:var(--ink)}
+.mood-chip--add-active{border-color:var(--accent);color:var(--accent)}
+.mood-chip--palette{background:var(--surface-2)}
 .wp-banner{margin:var(--s4) 0;padding:16px;background:linear-gradient(135deg,rgba(232,160,74,0.15) 0%,rgba(139,58,78,0.10) 60%,rgba(229,49,112,0.06) 100%);border:1px solid rgba(232,160,74,0.4);border-radius:var(--r-xl);display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.2)}
 .wp-banner::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--velvet))}
 .wp-banner-poster{width:50px;height:75px;border-radius:8px;background-size:cover;background-position:center;background-color:var(--surface);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
@@ -7019,6 +7026,24 @@ window.closeDetailModal = function() {
   detailTitleId = null;
 };
 
+function renderDetailMoodsSection(t) {
+  const existingMoods = Array.isArray(t.moods) ? t.moods : [];
+  const existingChipsHtml = existingMoods.map(id => {
+    const m = moodById(id);
+    if (!m) return '';
+    return `<button class="mood-chip" onclick="removeDetailMood('${escapeHtml(t.id)}','${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)}"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`;
+  }).join('');
+  const addChipHtml = `<button class="mood-chip mood-chip--add${detailMoodPaletteOpen ? ' mood-chip--add-active' : ''}" onclick="${detailMoodPaletteOpen ? 'closeDetailMoodPalette' : 'openDetailMoodPalette'}()">+ add mood</button>`;
+  const paletteHtml = detailMoodPaletteOpen
+    ? `<div class="detail-moods-palette" role="group" aria-label="Add mood">${
+        MOODS.filter(m => !existingMoods.includes(m.id)).map(m =>
+          `<button class="mood-chip mood-chip--palette" onclick="addDetailMood('${escapeHtml(t.id)}','${escapeHtml(m.id)}')"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`
+        ).join('')
+      }</div>`
+    : '';
+  return `<div class="detail-section"><h4>Moods</h4><div class="detail-moods">${existingChipsHtml}${addChipHtml}</div>${paletteHtml}</div>`;
+}
+
 function renderDetailShell(t) {
   const backdrop = t.backdrop || t.poster || '';
   const tier = tierFor(t.rating);
@@ -7062,6 +7087,7 @@ function renderDetailShell(t) {
     return `<div class="similar-card" onclick="addSimilar('${s.id}')"><div class="similar-poster ${inLib?'added':''}" style="background-image:url('${s.poster||''}')"><div class="add-overlay">${inLib?'✓':'+'}</div></div><div class="similar-name">${escapeHtml(s.name)}</div><div class="similar-year">${escapeHtml(s.year||'')}</div></div>`;
   }).join('')}</div></div>` : '';
   const loadingHtml = (!t.detailsCached && !t.isManual) ? '<div class="detail-section" aria-hidden="true"><div class="sk sk-line" style="width:30%;margin-bottom:10px;"></div><div class="sk-row-posters"><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div></div></div>' : '';
+  const moodsHtml = renderDetailMoodsSection(t);
   return `<div class="detail-backdrop" style="background-image:url('${backdrop}')">
     <button class="detail-close" aria-label="Close" onclick="closeDetailModal()">✕</button>
   </div>
@@ -7069,6 +7095,7 @@ function renderDetailShell(t) {
     <div class="detail-name">${ratingPill}${escapeHtml(t.name)}</div>
     <div class="detail-meta">${metaHtml}</div>
     <div class="detail-genres">${genresHtml}</div>
+    ${moodsHtml}
     <div class="detail-overview">${escapeHtml(t.overview||'No description available.')}</div>
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
     ${renderTvProgressSection(t)}
