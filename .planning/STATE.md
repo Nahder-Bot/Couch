@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 Plan 02 complete (Wave 2 of 3)
-last_updated: "2026-04-20T22:17:09.000Z"
-last_activity: 2026-04-20 -- Phase 04 Plan 02 executed (post-spin veto + fairness)
+stopped_at: Phase 4 Plan 03 complete (all 3 waves shipped — awaiting /gsd-verify-work)
+last_updated: "2026-04-20T22:25:00.000Z"
+last_activity: 2026-04-20 -- Phase 04 Plan 03 executed (real-time veto toast + cross-device shimmer)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 70
+  completed_plans: 5
+  percent: 80
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 4 (Veto System) — IN PROGRESS
-Plan: 2 of 3 complete (Wave 2 of 3)
-Status: Ready for Plan 03 (Wave 3)
-Last activity: 2026-04-20 -- Phase 04 Plan 02 executed (post-spin veto + fairness + D-04 empty-state)
-Resume file: .planning/phases/04-veto-system/04-03-PLAN.md
+Phase: 4 (Veto System) — IMPLEMENTATION COMPLETE
+Plan: 3 of 3 complete (all waves shipped)
+Status: Ready for /gsd-verify-work (Phase 4 end-to-end QA sequences A–F)
+Last activity: 2026-04-20 -- Phase 04 Plan 03 executed (subscribeSession diff + flashToast + cross-device shimmer)
+Resume file: (none — phase complete, run /gsd-verify-work)
 
-Progress: [███████░░░] 40% (Phase 3 complete + Phase 4 Plan 2/3)
+Progress: [████████░░] 50% (Phase 3 complete + Phase 4 complete)
 
 ## Performance Metrics
 
@@ -47,14 +47,14 @@ Progress: [███████░░░] 40% (Phase 3 complete + Phase 4 Plan 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 3. Mood Tags | 2/2 | ~75min | ~38min |
-| 4. Veto System | 2/3 | ~11min | ~5.5min |
+| 4. Veto System | 3/3 | ~13min | ~4.3min |
 | 5. Watchparty | 0/4 | — | — |
 | 6. Year-in-Review | 0/3 | — | — |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-01 (~45min), 03-02 (~30min), 04-01 (~8min), 04-02 (~3min)
-- Trend: Improving further (04-02 surgical extension — 2 files, 3 commits, all grep acceptance passed, one ordering deviation auto-resolved)
+- Last 5 plans: 03-01 (~45min), 03-02 (~30min), 04-01 (~8min), 04-02 (~3min), 04-03 (~2min)
+- Trend: Improving further (04-03 single-task surgical diff extension — 1 file, 1 commit, zero deviations, all grep acceptance passed)
 
 *Updated after each plan completion*
 
@@ -75,6 +75,7 @@ Recent decisions affecting current work:
 - Post-spin veto uses a module-scoped vetoFromSpinResult flag captured BEFORE closeVetoModal() clears it — pattern: always snapshot module flags into locals before the clearing call that ends the flow.
 - Auto re-spin does NOT claim spinnership; spinnerId/spinnerAt writes are gated on `!(meta && meta.auto)` in showSpinResult. This is how fairness stays correct after post-spin veto.
 - Progressive filter relaxation (mood only for now) is inline per-call — save/clear/recompute/restore state.selectedMoods. Terminal empty-state renders UI-SPEC copy into the existing spin modal container rather than silent early-return.
+- Real-time veto toasts use the existing session onSnapshot (not a new listener) with a module-scoped prevVetoKeys Set diff + first-snapshot suppression flag. Both reset inside subscribeSession so midnight re-subscribe starts clean (A3 mitigation). Self-echo guard: v.memberId === (state.me && state.me.id).
 
 ### Pending Todos
 
@@ -92,6 +93,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-20T22:17:09.000Z
-Stopped at: Phase 4 Plan 02 complete (Wave 2 of 3)
-Resume file: .planning/phases/04-veto-system/04-03-PLAN.md
+Last session: 2026-04-20T22:25:00.000Z
+Stopped at: Phase 4 Plan 03 complete (all 3 waves shipped — awaiting /gsd-verify-work)
+Resume file: (none — phase complete, run /gsd-verify-work)
