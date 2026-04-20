@@ -19,12 +19,12 @@
 
 ### Veto System (Phase 4)
 
-- [ ] **VETO-01**: Any member can veto a title before the spin, removing it from the candidate pool for that session
-- [ ] **VETO-02**: Any member can veto the spin result after it's picked, triggering a re-spin from the remaining pool
+- [x] **VETO-01**: Any member can veto a title before the spin, removing it from the candidate pool for that session
+- [x] **VETO-02**: Any member can veto the spin result after it's picked, triggering a re-spin from the remaining pool
 - [ ] **VETO-03**: When a veto happens, all devices in the family see it in real-time with who vetoed
-- [ ] **VETO-04**: Veto can carry an optional reason (short text) so the family has context
-- [ ] **VETO-05**: Vetoes are recorded per-member so they can surface in Year-in-Review
-- [ ] **VETO-06**: A member who vetoed a title cannot be the one to re-spin it for that same session (fairness rule)
+- [x] **VETO-04**: Veto can carry an optional reason (short text) so the family has context
+- [x] **VETO-05**: Vetoes are recorded per-member so they can surface in Year-in-Review
+- [x] **VETO-06**: A member who vetoed a title cannot be the one to re-spin it for that same session (fairness rule)
 
 ### Watchparty (Phase 5)
 
@@ -86,12 +86,12 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | MOOD-05 | Phase 3 | Complete ✓ 2026-04-20 |
 | MOOD-06 | Phase 3 | Complete ✓ 2026-04-20 |
 | MOOD-07 | Phase 3 | Complete ✓ 2026-04-20 |
-| VETO-01 | Phase 4 | Pending |
-| VETO-02 | Phase 4 | Pending |
+| VETO-01 | Phase 4 | Complete ✓ 2026-04-20 (04-01) |
+| VETO-02 | Phase 4 | Complete ✓ 2026-04-20 (04-02) |
 | VETO-03 | Phase 4 | Pending |
-| VETO-04 | Phase 4 | Pending |
-| VETO-05 | Phase 4 | Pending |
-| VETO-06 | Phase 4 | Pending |
+| VETO-04 | Phase 4 | Complete ✓ 2026-04-20 (04-01) |
+| VETO-05 | Phase 4 | Complete ✓ 2026-04-20 (04-01) |
+| VETO-06 | Phase 4 | Complete ✓ 2026-04-20 (04-02) |
 | PARTY-01 | Phase 5 | Pending |
 | PARTY-02 | Phase 5 | Pending |
 | PARTY-03 | Phase 5 | Pending |

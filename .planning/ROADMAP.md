@@ -51,7 +51,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 04-01-PLAN.md — Firestore foundation: vetoHistory subcollection, updateDoc dotted-path writes, myVetoesToday + cap=2, unveto same-session gate (VETO-01, VETO-04, VETO-05)
-- [ ] 04-02-PLAN.md — Post-spin veto UX + auto re-spin + fairness gate + D-04 mood-filter relaxation; .spin-veto + .t-spin.disabled CSS (VETO-02, VETO-06)
+- [x] 04-02-PLAN.md — Post-spin veto UX + auto re-spin + fairness gate + D-04 mood-filter relaxation; .spin-veto + .t-spin.disabled CSS (VETO-02, VETO-06)
 - [ ] 04-03-PLAN.md — Real-time veto toast + cross-device shimmer via subscribeSession diff (VETO-03)
 **UI hint**: yes
 
@@ -91,7 +91,7 @@ Phases 3, 4, 5 are largely independent and can be executed in any order (or para
 | 1. Catalog (shipped pre-GSD) | — | Complete | Pre-2026-04-19 |
 | 2. Tonight + Voting (shipped pre-GSD) | — | Complete | Pre-2026-04-19 |
 | 3. Mood Tags | 2/2 | Implementation complete — awaiting /gsd-verify-work | 03-02 complete 2026-04-20 |
-| 4. Veto System | 0/3 | Not started | - |
+| 4. Veto System | 2/3 | In progress | 04-02 complete 2026-04-20 |
 | 5. Watchparty | 0/4 | Not started | - |
 | 6. Year-in-Review | 0/3 | Not started | - |
 
