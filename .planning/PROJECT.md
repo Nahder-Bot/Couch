@@ -28,12 +28,11 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 - ✓ **Filter bar on Tonight screen (counts visible, collapsible)** — existing
 - ✓ **PWA install support (manifest, iOS/Android icons, theme color)** — existing
 - ✓ **Firestore real-time sync across devices in a family** — existing
+- ✓ **Phase 3 — Mood tags:** inline mood editing in detail view; active-mood row outside collapsible panel; moodsUserEdited guard; MOOD-01 through MOOD-07 — Validated in Phase 3: 2026-04-20
 
 ### Active
 
 <!-- v1 scope toward commercial release. -->
-
-- [ ] **Phase 3 — Mood tags:** user-taggable mood filters on titles, with mood filter controls integrated into the Tonight screen
 - [ ] **Phase 4 — Veto system:** any member can veto a pick, both before and after the spin
 - [ ] **Phase 5 — Watchparty:** synced multi-device playback sessions with reactions
 - [ ] **Phase 6 — Year-in-review:** end-of-year recap of everyone's watched history, stats, favorites
@@ -104,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-19 after initialization*
+*Last updated: 2026-04-20 after Phase 3 (Mood Tags) completion*
