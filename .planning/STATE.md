@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 Plan 03 complete (all 3 waves shipped — awaiting /gsd-verify-work)
-last_updated: "2026-04-20T22:25:00.000Z"
-last_activity: 2026-04-20 -- Phase 04 Plan 03 executed (real-time veto toast + cross-device shimmer)
+stopped_at: Roadmap restructured — Phase 5 is now Auth (was Watchparty); ready for /gsd-discuss-phase 5
+last_updated: "2026-04-20T23:00:00.000Z"
+last_activity: 2026-04-20 -- Roadmap restructure (inserted Auth/Push/Intent/Redesign; YIR to Phase 10)
 progress:
-  total_phases: 4
-  completed_phases: 1
+  total_phases: 8
+  completed_phases: 2
   total_plans: 5
   completed_plans: 5
-  percent: 80
+  percent: 25
 ---
 
 # Project State
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 4 — Veto System (next up)
-**Active milestone:** v1 Commercial Release (Phases 3-6)
+**Current focus:** Phase 5 — Auth + Groups (next up, after roadmap restructure)
+**Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 4 (Veto System) — IMPLEMENTATION COMPLETE
-Plan: 3 of 3 complete (all waves shipped)
-Status: Ready for /gsd-verify-work (Phase 4 end-to-end QA sequences A–F)
-Last activity: 2026-04-20 -- Phase 04 Plan 03 executed (subscribeSession diff + flashToast + cross-device shimmer)
-Resume file: (none — phase complete, run /gsd-verify-work)
+Phase: 5 (Auth + Groups) — NOT STARTED (ready for /gsd-discuss-phase 5)
+Plan: 0 of ? (plan count finalized in /gsd-plan-phase)
+Status: Roadmap restructured 2026-04-20 — new Phase 5 is Auth (was Watchparty, now Phase 7). Ready for /gsd-discuss-phase 5.
+Last activity: 2026-04-20 -- Roadmap restructure (inserted Auth/Push/Intent/Redesign; YIR to Phase 10)
+Resume file: (none — start with /gsd-discuss-phase 5)
 
-Progress: [████████░░] 50% (Phase 3 complete + Phase 4 complete)
+Progress: [██░░░░░░░░] 25% (Phases 3-4 complete; Phases 5-10 pending)
 
 ## Performance Metrics
 
@@ -48,8 +48,12 @@ Progress: [████████░░] 50% (Phase 3 complete + Phase 4 compl
 |-------|-------|-------|----------|
 | 3. Mood Tags | 2/2 | ~75min | ~38min |
 | 4. Veto System | 3/3 | ~13min | ~4.3min |
-| 5. Watchparty | 0/4 | — | — |
-| 6. Year-in-Review | 0/3 | — | — |
+| 5. Auth + Groups | 0/? | — | — |
+| 6. Push Notifications | 0/? | — | — |
+| 7. Watchparty | 0/4 | — | — |
+| 8. Watch-Intent Flows | 0/? | — | — |
+| 9. Redesign / Brand | 0/? | — | — |
+| 10. Year-in-Review | 0/3 | — | — |
 
 **Recent Trend:**
 
