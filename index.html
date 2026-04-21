@@ -477,6 +477,46 @@
       </div>
     </div>
 
+    <!-- Kids & sub-profiles — D-01 / D-03 / D-04. Anyone signed-in who's in the group can create. -->
+    <div class="tab-section" id="settings-subprofiles">
+      <div class="tab-section-h"><span>Kids &amp; sub-profiles</span></div>
+      <p class="tab-section-sub">Add kids who don't have their own account. Anyone on the couch can tap them in when you watch together.</p>
+      <div id="subprofile-list"></div>
+      <button class="pill" onclick="openCreateSubProfile()">Add a kid</button>
+    </div>
+
+    <!-- Owner-only: password, guest invites, ownership transfer (D-12 / D-18 / D-19). -->
+    <!-- Hidden by default; renderOwnerSettings() un-hides when state.auth.uid === state.ownerUid. -->
+    <div class="tab-section owner-only" id="settings-owner" style="display:none;">
+      <div class="tab-section-h"><span>Group admin</span></div>
+
+      <div class="settings-row">
+        <label class="settings-row-label">Group password</label>
+        <p class="settings-row-hint">Require a password to join this group. Minimum 4 characters.</p>
+        <input id="settings-password-input" type="password" placeholder="New password" autocomplete="new-password" />
+        <button class="pill" onclick="submitGroupPassword()">Save password</button>
+      </div>
+
+      <div class="settings-row">
+        <label class="settings-row-label">Invite a guest</label>
+        <p class="settings-row-hint">Generate a timed invite link — grandma for a week, friend for a night.</p>
+        <select id="settings-guest-duration">
+          <option value="86400000">1 day</option>
+          <option value="604800000" selected>1 week</option>
+          <option value="2592000000">30 days</option>
+        </select>
+        <button class="pill" onclick="createGuestInvite()">Generate invite link</button>
+        <div id="settings-guest-link-out" class="link-out"></div>
+      </div>
+
+      <div class="settings-row">
+        <label class="settings-row-label">Transfer ownership</label>
+        <p class="settings-row-hint">Hand ownership to another authed member. Cannot be undone without the new owner's action.</p>
+        <select id="settings-transfer-target"></select>
+        <button class="pill warn" onclick="transferOwnershipTo()">Transfer ownership</button>
+      </div>
+    </div>
+
     <!-- Keyboard shortcuts: tiniest treatment -->
     <div class="tab-section" id="kb-shortcuts-card" style="display:none;">
       <div class="tab-section-h"><span>Shortcuts</span></div>
@@ -823,6 +863,33 @@
 
   <div class="modal-bg" id="action-sheet-bg">
     <div class="modal action-sheet" id="action-sheet-content"></div>
+  </div>
+
+  <!-- Sub-profile create modal (D-01) — opened from Account → Kids & sub-profiles -->
+  <div class="modal-bg" id="subprofile-modal-bg" onclick="if(event.target.id==='subprofile-modal-bg')closeSubProfileModal()">
+    <div class="modal" style="max-width:440px;">
+      <h3>Add a sub-profile</h3>
+      <div class="meta">Kids on the couch</div>
+      <label style="display:block;margin-bottom:12px;">
+        <span style="display:block;font-size:var(--t-meta);color:var(--ink-warm);margin-bottom:4px;">Name</span>
+        <input id="subprofile-name" type="text" placeholder="e.g. Ella" style="width:100%;padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--ink);font-size:var(--t-body);" />
+      </label>
+      <label style="display:block;margin-bottom:16px;">
+        <span style="display:block;font-size:var(--t-meta);color:var(--ink-warm);margin-bottom:4px;">Avatar color</span>
+        <select id="subprofile-color" style="width:100%;padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--ink);font-size:var(--t-body);">
+          <option value="#f2a365">Apricot</option>
+          <option value="#7cb4a9">Sage</option>
+          <option value="#c97b5f">Terracotta</option>
+          <option value="#8fa4c7">Blue</option>
+          <option value="#d4a373">Honey</option>
+          <option value="#b08cc7">Lavender</option>
+        </select>
+      </label>
+      <div style="display:flex;gap:8px;">
+        <button class="pill" style="flex:1;" onclick="closeSubProfileModal()">Cancel</button>
+        <button class="pill accent" style="flex:1;" onclick="createSubProfile()">Add</button>
+      </div>
+    </div>
   </div>
 
   <div class="tabbar" role="tablist" aria-label="Main navigation">

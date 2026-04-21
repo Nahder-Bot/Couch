@@ -1587,16 +1587,27 @@ async function continueToNameScreen() {
   try {
     const snap = await getDocs(membersRef());
     const existingRaw = snap.docs.map(d => d.data());
-    // Plan 07 will extend this filter for sub-profiles + active guests.
-    // Plan 06 preserves the existing behavior exactly: show every member doc.
-    const existing = existingRaw;
+    const now = Date.now();
+    // D-03: sub-profiles AND active guests show in the name-pick chip list so a kid on
+    // a shared tablet or a guest redeeming a link can tap themselves in directly.
+    // Filter: hide archived members; hide expired guests.
+    const existing = existingRaw.filter(m =>
+      !m.archived &&
+      (!m.temporary || (m.expiresAt && m.expiresAt > now))
+    );
     const el = document.getElementById('existing-members-list');
     if (existing.length > 0) {
       document.getElementById('existing-members').style.display = 'block';
-      el.innerHTML = existing.map(m => `
-        <button class="join-chip" onclick="joinAsExisting('${m.id}','${m.name.replace(/'/g,"\\'")}')">
-          <div class="who-avatar" style="background:${m.color}">${avatarContent(m)}</div><div>${m.name}</div>
-        </button>`).join('');
+      el.innerHTML = existing.map(m => {
+        const badges = [];
+        if (m.managedBy) badges.push('<span class="chip-badge badge-kid">kid</span>');
+        if (m.temporary) badges.push('<span class="chip-badge badge-guest">guest</span>');
+        const safeName = (m.name || '').replace(/'/g,"\\'");
+        return `
+        <button class="join-chip" onclick="joinAsExisting('${m.id}','${safeName}')">
+          <div class="who-avatar" style="background:${m.color}">${avatarContent(m)}</div><div>${escapeHtml(m.name)} ${badges.join(' ')}</div>
+        </button>`;
+      }).join('');
     } else {
       document.getElementById('existing-members').style.display = 'none';
     }
@@ -1710,6 +1721,85 @@ window.leaveFamily = async function() {
   state.group = null;
   // Stay signed in; route back to group-switcher or create-or-join
   routeAfterAuth();
+};
+
+// ===== Phase 5 Plan 07: Sub-profile CRUD + act-as semantics (D-01, D-03, D-04) =====
+// Sub-profile member doc shape:
+//   { id, name, color, managedBy: parentUid, createdAt, isParent: false }  // NO uid field
+// This is what Firestore rules (Plan 04) gate on: writes carrying managedMemberId
+// require members/{managedMemberId}.managedBy === request.auth.uid.
+window.openCreateSubProfile = function() {
+  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.familyCode) { flashToast('Join a group first', { kind: 'warn' }); return; }
+  const nameEl = document.getElementById('subprofile-name');
+  if (nameEl) nameEl.value = '';
+  const bg = document.getElementById('subprofile-modal-bg');
+  if (bg) bg.classList.add('on');
+};
+window.closeSubProfileModal = function() {
+  const bg = document.getElementById('subprofile-modal-bg');
+  if (bg) bg.classList.remove('on');
+};
+window.createSubProfile = async function() {
+  const name = (document.getElementById('subprofile-name').value || '').trim();
+  const color = document.getElementById('subprofile-color').value || '#f2a365';
+  if (!name) { flashToast('Name required', { kind: 'warn' }); return; }
+  if (!state.auth || !state.familyCode) { flashToast('Not ready', { kind: 'warn' }); return; }
+  const memberId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const sub = {
+    id: memberId,
+    name,
+    color,
+    managedBy: state.auth.uid,
+    createdAt: Date.now(),
+    isParent: false
+    // NO uid field — this is what distinguishes a sub-profile from an authed adult
+  };
+  try {
+    await setDoc(doc(membersRef(), memberId), sub);
+    flashToast(`Added ${name}`, { kind: 'success' });
+    haptic('success');
+    closeSubProfileModal();
+    renderSubProfileList();
+  } catch(e) {
+    console.error('[create-subprofile]', e);
+    const msg = (e && e.code === 'permission-denied') ? "You can't add kids in this group." : "Couldn't add. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+function renderSubProfileList() {
+  const el = document.getElementById('subprofile-list');
+  if (!el) return;
+  const subs = (state.members || []).filter(m => m.managedBy && !m.uid && !m.archived);
+  if (subs.length === 0) { el.innerHTML = '<p class="tab-section-sub" style="margin:0;">No sub-profiles yet.</p>'; return; }
+  el.innerHTML = subs.map(m => `
+    <div class="subprofile-row">
+      <div class="who-avatar" style="background:${m.color}">${avatarContent(m)}</div>
+      <span class="subprofile-name">${escapeHtml(m.name)}</span>
+      <button class="link-btn" onclick="sendGraduationLink('${m.id}')">Send claim link</button>
+    </div>
+  `).join('');
+}
+// Graduation-link mint is Plan 08 territory — stub for now so the button doesn't appear broken.
+// TODO (orchestrator): wire to mintClaimTokens CF once Plan 08 ships.
+window.sendGraduationLink = function(memberId) {
+  flashToast('Graduation flow lands in the next release — coming soon.', { kind: 'info' });
+};
+
+// Act-as tap (D-04, per-action): set state.actingAs so writeAttribution picks it up on the
+// NEXT vote/veto/mood write, then the snapshot-then-clear in writeAttribution reverts it.
+window.tapActAsSubProfile = function(memberId, memberName) {
+  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  const m = (state.members || []).find(x => x.id === memberId);
+  if (!m || !m.managedBy) return;
+  state.actingAs = memberId;
+  state.actingAsName = memberName;
+  haptic('light');
+  flashToast(`Acting as ${memberName} for your next tap`, { kind: 'info' });
+  // Visual hint: decorate the active chip so the user sees their own confirmation
+  document.querySelectorAll('.who-chip.act-as-active').forEach(el => el.classList.remove('act-as-active'));
+  const chip = document.querySelector(`.who-chip[data-sub-id="${memberId}"]`);
+  if (chip) chip.classList.add('act-as-active');
 };
 
 // ===== Group switching =====
@@ -2435,10 +2525,29 @@ function renderTonight() {
   updateFiltersBar();
   const whoEl = document.getElementById('who-list');
   if (!whoEl) return;
-  whoEl.innerHTML = state.members.map(m => `
-    <div class="who-chip ${state.selectedMembers.includes(m.id)?'on':''} ${state.me&&m.id===state.me.id?'me':''}" role="button" tabindex="0" aria-pressed="${state.selectedMembers.includes(m.id)}" aria-label="${escapeHtml(m.name)}" onclick="toggleMember('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMember('${m.id}');}">
-      <div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}</div>
-    </div>`).join('');
+  // D-03 + D-04: sub-profiles and active guests render alongside authed members.
+  // Sub-profile taps set state.actingAs (per-action); regular chips keep toggleMember.
+  const nowTs = Date.now();
+  const tonightMembers = (state.members || []).filter(m =>
+    !m.archived &&
+    (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+  );
+  whoEl.innerHTML = tonightMembers.map(m => {
+    const isSub = !!m.managedBy && !m.uid;
+    const isGuest = !!m.temporary;
+    const badges = [];
+    if (isSub) badges.push('<span class="chip-badge badge-kid">kid</span>');
+    if (isGuest) badges.push('<span class="chip-badge badge-guest">guest</span>');
+    const badgeHtml = badges.length ? ` ${badges.join(' ')}` : '';
+    if (isSub) {
+      // Act-as tap — per D-04, does NOT toggle selection; it arms the next write.
+      const safeName = (m.name || '').replace(/'/g,"\\'");
+      return `<div class="who-chip sub-profile" role="button" tabindex="0" data-sub-id="${m.id}" aria-label="Act as ${escapeHtml(m.name)}" onclick="tapActAsSubProfile('${m.id}','${safeName}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tapActAsSubProfile('${m.id}','${safeName}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
+    }
+    const selected = state.selectedMembers.includes(m.id);
+    const isMe = state.me && m.id === state.me.id;
+    return `<div class="who-chip ${selected?'on':''} ${isMe?'me':''}" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHtml(m.name)}" onclick="toggleMember('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMember('${m.id}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
+  }).join('');
   const el = document.getElementById('matches-list');
   const countEl = document.getElementById('matches-count');
   const actionsEl = document.getElementById('t-section-actions');
@@ -3194,6 +3303,9 @@ function renderSettings() {
   yirSettingsTeaser();
   renderServicesPicker();
   renderTraktCard();
+  // Plan 07: sub-profile list + owner-only admin panel (gated on state.ownerUid).
+  try { renderSubProfileList(); } catch(e) {}
+  try { renderOwnerSettings(); } catch(e) {}
   // Refresh identity strip in case name/avatar changed since boot
   if (state.me) {
     const me = state.members.find(x => x.id === state.me.id) || state.me;

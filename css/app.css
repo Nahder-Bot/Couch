@@ -1948,3 +1948,29 @@ h3{font-size:var(--t-h3)}
 .provider-phone { background: var(--surface-2); }
 #signin-phone-code-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .signin-footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--ink-faint); line-height: 1.5; padding-bottom: 40px; }
+
+/* ===== Phase 5 Plan 07: Sub-profile + guest badges, act-as chip state ===== */
+/* D-01 kid + D-12 guest badges — compact, Inter, warm palette. Appear on name-screen chips + Tonight who-list + subprofile-list rows. */
+.chip-badge { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 4px; margin-left: 4px; text-transform: uppercase; vertical-align: middle; }
+.badge-kid { background: #f2a365; color: #1f1611; }
+.badge-guest { background: #7cb4a9; color: #0f1f1c; }
+/* Sub-profile chip in the Tonight who-list: subtle dashed outline signals "tap to act as". */
+.who-chip.sub-profile { border-style: dashed; border-color: rgba(242,163,101,0.6); }
+.who-chip.act-as-active { outline: 2px solid #f2a365; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(242,163,101,0.12); }
+/* Sub-profile list rows in settings */
+.subprofile-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.subprofile-row:last-child { border-bottom: none; }
+.subprofile-row .who-avatar { width: 36px; height: 36px; font-size: 13px; display: grid; place-items: center; border-radius: 50%; color: #14110f; font-weight: 700; flex-shrink: 0; }
+.subprofile-name { flex: 1; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
+.link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+.link-btn:hover { background: var(--surface-2); }
+/* Owner-only settings rows (D-18 / D-19) */
+.settings-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 12px; }
+.settings-row-label { display: block; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.settings-row-hint { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-warm); margin: 0 0 10px 0; line-height: 1.4; }
+.settings-row input, .settings-row select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--ink); font-family: 'Inter', sans-serif; font-size: 14px; margin-bottom: 10px; box-sizing: border-box; }
+.settings-row .pill.warn { background: var(--bad, #b04b3a); color: #fff; }
+.link-out { margin-top: 10px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-warm); word-break: break-all; }
+.link-out code { display: block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
+.link-out button { margin-top: 6px; padding: 6px 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 6px; cursor: pointer; font-size: 13px; }
+
