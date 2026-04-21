@@ -5710,6 +5710,7 @@ function showSpinResult(pick, meta) {
     <div class="spin-reason">✨ ${escapeHtml(pick.reason || 'A couch favorite')}</div>
     <div class="spin-actions">
       <button class="spin-accept" onclick="acceptSpin('${t.id}')">Watch this tonight</button>
+      <button class="spin-watchtogether" onclick="spinStartWatchparty('${t.id}')">🎬 Watch together</button>
       <button class="spin-reroll" onclick="spinPick()">🎲 Spin again</button>
       <button class="spin-veto" onclick="openVetoModal('${t.id}', {fromSpinResult: true})">Pass on it</button>
       <button class="spin-cancel" onclick="closeSpinModal()">Cancel</button>
@@ -5719,6 +5720,17 @@ function showSpinResult(pick, meta) {
 window.acceptSpin = function(id) {
   closeSpinModal();
   openScheduleModal(id);
+};
+
+// Phase 7 Plan 02 (PARTY-01): "Watch together" CTA from the Tonight spin result.
+// Routes to existing live modal if a party already exists for this title, else to the
+// start-watchparty flow. Mirrors the ⋯ action-sheet "Start a watchparty" branch but
+// front-loaded so users don't have to dig through the action sheet after spinning.
+window.spinStartWatchparty = function(titleId) {
+  closeSpinModal();
+  const existing = wpForTitle(titleId);
+  if (existing) openWatchpartyLive(existing.id);
+  else openWatchpartyStart(titleId);
 };
 
 window.closeSpinModal = function() {

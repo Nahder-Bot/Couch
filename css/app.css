@@ -1344,6 +1344,11 @@ h3{font-size:var(--t-h3)}
 .spin-accept{background:var(--good);color:white}
 .spin-reroll{background:var(--surface-2);color:var(--ink)}
 .spin-cancel{background:transparent;color:var(--ink-dim)}
+/* Phase 7 Plan 02 (PARTY-01): "Watch together" sits below the primary Watch-tonight action.
+   Warm-gradient surface with the velvet-to-accent sweep used for brand-moments — signals
+   this is a social/celebratory choice without stealing primacy from the green Watch-tonight. */
+.spin-watchtogether{background:linear-gradient(135deg,rgba(232,160,74,0.22) 0%,rgba(229,49,112,0.18) 100%);color:var(--ink);border:1px solid rgba(232,160,74,0.35);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08)}
+.spin-watchtogether:active{transform:scale(0.98)}
 .spin-veto {
   background: var(--bad);
   color: white;
