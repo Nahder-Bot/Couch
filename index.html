@@ -819,6 +819,12 @@
     <div class="modal wp-live-modal" id="wp-live-content"></div>
   </div>
 
+  <!-- Phase 7 Plan 03: hidden input for native emoji keyboard picker.
+       openEmojiPicker() focuses this to pop the iOS/Android emoji keyboard. -->
+  <input id="wp-emoji-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+    aria-hidden="true" tabindex="-1"
+    style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+
   <div class="modal-bg" id="yir-modal-bg">
     <div class="modal yir-modal" id="yir-content"></div>
   </div>

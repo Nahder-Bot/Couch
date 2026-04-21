@@ -7128,7 +7128,10 @@ function renderWatchpartyLive() {
     </div>`;
   } else {
     // Active watching — render reactions feed based on mode
-    body = renderReactionsFeed(wp, mine);
+    // Phase 7 Plan 03 (PARTY-03): advisory per-member timer strip sits above the reactions feed
+    // so everyone sees where their co-watchers are in the runtime. No forcing — each member
+    // tracks their own pace. See 07-CONTEXT.md D-01/02/03.
+    body = renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine);
   }
 
   // Footer
@@ -7203,6 +7206,38 @@ function renderReactionsFeed(wp, mine) {
   return `<div class="wp-live-body" id="wp-reactions-feed">${sorted.map(r => renderReaction(r, mode)).join('')}</div>`;
 }
 
+// Phase 7 Plan 03 — advisory per-member timer strip. Shows every participant's current
+// elapsedMs as a chip. Non-started participants show "Joined", paused ones show "Paused",
+// active ones show "X min in". Rendered inside the watchparty live body on every tick so
+// numbers advance in real time. Uses computeElapsed (existing helper) for the math.
+function renderParticipantTimerStrip(wp) {
+  const entries = Object.entries(wp.participants || {});
+  if (!entries.length) return '';
+  const chips = entries.map(([mid, p]) => {
+    const member = state.members.find(m => m.id === mid);
+    const name = (member && member.name) || p.name || 'Member';
+    const color = (member && member.color) || '#888';
+    const initial = (name || '?')[0].toUpperCase();
+    let statusLabel;
+    let chipClass = '';
+    if (!p.startedAt) { statusLabel = 'Joined'; chipClass = 'joined'; }
+    else if (p.pausedAt) { statusLabel = 'Paused'; chipClass = 'paused'; }
+    else {
+      const mins = Math.floor(computeElapsed(p) / 60000);
+      statusLabel = mins === 0 ? 'Just started' : `${mins} min in`;
+    }
+    const isMe = state.me && state.me.id === mid;
+    return `<div class="wp-participant-chip ${chipClass} ${isMe ? 'me' : ''}">
+      <div class="wp-participant-av" style="background:${color};" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-info">
+        <div class="wp-participant-name">${escapeHtml(name)}${isMe ? ' <span class="muted">(you)</span>' : ''}</div>
+        <div class="wp-participant-time">${escapeHtml(statusLabel)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}</div>`;
+}
+
 function renderReaction(r, mode) {
   const color = memberColor(r.memberId);
   const initial = (r.memberName || '?')[0].toUpperCase();
@@ -7224,7 +7259,10 @@ function renderReaction(r, mode) {
 function renderWatchpartyFooter(wp, mine) {
   const mode = mine.reactionsMode || 'elapsed';
   const paused = !!mine.pausedAt;
-  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')">${e}</button>`).join('');
+  // Phase 7 Plan 03: '+ more' button opens the iOS native emoji keyboard via hidden-input focus.
+  // Keeps palette familiar while unlocking unlimited emoji choice without a JS picker library.
+  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')">${e}</button>`).join('')
+    + `<button class="wp-emoji-btn wp-emoji-more" onclick="openEmojiPicker()" aria-label="More emoji">+</button>`;
   const controls = `<div class="wp-controls">
     ${paused
       ? `<button class="wp-control-btn on" onclick="toggleWpPause()">▶ Resume</button>`
@@ -7246,6 +7284,34 @@ function renderWatchpartyFooter(wp, mine) {
 // ==== Reaction posting ====
 window.postEmojiReaction = async function(emoji) {
   await postReaction({ kind: 'emoji', emoji });
+};
+
+// Phase 7 Plan 03: native emoji keyboard picker via hidden-input focus trick.
+// Works on iOS (swipe globe to emoji tab in the keyboard), Android (native picker), and
+// desktop (macOS Ctrl+Cmd+Space, Windows Win+.). No JS emoji-picker library — keeps the
+// single-file no-bundler constraint. Uses Intl.Segmenter for grapheme-cluster-safe
+// extraction so multi-codepoint emoji (e.g. family stickers joined by ZWJs) send correctly.
+window.openEmojiPicker = function() {
+  const input = document.getElementById('wp-emoji-input');
+  if (!input) return;
+  input.value = '';
+  input.focus();
+  input.oninput = () => {
+    const val = input.value || '';
+    input.value = '';
+    if (!val) return;
+    let first;
+    try {
+      first = Array.from(new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(val))[0]?.segment;
+    } catch (e) {
+      // Older browsers without Intl.Segmenter: approximate by taking codepoint pairs
+      first = val.length >= 2 && val.charCodeAt(0) >= 0xD800 && val.charCodeAt(0) <= 0xDBFF
+        ? val.slice(0, 2)
+        : val.slice(0, 1);
+    }
+    if (first) postEmojiReaction(first);
+    input.blur();
+  };
 };
 window.postTextReaction = async function() {
   const input = document.getElementById('wp-compose-input');
