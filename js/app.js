@@ -102,7 +102,10 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   titleApproval: true,
   inviteReceived: true,
   vetoCapReached: false,
-  tonightPickChosen: false
+  tonightPickChosen: false,
+  // Phase 8 Watch-Intent Flows
+  intentProposed: true,
+  intentMatched: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -112,7 +115,9 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   titleApproval:       { label: 'Parent approval',           hint: 'When a parent approves or declines a request you sent' },
   inviteReceived:      { label: 'Invites',                   hint: 'When someone invites you to a family' },
   vetoCapReached:      { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row' },
-  tonightPickChosen:   { label: 'Tonight’s pick chosen', hint: 'When the spinner lands on a movie' }
+  tonightPickChosen:   { label: 'Tonight’s pick chosen', hint: 'When the spinner lands on a movie' },
+  intentProposed:      { label: 'New intent posted',         hint: 'When someone proposes a tonight-watch or asks the family about a title' },
+  intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' }
 });
 
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
