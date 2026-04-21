@@ -41,6 +41,8 @@ Every Firestore write that previously identified a member by a family-local `m_<
 
 - **D-10:** **One uid → many groups is mandatory** (not optional). Older kids will belong to the family + independent friend groups. The existing `savedGroups` localStorage + group-switcher UI is the foundation; extend it to be uid-keyed (synced via Firestore `users/{uid}/groups`) instead of device-local only.
 - **D-11:** **Group join via invite link + code (both).** Owner generates a shareable invite link (deep-link with code prefilled into PWA). Recipient opens it, signs in if not already, lands on the group's name-pick screen. Code-only entry (today's flow) remains as the fallback for off-app shares.
+
+  **D-11 addendum (revision 1, 2026-04-20):** For v1, the "permanent" (non-guest) invite-link flow for authed adults is covered by the combination of **D-09 family-authed device** + **code-only share**: any adult receiving the code over SMS/email/AirDrop signs in once, enters the code, and becomes an authed member. A purpose-built permanent-invite-link CF with deep-link + autofilled code is **deferred** (see `<deferred>` section). Planner confirms code-only + D-09 is adequate coverage for AUTH-02's permanent-adult case; guest-temporary invite links (D-12) remain distinct and fully implemented in Phase 5.
 - **D-12:** **Temporary guest membership: owner-issued timed invite.** Owner taps "Invite guest" in settings, picks duration (1 day / 1 week / custom / until-revoked), gets a one-time invite link. Guest taps link, signs in with their own account (or opts into code-only mode if they have no account), joins with `temporary: true + expiresAt`. On expiry, member doc archives (votes preserved for recap), guest drops from active roster. Re-invitable.
 - **D-13:** **First sign-in landing for older kids:** if the parent-generated invite link carried a sub-profile claim token, new account lands directly in "Is this you, [Kid]?" confirmation — one tap claims the sub-profile, votes/queue/history carry over. Otherwise lands on an empty "Create or join a group" screen with the family code field.
 
@@ -153,6 +155,7 @@ Every Firestore write that previously identified a member by a family-local `m_<
 - **Hard cutover at first launch** — rejected; soft cutover with grace window is the path.
 - **Phone-auth SMS cost monitoring + per-family rate limits** — operational concern, surface in Phase 6 push planning where SMS budgeting is also relevant.
 - **Sign-in screen visual polish / branded sign-in surface** — deferred to Phase 9 redesign; Phase 5 ships functional UI on existing design tokens.
+- **Permanent (non-guest) invite-link flow with deep-link + autofilled code (revision 1, 2026-04-20).** v1 uses D-09 family-authed device + code-only share; planner confirms adequate coverage for AUTH-02's permanent-adult case. Deferred to a 5.x follow-up if user feedback demands a link-based flow for authed adults. Guest-temporary invite links (D-12) remain in scope.
 
 </deferred>
 
@@ -160,3 +163,4 @@ Every Firestore write that previously identified a member by a family-local `m_<
 
 *Phase: 05-auth-groups*
 *Context gathered: 2026-04-20*
+*Revision 1: 2026-04-20 — D-11 addendum + permanent-invite-link deferred (per plan-checker feedback)*
