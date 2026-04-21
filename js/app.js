@@ -1283,6 +1283,87 @@ function isFairnessLocked() {
 const WP_ARCHIVE_MS = 25 * 60 * 60 * 1000; // 25h after start time
 function watchpartiesRef() { return collection(db, 'families', state.familyCode, 'watchparties'); }
 function watchpartyRef(id) { return doc(db, 'families', state.familyCode, 'watchparties', id); }
+
+// === Phase 8 Watch-Intent Flows ===
+// Intents are a new primitive SEPARATE from the general vote system (see 08-CONTEXT D-02).
+// A member can have a standing Yes on a title AND a No RSVP to a specific tonight-at-9pm
+// intent about it. Different signals; different lifecycles.
+function intentsRef() { return collection(db, 'families', state.familyCode, 'intents'); }
+function intentRef(id) { return doc(db, 'families', state.familyCode, 'intents', id); }
+
+// Group-size-aware threshold resolver (D-04/05). Called once at intent create time to
+// stamp thresholdRule; client-side match detection uses this snapshot rather than re-resolving
+// so rule changes don't retroactively flip existing open intents.
+function computeIntentThreshold(group) {
+  const mode = (group && group.mode) || 'family';
+  const override = group && group.intentThreshold;
+  const rule = override || (mode === 'family' ? 'majority' : 'any_yes');
+  return { rule };
+}
+
+async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {}) {
+  if (!state.me || !state.familyCode) return null;
+  if (type !== 'tonight_at_time' && type !== 'watch_this_title') throw new Error('bad_intent_type');
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) throw new Error('title_not_found');
+  const id = 'i_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const now = Date.now();
+  const expiresAt = type === 'tonight_at_time'
+    ? (proposedStartAt || now) + 3 * 60 * 60 * 1000  // 3h past startAt
+    : now + 30 * 24 * 60 * 60 * 1000;                // 30d for interest polls
+  const th = computeIntentThreshold(state.group || {});
+  const intent = {
+    id, type,
+    titleId, titleName: t.name, titlePoster: t.poster || '',
+    createdBy: state.me.id,
+    createdByName: state.me.name || null,
+    createdByUid: (state.auth && state.auth.uid) || null,
+    createdAt: now,
+    rsvps: {
+      [state.me.id]: {
+        value: 'yes',
+        at: now,
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      }
+    },
+    thresholdRule: th.rule,
+    status: 'open',
+    expiresAt
+  };
+  if (type === 'tonight_at_time') intent.proposedStartAt = proposedStartAt || null;
+  if (proposedNote) intent.proposedNote = proposedNote;
+  await setDoc(intentRef(id), { ...intent, ...writeAttribution() });
+  return id;
+}
+
+async function setIntentRsvp(intentId, value) {
+  if (!state.me) return;
+  const allowed = ['yes', 'no', 'maybe', 'later'];
+  if (!allowed.includes(value)) return;
+  const patch = {
+    [`rsvps.${state.me.id}`]: {
+      value,
+      at: Date.now(),
+      actingUid: (state.auth && state.auth.uid) || null,
+      memberName: state.me.name || null
+    }
+  };
+  try {
+    await updateDoc(intentRef(intentId), { ...patch, ...writeAttribution() });
+  } catch (e) { qnLog('[intent] setRsvp failed', intentId, e.message); }
+}
+
+async function cancelIntent(intentId) {
+  if (!state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch (e) { qnLog('[intent] cancel failed', intentId, e.message); }
+}
 function activeWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => {
@@ -1501,6 +1582,8 @@ async function onAuthStateChangedCouch(user) {
     if (state.unsubNotifPrefs) { try { state.unsubNotifPrefs(); } catch(e) {} state.unsubNotifPrefs = null; }
     if (state.unsubMembers) { try { state.unsubMembers(); } catch(e) {} state.unsubMembers = null; }
     if (state.unsubTitles) { try { state.unsubTitles(); } catch(e) {} state.unsubTitles = null; }
+    if (state.unsubIntents) { try { state.unsubIntents(); } catch(e) {} state.unsubIntents = null; }
+    state.intents = [];
     state.me = null;
     state.familyCode = null;
     state.members = [];
@@ -2653,6 +2736,13 @@ function startSync() {
   });
   subscribeSession();
   scheduleMidnightRefresh();
+  // Phase 8 — subscribe to intents collection. Guards with typeof checks so Plan 08-01
+  // can land before 08-02's renderIntentsStrip + 08-03's maybeEvaluateIntentMatches exist.
+  state.unsubIntents = onSnapshot(intentsRef(), s => {
+    state.intents = s.docs.map(d => d.data());
+    if (typeof renderIntentsStrip === 'function') renderIntentsStrip();
+    if (typeof maybeEvaluateIntentMatches === 'function') maybeEvaluateIntentMatches(state.intents);
+  }, e => { qnLog('[intents] snapshot error', e.message); });
   // Subscribe to watchparties collection
   state.unsubWatchparties = onSnapshot(watchpartiesRef(), s => {
     state.watchparties = s.docs.map(d => d.data());

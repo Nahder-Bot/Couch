@@ -288,6 +288,66 @@ service cloud.firestore {
         allow create, update: if attributedWrite(familyCode);
         allow delete: if isOwner(familyCode) || (isMemberOfFamily(familyCode) && graceActive());
       }
+
+
+      // ========================================================
+      // Intents — Phase 8 Watch-Intent Flows
+      // ========================================================
+      // Two flow types share this subcollection: tonight_at_time, watch_this_title.
+      // Writes fall into disjoint update branches to keep attacker surface narrow while
+      // allowing every family member to RSVP on their own behalf and any member to
+      // detect & write the open→matched transition (client-side threshold detection
+      // per 08-CONTEXT D-07, idempotent under races via status recheck).
+
+      match /intents/{intentId} {
+        allow read: if isMemberOfFamily(familyCode);
+
+        // Create: family member creates their own intent. Must stamp createdBy + status=open.
+        allow create: if attributedWrite(familyCode)
+          && request.resource.data.status == 'open'
+          && (request.resource.data.type == 'tonight_at_time' || request.resource.data.type == 'watch_this_title');
+
+        // Update — three disjoint branches:
+        //   (1) RSVP: any family member writes/clears their own rsvps slot + writeAttribution fields
+        //   (2) Cancel: creator transitions status → 'cancelled'
+        //   (3) Match-transition: any family member transitions status open → 'matched'
+        //                         (client-side match detection writes this idempotently)
+        //   (4) Convert: creator transitions status matched → 'converted' after launching a watchparty/schedule
+        allow update: if attributedWrite(familyCode) && (
+          // (1) RSVP branch — only rsvps map + attribution keys touched
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['rsvps', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+
+          // (2) Cancel branch — only the creator can cancel
+          || (
+            resource.data.createdByUid == uid()
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelledAt', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          )
+
+          // (3) Match transition — must cross open → matched
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'matched'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'matchedAt', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          )
+
+          // (4) Convert transition — creator only, matched → converted
+          || (
+            resource.data.status == 'matched'
+            && request.resource.data.status == 'converted'
+            && resource.data.createdByUid == uid()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'convertedTo', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          )
+        );
+
+        // Never hard-delete — the intent doc is the Year-in-Review raw data (D-22/D-23).
+        // Archival is done via status transitions (cancelled / expired / converted).
+        allow delete: if false;
+      }
     }
   }
 }
