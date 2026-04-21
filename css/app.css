@@ -1909,3 +1909,10 @@ h3{font-size:var(--t-h3)}
 .queue-empty{text-align:center;padding:48px 20px 40px;color:var(--ink-dim);font-size:var(--t-meta);line-height:1.5;max-width:320px;margin:0 auto}
 .queue-empty strong{color:var(--accent);display:block;margin-bottom:10px;font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;font-size:var(--t-h2);letter-spacing:-0.01em}
 .queue-empty .emoji{font-size:44px;display:block;margin:0 auto 16px;opacity:0.8;filter:drop-shadow(0 4px 8px rgba(232,160,74,0.2))}
+
+/* Legal footer (Privacy / Terms) — required for Google OAuth consent screen; hidden in standalone PWA */
+.legal-footer{position:fixed;left:0;right:0;bottom:0;z-index:1;display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 12px;font-size:10px;color:var(--ink-faint);background:transparent;pointer-events:none;letter-spacing:0.04em;text-transform:uppercase}
+.legal-footer a{color:var(--ink-faint);text-decoration:none;pointer-events:auto;padding:4px 6px}
+.legal-footer a:hover{color:var(--ink-dim)}
+.legal-footer .sep{opacity:0.5}
+@media (display-mode:standalone){.legal-footer{display:none}}
