@@ -1054,8 +1054,15 @@ function myVetoesToday() {
   if (!state.me) return [];
   const vetoes = getVetoes();
   const out = [];
+  // D-21 self-echo guard — compare incoming actingUid OR legacy memberId against self.
+  // Post-grace, the actingUid branch is authoritative; during grace, the legacy branch catches pre-Plan-06 writes.
+  const myUid = (state.auth && state.auth.uid) || null;
+  const myMemberId = (state.me && state.me.id) || null;
   for (const titleId in vetoes) {
-    if (vetoes[titleId].memberId === state.me.id) out.push({ titleId, ...vetoes[titleId] });
+    const v = vetoes[titleId];
+    if ((myUid && v.actingUid === myUid) || (myMemberId && v.memberId === myMemberId)) {
+      out.push({ titleId, ...v });
+    }
   }
   return out;
 }
@@ -1072,9 +1079,13 @@ function isFairnessLocked() {
   if ((state.selectedMembers || []).length <= 1) return false;
   const vetoes = getVetoes();
   let latestMine = 0;
+  // D-21 self-echo guard — compare incoming actingUid OR legacy memberId against self.
+  // Post-grace, the actingUid branch is authoritative; during grace, the legacy branch catches pre-Plan-06 writes.
+  const myUid = (state.auth && state.auth.uid) || null;
+  const myMemberId = (state.me && state.me.id) || null;
   for (const id in vetoes) {
     const v = vetoes[id];
-    if (v && v.memberId === state.me.id) {
+    if (v && ((myUid && v.actingUid === myUid) || (myMemberId && v.memberId === myMemberId))) {
       if ((v.at || 0) > latestMine) latestMine = v.at || 0;
     }
   }
@@ -1525,10 +1536,15 @@ function subscribeSession() {
     // D-13: warm toast for vetoes authored by OTHER members. Skip the very first snapshot so we
     // don't flood on subscribe (the initial state is the baseline, not a delta).
     if (!vetoSubscribeIsFirstSnapshot) {
+      // D-21 self-echo guard — compare incoming actingUid OR legacy memberId against self.
+      // Post-grace, the actingUid branch is authoritative; during grace, the legacy branch catches pre-Plan-06 writes.
+      const myUid = (state.auth && state.auth.uid) || null;
+      const myMemberId = (state.me && state.me.id) || null;
       for (const titleId of incomingKeys) {
         if (prevVetoKeys.has(titleId)) continue;
         const v = incomingVetoes[titleId];
-        if (!v || v.memberId === (state.me && state.me.id)) continue;
+        const isMine = !!(v && ((myUid && v.actingUid === myUid) || (myMemberId && v.memberId === myMemberId)));
+        if (!v || isMine) continue;
         const t = state.titles.find(x => x.id === titleId);
         const titleName = (t && t.name) || 'a title';
         flashToast(v.memberName + ' passed on ' + titleName + ' — spinning again…', { kind: 'info' });
