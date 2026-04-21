@@ -2664,6 +2664,11 @@ function startSync() {
         try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
       }
     });
+    // Phase 7 Plan 01: flip scheduled parties past startAt to active. Client-primary path;
+    // the watchpartyTick CF serves as a safety net when no client is online. Each client
+    // tries, but updateDoc is idempotent under "status === 'scheduled'" re-check so multi-
+    // client races don't produce double-flips — the second writer no-ops.
+    maybeFlipScheduledParties(state.watchparties);
     // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
     maybeNotifyWatchparties(state.watchparties);
     renderWatchpartyBanner();
@@ -2671,6 +2676,9 @@ function startSync() {
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
   state.watchpartyTick = setInterval(() => {
+    // Phase 7 Plan 01: unconditional flip check every second — catches scheduled parties
+    // that crossed startAt since the last snapshot without waiting for the next snapshot.
+    maybeFlipScheduledParties(state.watchparties);
     if (activeWatchparties().length) {
       renderWatchpartyBanner();
       // Time-based trigger: someone's starting in <2min. This can't come from a snapshot alone
@@ -2680,6 +2688,35 @@ function startSync() {
     // Only re-render the live screen if it's open
     if (state.activeWatchpartyId) renderWatchpartyLive();
   }, 1000);
+}
+
+// Phase 7 D-04: flip scheduled parties past their startAt to `'active'`. Triggers the
+// Phase 6 onWatchpartyUpdate CF, which sends the watchpartyStarting push to non-host
+// members who opted in. Idempotent under races: we re-read the doc status right before
+// writing (via getDoc), skip if already flipped, and the updateDoc uses merge-style. Two
+// clients flipping the same party will both succeed in writing, but the writes are
+// identical — no divergence.
+async function maybeFlipScheduledParties(parties) {
+  if (!parties || !parties.length) return;
+  if (!state.auth && !(state.me && state.me.id)) return;  // no-op for signed-out
+  const now = Date.now();
+  for (const wp of parties) {
+    if (wp.status !== 'scheduled') continue;
+    if ((wp.startAt || 0) > now) continue;
+    if ((now - (wp.startAt || 0)) > 6 * 60 * 60 * 1000) continue;  // >6h stale; CF archives these
+    try {
+      const snap = await getDoc(watchpartyRef(wp.id));
+      if (!snap.exists()) continue;
+      const fresh = snap.data();
+      if (fresh.status !== 'scheduled') continue;  // already flipped by another client / CF
+      if ((fresh.startAt || 0) > Date.now()) continue;  // defensive recheck
+      await updateDoc(watchpartyRef(wp.id), {
+        status: 'active',
+        lastActivityAt: Date.now(),
+        ...writeAttribution()
+      });
+    } catch (e) { qnLog('[wp] flip failed', wp.id, e.message); }
+  }
 }
 
 async function boot() {
@@ -6860,8 +6897,10 @@ window.confirmStartWatchparty = async function() {
     titlePoster: t.poster || '',
     hostId: state.me.id,
     hostName: state.me.name,
+    hostUid: (state.auth && state.auth.uid) || null,  // Phase 6: self-echo attribution on push
     startAt,
     createdAt: Date.now(),
+    lastActivityAt: Date.now(),  // Phase 7 D-06: orphan detection source of truth
     status: startAt <= Date.now() ? 'active' : 'scheduled',
     participants: {
       [state.me.id]: {
@@ -7222,7 +7261,7 @@ async function postReaction(payload) {
     ...payload
   };
   try {
-    await updateDoc(watchpartyRef(wp.id), { reactions: arrayUnion(reaction), ...writeAttribution() });
+    await updateDoc(watchpartyRef(wp.id), { reactions: arrayUnion(reaction), lastActivityAt: Date.now(), ...writeAttribution() });
     // Local optimistic refresh — snapshot will overwrite this imminently
     wp.reactions = [...(wp.reactions || []), reaction];
     renderWatchpartyLive();
