@@ -5236,6 +5236,10 @@ window.openDetailModal = async function(id) {
   const content = document.getElementById('detail-modal-content');
   content.innerHTML = renderDetailShell(t);
   bg.classList.add('on');
+  // Tap-outside-to-close. Essential on iOS PWA where there's no browser back and
+  // the ✕ scrolls out of view when the detail is scrolled. Only the backdrop itself
+  // closes; taps bubbled up from modal content pass through to their targets.
+  bg.onclick = (e) => { if (e.target === bg) closeDetailModal(); };
   if (t.isManual) return;
   // For TV titles, the fetch also pulls showStatus/nextEpisode/etc which were added
   // in Turn 9. If those are missing even though detailsCached is true, we do one
