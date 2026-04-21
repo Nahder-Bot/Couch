@@ -248,3 +248,34 @@ Key grep checks:
 - `existing-members-list` inside continueToNameScreen body — PASS
 - `signOutUser()` in js/app.js — PASS
 - `node --check` all three JS files — PASS
+
+---
+
+## Post-Deploy Fix Arc (live-testing session, 2026-04-21)
+
+After the initial 05-06 deploy the auth + multi-group flow was exercised end-to-end against `couchtonight.app` in fresh incognito windows. Each of the following commits corrects a specific failure mode surfaced by that round-trip.
+
+| # | Commit | Problem | Fix |
+|---|--------|---------|-----|
+| 1 | `c2c5af6` | Google sign-in redirect returned to `queuenight-84044.firebaseapp.com`, breaking the return-to-app roundtrip | Flip `firebaseConfig.authDomain` to `"couchtonight.app"` (the custom domain the user actually loads the PWA from). |
+| 2 | `87a8ea3` | Existing pre-Phase-5 member docs had no `uid` field, so a re-signed-in user couldn't claim their own legacy member | Opportunistic uid claim in `joinAsExisting`: during grace, write `{uid, claimedAt}` onto the legacy member doc. Rules branch added so `request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid','claimedAt'])`. |
+| 3 | `69cb30d` | Three UX cuts surfaced in smoke test | — flatten sign-in screen (Google/Email/Phone all visible, no "More options" drawer); — Account tab shows signed-in identity; — misc. copy tweaks. |
+| 4 | `6e2be5e` | The `Signed in as …` chip was rendered in `--ink-faint` and visually lost | Bump to `--ink-dim` with the green dot + pill background so it reads as an identity affordance. |
+| 5 | `e96a954` | After signing out + opening an incognito window, the user had to re-pick mode/family — identity-to-member wasn't durable | Three-part persistence: `startUserGroupsSubscription` returns a first-snapshot promise awaited in `onAuthStateChangedCouch` (fixes post-sign-in race); `_bootIntoGroup` resolution order 1) Firestore `users/{uid}/groups` index `memberId`, 2) `members` collection lookup by `uid`, 3) `localStorage.qn_me`; auto-route via `routeAfterAuth` lands directly on Tonight as the right member. |
+| 6 | `856ee76` | After (5), signed-in reload still blank-screened — `boot()` was pre-setting `state.auth` from persistence, so the listener's `wasSignedIn=true` branch skipped routing | Remove the `state.auth` setter from `boot()`. `onAuthStateChangedCouch` is the single owner of auth state — boot never writes it. |
+| 7 | `0704a0c` | Four remaining cuts from the last smoke round | — `showApp()` hides `signin-screen` so pre-auth UI doesn't linger stacked above the app; — `openAddGroup()` keeps `qn_family`/`qn_me` intact and instead sets a `sessionStorage.qn_add_group_intent` sentinel that `routeAfterAuth` consumes to skip the existing-group auto-boot into mode-pick (multi-group add); — `startUserGroupsSubscription` normalizes the Firestore `{familyCode, memberId}` shape into the legacy `{code, myMemberId, myMemberName}` shape so `switchToGroup`/`renderGroupSwitcher`/`loadSavedGroups` all resolve; — `boot()` only paints the sign-in screen when `auth.currentUser` is null after `bootstrapAuth` so signed-in reloads don't flash the sign-in UI. |
+
+**Post-fix behavior (verified by user):**
+- Fresh incognito: Google sign-in → direct to Tonight inside ZFAM7 as Nahder (zero prompts).
+- Signed-in reload: no sign-in flash, no blank-screen, routes to last active group.
+- `+ Join or create` from group switcher: lands on mode-pick, creates BOSSCHAT, writes a second `users/{uid}/groups` entry without disturbing ZFAM7.
+- Group switcher: tapping either group switches cleanly; cancelling add-group falls back to current group.
+- Sign out + incognito re-sign-in: lands back on same group, same member, no re-prompting.
+
+### Still outstanding for Phase 5 wrap-up
+
+- **sw.js `/__/auth/**` bypass** — service worker currently caches auth-iframe requests, producing benign console errors during sign-in. Needs a `fetch` handler early-return for that path.
+- **Live smoke test of Phase 1-4 features** under the new `writeAttribution` helper (vote, mood pick, veto, watchparty join) — should all write with `actingUid` + legacy `memberId` dual-stamp during grace.
+- **Wave 5 / Plan 05-07** — sub-profiles + Manage-Group settings UI.
+- **Wave 6 / Plan 05-08** — claim-members panel, mintClaimTokens CF, grace-window banner.
+- **Wave 7 / Plan 05-09** — UAT pass.
