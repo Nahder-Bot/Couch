@@ -1325,11 +1325,15 @@ async function onAuthStateChangedCouch(user) {
   }
 
   // User is signed in
-  startUserGroupsSubscription(user.uid);
+  const groupsReady = startUserGroupsSubscription(user.uid);
   startSettingsSubscription();
 
   if (!wasSignedIn) {
-    // Fresh sign-in: consume any pending claim / invite token
+    // Fresh sign-in: wait for the first users/{uid}/groups snapshot before routing
+    // so routeAfterAuth sees the real groups list (not empty from localStorage).
+    // Cap the wait at 4s so a network stall doesn't leave the user frozen.
+    try { await Promise.race([groupsReady, new Promise(r => setTimeout(r, 4000))]); } catch(e) {}
+    // Consume any pending claim / invite token; else route into group or mode-pick
     await handlePostSignInIntent();
   }
 }
@@ -1337,11 +1341,21 @@ async function onAuthStateChangedCouch(user) {
 function startUserGroupsSubscription(uid) {
   if (state.unsubUserGroups) { try { state.unsubUserGroups(); } catch(e) {} }
   const groupsCol = collection(db, 'users', uid, 'groups');
+  // Return a promise that resolves on the FIRST snapshot. The caller awaits this
+  // before routing so routeAfterAuth sees the real groups list (not the empty
+  // localStorage-preloaded list), eliminating the post-sign-in flash to mode-pick.
+  let firstSnapshotResolver;
+  const firstSnapshot = new Promise(resolve => { firstSnapshotResolver = resolve; });
   state.unsubUserGroups = onSnapshot(groupsCol, (snap) => {
     state.groups = snap.docs.map(d => d.data());
     try { localStorage.setItem('qn_groups', JSON.stringify(state.groups)); } catch(e) {}
     if (typeof renderGroupSwitcher === 'function') renderGroupSwitcher();
-  }, (e) => console.error('[user-groups] snapshot error', e));
+    if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
+  }, (e) => {
+    console.error('[user-groups] snapshot error', e);
+    if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
+  });
+  return firstSnapshot;
 }
 
 function startSettingsSubscription() {
@@ -1986,6 +2000,17 @@ function showApp() {
   if (famLabelEl) {
     famLabelEl.innerHTML = groupNounCap() +
       ' <span class="family-chip">' + escapeHtml(state.familyCode) + '</span>';
+  }
+  // Phase 5: Google / Email / Phone identity line, shown only when signed in.
+  const authLine = document.getElementById('account-auth-email');
+  if (authLine) {
+    const ident = state.auth && (state.auth.email || state.auth.phoneNumber);
+    if (ident) {
+      authLine.textContent = 'Signed in as ' + ident;
+      authLine.style.display = 'block';
+    } else {
+      authLine.style.display = 'none';
+    }
   }
   // Account hero greeting — serif first name
   const greetEl = document.getElementById('account-hero-greeting');

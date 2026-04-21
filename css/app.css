@@ -926,6 +926,9 @@ h3{font-size:var(--t-h3)}
   letter-spacing:-0.015em;line-height:1.2;margin-bottom:2px}
 .tab-identity-meta{font-size:var(--t-meta);color:var(--ink-dim);
   font-family:'Inter',sans-serif}
+.tab-identity-auth{font-size:11px;color:var(--ink-faint);margin-top:4px;
+  font-family:'Inter',sans-serif;letter-spacing:0.02em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tab-identity-meta .family-chip{display:inline-flex;align-items:center;gap:4px;
   font-family:'Geist Mono','SF Mono',Menlo,monospace;font-size:var(--t-micro);
   color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;
@@ -1922,7 +1925,10 @@ h3{font-size:var(--t-h3)}
 .signin-header { text-align: center; margin: 40px 0 32px; }
 .signin-title { font-family: 'Fraunces', serif; font-size: 48px; margin: 0; letter-spacing: -0.02em; color: var(--ink); }
 .signin-tag { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--ink-warm); margin: 8px 0 0; font-style: italic; }
-.signin-providers { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.signin-providers { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+.signin-divider { display: flex; align-items: center; gap: 12px; color: var(--ink-faint); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; margin: 4px 0; }
+.signin-divider::before, .signin-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-mid); }
+.signin-divider span { flex: 0 0 auto; }
 .provider-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 18px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
 .provider-btn:active { transform: scale(0.99); opacity: 0.85; }
 .provider-google { background: #fff; color: #1f1f1f; border-color: #ddd; }
