@@ -6,7 +6,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // ====== PASTE YOUR FIREBASE CONFIG BELOW (between the curly braces) ======
 const firebaseConfig = {
   apiKey: "AIzaSyBpIaEoVZ4GpbvPCFcziam4DY8hPRGh28U",
-  authDomain: "queuenight-84044.firebaseapp.com",
+  authDomain: "couchtonight.app",
   projectId: "queuenight-84044",
   storageBucket: "queuenight-84044.firebasestorage.app",
   messagingSenderId: "928451125383",
