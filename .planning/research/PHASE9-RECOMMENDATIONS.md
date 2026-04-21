@@ -24,8 +24,16 @@ This isn't a split-personality brand (which I initially proposed and the user co
 - **Marketing headlines:** lead with "Couch Tonight"; casual body copy can drop to "Couch"
 
 **Blocking before Phase 9 branding commits:**
-- Paid TESS / Corsearch clearance on COUCH TONIGHT by IP counsel (~$500-1500, ~2 week turnaround). Add as a Phase 9 human-action checkpoint.
-- Confirm defensive domains + social handles available / acquirable.
+- ~~Paid TESS / Corsearch clearance on COUCH TONIGHT~~ — **DEFERRED 2026-04-22 by user decision.** Trade-off accepted: ~25-30% probability of either USPTO descriptiveness refusal OR incumbent C&D forcing a rename 12-18 months in, with ~$1-2k expected soft cost if it materializes. User rationale: `couchtonight.app` domain was freely available (though noted: domain availability ≠ TM clearance); willingness to absorb rename risk; cost savings of ~$500-1500 preferred; C&D damages escalation probability is <1% so no catastrophic downside.
+- Confirm defensive domains + social handles available / acquirable (still recommended — low cost).
+
+**Deferred decision — revisit if/when:**
+- Scaling to meaningful paid marketing push (post-friends-and-family stage)
+- Press push that would generate public exposure
+- Any C&D or refusal letter arrives — at that point, engage IP counsel reactively
+- Before spending on physical marketing assets (billboards / print / app-store paid search campaigns)
+
+**Middle-path option still available:** DIY USPTO TEAS filing for COUCH TONIGHT at $350 (no attorney) as low-cost defensive registration. Provides priority date + constructive notice even without paid clearance. If the application is rejected for descriptiveness, $350 is the only loss. User may revisit this when convenient.
 
 **Rationale documented:** the "one-word brand is better" design principle is true in the abstract (Nike/Slack/Uber) but relies on the one-word being **arbitrary AND rare**. "Couch" fails both — it's descriptive of the use case AND common in the category (Couch-to-5K, Couch TV, Couch Movies, CouchTimes all already live). "Couch Tonight" sidesteps both problems while preserving "Couch" as the affectionate shorthand that will evolve organically.
 
