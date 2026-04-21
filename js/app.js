@@ -568,7 +568,7 @@ const trakt = {
             update[`ratings.${meId}`] = { score: rating, updatedAt: Date.now() };
           }
           try {
-            await updateDoc(doc(titlesRef(), existing.id), update);
+            await updateDoc(doc(titlesRef(), existing.id), { ...writeAttribution(), ...update });
             updated++;
           } catch(e) { qnLog('[Trakt] progress update failed', e); }
         }
@@ -609,7 +609,7 @@ const trakt = {
             update[`ratings.${meId}`] = { score: rating, updatedAt: Date.now() };
           }
           try {
-            await updateDoc(doc(titlesRef(), existing.id), update);
+            await updateDoc(doc(titlesRef(), existing.id), { ...writeAttribution(), ...update });
             updated++;
           } catch(e) { qnLog('[Trakt] movie update failed', e); }
         }
@@ -672,7 +672,7 @@ const trakt = {
       if (mediaType === 'tv') {
         doc_.seasons = d.number_of_seasons || null;
       }
-      await setDoc(doc(titlesRef(), titleId), doc_);
+      await setDoc(doc(titlesRef(), titleId), { ...doc_, ...writeAttribution() });
       return titleId;
     } catch (e) {
       qnLog('[Trakt] createTitleFromTrakt failed', e);
@@ -1991,7 +1991,8 @@ function startSync() {
     const now = Date.now();
     state.watchparties.forEach(wp => {
       if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
-        try { updateDoc(watchpartyRef(wp.id), { status: 'archived' }); } catch(e){}
+        if (!state.auth && !(state.me && state.me.id)) return;
+        try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
       }
     });
     // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
@@ -2933,7 +2934,7 @@ async function persistQueueOrder(orderedTitles) {
     if (currentRank !== i + 1) {
       const queues = { ...(t.queues || {}) };
       queues[state.me.id] = i + 1;
-      updates.push(updateDoc(doc(titlesRef(), t.id), { queues }));
+      updates.push(updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), queues }));
     }
   }
   try { await Promise.all(updates); } catch(e) { console.error('queue reorder failed', e); }
@@ -3483,7 +3484,7 @@ async function createTitleWithApprovalCheck(titleId, titleData) {
     finalData.requestedBy = me.id;
     finalData.requestedAt = Date.now();
   }
-  await setDoc(doc(titlesRef(), titleId), finalData);
+  await setDoc(doc(titlesRef(), titleId), { ...finalData, ...writeAttribution() });
   return { ok: true, pending };
 }
 
@@ -3494,6 +3495,7 @@ window.approveTitle = async function(titleId) {
   haptic('success');
   try {
     await updateDoc(doc(titlesRef(), titleId), {
+      ...writeAttribution(),
       approvalStatus: 'approved',
       approvalBy: state.me.id,
       approvalAt: Date.now()
@@ -3515,7 +3517,7 @@ window.declineTitle = async function(titleId, note) {
       approvalAt: Date.now()
     };
     if (note && note.trim()) update.approvalNote = note.trim().slice(0, 200);
-    await updateDoc(doc(titlesRef(), titleId), update);
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), ...update });
     const t = state.titles.find(x => x.id === titleId);
     flashToast(t ? `"${t.name}" stays off the couch` : 'Off the couch');
     logActivity('declined', { titleName: t?.name || '', titleId });
@@ -3550,7 +3552,7 @@ async function autoBackfill() {
     for (const t of needsMoods) {
       const moods = suggestMoods(t.genres || [], t.runtime);
       if (moods.length) {
-        try { await updateDoc(doc(titlesRef(), t.id), { moods }); } catch(e){}
+        try { await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), moods }); } catch(e){}
       }
     }
     // Phase 2: TMDB extras for titles missing rating/trailer/providers. Capped at 10 per session.
@@ -3578,7 +3580,7 @@ async function autoBackfill() {
           if (moods.length) update.moods = moods;
         }
         if (Object.keys(update).length) {
-          await updateDoc(doc(titlesRef(), t.id), update);
+          await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), ...update });
         }
       } catch(e){}
     }
@@ -3598,7 +3600,7 @@ async function autoBackfill() {
         update.providers = extras.providers || [];
         update.rentProviders = extras.rentProviders || [];
         update.buyProviders = extras.buyProviders || [];
-        await updateDoc(doc(titlesRef(), t.id), update);
+        await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), ...update });
         const brands = (extras.providers||[]).map(p => p.name).join(', ') || '(no sub)';
         const paid = [(extras.rentProviders||[]).length ? 'rent' : '', (extras.buyProviders||[]).length ? 'buy' : ''].filter(Boolean).join('/');
         qnLog('[QN] Migrated', t.name, '→', brands, paid ? '·' : '', paid);
@@ -3622,7 +3624,7 @@ async function autoBackfill() {
         for (const t of needQueueAdd) {
           const queues = { ...(t.queues || {}) };
           queues[myId] = nextRank++;
-          try { await updateDoc(doc(titlesRef(), t.id), { queues }); } catch(e){}
+          try { await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), queues }); } catch(e){}
         }
       }
       // Also: remove queue entries for titles where my vote is No/Seen (stale ranks from old model)
@@ -3632,7 +3634,7 @@ async function autoBackfill() {
         for (const t of staleQueues) {
           const queues = { ...t.queues };
           delete queues[myId];
-          try { await updateDoc(doc(titlesRef(), t.id), { queues }); } catch(e){}
+          try { await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), queues }); } catch(e){}
         }
         await reindexMyQueue();
       }
@@ -3844,6 +3846,7 @@ window.postComment = async function() {
   input.value = '';
   try {
     await addDoc(commentsRef(titleId), {
+      ...writeAttribution(),
       authorId: state.me.id,
       authorName: state.me.name,
       body,
@@ -3851,7 +3854,7 @@ window.postComment = async function() {
     });
     const t = state.titles.find(x => x.id === titleId);
     const newCount = (t?.commentCount || 0) + 1;
-    await updateDoc(doc(titlesRef(), titleId), { commentCount: newCount });
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), commentCount: newCount });
     if (t) logActivity('commented', { titleName: t.name });
   } catch(e) {
     flashToast('Could not post. Try again.', { kind: 'warn' });
@@ -3867,7 +3870,7 @@ window.deleteComment = async function(commentId) {
     await deleteDoc(doc(commentsRef(titleId), commentId));
     const t = state.titles.find(x => x.id === titleId);
     const newCount = Math.max(0, (t?.commentCount || 0) - 1);
-    await updateDoc(doc(titlesRef(), titleId), { commentCount: newCount });
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), commentCount: newCount });
   } catch(e) { flashToast('Could not delete. Try again.', { kind: 'warn' }); }
 };
 
@@ -3956,7 +3959,7 @@ window.saveSchedule = async function() {
   try {
     // Remember the hour the user chose so next quick-pick uses the same
     try { localStorage.setItem('qn_schedule_hour', String(new Date(ts).getHours())); } catch(e) {}
-    await updateDoc(doc(titlesRef(), scheduleTitleId), { scheduledFor: ts, scheduledNote: note });
+    await updateDoc(doc(titlesRef(), scheduleTitleId), { ...writeAttribution(), scheduledFor: ts, scheduledNote: note });
     if (t) logActivity('scheduled', { titleName: t.name });
     downloadIcs(t, ts, note);
     closeScheduleModal();
@@ -3966,7 +3969,7 @@ window.saveSchedule = async function() {
 window.clearSchedule = async function() {
   if (!scheduleTitleId) return;
   try {
-    await updateDoc(doc(titlesRef(), scheduleTitleId), { scheduledFor: null, scheduledNote: null });
+    await updateDoc(doc(titlesRef(), scheduleTitleId), { ...writeAttribution(), scheduledFor: null, scheduledNote: null });
     closeScheduleModal();
   } catch(e) { flashToast('Could not clear. Try again.', { kind: 'warn' }); }
 };
@@ -4315,7 +4318,7 @@ window.refreshProviders = async function(id) {
       providersChecked: true,
       providersSchemaVersion: 3
     };
-    await updateDoc(doc(titlesRef(), id), update);
+    await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update });
     haptic('success');
     // Re-open the detail to show the fresh data
     setTimeout(() => openDetailModal(id), 150);
@@ -4353,7 +4356,7 @@ window.deleteMyReview = async function() {
   const reviews = { ...(t.reviews || {}) };
   delete reviews[state.me.id];
   try {
-    await updateDoc(doc(titlesRef(), reviewTitleId), { reviews });
+    await updateDoc(doc(titlesRef(), reviewTitleId), { ...writeAttribution(), reviews });
     closeReviewModal();
     if (detailTitleId === reviewTitleId) {
       const merged = state.titles.find(x => x.id === detailTitleId);
@@ -4376,7 +4379,7 @@ window.saveReview = async function() {
   const reviews = { ...(t.reviews || {}) };
   reviews[state.me.id] = { headline, body, updatedAt: Date.now() };
   try {
-    await updateDoc(doc(titlesRef(), reviewTitleId), { reviews });
+    await updateDoc(doc(titlesRef(), reviewTitleId), { ...writeAttribution(), reviews });
     closeReviewModal();
     logActivity('reviewed', { titleName: t.name });
     // Refresh detail modal if open
@@ -4550,7 +4553,7 @@ window.openDetailModal = async function(id) {
   const details = await fetchTmdbDetails(mediaType, tmdbId);
   const update = { detailsCached: true };
   Object.keys(details).forEach(k => { if (details[k] !== undefined && details[k] !== null) update[k] = details[k]; });
-  try { await updateDoc(doc(titlesRef(), id), update); } catch(e){ console.error(e); }
+  try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update }); } catch(e){ console.error(e); }
   if (detailTitleId === id) {
     const merged = { ...t, ...update };
     content.innerHTML = renderDetailShell(merged);
@@ -4740,7 +4743,7 @@ window.addDetailMood = async function(titleId, moodId) {
     detailMoodPaletteOutsideHandler = null;
   }
   _rerenderDetailFromState();
-  try { await updateDoc(doc(titlesRef(), titleId), { moods: newMoods, moodsUserEdited: true }); }
+  try { await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), moods: newMoods, moodsUserEdited: true }); }
   catch(e) { console.error('[QN] addDetailMood failed', e); }
 };
 
@@ -4755,7 +4758,7 @@ window.removeDetailMood = async function(titleId, moodId) {
   t.moods = newMoods;
   t.moodsUserEdited = true;
   _rerenderDetailFromState();
-  try { await updateDoc(doc(titlesRef(), titleId), { moods: newMoods, moodsUserEdited: true }); }
+  try { await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), moods: newMoods, moodsUserEdited: true }); }
   catch(e) { console.error('[QN] removeDetailMood failed', e); }
 };
 
@@ -4938,7 +4941,7 @@ function showSpinResult(pick, meta) {
   // D-05 / D-07: only manual spins claim spinnership. Auto re-spins (from post-spin veto per D-01) are
   // exempt per Pitfall 2 — they don't re-lock fairness for the vetoer.
   if (state.me && !(meta && meta.auto)) {
-    setDoc(sessionRef(), { spinnerId: state.me.id, spinnerAt: Date.now() }, { merge: true });
+    setDoc(sessionRef(), { ...writeAttribution(), spinnerId: state.me.id, spinnerAt: Date.now() }, { merge: true });
   }
   const content = document.getElementById('spin-modal-content');
   // Build provider strip
@@ -5013,7 +5016,7 @@ async function reindexMyQueue() {
     if (currentRank !== i + 1) {
       const queues = { ...(t.queues || {}) };
       queues[state.me.id] = i + 1;
-      try { await updateDoc(doc(titlesRef(), t.id), { queues }); } catch(e){}
+      try { await updateDoc(doc(titlesRef(), t.id), { ...writeAttribution(), queues }); } catch(e){}
     }
   }
 }
@@ -5086,6 +5089,7 @@ async function logActivity(kind, data) {
       if (match) payload.titleId = match.id;
     }
     await addDoc(activityRef(), {
+      ...writeAttribution(),
       kind,
       actorId: state.me.id,
       actorName: state.me.name,
@@ -5260,7 +5264,7 @@ async function writeMemberProgress(titleId, memberId, season, episode) {
   const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
   prevProgress[memberId] = { season: season, episode: episode, updatedAt: Date.now() };
   try {
-    await updateDoc(doc(titlesRef(), titleId), { progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
   } catch(e) { console.warn('progress write failed', e); }
   // Push to Trakt if connected and this is the current user's own progress.
   // We only push for the signed-in user — a parent setting their kid's progress
@@ -5280,7 +5284,7 @@ async function clearMemberProgress(titleId, memberId) {
   const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
   delete prevProgress[memberId];
   try {
-    await updateDoc(doc(titlesRef(), titleId), { progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
   } catch(e) { console.warn('progress clear failed', e); }
 }
 
@@ -5731,7 +5735,7 @@ window.saveEditTitle = async function() {
     scope: editScope,
     moods: editMoods.slice()
   };
-  try { await updateDoc(doc(titlesRef(), editTitleId), update); closeEditModal(); }
+  try { await updateDoc(doc(titlesRef(), editTitleId), { ...writeAttribution(), ...update }); closeEditModal(); }
   catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
 
@@ -5765,14 +5769,20 @@ window.submitVeto = async function() {
   const comment = document.getElementById('veto-comment').value.trim().slice(0, 200);
   const t = state.titles.find(x => x.id === vetoTitleId);
   const titleName = (t && t.name) || 'a title';
+  // Capture attribution ONCE and reuse across all three writes below.
+  // writeAttribution() has snapshot-then-clear semantics on state.actingAs,
+  // so calling it per-write would mis-attribute subsequent writes.
+  const attr = writeAttribution();
   const baseEntry = {
-    ...writeAttribution(),
+    ...attr,
     comment: comment || '',
     at: Date.now()
   };
   try {
-    // Pitfall 6: dotted field path — safe against concurrent vetoes on sibling titles
-    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId]: baseEntry });
+    // Pitfall 6: dotted field path — safe against concurrent vetoes on sibling titles.
+    // attr also spread at top level so Firestore rules (which check request.resource.data.actingUid)
+    // see attribution on the session doc write itself.
+    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId]: baseEntry, ...attr });
     // VETO-05: history doc survives midnight session rollover
     const histRef = await addDoc(vetoHistoryRef(), {
       ...baseEntry,
@@ -5784,7 +5794,7 @@ window.submitVeto = async function() {
     state.session = state.session || { vetoes: {} };
     state.session.vetoes = { ...(state.session.vetoes || {}), [vetoTitleId]: { ...baseEntry, historyDocId: histRef.id } };
     // Persist the historyDocId back into the session doc so unveto() can find it after page reload
-    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId + '.historyDocId']: histRef.id });
+    await updateDoc(sessionRef(), { ['vetoes.' + vetoTitleId + '.historyDocId']: histRef.id, ...attr });
     logActivity('vetoed', { titleName });
     const wasFromSpin = vetoFromSpinResult;
     closeVetoModal();
@@ -5810,7 +5820,7 @@ window.unveto = async function(titleId) {
   try {
     const current = { ...getVetoes() };
     delete current[titleId];
-    await setDoc(sessionRef(), { vetoes: current });
+    await setDoc(sessionRef(), { ...writeAttribution(), vetoes: current });
     if (v.historyDocId) {
       await deleteDoc(vetoHistoryDoc(v.historyDocId));
     }
@@ -6109,7 +6119,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     reactions: []
   };
   try {
-    await setDoc(watchpartyRef(id), wp);
+    await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
     logActivity('wp_started', { titleName: matchupLabel });
     closeSportsPicker();
     flashToast('Game scheduled', { kind: 'success' });
@@ -6159,7 +6169,7 @@ window.confirmStartWatchparty = async function() {
     reactions: []
   };
   try {
-    await setDoc(watchpartyRef(id), wp);
+    await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
     logActivity('wp_started', { titleName: t.name });
     document.getElementById('wp-start-modal-bg').classList.remove('on');
     state.activeWatchpartyId = id;
@@ -6192,7 +6202,7 @@ window.joinWatchparty = async function(wpId) {
     }
   };
   try {
-    await updateDoc(watchpartyRef(wpId), update);
+    await updateDoc(watchpartyRef(wpId), { ...update, ...writeAttribution() });
     state.activeWatchpartyId = wpId;
     renderWatchpartyLive();
     document.getElementById('wp-live-modal-bg').classList.add('on');
@@ -6505,7 +6515,7 @@ async function postReaction(payload) {
     ...payload
   };
   try {
-    await updateDoc(watchpartyRef(wp.id), { reactions: arrayUnion(reaction) });
+    await updateDoc(watchpartyRef(wp.id), { reactions: arrayUnion(reaction), ...writeAttribution() });
     // Local optimistic refresh — snapshot will overwrite this imminently
     wp.reactions = [...(wp.reactions || []), reaction];
     renderWatchpartyLive();
@@ -6526,14 +6536,16 @@ window.toggleWpPause = async function() {
     try {
       await updateDoc(watchpartyRef(wp.id), {
         [`participants.${state.me.id}.pausedAt`]: null,
-        [`participants.${state.me.id}.pausedOffset`]: newOffset
+        [`participants.${state.me.id}.pausedOffset`]: newOffset,
+        ...writeAttribution()
       });
     } catch(e) { alert('Could not resume: ' + e.message); }
   } else {
     // Pausing: record pausedAt
     try {
       await updateDoc(watchpartyRef(wp.id), {
-        [`participants.${state.me.id}.pausedAt`]: now
+        [`participants.${state.me.id}.pausedAt`]: now,
+        ...writeAttribution()
       });
     } catch(e) { alert('Could not pause: ' + e.message); }
   }
@@ -6544,7 +6556,8 @@ window.setWpMode = async function(mode) {
   if (!wp || !state.me) return;
   try {
     await updateDoc(watchpartyRef(wp.id), {
-      [`participants.${state.me.id}.reactionsMode`]: mode
+      [`participants.${state.me.id}.reactionsMode`]: mode,
+      ...writeAttribution()
     });
   } catch(e) { alert('Could not change mode: ' + e.message); }
 };
@@ -6559,9 +6572,9 @@ window.leaveWatchparty = async function(wpId) {
   try {
     // If host leaves and no one else joined, archive
     if (Object.keys(nextParticipants).length === 0) {
-      await updateDoc(watchpartyRef(wpId), { status: 'archived', participants: nextParticipants });
+      await updateDoc(watchpartyRef(wpId), { ...writeAttribution(), status: 'archived', participants: nextParticipants });
     } else {
-      await updateDoc(watchpartyRef(wpId), { participants: nextParticipants });
+      await updateDoc(watchpartyRef(wpId), { ...writeAttribution(), participants: nextParticipants });
     }
     closeWatchpartyLive();
   } catch(e) { alert('Could not leave: ' + e.message); }
@@ -6574,7 +6587,7 @@ window.cancelWatchparty = async function(wpId) {
   if (wp.hostId !== state.me.id) { alert('Only the host can cancel.'); return; }
   if (!confirm('Cancel this watchparty? Everyone who joined will see it was cancelled.')) return;
   try {
-    await updateDoc(watchpartyRef(wpId), { status: 'cancelled', cancelledAt: Date.now() });
+    await updateDoc(watchpartyRef(wpId), { ...writeAttribution(), status: 'cancelled', cancelledAt: Date.now() });
     closeWatchpartyLive();
   } catch(e) { alert('Could not cancel: ' + e.message); }
 };
@@ -6603,7 +6616,8 @@ window.startMyWatchpartyTimer = async function(wpId) {
   if (!state.me) return;
   try {
     await updateDoc(watchpartyRef(wpId), {
-      [`participants.${state.me.id}.startedAt`]: Date.now()
+      [`participants.${state.me.id}.startedAt`]: Date.now(),
+      ...writeAttribution()
     });
     renderWatchpartyLive();
   } catch(e) { alert('Could not start timer: ' + e.message); }
@@ -7661,7 +7675,7 @@ window.finishOnboarding = async function() {
       const extras = await fetchTmdbExtras(item.mediaType, item.tmdbId);
       const moods = suggestMoods(item.genreIds || [], extras.runtime);
       const newTitle = { ...item, ...extras, moods, votes:{}, watched:false };
-      await setDoc(doc(titlesRef(), item.id), newTitle);
+      await setDoc(doc(titlesRef(), item.id), { ...newTitle, ...writeAttribution() });
       logActivity('added', { titleName: item.name, titleId: item.id });
       added++;
     } catch(e) { /* continue */ }
@@ -7877,7 +7891,7 @@ window.toggleLike = async function(id, e) {
   const likes = { ...(t.likes || {}) };
   if (likes[state.me.id]) delete likes[state.me.id];
   else likes[state.me.id] = Date.now();
-  try { await updateDoc(doc(titlesRef(), id), { likes }); } catch(err){}
+  try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), likes }); } catch(err){}
 };
 
 window.openActionSheet = function(titleId, e) {
@@ -8012,7 +8026,7 @@ window.saveDiary = async function() {
   }
   if (!t.watched) { update.watched = true; update.watchedAt = Date.now(); }
   try {
-    await updateDoc(doc(titlesRef(), diaryTitleId), update);
+    await updateDoc(doc(titlesRef(), diaryTitleId), { ...writeAttribution(), ...update });
     logActivity('logged', { titleName: t.name, score: diaryStars > 0 ? diaryStars * 2 : 0 });
     // End tonight's session: clear all vetoes
     if (!t.watched) {
@@ -8030,7 +8044,7 @@ window.deleteDiaryEntry = async function(titleId, entryId) {
   if (!confirm('Delete this diary entry?')) return;
   const t = state.titles.find(x => x.id === titleId);
   const diary = (t.diary || []).filter(d => d.id !== entryId);
-  try { await updateDoc(doc(titlesRef(), titleId), { diary }); } catch(e){}
+  try { await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), diary }); } catch(e){}
 };
 
 function renderDiaryForTitle(t) {
@@ -8105,6 +8119,7 @@ window.createNewList = async function() {
   const scope = confirm('Make this list private? (OK = private, Cancel = visible to family)') ? 'private' : 'family';
   try {
     await addDoc(listsRef(), {
+      ...writeAttribution(),
       name: name.trim(),
       ownerId: state.me.id,
       scope,
@@ -8148,7 +8163,7 @@ window.removeFromList = async function(titleId) {
   const l = allLists.find(x => x.id === currentListId);
   if (!l) return;
   const titleIds = (l.titleIds || []).filter(id => id !== titleId);
-  try { await updateDoc(doc(listsRef(), currentListId), { titleIds }); openList(currentListId); } catch(e){}
+  try { await updateDoc(doc(listsRef(), currentListId), { ...writeAttribution(), titleIds }); openList(currentListId); } catch(e){}
 };
 
 window.deleteList = async function(listId) {
@@ -8168,7 +8183,7 @@ window.addToList = async function(titleId) {
   const titleIds = [...(l.titleIds || [])];
   if (titleIds.includes(titleId)) { flashToast('Already on the couch here'); return; }
   titleIds.push(titleId);
-  try { await updateDoc(doc(listsRef(), l.id), { titleIds }); flashToast('On the couch in ' + l.name, { kind: 'success' }); } catch(e){}
+  try { await updateDoc(doc(listsRef(), l.id), { ...writeAttribution(), titleIds }); flashToast('On the couch in ' + l.name, { kind: 'success' }); } catch(e){}
 };
 
 // === Share review ===
@@ -8295,7 +8310,7 @@ window.setScore = async function(memberId, score) {
     const clamped = Math.max(1, Math.min(10, score));
     ratings[memberId] = { ...cur, ...scoreToRating(clamped, cur.comment) };
   }
-  await updateDoc(doc(titlesRef(), modalTitleId), { ratings });
+  await updateDoc(doc(titlesRef(), modalTitleId), { ...writeAttribution(), ratings });
   if (!clearing && state.me && memberId === state.me.id) {
     logActivity('rated', { titleName: t.name, score: ratings[memberId].score, titleId: t.id });
   }
@@ -8322,7 +8337,7 @@ window.setReview = async function(memberId, comment) {
   const ratings = { ...(t?.ratings || {}) };
   const cur = ratings[memberId] || {};
   ratings[memberId] = { ...cur, comment: comment.trim() };
-  await updateDoc(doc(titlesRef(), modalTitleId), { ratings });
+  await updateDoc(doc(titlesRef(), modalTitleId), { ...writeAttribution(), ratings });
 };
 
 function renderVoteGrid() {
@@ -8372,7 +8387,7 @@ async function applyVote(titleId, memberId, vote) {
     if (wasInQueue) delete queues[memberId];
   }
   try {
-    await updateDoc(doc(titlesRef(), titleId), { votes, queues });
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), votes, queues });
     // Reindex that member's queue after a removal so ranks stay contiguous
     if (wasInQueue && newVote !== 'yes' && memberId === state.me?.id) {
       await reindexMyQueue();
@@ -8398,7 +8413,7 @@ window.toggleWatched = async function(id) {
   if (newWatched && t.queues) update.queues = {};
   if (newWatched) update.watchedAt = Date.now();
   else update.watchedAt = null;
-  await updateDoc(doc(titlesRef(), id), update);
+  await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update });
   if (newWatched) {
     try { await deleteDoc(sessionRef()); } catch(e){}
   }
