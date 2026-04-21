@@ -7,11 +7,27 @@ This file narrows the `SUMMARY.md` broad findings into **concrete Phase 9 inputs
 
 ---
 
-## 1. Name + trademark — decide BEFORE tokens
+## 1. Name + trademark — DECIDED 2026-04-22
 
-**Recommendation:** commit to **"Couch Tonight"** as full wordmark. Use **"Couch"** only as logotype + product shorthand. Scope deviation from bare-Couch branding is driven by App Store crowding + USPTO descriptiveness risk.
+**Decision:** **"Couch Tonight" is the full brand. "Couch" is the FedEx-style organic shorthand.**
 
-**Blocking:** human-do paid USPTO TESS/Corsearch clearance (~$500–$1500) before locking Phase 9 branding. Add as a Phase 9 "human action" checkpoint.
+This isn't a split-personality brand (which I initially proposed and the user correctly pushed back on — users see `couchtonight.app` in every shared URL). It's a proper two-word identity with a one-word affectionate shorthand that evolves in the wild like FedEx/Coke/Insta.
+
+**Concrete identity:**
+- **Legal wordmark:** COUCH TONIGHT (file Classes 9 + 41, add 42 if server-side expands)
+- **App Store title:** Couch Tonight
+- **Primary domain:** couchtonight.app (unchanged — already live and owned)
+- **Defensive domains to grab:** couchtonight.com, couchtonight.tv, couchtonight.co, thecouch.app, getcouch.app, oncouch.app
+- **Social handles:** @couchtonight as primary (sweep namechk across 9+ platforms)
+- **Logotype:** "Couch Tonight" as primary; "Couch" acceptable as stylized shorthand in constrained spaces (icon, narrow headers)
+- **In-app header / product copy:** "Couch" is fine — matches how users will speak about it
+- **Marketing headlines:** lead with "Couch Tonight"; casual body copy can drop to "Couch"
+
+**Blocking before Phase 9 branding commits:**
+- Paid TESS / Corsearch clearance on COUCH TONIGHT by IP counsel (~$500-1500, ~2 week turnaround). Add as a Phase 9 human-action checkpoint.
+- Confirm defensive domains + social handles available / acquirable.
+
+**Rationale documented:** the "one-word brand is better" design principle is true in the abstract (Nike/Slack/Uber) but relies on the one-word being **arbitrary AND rare**. "Couch" fails both — it's descriptive of the use case AND common in the category (Couch-to-5K, Couch TV, Couch Movies, CouchTimes all already live). "Couch Tonight" sidesteps both problems while preserving "Couch" as the affectionate shorthand that will evolve organically.
 
 ---
 
