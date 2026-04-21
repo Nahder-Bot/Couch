@@ -1,5 +1,10 @@
 export const TMDB_KEY = '2ec1f3699afc80f35392f5a674eb9da3';
 
+// VAPID public key — public-by-design (safe client-side, same posture as TMDB_KEY + Firebase config).
+// Matches queuenight/functions/.env VAPID_PUBLIC. Private key lives server-side only.
+// Rotating this requires a client redeploy + CF env update. Subject: mailto:nahderz@gmail.com.
+export const VAPID_PUBLIC_KEY = 'BGwhEJGIKjf4MSd4vyZA6uegbKhiG5kkxoAD2o1WUfxYmcm5cUmSjc0z05d-r7meS1gmKOT0f0Sn4zXQwhriRHg';
+
 // ====== TRAKT OAUTH CONFIGURATION ======
 export const TRAKT_CLIENT_ID = 'b3b8e6ab789594644426687cd4ec1016dba576489b0ea5907b435d4a2e347ec5';
 export const TRAKT_EXCHANGE_URL = 'https://us-central1-queuenight-84044.cloudfunctions.net/traktExchange';

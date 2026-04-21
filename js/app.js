@@ -1,5 +1,5 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable } from './firebase.js';
-import { TMDB_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
+import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
 import {
@@ -89,11 +89,8 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
 // user still has a browser tab open in the background. If they've closed the app, nothing
 // fires. Acceptable for the current product loop — most people leave one tab open.
 // === Web Push (real OS-level notifications via service worker) ===
-// VAPID public key — generated once via `npx web-push generate-vapid-keys`.
-// SETUP: replace the placeholder below with your actual public key from web-push generate-vapid-keys.
-// The matching private key lives in your Cloud Functions config (set via `firebase functions:config:set`).
-// If left as the placeholder, push setup is skipped silently and only in-app notifications fire.
-const VAPID_PUBLIC_KEY = 'PASTE_YOUR_VAPID_PUBLIC_KEY_HERE';
+// VAPID public key is imported from js/constants.js (public-by-design, matches TMDB_KEY posture).
+// Matching private key lives server-side in queuenight/functions/.env.
 
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
 function urlBase64ToUint8Array(base64String) {
@@ -108,10 +105,6 @@ function urlBase64ToUint8Array(base64String) {
 // Subscribe the current device to push and persist the subscription to Firestore under the user.
 // Safe to call multiple times — Firestore uses the device endpoint as the dedupe key.
 async function subscribeToPush() {
-  if (VAPID_PUBLIC_KEY === 'PASTE_YOUR_VAPID_PUBLIC_KEY_HERE') {
-    qnLog('[QN push] VAPID key not configured — push subscription skipped');
-    return;
-  }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     qnLog('[QN push] Push API not supported in this browser');
     return;
