@@ -6,8 +6,9 @@ type: uat-results
 
 # Phase 6 — Push Notifications UAT Results
 
-**Scaffolded:** 2026-04-21 (autonomous session; all rows PENDING — hands-on required)
-**Tester:** (to fill on device UAT)
+**Scaffolded:** 2026-04-21 (autonomous session)
+**Started:** 2026-04-22 (iPhone PWA, Nahder)
+**Tester:** Nahder (nahderz@gmail.com)
 **Devices:**
 - Required: physical iPhone running iOS 16.4+ with couchtonight.app installed via Safari → Share → Add to Home Screen
 - Recommended: second device (Android Chrome or a spouse/kid's iPhone) to fire events that push to the tester
@@ -21,11 +22,11 @@ type: uat-results
 
 | Check | Status | Notes |
 |---|---|---|
-| `firebase deploy --only functions:onInviteCreated,onSessionUpdate,onWatchpartyCreate,onWatchpartyUpdate,onTitleApproval` ran successfully | PENDING | New exports: onInviteCreated + onSessionUpdate. Existing 3 updated to pass eventType + excludeUid. |
-| `firebase deploy --only firestore:rules` ran successfully | PENDING | Adds top-level `match /users/{u}` for notificationPrefs self-access. |
-| `firebase deploy --only hosting` ran successfully | PENDING | Ships VAPID wiring + per-event toggle UI + quiet-hours UI. |
-| Open couchtonight.app → sign in → Settings → Notifications card appears | PENDING | The card exists pre-Phase-6; should now render without errors. |
-| Tap "Turn on" → browser permission prompt appears → grant → "✓ This device is on" + 6-row toggle list visible | PENDING | This proves VAPID wiring + subscribe flow + prefs onSnapshot. |
+| `firebase deploy --only functions:onInviteCreated,onSessionUpdate,onWatchpartyCreate,onWatchpartyUpdate,onTitleApproval` ran successfully | **PASS** | Deployed 2026-04-22. 2 creates (onInviteCreated, onSessionUpdate) + 3 updates. |
+| `firebase deploy --only firestore:rules` ran successfully | **PASS** | Deployed 2026-04-22. `match /users/{u}` live. |
+| `firebase deploy --only hosting` ran successfully | **PASS** | Deployed 2026-04-22 (initial + two cache-bump redeploys: v13 Phase 6 wiring, v14 subscribe race fix). |
+| Open couchtonight.app → sign in → Settings → Notifications card appears | **PASS** | Card renders. Account tab > Notifications. |
+| Tap "Turn on" → browser permission prompt appears → grant → "✓ This device is on" + 6-row toggle list visible | **PASS (after fix)** | First attempt on iPhone landed in "Permission granted but not subscribed" — a race between updateNotifCard() and subscribeToPush() in enableNotifications. Tapping Resubscribe fixed it; the 6 toggles + Quiet hours row rendered correctly. Race fixed permanently in commit `9f50b96` + sw.js bumped to v14. Future users won't hit this. |
 
 ---
 
