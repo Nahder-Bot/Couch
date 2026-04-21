@@ -1786,6 +1786,108 @@ window.sendGraduationLink = function(memberId) {
   flashToast('Graduation flow lands in the next release — coming soon.', { kind: 'info' });
 };
 
+// ===== Phase 5 Plan 07: Owner-only admin (D-12 guest invite / D-18 password / D-19 transfer) =====
+// renderOwnerSettings — show/hide the #settings-owner section based on ownership, and
+// populate the transfer-target dropdown with other AUTHED members only (D-19 requires
+// target to have a uid; sub-profiles are excluded by the CF's failed-precondition check).
+function renderOwnerSettings() {
+  const el = document.getElementById('settings-owner');
+  if (!el) return;
+  const isOwner = !!(state.auth && state.ownerUid && state.auth.uid === state.ownerUid);
+  el.style.display = isOwner ? '' : 'none';
+  if (!isOwner) return;
+  const candidates = (state.members || []).filter(m => m.uid && m.uid !== state.auth.uid && !m.temporary);
+  const sel = document.getElementById('settings-transfer-target');
+  if (sel) {
+    if (candidates.length === 0) {
+      sel.innerHTML = '<option value="">No eligible members</option>';
+    } else {
+      sel.innerHTML = candidates.map(m => `<option value="${escapeHtml(m.uid)}">${escapeHtml(m.name)}</option>`).join('');
+    }
+  }
+}
+
+window.submitGroupPassword = async function() {
+  const pw = (document.getElementById('settings-password-input').value || '').trim();
+  // CF rejects < 4 chars with invalid-argument; we mirror that client-side for a cleaner toast.
+  if (!pw || pw.length < 4) { flashToast('Password must be at least 4 characters', { kind: 'warn' }); return; }
+  if (!state.auth || !state.familyCode) return;
+  try {
+    const fn = httpsCallable(functions, 'setGroupPassword');
+    const r = await fn({ familyCode: state.familyCode, newPassword: pw });
+    if (r.data && r.data.ok) {
+      flashToast('Password saved', { kind: 'success' });
+      haptic('success');
+      document.getElementById('settings-password-input').value = '';
+    }
+  } catch(e) {
+    console.error('[set-password]', e);
+    const code = e && e.code;
+    const msg = (code === 'permission-denied' || code === 'functions/permission-denied')
+      ? 'Only the owner can do this.'
+      : "Couldn't save. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.createGuestInvite = async function() {
+  if (!state.auth || !state.familyCode) return;
+  const sel = document.getElementById('settings-guest-duration');
+  const duration = parseInt((sel && sel.value) || '604800000', 10);
+  try {
+    const fn = httpsCallable(functions, 'inviteGuest');
+    const r = await fn({ familyCode: state.familyCode, durationMs: duration });
+    if (r.data && r.data.ok) {
+      const link = r.data.deepLink || `https://couchtonight.app/?invite=${encodeURIComponent(r.data.inviteToken)}&family=${encodeURIComponent(state.familyCode)}`;
+      const out = document.getElementById('settings-guest-link-out');
+      if (out) {
+        out.innerHTML = `<p>Send this link to your guest:</p><code>${escapeHtml(link)}</code><button onclick="copyGuestLink(this)" data-link="${escapeHtml(link)}">Copy</button>`;
+      }
+      haptic('success');
+      flashToast('Invite link ready', { kind: 'success' });
+    }
+  } catch(e) {
+    console.error('[invite-guest]', e);
+    const code = e && e.code;
+    const msg = (code === 'permission-denied' || code === 'functions/permission-denied')
+      ? 'Only the owner can invite guests.'
+      : "Couldn't generate invite.";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.copyGuestLink = async function(btn) {
+  const link = btn && btn.getAttribute('data-link');
+  if (!link) return;
+  try { await navigator.clipboard.writeText(link); flashToast('Copied', { kind: 'success' }); }
+  catch(e) { flashToast('Select and copy manually', { kind: 'info' }); }
+};
+
+window.transferOwnershipTo = async function() {
+  const sel = document.getElementById('settings-transfer-target');
+  const newOwnerUid = sel && sel.value;
+  if (!newOwnerUid) { flashToast('Pick a member first', { kind: 'warn' }); return; }
+  if (!confirm('Transfer ownership? The new owner has to agree before you can get it back.')) return;
+  try {
+    const fn = httpsCallable(functions, 'transferOwnership');
+    const r = await fn({ familyCode: state.familyCode, newOwnerUid });
+    if (r.data && r.data.ok) {
+      flashToast('Ownership transferred', { kind: 'success' });
+      haptic('success');
+      // The family-doc snapshot subscription will update state.ownerUid and re-hide the owner panel.
+    }
+  } catch(e) {
+    console.error('[transfer-ownership]', e);
+    const code = e && e.code;
+    const msg = (code === 'failed-precondition' || code === 'functions/failed-precondition')
+      ? 'That member has no account yet.'
+      : (code === 'permission-denied' || code === 'functions/permission-denied')
+        ? 'Only the current owner can transfer.'
+        : "Couldn't transfer. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
 // Act-as tap (D-04, per-action): set state.actingAs so writeAttribution picks it up on the
 // NEXT vote/veto/mood write, then the snapshot-then-clear in writeAttribution reverts it.
 window.tapActAsSubProfile = function(memberId, memberName) {
@@ -2062,13 +2164,17 @@ function startSync() {
     // Surface in-app toasts when someone's request gets approved or declined.
     checkApprovalUpdates();
   });
-  // Live-sync the group doc so picker + mode updates propagate between devices
+  // Live-sync the group doc so picker + mode updates propagate between devices.
+  // Plan 07: also track ownerUid so the owner-only admin panel toggles in real time
+  // (e.g. after a transferOwnership CF flips the doc).
   state.unsubGroup = onSnapshot(familyDocRef(), s => {
     if (!s.exists()) return;
     const d = s.data();
-    state.group = { ...(state.group||{}), code: state.familyCode, mode: d.mode || 'family', name: d.name || state.familyCode, picker: d.picker || null };
+    state.group = { ...(state.group||{}), code: state.familyCode, mode: d.mode || 'family', name: d.name || state.familyCode, picker: d.picker || null, passwordProtected: !!d.passwordHash };
+    state.ownerUid = d.ownerUid || null;
     renderPickerCard();
     applyModeLabels();
+    try { renderOwnerSettings(); } catch(e) {}
   });
   subscribeSession();
   scheduleMidnightRefresh();
