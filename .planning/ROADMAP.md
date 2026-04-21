@@ -79,7 +79,7 @@ Plans:
 - [ ] 05-04-PLAN.md — Firestore security rules + /settings/auth bootstrap + rules unit tests (AUTH-02, AUTH-03, AUTH-04, AUTH-05)
 - [ ] 05-05-PLAN.md — writeAttribution utility + migrate ~25 Firestore write sites + self-echo guard updates (AUTH-02, AUTH-05)
 - [ ] 05-06-PLAN.md — Sign-in screen UI + bootstrapAuth + onAuthStateChanged + replace submitFamily flow (AUTH-01, AUTH-02)
-- [ ] 05-07-PLAN.md — Member-type model: sub-profiles + act-as + guest invites + owner password/transfer + group switcher sync (AUTH-02, AUTH-03)
+- [x] 05-07-PLAN.md — Member-type model: sub-profiles + act-as + guest invites + owner password/transfer + group switcher sync (AUTH-02, AUTH-03)
 - [ ] 05-08-PLAN.md — Migration claim flow + sub-profile graduation + mintClaimTokens CF + grace-window enforcement (AUTH-04, AUTH-05)
 - [ ] 05-09-PLAN.md — iOS PWA UAT checkpoint: all providers + feature regression + migration scenarios (AUTH-05)
 **UI hint**: yes
