@@ -3120,9 +3120,60 @@ function startSync() {
       // since the DB data hasn't changed — just elapsed time.
       maybeNotifyWatchparties(state.watchparties);
     }
-    // Only re-render the live screen if it's open
-    if (state.activeWatchpartyId) renderWatchpartyLive();
+    // Live modal: surgical textContent updates only (no innerHTML churn). Full re-render
+    // still runs from the watchparties onSnapshot when participant state / reactions change.
+    // This is the flicker fix — the tick was rewriting the whole modal every second which
+    // on iOS Safari caused a visible paint flash.
+    if (state.activeWatchpartyId) updateWatchpartyLiveTick();
   }, 1000);
+}
+
+// Surgical per-tick update — touches only the elements whose content depends on elapsed time.
+// Called every 1 sec while the live modal is open; does NOT rewrite innerHTML. Callers relying
+// on structural changes (new participant, new reaction, status transition) still go through
+// the full renderWatchpartyLive via onSnapshot.
+function updateWatchpartyLiveTick() {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp) return;
+  const now = Date.now();
+  // Header timer (mm:ss — changes every second)
+  const timerEl = document.getElementById('wp-live-timer-display');
+  if (timerEl) {
+    const mine = myParticipation(wp);
+    if (mine && mine.startedAt) {
+      const next = formatElapsed(computeElapsed(mine));
+      if (timerEl.textContent !== next) timerEl.textContent = next;
+    }
+  }
+  // Prelaunch countdown (if still pre-start)
+  const countEl = document.getElementById('wp-prelaunch-count');
+  if (countEl && wp.startAt > now) {
+    const secs = Math.max(0, Math.floor((wp.startAt - now) / 1000));
+    const mins = Math.floor(secs / 60);
+    const next = mins >= 1 ? formatCountdown(wp.startAt - now) : `${secs}s`;
+    if (countEl.textContent !== next) countEl.textContent = next;
+  }
+  // Participant chips — update only the time text, skip if identical.
+  document.querySelectorAll('.wp-participant-chip').forEach(chip => {
+    const mid = chip.getAttribute('data-member-id');
+    if (!mid) return;
+    const p = (wp.participants || {})[mid];
+    const timeEl = chip.querySelector('[data-role="pt-time"]');
+    if (!p || !timeEl) return;
+    let statusLabel;
+    if (!p.startedAt) statusLabel = 'Joined';
+    else if (p.pausedAt) statusLabel = 'Paused';
+    else {
+      const minutes = Math.floor(computeElapsed(p) / 60000);
+      statusLabel = minutes === 0 ? 'Just started' : `${minutes} min in`;
+    }
+    if (timeEl.textContent !== statusLabel) timeEl.textContent = statusLabel;
+    // Paused/joined class drift — toggle if needed so dim state matches
+    const wantPaused = !!p.pausedAt;
+    const wantJoined = !p.startedAt;
+    if (chip.classList.contains('paused') !== wantPaused) chip.classList.toggle('paused', wantPaused);
+    if (chip.classList.contains('joined') !== wantJoined) chip.classList.toggle('joined', wantJoined);
+  });
 }
 
 // Phase 7 D-04: flip scheduled parties past their startAt to `'active'`. Triggers the
@@ -7539,7 +7590,7 @@ function renderWatchpartyLive() {
       ${liveTitleHtml}
       <div class="wp-live-status">${statusText}${mine && mine.pausedAt ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
     </div>
-    ${mine && mine.startedAt ? `<div class="wp-live-timer">${formatElapsed(computeElapsed(mine))}</div>` : ''}
+    ${mine && mine.startedAt ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine))}</div>` : ''}
     <button class="pill icon-only" aria-label="Close watchparty" onclick="closeWatchpartyLive()" style="margin-left:6px;">✕</button>
   </div>`;
 
@@ -7551,7 +7602,7 @@ function renderWatchpartyLive() {
     const countdownStr = mins >= 1 ? formatCountdown(wp.startAt - now) : `${secs}s`;
     body = `<div class="wp-prelaunch">
       <div style="color:var(--ink-dim);font-size:var(--t-meta);">Starts in</div>
-      <div class="wp-prelaunch-count">${countdownStr}</div>
+      <div class="wp-prelaunch-count" id="wp-prelaunch-count">${countdownStr}</div>
       <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">${participants.length} ${participants.length===1?'person':'people'} in: ${participants.map(([,p]) => p.name).join(', ')}</div>
       <div style="font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;">When you actually hit play, tap "Start my timer" below so your reactions line up with everyone else's.</div>
     </div>`;
@@ -7662,11 +7713,11 @@ function renderParticipantTimerStrip(wp) {
       statusLabel = mins === 0 ? 'Just started' : `${mins} min in`;
     }
     const isMe = state.me && state.me.id === mid;
-    return `<div class="wp-participant-chip ${chipClass} ${isMe ? 'me' : ''}">
+    return `<div class="wp-participant-chip ${chipClass} ${isMe ? 'me' : ''}" data-member-id="${escapeHtml(mid)}">
       <div class="wp-participant-av" style="background:${color};" aria-hidden="true">${escapeHtml(initial)}</div>
       <div class="wp-participant-info">
         <div class="wp-participant-name">${escapeHtml(name)}${isMe ? ' <span class="muted">(you)</span>' : ''}</div>
-        <div class="wp-participant-time">${escapeHtml(statusLabel)}</div>
+        <div class="wp-participant-time" data-role="pt-time">${escapeHtml(statusLabel)}</div>
       </div>
     </div>`;
   }).join('');
