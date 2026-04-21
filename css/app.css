@@ -1974,3 +1974,41 @@ h3{font-size:var(--t-h3)}
 .link-out code { display: block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
 .link-out button { margin-top: 6px; padding: 6px 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 6px; cursor: pointer; font-size: 13px; }
 
+/* === Phase 5 Plan 08: Claim-your-members panel (D-14 migration, D-16 graduation) === */
+.claim-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.claim-row:last-child { border-bottom: none; }
+.claim-row .who-avatar { width: 36px; height: 36px; font-size: 13px; display: grid; place-items: center; border-radius: 50%; color: #14110f; font-weight: 700; flex-shrink: 0; }
+.claim-name { flex: 1; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
+.claim-link-out { width: 100%; margin-top: 6px; }
+.claim-link-out code { display: block; background: var(--surface-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; font-size: 11px; word-break: break-all; color: var(--ink-warm); margin-bottom: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.claim-link-out button { padding: 6px 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+/* Grace-window countdown — warm accent border, subdued background */
+.grace-banner { background: #2a1f14; border: 1px solid #4a3820; border-radius: var(--r-md); padding: 12px 16px; font-size: 13px; color: var(--ink-warm); margin-bottom: 12px; }
+.grace-banner p { margin: 0; line-height: 1.5; }
+.grace-banner strong { color: var(--ink); }
+
+/* Claim-confirm screen (post-auth, pre-shell) */
+#claim-confirm-screen { padding: 40px 20px; max-width: 440px; margin: 0 auto; text-align: center; }
+.claim-confirm-body { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg, 18px); padding: 28px 22px; }
+.claim-target { display: flex; flex-direction: column; align-items: center; gap: 14px; margin: 20px 0; }
+.claim-target .who-avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 24px; }
+.claim-name-big { font-family: 'Fraunces', serif; font-size: 24px; color: var(--ink); }
+.claim-note { color: var(--ink-warm); margin: 0 0 24px; line-height: 1.5; font-size: 14px; }
+.claim-actions { display: flex; flex-direction: column; gap: 10px; }
+.claim-actions button { width: 100%; }
+
+/* Read-only prompt banner on Tonight (D-15) */
+.claim-prompt-banner { background: #2a1f14; border: 1px solid #c97b5f; border-radius: var(--r-md); padding: 14px 18px; margin: 12px 0; font-size: 14px; color: var(--ink-warm); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.claim-prompt-banner p { margin: 0; flex: 1; min-width: 220px; line-height: 1.5; }
+
+/* Visually disable write-action buttons post-grace for unclaimed members (D-15) */
+body.is-readonly .vote-btn,
+body.is-readonly .veto-btn,
+body.is-readonly .mood-add-btn,
+body.is-readonly .mood-chip-remove,
+body.is-readonly .reaction-btn,
+body.is-readonly .wp-compose-btn,
+body.is-readonly .detail-mood-add,
+body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
+

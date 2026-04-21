@@ -144,6 +144,26 @@
   </div>
 </div>
 
+<!-- Plan 5.8 D-14: claim-confirm screen shown after sign-in if URL carried ?claim=TOKEN&family=CODE. -->
+<!-- Display managed manually (not via showScreen) since this is a post-auth, pre-shell screen. -->
+<div id="claim-confirm-screen" class="wrap has-leather" style="display:none;">
+  <div class="brand large" style="margin:var(--s5) 0 var(--s6);">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+  </div>
+  <div class="claim-confirm-body">
+    <h2 class="page-title" style="margin-bottom:var(--s3);">Is this you?</h2>
+    <div class="claim-target">
+      <div class="who-avatar" id="claim-avatar" aria-hidden="true"></div>
+      <div class="claim-name-big" id="claim-name">Your profile</div>
+    </div>
+    <p class="claim-note">All your votes, mood tags, and veto history will carry over.</p>
+    <div class="claim-actions">
+      <button class="provider-btn provider-google" onclick="confirmClaim()">Yes, claim</button>
+      <button class="alt" onclick="declineClaim()">Not me</button>
+    </div>
+  </div>
+</div>
+
 <div id="app-shell" style="display:none;">
   <a href="#screen-tonight" class="skip-link">Skip to content</a>
   <div class="sync-dot on" id="sync-dot"></div>
@@ -161,6 +181,11 @@
   </div>
 
   <div class="screen active" id="screen-tonight">
+    <!-- Plan 5.8 D-15: post-grace read-only prompt banner. Shown on Tonight when isCurrentSelfReadOnly(). -->
+    <div id="claim-prompt-banner" class="claim-prompt-banner" style="display:none;">
+      <p>This account is pending claim. Ask the group owner for a claim link to keep voting.</p>
+      <button class="link-btn" onclick="dismissClaimPrompt()">Dismiss</button>
+    </div>
     <div class="picker-card" id="picker-card" style="display:none;" onclick="openPickerSheet()">
       <div class="picker-left">
         <div class="picker-eyebrow" id="picker-eyebrow">Tonight's pick goes to</div>
@@ -489,6 +514,21 @@
     <!-- Hidden by default; renderOwnerSettings() un-hides when state.auth.uid === state.ownerUid. -->
     <div class="tab-section owner-only" id="settings-owner" style="display:none;">
       <div class="tab-section-h"><span>Group admin</span></div>
+
+      <!-- Plan 5.8 D-14: migration grace banner — days remaining until unclaimed members go read-only. -->
+      <!-- Rendered by renderGraceBanner() on settings open + state.settings snapshot updates. -->
+      <div class="settings-row grace-banner" id="settings-grace-banner" style="display:none;">
+        <p><strong>Migration grace period:</strong> <span id="grace-days-remaining">—</span> days remaining. After this, unclaimed members go read-only until they claim their profile.</p>
+      </div>
+
+      <!-- Plan 5.8 D-14: Claim-your-members panel. Lists unclaimed adult members (no uid, no managedBy). -->
+      <!-- Owner mints a per-member link via mintClaimTokens CF, then shares each link with the recipient. -->
+      <div class="settings-row">
+        <label class="settings-row-label">Claim your members</label>
+        <p class="settings-row-hint">Send each existing member a link so their account takes over their voting history.</p>
+        <div id="settings-claim-list"></div>
+        <button class="pill" onclick="mintAllMigrationClaims()">Generate links for all unclaimed</button>
+      </div>
 
       <div class="settings-row">
         <label class="settings-row-label">Group password</label>

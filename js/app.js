@@ -1382,6 +1382,10 @@ function startSettingsSubscription() {
   const settingsDoc = doc(db, 'settings', 'auth');
   state.unsubSettings = onSnapshot(settingsDoc, (snap) => {
     state.settings = snap.exists() ? snap.data() : null;
+    // Plan 5.8 D-15: settings changed (e.g. graceUntil flipped) — recompute read-only
+    // state immediately so unclaimed members go dim without waiting on a members snapshot.
+    try { if (typeof applyReadOnlyState === 'function') applyReadOnlyState(); } catch(e) {}
+    try { if (typeof renderGraceBanner === 'function') renderGraceBanner(); } catch(e) {}
   }, (e) => console.error('[settings] snapshot error', e));
 }
 
@@ -1509,11 +1513,81 @@ async function _bootIntoGroup(code) {
   await showNameScreen();
 }
 
-// Stubs — Plan 08 fills these in fully.
+// ===== Phase 5 Plan 08: claim-confirm flow (D-14 migration, D-16 graduation) =====
+// After sign-in, if the URL / sessionStorage carries a ?claim=TOKEN&family=CODE,
+// handlePostSignInIntent() calls showClaimConfirmScreen(token, family). We stash
+// the pair in a module-scoped _pendingClaim, flip the dedicated screen on, and
+// route into the group on successful confirm.
+let _pendingClaim = null;
 function showClaimConfirmScreen(token, family) {
-  flashToast('Claim link detected — setup in progress. Sign-in complete.', { kind: 'success' });
-  routeAfterAuth();
+  _pendingClaim = { token, familyCode: family };
+  // Hide other pre-auth screens + app-shell while the confirm card is up.
+  ['signin-screen', 'screen-mode', 'screen-family-join', 'screen-name'].forEach(sid => {
+    const el = document.getElementById(sid);
+    if (el) el.style.display = 'none';
+  });
+  const shell = document.getElementById('app-shell');
+  if (shell) shell.style.display = 'none';
+  const el = document.getElementById('claim-confirm-screen');
+  if (el) el.style.display = 'block';
+  // Token is opaque to the client (Firestore rules block claimTokens reads) — we
+  // can't look up the member name without consuming the token, so the copy stays
+  // generic with the family code as the only derived hint.
+  const nameEl = document.getElementById('claim-name');
+  if (nameEl) nameEl.textContent = 'Your profile in ' + family;
+  const avEl = document.getElementById('claim-avatar');
+  if (avEl) avEl.innerHTML = '';
 }
+
+// Plan 08: user taps "Yes, claim" on the claim-confirm screen.
+// Calls claimMember CF; on success, routes into the newly-owned group.
+window.confirmClaim = async function() {
+  if (!_pendingClaim) { const el = document.getElementById('claim-confirm-screen'); if (el) el.style.display = 'none'; routeAfterAuth(); return; }
+  const { token, familyCode } = _pendingClaim;
+  try {
+    const fn = httpsCallable(functions, 'claimMember');
+    const r = await fn({ familyCode, claimToken: token });
+    if (r && r.data && r.data.memberId) {
+      state.familyCode = familyCode;
+      try {
+        localStorage.setItem('qn_family', familyCode);
+        localStorage.setItem('qn_active_group', familyCode);
+      } catch(e) {}
+      flashToast('Claimed!', { kind: 'success' });
+      haptic('success');
+      _pendingClaim = null;
+      const el = document.getElementById('claim-confirm-screen');
+      if (el) el.style.display = 'none';
+      // switchToGroup handles the snapshot re-bind + boot
+      if (typeof window.switchToGroup === 'function') {
+        window.switchToGroup(familyCode);
+      } else {
+        routeAfterAuth();
+      }
+    }
+  } catch(e) {
+    console.error('[confirm-claim]', e);
+    // Firebase Functions errors come through as e.code like "functions/already-exists"
+    const raw = (e && e.code) || '';
+    const code = raw.startsWith('functions/') ? raw.slice('functions/'.length) : raw;
+    const msg = (code === 'already-exists') ? 'This link was already used.'
+              : (code === 'deadline-exceeded') ? 'This link expired. Ask the owner for a new one.'
+              : (code === 'not-found') ? 'Invalid link.'
+              : (code === 'unauthenticated') ? 'Please sign in again.'
+              : "Couldn't claim. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+// Plan 08: user taps "Not me" — clear the pending claim, fall through to normal routing.
+window.declineClaim = function() {
+  _pendingClaim = null;
+  const el = document.getElementById('claim-confirm-screen');
+  if (el) el.style.display = 'none';
+  routeAfterAuth();
+};
+
+// Plan 06 stub — invite-redeem lands in a later plan. Keep as stub for now.
 function showInviteRedeemScreen(token) {
   flashToast('Invite detected — setup in progress. Sign-in complete.', { kind: 'success' });
   routeAfterAuth();
@@ -1780,10 +1854,52 @@ function renderSubProfileList() {
     </div>
   `).join('');
 }
-// Graduation-link mint is Plan 08 territory — stub for now so the button doesn't appear broken.
-// TODO (orchestrator): wire to mintClaimTokens CF once Plan 08 ships.
-window.sendGraduationLink = function(memberId) {
-  flashToast('Graduation flow lands in the next release — coming soon.', { kind: 'info' });
+// Plan 5.8 D-16: graduation flow. Parent mints a claim-token for a sub-profile they
+// manage, then shares the link via Web Share API (preferred) or clipboard fallback.
+// When the kid redeems, claimMember CF clears managedBy + stamps graduatedAt (D-16).
+window.sendGraduationLink = async function(memberId) {
+  if (!state.auth || !state.familyCode) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  const m = (state.members || []).find(x => x.id === memberId);
+  if (!m) return;
+  if (!m.managedBy) { flashToast('This member is already independent.', { kind: 'info' }); return; }
+  if (m.managedBy !== state.auth.uid) {
+    flashToast('Only the parent who manages them can send a graduation link.', { kind: 'warn' });
+    return;
+  }
+  try {
+    const fn = httpsCallable(functions, 'mintClaimTokens');
+    const r = await fn({ familyCode: state.familyCode, memberIds: [memberId], type: 'graduation' });
+    if (r && r.data && r.data.tokens && r.data.tokens[0]) {
+      const link = r.data.tokens[0].deepLink;
+      // Prefer native share picker on mobile so the parent can hand it to the kid via Messages;
+      // fall back to clipboard copy on desktop / browsers without Web Share.
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Your Couch profile',
+            text: `Take over your profile on Couch (${m.name})`,
+            url: link
+          });
+          haptic('success');
+        } catch(shareErr) {
+          // User cancelled or share API failed — copy as backup.
+          try { await navigator.clipboard.writeText(link); flashToast('Link copied — send it to them', { kind: 'success' }); }
+          catch(e) { flashToast('Link ready: ' + link, { kind: 'info' }); }
+        }
+      } else {
+        try { await navigator.clipboard.writeText(link); flashToast('Link copied — send it to them', { kind: 'success' }); haptic('success'); }
+        catch(e) { flashToast('Link ready: ' + link, { kind: 'info' }); }
+      }
+    }
+  } catch(e) {
+    console.error('[graduation]', e);
+    const raw = (e && e.code) || '';
+    const code = raw.startsWith('functions/') ? raw.slice('functions/'.length) : raw;
+    const msg = (code === 'permission-denied') ? 'Only the parent who manages them can do this.'
+              : (code === 'failed-precondition') ? 'They already have an account.'
+              : "Couldn't create graduation link.";
+    flashToast(msg, { kind: 'warn' });
+  }
 };
 
 // ===== Phase 5 Plan 07: Owner-only admin (D-12 guest invite / D-18 password / D-19 transfer) =====
@@ -1805,6 +1921,177 @@ function renderOwnerSettings() {
       sel.innerHTML = candidates.map(m => `<option value="${escapeHtml(m.uid)}">${escapeHtml(m.name)}</option>`).join('');
     }
   }
+}
+
+// ===== Phase 5 Plan 08: Claim-your-members panel (owner migration flow, D-14) =====
+// Lists unclaimed adult members (no uid, no managedBy, not guest/temporary, not archived)
+// inside #settings-claim-list. Each row exposes a "Generate link" button → mintClaimForMember.
+// mintAllMigrationClaims batches one CF call for every unclaimed row.
+function renderClaimMembersPanel() {
+  const el = document.getElementById('settings-claim-list');
+  if (!el) return;
+  const unclaimed = (state.members || []).filter(m =>
+    !m.uid && !m.managedBy && !m.temporary && !m.archived
+  );
+  if (unclaimed.length === 0) {
+    el.innerHTML = '<p class="tab-section-sub" style="margin:0;">All members are claimed.</p>';
+    return;
+  }
+  el.innerHTML = unclaimed.map(m => `
+    <div class="claim-row" data-id="${escapeHtml(m.id)}">
+      <div class="who-avatar" style="background:${m.color || '#888'}">${avatarContent(m)}</div>
+      <span class="claim-name">${escapeHtml(m.name)}</span>
+      <button class="link-btn" onclick="mintClaimForMember('${escapeHtml(m.id)}')">Generate link</button>
+      <div class="claim-link-out"></div>
+    </div>
+  `).join('');
+}
+
+// Plan 5.8: Mint a migration token for one member and render the resulting deep-link
+// beneath that row so the owner can copy it and share it out-of-band (SMS / iMessage / etc).
+window.mintClaimForMember = async function(memberId) {
+  if (!state.auth || !state.familyCode) return;
+  try {
+    const fn = httpsCallable(functions, 'mintClaimTokens');
+    const r = await fn({ familyCode: state.familyCode, memberIds: [memberId], type: 'migration' });
+    if (r && r.data && r.data.tokens && r.data.tokens[0]) {
+      const t = r.data.tokens[0];
+      const row = document.querySelector(`.claim-row[data-id="${CSS.escape(memberId)}"] .claim-link-out`);
+      if (row) {
+        row.innerHTML = `<code>${escapeHtml(t.deepLink)}</code><button class="link-btn" onclick="copyClaimLink(this)" data-link="${escapeHtml(t.deepLink)}">Copy</button>`;
+      }
+      haptic('success');
+      flashToast('Link ready', { kind: 'success' });
+    }
+  } catch(e) {
+    console.error('[mint-claim]', e);
+    const raw = (e && e.code) || '';
+    const code = raw.startsWith('functions/') ? raw.slice('functions/'.length) : raw;
+    const msg = (code === 'permission-denied') ? 'Only the owner can do this.'
+              : (code === 'failed-precondition') ? 'That member is already claimed.'
+              : "Couldn't generate link. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+// Plan 5.8: batch-mint for every unclaimed member in one CF call. Render each link inline.
+window.mintAllMigrationClaims = async function() {
+  if (!state.auth || !state.familyCode) return;
+  const unclaimed = (state.members || []).filter(m =>
+    !m.uid && !m.managedBy && !m.temporary && !m.archived
+  );
+  if (unclaimed.length === 0) { flashToast('Nothing to claim.', { kind: 'info' }); return; }
+  try {
+    const fn = httpsCallable(functions, 'mintClaimTokens');
+    const r = await fn({
+      familyCode: state.familyCode,
+      memberIds: unclaimed.map(m => m.id),
+      type: 'migration'
+    });
+    if (r && r.data && r.data.tokens) {
+      r.data.tokens.forEach(t => {
+        const row = document.querySelector(`.claim-row[data-id="${CSS.escape(t.memberId)}"] .claim-link-out`);
+        if (row) {
+          row.innerHTML = `<code>${escapeHtml(t.deepLink)}</code><button class="link-btn" onclick="copyClaimLink(this)" data-link="${escapeHtml(t.deepLink)}">Copy</button>`;
+        }
+      });
+      flashToast(`Generated ${r.data.tokens.length} link${r.data.tokens.length === 1 ? '' : 's'}`, { kind: 'success' });
+      haptic('success');
+    }
+  } catch(e) {
+    console.error('[mint-all]', e);
+    const raw = (e && e.code) || '';
+    const code = raw.startsWith('functions/') ? raw.slice('functions/'.length) : raw;
+    const msg = (code === 'permission-denied') ? 'Only the owner can do this.'
+              : "Couldn't generate links. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+// Plan 5.8: copy helper for the generated links (mirrors copyGuestLink pattern).
+window.copyClaimLink = async function(btn) {
+  const link = btn && btn.getAttribute('data-link');
+  if (!link) return;
+  try { await navigator.clipboard.writeText(link); flashToast('Copied', { kind: 'success' }); }
+  catch(e) { flashToast('Select and copy manually', { kind: 'info' }); }
+};
+
+// ===== Phase 5 Plan 08: post-grace read-only enforcement (D-15) =====
+// Returns true if the given member must operate in read-only mode *right now*.
+// Rules:
+//   - If settings haven't loaded yet, be permissive (no settings = no cutoff).
+//   - While Date.now() <= graceUntil, everyone stays fully interactive.
+//   - Post-grace, only unclaimed adult members (no uid, no managedBy, not temporary)
+//     are read-only. Authed members, sub-profiles, and pre-expiry guests are untouched.
+// Server-side backstop: Firestore rules (Plan 04) are the real gate — this helper
+// only drives UI messaging + button state (T-05-08-06).
+function isReadOnlyForMember(member) {
+  if (!member) return false;
+  const graceUntil = state.settings && state.settings.graceUntil;
+  if (!graceUntil) return false;
+  if (Date.now() <= graceUntil) return false;
+  if (member.uid) return false;
+  if (member.managedBy) return false;
+  if (member.temporary) return false;
+  return true;
+}
+
+// Returns true if the *current effective writer* (state.me, or the acting-as sub-profile)
+// is in read-only mode. Used to gate write handlers with a friendly toast + banner.
+// Sub-profiles are never read-only on their own — they're always act-as'd by an
+// authed parent, so writeAttribution stamps the parent's uid on the write.
+function isCurrentSelfReadOnly() {
+  if (state.actingAs) {
+    const sub = (state.members || []).find(m => m.id === state.actingAs);
+    return isReadOnlyForMember(sub);
+  }
+  return isReadOnlyForMember(state.me);
+}
+
+// Plan 5.8: persistent "claim your account" banner on Tonight, shown when read-only.
+// Dismissible per-session but re-asserts after any further write attempt.
+function showClaimPromptBanner() {
+  const el = document.getElementById('claim-prompt-banner');
+  if (el) el.style.display = '';
+}
+window.dismissClaimPrompt = function() {
+  const el = document.getElementById('claim-prompt-banner');
+  if (el) el.style.display = 'none';
+};
+
+// Plan 5.8: toggle body class so CSS can visually dim write-action buttons.
+// Also controls the Tonight-screen claim-prompt banner visibility.
+function applyReadOnlyState() {
+  const ro = isCurrentSelfReadOnly();
+  document.body.classList.toggle('is-readonly', ro);
+  const banner = document.getElementById('claim-prompt-banner');
+  if (banner) {
+    if (ro) banner.style.display = '';
+    else banner.style.display = 'none';
+  }
+}
+
+// Central guard used at the top of every write handler. Returns true if the caller
+// should early-return (and also surfaces the toast + banner as a side-effect).
+function guardReadOnlyWrite() {
+  if (!isCurrentSelfReadOnly()) return false;
+  flashToast("This member hasn't been claimed yet — ask the owner for a claim link.", { kind: 'warn' });
+  showClaimPromptBanner();
+  return true;
+}
+
+// Plan 5.8: grace-window countdown banner (D-14). Hides itself once graceUntil passes.
+function renderGraceBanner() {
+  const el = document.getElementById('settings-grace-banner');
+  if (!el) return;
+  const graceUntil = state.settings && state.settings.graceUntil;
+  if (!graceUntil) { el.style.display = 'none'; return; }
+  const remainingMs = graceUntil - Date.now();
+  if (remainingMs <= 0) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  const span = document.getElementById('grace-days-remaining');
+  if (span) span.textContent = days;
 }
 
 window.submitGroupPassword = async function() {
@@ -2379,6 +2666,7 @@ function safeRun(fn, label) {
 }
 
 function renderAll() {
+  safeRun(applyReadOnlyState, 'applyReadOnlyState'); // Plan 5.8 D-15: recompute body.is-readonly + banner
   safeRun(renderTonight, 'renderTonight');
   safeRun(renderLibrary, 'renderLibrary');
   safeRun(renderSettings, 'renderSettings');
@@ -3412,6 +3700,9 @@ function renderSettings() {
   // Plan 07: sub-profile list + owner-only admin panel (gated on state.ownerUid).
   try { renderSubProfileList(); } catch(e) {}
   try { renderOwnerSettings(); } catch(e) {}
+  // Plan 5.8: owner's claim-members panel + grace-window countdown banner.
+  try { renderClaimMembersPanel(); } catch(e) {}
+  try { renderGraceBanner(); } catch(e) {}
   // Refresh identity strip in case name/avatar changed since boot
   if (state.me) {
     const me = state.members.find(x => x.id === state.me.id) || state.me;
@@ -4058,6 +4349,7 @@ window.postComment = async function() {
   const input = document.getElementById('comment-input');
   const body = input.value.trim();
   if (!body || !commentsTitleId || !state.me) return;
+  if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: no comments from unclaimed post-grace
   const titleId = commentsTitleId;
   input.value = '';
   try {
@@ -4944,6 +5236,7 @@ window.closeDetailMoodPalette = function() {
 
 window.addDetailMood = async function(titleId, moodId) {
   if (!moodById(moodId)) return;                    // ASVS V5: reject any id not in MOODS[]
+  if (guardReadOnlyWrite()) return;                 // Plan 5.8 D-15: post-grace unclaimed = no writes
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
   const current = Array.isArray(t.moods) ? t.moods : [];
@@ -4965,6 +5258,7 @@ window.addDetailMood = async function(titleId, moodId) {
 
 window.removeDetailMood = async function(titleId, moodId) {
   if (!moodById(moodId)) return;                    // ASVS V5: reject any id not in MOODS[]
+  if (guardReadOnlyWrite()) return;                 // Plan 5.8 D-15: post-grace unclaimed = no writes
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
   const current = Array.isArray(t.moods) ? t.moods : [];
@@ -5419,6 +5713,7 @@ window.toggleActivityExpand = function(ts) {
 
 window.postActivityReply = async function(ts) {
   if (!state.me) return;
+  if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: no replies from unclaimed post-grace
   const input = document.getElementById('activity-reply-' + ts);
   if (!input) return;
   const text = input.value.trim();
@@ -5982,6 +6277,8 @@ window.closeVetoModal = function() {
 };
 window.submitVeto = async function() {
   if (!vetoTitleId || !state.me) return;
+  // Plan 5.8 D-15: guard post-grace unclaimed members from writing vetoes.
+  if (guardReadOnlyWrite()) { closeVetoModal(); return; }
   const comment = document.getElementById('veto-comment').value.trim().slice(0, 200);
   const t = state.titles.find(x => x.id === vetoTitleId);
   const titleName = (t && t.name) || 'a title';
@@ -6357,6 +6654,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
 
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
+  if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
   const t = state.titles.find(x => x.id === wpStartTitleId);
   if (!t) return;
   const startAt = computeWpStartAt();
@@ -6717,6 +7015,7 @@ window.postTextReaction = async function() {
 
 async function postReaction(payload) {
   if (!state.me || !state.activeWatchpartyId) return;
+  if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: no watchparty reactions from unclaimed post-grace
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) return;
   const mine = myParticipation(wp);
@@ -8581,6 +8880,8 @@ function renderVoteGrid() {
 async function applyVote(titleId, memberId, vote) {
   if (!memberId) memberId = state.me?.id;
   if (!memberId) return;
+  // Plan 5.8 D-15: post-grace unclaimed members are read-only. Bail early + toast + banner.
+  if (guardReadOnlyWrite()) return;
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
   const votes = { ...(t.votes || {}) };
