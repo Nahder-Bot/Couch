@@ -21,8 +21,8 @@ type: uat-results
 |---|---|---|
 | Google | **PASS** | Verified multiple round-trips. Durable across fresh incognito windows — user lands directly on Tonight inside their last-active group (ZFAM7) with no re-prompt. Post-`authDomain` flip to `couchtonight.app` redirect returns cleanly (commit `c2c5af6`). |
 | Apple | **DEFERRED** | Intentionally scoped out of Phase 5 per scope-deviation binding and `.planning/seeds/phase-09-apple-signin.md`. The `signInWithApple` helper is exported from `js/auth.js` but not surfaced in the sign-in screen DOM. Provider not enabled in Firebase console. To be completed in **Phase 9**. |
-| Email link | **PENDING** | Infrastructure deployed: `sendSignInLinkToEmail` + `completeEmailLinkIfPresent` wired; button live on sign-in screen. Not yet exercised end-to-end by tester. |
-| Phone (SMS) | **PENDING** | Infrastructure deployed: `signInWithPhoneNumber` + invisible reCAPTCHA wired; button live. Not yet exercised end-to-end. |
+| Email link | **PASS** | End-to-end round-trip verified in Gmail web. Link opened couchtonight.app, signed in cleanly, landed on Tonight in ZFAM7. Note: delivery went to spam folder on first send — deliverability tuning (SPF/DKIM on the sender domain, or a branded `noreply@couchtonight.app`) is a Phase-9 polish item, not a functional blocker. |
+| Phone (SMS) | **PASS** | Round-trip verified: SMS delivered, code accepted, signed in. Initial input validation was too strict (only accepted raw E.164); loosened to accept `555-123-4567` / `+1 (555) 123-4567` formats with auto-`+1` prefix for bare 10-digit US numbers. Phone sign-in creates a separate Firebase uid from Google sign-in; tester landed on mode-pick, joined ZFAM7 manually, tapped existing "Nahder" chip — `users/{phone_uid}/groups/ZFAM7` now co-exists with `users/{google_uid}/groups/ZFAM7`, both pointing at the same member doc. **Follow-up (Phase 9 polish):** add an in-app "Link phone to this account" affordance (`linkWithCredential`) so Google + phone unify into a single Firebase user rather than two sibling accounts. |
 
 ### Desktop vs iOS standalone PWA
 
