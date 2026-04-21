@@ -51,28 +51,58 @@ type: uat-results
 
 ### Issue #1 — Watchparty scheduled-time display off by ~4 hours on non-creator account
 - **Found in:** Scenario 1 UAT, 2026-04-21
-- **Symptom:** Creator scheduled watchparty for 11pm (local). When the "Watchparty starting" push landed on the *other* family member's device, the displayed start time was ~4 hours off (consistent with UTC-vs-EST rendering, or creator-local-vs-viewer-local mismatch).
-- **Severity:** minor (lifecycle + push contract both correct; cosmetic-but-confusing metadata only)
-- **Suspected root cause:** `startAt` Firestore Timestamp rendered without timezone conversion on the viewer's device — either (a) raw UTC `toLocaleString` without tz argument, or (b) `.toDate().toString()` path, or (c) creator's local-string stored as ISO without offset and re-parsed as UTC on read.
-- **Where to look:** push-payload body construction in `js/app.js` (search for `startAt`, `toLocaleTimeString`, `toLocaleString`, and the `scheduleWatchparty` write path) + Cloud Function `onWatchpartyScheduled` payload if the time is formatted there.
-- **Diagnosis plan:** grep app.js for watchparty time-rendering, verify timezone handling, confirm whether the bug is in the push payload or the in-app banner/modal on the receiver.
-- **Fix routing:** if isolated to push-body formatting → 1 plan (small). If schema-level (startAt stored without offset) → wider (migration risk).
+- **Symptom:** Creator scheduled watchparty for 11pm EDT. Push `watchpartyScheduled` body rendered the time ~4 hours off (displayed 3am, actual 11pm).
+- **Severity:** minor (lifecycle + push delivery both correct; text-in-body only)
+- **✅ Root cause CONFIRMED (diagnostic 2026-04-21):** `queuenight/functions/index.js:169` — CF runs `new Date(wp.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })`. No `timeZone` option. GCP Cloud Functions runtime locale is UTC, so `toLocaleTimeString` renders in UTC. 11pm EDT = 03:00 UTC = "3:00 AM" in the push body. Client renders (`js/app.js:1763-1772` `formatStartTime`) are fine — browser picks up device local timezone.
+- **Fix surface area:** ONE line (`functions/index.js:169`). `startAt` storage is correct (UTC millis from `computeWpStartAt`). No migration risk.
+- **Fix options (planner to choose):**
+  (a) Drop the formatted time from the push body — replace with "tonight" or omit
+  (b) Render in a fixed reference tz with a label (e.g., "11:00 PM ET")
+  (c) Store creator's IANA timezone at write time + pass as `timeZone` option in CF — purely additive schema field, no migration
+- **Clean secondary push:** `onWatchpartyUpdate` / `watchpartyStarting` trigger (`functions/index.js:185-223`) does NOT format `startAt` — body is just "is starting now". No bug there.
 
 ### Issue #2 — "Hide reactions" / "reaction delay" settings not taking effect
 - **Found in:** Scenario 2 observation, 2026-04-21
-- **Symptom:** User toggled hide-reactions and/or reaction-delay settings and the in-app behavior did not reflect the setting change (reactions still shown, no delay applied).
-- **Severity:** major (feature is present in UI but non-functional — user expects setting parity with UI surface)
-- **Suspected root cause candidates:** (a) setting not persisted to Firestore/local state on toggle, (b) persisted but reaction render path doesn't read it, (c) cached render not invalidated on setting change.
-- **Where to look:** search `js/app.js` for `hideReactions`, `reactionDelay`, `reactionsHidden`, and the reaction feed render function. Check toggle handler writes → state.X → render gate.
-- **Diagnosis plan:** spawn debug agent to trace setting from UI toggle → state write → render read and identify the break in the chain.
+- **Symptom (user):** Toggled hide-reactions and/or reaction-delay; no behavior change in-app.
+- **Severity:** major (hide-reactions); net-new feature (reaction delay)
+- **✅ Root cause CONFIRMED (diagnostic 2026-04-21) — two distinct bugs behind one symptom:**
+
+**#2a — Hide reactions: persisted but not re-rendered**
+- UI wiring is fine: `renderWatchpartyFooter` (`js/app.js:7756`) renders button wired to `onclick="setWpMode('hidden')"`.
+- Persistence is fine: `setWpMode` (`js/app.js:7864-7873`) writes `participants.{uid}.reactionsMode: 'hidden'` to Firestore.
+- Render path is fine: `renderReactionsFeed` (`js/app.js:7675`) correctly short-circuits to placeholder when `mode === 'hidden'`.
+- **The break:** after `setWpMode` awaits the write, it does nothing else. The `onSnapshot` handler (`js/app.js:3092-3110`) only calls `renderWatchpartyBanner()`, never `renderWatchpartyLive()`. Live modal DOM is never refreshed — stale HTML persists until user closes + reopens the modal.
+- **Fix:** optimistic local update + synchronous `renderWatchpartyLive()` call at end of `setWpMode`. Follows the pattern already used in `postReaction` (line 7830-7831).
+
+**#2b — Reaction delay: does not exist**
+- No `reactionDelay` / `reaction_delay` / `delay` anywhere in reaction code. Zero matches.
+- Participant shape (`js/app.js:7403-7410, 7438-7444`) has no delay field.
+- No UI control exists in `renderWatchpartyFooter` for a delay.
+- **This is a net-new feature build**, not a regression.
+- **Design question for planner:** viewer-side delay (I see others' reactions N seconds later — spoiler protection for me) or poster-side delay (my reaction held N seconds before landing in Firestore — spoiler protection for others)? The stated use-case ("don't spoil an upcoming moment") points at **viewer-side**, which is also dramatically cheaper — it's purely a render-filter shift in `renderReactionsFeed` (`js/app.js:7682-7686`): `(r.elapsedMs || 0) <= myElapsed - (mine.reactionDelay || 0) * 1000`. Poster-side would require scheduled writes + cross-viewer timestamp respect (harder).
+- **Fix surface area (if viewer-side):** (1) UI slider/presets in `renderWatchpartyFooter`, (2) `reactionDelay` field on participant shape, (3) `setReactionDelay` persist function, (4) elapsed-filter shift in `renderReactionsFeed`. No Firestore schema or posting-path changes.
 
 ### Issue #3 — Late joiners receive no reaction backlog
 - **Found in:** Scenario 2 observation, 2026-04-21
-- **Symptom:** When a second family member joined a watchparty after reactions had already been posted, they saw none of the prior reactions — the feed started empty for them.
-- **Severity:** major (pending clarification — may be by-design "live-only", but user expectation is backlog visible)
-- **Open design question:** Should late joiners see reactions posted before they joined? User implies yes. If yes, this is a feed-load gap (`onSnapshot` of `reactions/` subcollection should pull existing docs on subscribe, not just `added` deltas from subscribe-time forward).
-- **Where to look:** `subscribeWatchpartyReactions` (or equivalent) in `js/app.js`. Check whether initial snapshot is rendered or only `docChanges()` with type `added` from now on.
-- **Diagnosis plan:** verify whether reactions subcollection subscription replays existing docs on attach; if not, change to full-query pattern OR add "since X" param so joiners pull from session-start.
+- **Symptom:** Late joiner sees empty reaction feed — backlog invisible.
+- **Severity:** major (product expectation: backlog should be visible on join)
+- **✅ Root cause CONFIRMED (diagnostic 2026-04-21) — NOT a subscription bug:**
+  - Reactions are stored as `reactions: []` array on the watchparty doc (not a subcollection). The `onSnapshot` at `js/app.js:3092` is full-query replay — delivers the full document (including all reactions) every tick. **Data arrives correctly.** `state.watchparties` is populated with the full backlog on join.
+- **The actual break — render-gate short-circuit (`js/app.js:7609`):**
+  ```js
+  } else if (!mine || !mine.startedAt) {
+    // shows "Ready when you are" — renderReactionsFeed NEVER CALLED
+  } else {
+    body = renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine);
+  }
+  ```
+  On join, `joinWatchparty` (`js/app.js:7434`) writes the participant record **without `startedAt`** (fields: `name, joinedAt, rsvpStatus, reactionsMode, pausedOffset`). So the first branch fires and the feed is never rendered.
+- **Second filter after the gate — elapsed-mode filter (`js/app.js:7682-7686`):** even if render is reached, in elapsed mode `myElapsed = 0` hides all reactions with `elapsedMs > 0` until the viewer's timer catches up. Wallclock mode bypasses this (confirming data is present — the backlog bug is purely render).
+- **Recommended fix (planner should validate):** Option B — when `!mine.startedAt`, force wallclock mode render (full backlog, wall-time sorted) with "Ready when you are" prompt above it, not instead of it. Once viewer presses "Start my timer", switch back to their configured mode.
+- **Fix surface area:** small — structural edit to `renderWatchpartyLive` branch at 7609 + a mode-override param threaded into `renderReactionsFeed`. No schema change, no data migration.
+- **Design questions for planner to surface:**
+  1. **Re-join case:** Member leaves mid-party then re-joins — fresh participant record, no `startedAt` for the new session. Should they see the full history from party-start (forced wallclock) or only catch up from where their new timer starts? Recommend: show history via wallclock override (consistent with first-join semantic).
+  2. **Original creator:** Same branch affects the creator before they press "Start my timer". Probably fine — they haven't missed anything. But means they won't see a reaction from another early-joiner until they start. Flag, don't block.
 
 ### Issue #4 — Participant start-time: default on-time for pre/on-time joiners + manual "I started on time" toggle for late joiners
 - **Type:** enhancement / product gap (not a regression — this is incremental PARTY-03 polish)
