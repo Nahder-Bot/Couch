@@ -158,10 +158,21 @@ service cloud.firestore {
         );
 
         // Self, owner, or parent-of-managed-sub may update.
+        // Plus: during grace window, an authed user may OPPORTUNISTICALLY CLAIM
+        // a uid-less legacy member doc by writing their own uid on it. This is
+        // the migration path for pre-Phase-5 family members signing in for the
+        // first time. After the grace window closes this branch disappears and
+        // claims must go through the claimMember Cloud Function.
         allow update: if signedIn() && (
           resource.data.uid == uid()
           || isOwner(familyCode)
           || resource.data.managedBy == uid()
+          || (
+            graceActive()
+            && !('uid' in resource.data)
+            && request.resource.data.uid == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'claimedAt'])
+          )
         );
 
         // Owner deletes anyone; a self-member can delete themselves (leave group).

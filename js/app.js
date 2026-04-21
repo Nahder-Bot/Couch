@@ -1576,15 +1576,21 @@ window.joinAsExisting = async function(id, name) {
       const memberData = memberSnap.exists() ? memberSnap.data() : null;
       if (memberData && !memberData.uid) {
         await updateDoc(doc(membersRef(), id), { uid: state.auth.uid, claimedAt: Date.now() });
+        console.log('[joinAsExisting] uid claim succeeded for', id);
       }
-    } catch(e) {}
-    // Write users/{uid}/groups/{code} index doc
+    } catch(e) {
+      console.warn('[joinAsExisting] uid claim failed (will retry via claim flow in Phase 5.8):', e.code, e.message);
+    }
+    // Write users/{uid}/groups/{code} index doc — this is what populates state.groups on next sign-in
     try {
       await setDoc(doc(db, 'users', state.auth.uid, 'groups', state.familyCode), {
         familyCode: state.familyCode, name: state.group?.name || state.familyCode,
         mode: currentMode(), memberId: id, joinedAt: Date.now(), lastActiveAt: Date.now()
       }, { merge: true });
-    } catch(e) {}
+      console.log('[joinAsExisting] users/groups index written for', state.familyCode);
+    } catch(e) {
+      console.error('[joinAsExisting] users/groups index write FAILED — group will not persist across sign-in:', e.code, e.message);
+    }
   }
   showApp();
 };
