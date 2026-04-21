@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 5 executing — 05-08 complete (claim/graduation + read-only). 05-09 (cutover + docs) remaining.
-stopped_at: 05-08 complete — migration claim panel + claim-confirm screen + sub-profile graduation + post-grace read-only all live client-side; mintClaimTokens CF authored. Awaiting orchestrator deploy.
-last_updated: "2026-04-21T00:00:00.000Z"
-last_activity: 2026-04-21 -- 05-08 complete: claim/graduation flows + post-grace read-only (D-14/D-15/D-16)
+status: Phase 5 executing — 05-08 deployed + phone-input fix deployed. 05-09 in progress; UAT-RESULTS.md partial (4 PASS, 7 PENDING hands-on, 1 DEFERRED to Phase 9).
+stopped_at: 2026-04-21 -- Production deploy complete. Functions mintClaimTokens + claimMember (with graduatedAt) live on queuenight-84044. Hosting deployed to couchtonight.app (47 files, includes phone-input fix b3a0ca3). Couch repo clean at b7f2ab0. Phase 5 now blocked only on hands-on UAT for scenarios 2, 3, 4, 6, 8, 9, 10 + iOS standalone PWA verification.
+last_updated: "2026-04-21T12:00:00.000Z"
+last_activity: 2026-04-21 -- 05-09 deploy pass: phone-input fix + CF refresh + hosting deploy to prod (commits b3a0ca3, d85d6f5, b7f2ab0)
 progress:
   total_phases: 8
   completed_phases: 2
@@ -27,10 +27,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 5 (Auth + Groups) — EXECUTING (9 plans, 7 waves)
-Plan: 9 of 9 (05-08 complete — claim/graduation + read-only; 1 commit local + mintClaimTokens CF authored, awaiting orchestrator deploy)
-Status: 05-08 complete. Owner sees Claim-your-members panel in Settings with per-member deep-link mint; recipients land on claim-confirm screen after sign-in; sub-profile graduation via Web Share; post-grace unclaimed members go read-only with toast + banner + dimmed buttons. mintClaimTokens CF written to queuenight/functions/src/ (not couch-repo tracked); claimMember CF extended with graduatedAt stamp. Orchestrator to deploy functions:mintClaimTokens + sync client to queuenight/public/.
-Last activity: 2026-04-21 -- 05-08 complete: claim/graduation flows + post-grace read-only (1 commit: cc077ed)
+Plan: 9 of 9 (05-08 deployed; 05-09 in-progress — partial UAT + full prod deploy)
+Status: Prod deploy complete on 2026-04-21. Functions mintClaimTokens + claimMember (with graduatedAt) deployed to queuenight-84044 (v2 callable, nodejs22). Hosting deployed to couchtonight.app with phone-input validation fix (commit b3a0ca3 — strip spaces/dashes/parens, auto-+1 for bare 10-digit US numbers). UAT-RESULTS.md current: Google/Email-link/Phone-SMS/Sign-out PASS; Apple DEFERRED to Phase 9; scenarios 2 (sub-profile act-as), 3 (password join), 4 (guest invite), 6 (Sports Watchparty), 8 (migration claim), 9 (graduation), 10 (grace cutoff) PENDING hands-on. iOS standalone PWA round-trip also still owed (single-provider Google is sufficient minimum per RESEARCH §9).
+Last activity: 2026-04-21 -- 05-09 deploy pass: phone fix + CF refresh + hosting (3 commits: b3a0ca3, d85d6f5, b7f2ab0)
 Resume file: .planning/phases/05-auth-groups/05-09-PLAN.md
+Resume UAT from: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
 
 Progress: [█████░░░░░] 50% (Phases 3-4 complete; 05-01..05-08 complete; 05-09 pending; Phases 6-10 pending)
 
