@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 5 executing — 05-07 complete (sub-profiles + owner admin). 05-08 (claim/redeem flows) next.
-stopped_at: 05-07 complete — sub-profile CRUD + act-as + owner admin (password/guest-invite/ownership-transfer) all live. Awaiting orchestrator deploy.
+status: Phase 5 executing — 05-08 complete (claim/graduation + read-only). 05-09 (cutover + docs) remaining.
+stopped_at: 05-08 complete — migration claim panel + claim-confirm screen + sub-profile graduation + post-grace read-only all live client-side; mintClaimTokens CF authored. Awaiting orchestrator deploy.
 last_updated: "2026-04-21T00:00:00.000Z"
-last_activity: 2026-04-21 -- 05-07 complete: sub-profile model + owner-only admin panel (D-01/D-03/D-04/D-12/D-18/D-19)
+last_activity: 2026-04-21 -- 05-08 complete: claim/graduation flows + post-grace read-only (D-14/D-15/D-16)
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 6
-  percent: 43
+  completed_plans: 7
+  percent: 50
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 5 (Auth + Groups) — EXECUTING (9 plans, 7 waves)
-Plan: 8 of 9 (05-07 complete — sub-profile CRUD + owner admin panel live; 2 commits local, awaiting deploy)
-Status: 05-07 complete. Settings has Kids & sub-profiles + owner-only admin section (password rotate, guest invite, ownership transfer). Sub-profile chip on Tonight = per-action act-as. Orchestrator to sync to queuenight/public/ + firebase deploy.
-Last activity: 2026-04-21 -- 05-07 complete: sub-profile CRUD + act-as + owner admin (2 commits: 3ab102c, 900ebad)
-Resume file: .planning/phases/05-auth-groups/05-08-PLAN.md
+Plan: 9 of 9 (05-08 complete — claim/graduation + read-only; 1 commit local + mintClaimTokens CF authored, awaiting orchestrator deploy)
+Status: 05-08 complete. Owner sees Claim-your-members panel in Settings with per-member deep-link mint; recipients land on claim-confirm screen after sign-in; sub-profile graduation via Web Share; post-grace unclaimed members go read-only with toast + banner + dimmed buttons. mintClaimTokens CF written to queuenight/functions/src/ (not couch-repo tracked); claimMember CF extended with graduatedAt stamp. Orchestrator to deploy functions:mintClaimTokens + sync client to queuenight/public/.
+Last activity: 2026-04-21 -- 05-08 complete: claim/graduation flows + post-grace read-only (1 commit: cc077ed)
+Resume file: .planning/phases/05-auth-groups/05-09-PLAN.md
 
-Progress: [████░░░░░░] 43% (Phases 3-4 complete; 05-01..05-07 complete; 05-08 + 05-09 pending; Phases 6-10 pending)
+Progress: [█████░░░░░] 50% (Phases 3-4 complete; 05-01..05-08 complete; 05-09 pending; Phases 6-10 pending)
 
 ## Performance Metrics
 
@@ -98,5 +98,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-21T00:00:00.000Z
-Stopped at: 05-07 complete — sub-profile CRUD + per-action act-as + owner-only admin panel (password/guest invite/ownership transfer). Commits 3ab102c + 900ebad local; rsync to queuenight/public/ + firebase deploy pending orchestrator action.
-Resume file: .planning/phases/05-auth-groups/05-08-PLAN.md
+Stopped at: 05-08 complete — migration claim panel + claim-confirm screen + sub-profile graduation (D-16 graduatedAt) + post-grace read-only enforcement (D-15 banner + body.is-readonly + guardReadOnlyWrite). Commit cc077ed local; mintClaimTokens CF + claimMember graduatedAt extension authored in queuenight/functions/ (not couch-repo tracked). Orchestrator to: firebase deploy --only functions:mintClaimTokens, then deploy claimMember redeploy, then sync client to queuenight/public/ + firebase deploy --only hosting.
+Resume file: .planning/phases/05-auth-groups/05-09-PLAN.md
