@@ -1631,14 +1631,12 @@ window.joinAsNew = async function() {
     member.isParent = true;
   }
   try {
-    // Atomic batch: member doc + ownerUid on family doc (when first member in family mode)
-    const batch = writeBatch(db);
+    // Single write: the member doc. submitFamily already stamps ownerUid on the family doc
+    // at create time (and rules block client UPDATE on families/{code}), so a second owner
+    // stamp here would just get denied and fail the whole write. Members rule branch A uses
+    // getAfter() on the family doc so it sees the ownerUid written by submitFamily.
     const memberDocRef = doc(membersRef(), id);
-    batch.set(memberDocRef, member);
-    if (isFirstMember && currentMode() === 'family' && state.auth) {
-      batch.set(familyDocRef(), { ownerUid: state.auth.uid }, { merge: true });
-    }
-    await batch.commit();
+    await setDoc(memberDocRef, member);
     state.me = { id, name };
     localStorage.setItem('qn_me', JSON.stringify(state.me));
     upsertSavedGroup({ code: state.familyCode, name: state.group?.name || state.familyCode, mode: currentMode(), myMemberId: id, myMemberName: name });

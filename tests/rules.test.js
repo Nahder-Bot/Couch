@@ -273,6 +273,44 @@ async function run() {
     });
   });
 
+  await describe('Family doc — picker-only update', async () => {
+    await it('#15 authed member updates ONLY picker field → ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1').set(
+          { picker: { queue: ['m_UID_OWNER', 'm_UID_MEMBER'], currentMemberId: 'm_UID_OWNER', enabled: true, updatedAt: Date.now() } },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#16 authed member updates picker + another field → DENIED', async () => {
+      await assertFails(
+        member.doc('families/fam1').set(
+          { picker: { enabled: false }, mode: 'crew' },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#17 authed member tries to change ownerUid → DENIED', async () => {
+      await assertFails(
+        member.doc('families/fam1').set(
+          { ownerUid: UID_MEMBER },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#18 non-member stranger updates picker → DENIED', async () => {
+      await assertFails(
+        stranger.doc('families/fam1').set(
+          { picker: { enabled: true } },
+          { merge: true }
+        )
+      );
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);

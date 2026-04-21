@@ -118,9 +118,13 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/families/$(familyCode))
         && request.resource.data.ownerUid == uid();
 
-      // All mutations (passwordHash, ownership transfer, rotation) go
-      // through Cloud Functions (admin SDK bypasses rules).
-      allow update: if false;
+      // Narrow client UPDATE: ANY member may change the picker field (Who-picks-tonight
+      // rotation config). ownerUid / passwordHash / mode / code must NOT change — those
+      // mutations still go through Cloud Functions. The diff check pins mutation scope to
+      // the picker field only.
+      allow update: if isMemberOfFamily(familyCode)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker']);
+
       allow delete: if false;
 
 
