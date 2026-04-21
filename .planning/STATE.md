@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 8 LIVE on prod. Deploy complete 2026-04-22 (rules + 3 functions + hosting). Awaiting device UAT. Phases 5/6/7 UAT partial.
-stopped_at: 2026-04-22 -- Phase 8 Watch-Intent Flows production deploy complete. Firestore rules released with /intents/{id} 4-branch update block. 2 new CFs created (onIntentCreated, onIntentUpdate). watchpartyTick CF updated with intent-expiry branch. Hosting released (cache v17) with: intent CRUD helpers (createIntent / setIntentRsvp / cancelIntent), onSnapshot subscription, action-sheet entries ('📆 Propose tonight @ time' + '💭 Ask the family'), propose-tonight modal with 8pm/9pm/10pm quick picks + custom datetime, Tonight-screen open-intents strip with yes-tally + RSVP badges, RSVP modal with Yes/Maybe/No(+Later), client-side match detector + creator-only match-banner overlay, conversion routing to existing watchparty/schedule modals, 2 new notificationPrefs (intentProposed, intentMatched). Scope deviation flagged: match prompt is a custom top-center snackbar overlay rather than extending flashToast.
-last_updated: "2026-04-22T19:45:00.000Z"
-last_activity: 2026-04-22 -- Phase 8 execute + deploy (6 commits: 6dc0422, 3a8a62c, 156edea, af05cd6, 43c26f2 + STATE) + 3 firebase deploys
+status: Phase 7 UAT complete-with-gaps (8/8 PASS, 4 fix-gaps + 1 seed). Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial.
+stopped_at: 2026-04-21 -- Phase 7 /gsd-verify-work session: all 8 scenarios PASS (6 hands-on iPhone+2nd-device + 2 code/health-verified via watchpartyTick CF logs). 5 issues surfaced. #1 timezone display offset on push/banner (minor). #2 hide-reactions/reaction-delay settings non-functional (major). #3 late-joiner reaction backlog missing (major). #4 on-time inference + late-joiner override affordance (minor). #5 banner dismiss + async-replay watchparty mode → seeded as .planning/seeds/phase-9x-async-replay.md (out of scope for Phase 7 fix). Flagship Scenario 1 (scheduled→active flip + watchpartyStarting push) PASS — closes Phase 6 push loop. Commit 996268e on master.
+last_updated: "2026-04-21T23:45:00.000Z"
+last_activity: 2026-04-21 -- Phase 7 UAT run + commit 996268e + Phase-9x async-replay seed authored
 progress:
   total_phases: 8
   completed_phases: 2
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 8 Watch-Intent Flows — deployed, awaiting device UAT. Phase 7 also deployed + UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work.
+**Current focus:** Phase 7 gap closure — /gsd-plan-phase 7 --gaps to address Issues #1-#4 from UAT. Phase 8 deployed UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work; Phase-9x async-replay seed captured.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 7 (Watchparty) — DEPLOYED (4 plans: 07-01..07-03 shipped + deployed; 07-04 UAT scaffolded, pending hands-on)
-Plan: 4 of 4
-Status: Autonomous session 2026-04-22 landed Phase 7 plans + deployed to prod. 3 code commits (lifecycle state machine; spin CTA + detail-modal fix; emoji picker + participant strip). Scope deviations honest: kept 10-emoji palette (not 8) + added '+more' picker; banner session-dismiss skipped (25h archive covers it); GIF reactions seeded for Phase 9.x. watchpartyTick CF live every 5 min. Client flip timer piggybacks on existing 1-sec watchpartyTick interval. Phase 6's watchpartyStarting push now reachable through the flip.
+Phase: 7 (Watchparty) — UAT COMPLETE-WITH-GAPS (8/8 PASS, 4 fix-gaps, 1 seed). Needs gap-closure plan + re-verify before clean Phase 7 close.
+Plan: UAT done; next = /gsd-plan-phase 7 --gaps
+Status: 2026-04-21 /gsd-verify-work 7 run. Scenarios 1-6 PASS hands-on (iPhone PWA + second device). Scenarios 7-8 (orphan-archive branches) PASS on code+health verification — watchpartyTick CF observed ticking every 5 min, 10 families scanned, 0 errors; branch logic reviewed at functions/index.js:425-441. Flagship push loop closed. Gap closure needed before Phase 7 is fully verified — Issues #1-#4 in 07-UAT-RESULTS.md. Issue #5 (banner dismiss + async-replay) seeded to seeds/phase-9x-async-replay.md.
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
 Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
 
-Last activity: 2026-04-22 -- Phase 7 execute + deploy (commits 6a8d473 lifecycle, febdc8a spin CTA, 544fcf5 emoji+timer, 2136aae UAT scaffold)
-Resume file: .planning/phases/07-watchparty/07-UAT-RESULTS.md
-Resume UAT from: .planning/phases/07-watchparty/07-UAT-RESULTS.md (8 scenarios scaffolded PENDING; flagship = Scenario 1 scheduled→active push)
+Last activity: 2026-04-21 -- Phase 7 UAT run (commit 996268e) + Phase-9x async-replay seed
+Resume file: .planning/phases/07-watchparty/07-UAT-RESULTS.md (8/8 PASS table + 5 outstanding issues detailed)
+Next action: /gsd-plan-phase 7 --gaps (covers Issues #1-#4; Issue #5 deferred to seeds/phase-9x-async-replay.md)
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
 Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
 
