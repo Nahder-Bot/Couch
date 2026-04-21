@@ -1265,8 +1265,17 @@ window.handleSigninEmail = async function() {
 let _pendingPhoneConfirmation = null;
 
 window.handleSigninPhoneSend = async function() {
-  const phone = (document.getElementById('signin-phone-input').value || '').trim();
-  if (!phone || !phone.startsWith('+')) { flashToast('Enter phone in +country format', { kind: 'warn' }); return; }
+  const raw = (document.getElementById('signin-phone-input').value || '').trim();
+  // Strip spaces / dashes / parens / dots so '+1 (555) 123-4567' works.
+  let phone = raw.replace(/[\s\-().]/g, '');
+  // Common slip: user enters a 10-digit US number without country code. Auto-prefix +1.
+  if (/^\d{10}$/.test(phone)) phone = '+1' + phone;
+  // Another common slip: starts with '1' + 10 digits without the '+'. Prepend '+'.
+  else if (/^1\d{10}$/.test(phone)) phone = '+' + phone;
+  if (!phone.startsWith('+') || !/^\+\d{8,15}$/.test(phone)) {
+    flashToast('Use format +15551234567 (country code + number, no spaces)', { kind: 'warn', duration: 4000 });
+    return;
+  }
   try {
     _pendingPhoneConfirmation = await sendPhoneCode(phone, 'signin-phone-send');
     document.getElementById('signin-phone-code-wrap').style.display = 'flex';
