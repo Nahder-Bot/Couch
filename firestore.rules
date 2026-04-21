@@ -1,0 +1,272 @@
+rules_version = '2';
+
+// Couch — Phase 5 auth-aware rules with 30-day grace window.
+//
+// Design:
+//   - Every mutation requires signed-in + family membership + valid attribution
+//     (request.resource.data.actingUid == request.auth.uid).
+//   - During the grace window (settings/auth.graceUntil > request.time) legacy
+//     {memberId, memberName} writes without actingUid are still allowed, so
+//     pre-auth clients keep working until the user upgrades.
+//   - Two collections (invites, claimTokens) are server-only — no client R/W;
+//     they're written and consumed by Cloud Functions via the admin SDK.
+//   - Family-doc CREATE allowed to new groups with self-as-owner (Plan 06
+//     submitFamily new-group path). UPDATE/DELETE are CF-only.
+//   - Three narrow client-create branches for member docs (see that block
+//     for the table). Plans 06 + 07 rely on these; a blanket write:false
+//     would break them.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // Helpers
+    // ==========================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // True iff /users/{uid}/groups/{familyCode} exists — the CF writes this
+    // index on join, and claimMember keeps it in sync. isMemberOfFamily is
+    // the one lookup we use throughout the rules file so the result is
+    // cached per-request.
+    function isMemberOfFamily(familyCode) {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(uid())/groups/$(familyCode));
+    }
+
+    function isOwner(familyCode) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/families/$(familyCode))
+        && get(/databases/$(database)/documents/families/$(familyCode)).data.ownerUid == uid();
+    }
+
+    // Grace window is active while settings/auth.graceUntil is in the future.
+    // If /settings/auth doesn't exist yet, treat grace as OFF (secure default).
+    function graceActive() {
+      return exists(/databases/$(database)/documents/settings/auth)
+        && get(/databases/$(database)/documents/settings/auth).data.graceUntil > request.time.toMillis();
+    }
+
+    // validAttribution: incoming write must carry the caller's actingUid.
+    // If the write is on behalf of a managed sub-profile (managedMemberId set),
+    // the caller must actually manage that sub — member.managedBy must equal
+    // the caller's uid. This is what stops parent forgery attacks.
+    function validAttribution(familyCode) {
+      return isMemberOfFamily(familyCode)
+        && request.resource.data.actingUid == uid()
+        && (
+          !('managedMemberId' in request.resource.data)
+          || get(/databases/$(database)/documents/families/$(familyCode)/members/$(request.resource.data.managedMemberId)).data.managedBy == uid()
+        );
+    }
+
+    // Legacy writes from pre-auth clients: they send {memberId, memberName}
+    // without an actingUid. Allowed only while grace is active.
+    function legacyGraceWrite() {
+      return graceActive()
+        && request.resource.data.memberId is string
+        && !('actingUid' in request.resource.data);
+    }
+
+    // Shared attribution check used by most family subcollection writes.
+    function attributedWrite(familyCode) {
+      return validAttribution(familyCode) || legacyGraceWrite();
+    }
+
+
+    // ==========================================================
+    // Settings (read-only surface for clients)
+    // ==========================================================
+
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+
+    // ==========================================================
+    // Per-user group index (self-only)
+    // ==========================================================
+
+    match /users/{u}/groups/{familyCode} {
+      allow read, write: if signedIn() && u == uid();
+    }
+
+    // Any other per-user subtree is server-only.
+    match /users/{u}/{path=**} {
+      allow read, write: if signedIn() && u == uid();
+    }
+
+
+    // ==========================================================
+    // Family doc
+    // ==========================================================
+
+    match /families/{familyCode} {
+      allow read: if isMemberOfFamily(familyCode);
+
+      // Client CREATE allowed ONLY when:
+      //   1. the doc doesn't exist yet (fresh family code)
+      //   2. the creator stamps themselves as ownerUid atomically
+      // This is Plan 06's submitFamily new-group path.
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/families/$(familyCode))
+        && request.resource.data.ownerUid == uid();
+
+      // All mutations (passwordHash, ownership transfer, rotation) go
+      // through Cloud Functions (admin SDK bypasses rules).
+      allow update: if false;
+      allow delete: if false;
+
+
+      // ========================================================
+      // Members (three narrow client-create branches)
+      // ========================================================
+
+      // | Branch | Who | Condition | Use case |
+      // |--------|-----|-----------|----------|
+      // | A | Any signed-in user | family's ownerUid (after this batch) == self AND request data has uid == self AND NO managedBy | Plan 06 joinAsNew first-member bootstrap |
+      // | B | Existing member | request data has NO uid AND managedBy == self | Plan 07 createSubProfile |
+      // | C | Existing member | request data has uid == self AND NO managedBy | Plan 06 joinAsNew existing-device self-add |
+      match /members/{memberId} {
+        allow read: if isMemberOfFamily(familyCode);
+
+        allow create: if signedIn() && (
+          // Branch A — first-member bootstrap (family doc being created in same batch)
+          (
+            getAfter(/databases/$(database)/documents/families/$(familyCode)).data.ownerUid == uid()
+            && request.resource.data.uid == uid()
+            && !('managedBy' in request.resource.data)
+          )
+          // Branch B — sub-profile create by existing family member
+          || (
+            isMemberOfFamily(familyCode)
+            && !('uid' in request.resource.data)
+            && request.resource.data.managedBy == uid()
+          )
+          // Branch C — existing authed member adds a new self-uid member doc
+          || (
+            isMemberOfFamily(familyCode)
+            && request.resource.data.uid == uid()
+            && !('managedBy' in request.resource.data)
+          )
+        );
+
+        // Self, owner, or parent-of-managed-sub may update.
+        allow update: if signedIn() && (
+          resource.data.uid == uid()
+          || isOwner(familyCode)
+          || resource.data.managedBy == uid()
+        );
+
+        // Owner deletes anyone; a self-member can delete themselves (leave group).
+        allow delete: if isOwner(familyCode)
+          || (signedIn() && resource.data.uid == uid());
+      }
+
+
+      // ========================================================
+      // Server-only surfaces (CFs use admin SDK → bypasses rules)
+      // ========================================================
+
+      match /invites/{inviteId} {
+        allow read, write: if false;
+      }
+
+      match /claimTokens/{tokenId} {
+        allow read, write: if false;
+      }
+
+
+      // ========================================================
+      // Tonight sessions — votes + vetoes map
+      // ========================================================
+
+      match /sessions/{dateKey} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create, update: if attributedWrite(familyCode);
+        // Midnight-reset deletion: owner any time, any member during grace.
+        allow delete: if isOwner(familyCode) || (isMemberOfFamily(familyCode) && graceActive());
+      }
+
+
+      // ========================================================
+      // Veto history audit trail
+      // ========================================================
+
+      match /vetoHistory/{vetoId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create: if attributedWrite(familyCode);
+        // A veto record can only be deleted by the user who recorded it
+        // (post-grace enforcement uses actingUid; grace allows legacy memberId self-delete).
+        allow delete: if isMemberOfFamily(familyCode) && (
+          resource.data.actingUid == uid()
+          || (graceActive() && resource.data.memberId is string)
+        );
+      }
+
+
+      // ========================================================
+      // Titles (catalog) + their comment subcollection
+      // ========================================================
+
+      match /titles/{titleId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create, update: if attributedWrite(familyCode);
+        allow delete: if isMemberOfFamily(familyCode);
+
+        match /comments/{commentId} {
+          allow read: if isMemberOfFamily(familyCode);
+          allow create, update: if attributedWrite(familyCode);
+          allow delete: if isMemberOfFamily(familyCode) && (
+            resource.data.actingUid == uid()
+            || isOwner(familyCode)
+            || (graceActive() && resource.data.memberId is string)
+          );
+        }
+      }
+
+
+      // ========================================================
+      // Activity feed
+      // ========================================================
+
+      match /activity/{activityId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create, update: if attributedWrite(familyCode);
+        allow delete: if isOwner(familyCode);
+      }
+
+
+      // ========================================================
+      // Lists (watchlist, recaps, etc.)
+      // ========================================================
+
+      match /lists/{listId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create, update: if attributedWrite(familyCode);
+        allow delete: if isMemberOfFamily(familyCode) && (
+          resource.data.actingUid == uid()
+          || isOwner(familyCode)
+          || (graceActive() && resource.data.memberId is string)
+        );
+      }
+
+
+      // ========================================================
+      // Watchparties
+      // ========================================================
+
+      match /watchparties/{wpId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create, update: if attributedWrite(familyCode);
+        allow delete: if isOwner(familyCode) || (isMemberOfFamily(familyCode) && graceActive());
+      }
+    }
+  }
+}

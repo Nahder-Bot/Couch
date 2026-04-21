@@ -1,0 +1,13 @@
+{
+  "name": "couch-rules-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "pretest": "node -e \"require('fs').copyFileSync('../firestore.rules','firestore.rules')\"",
+    "test": "firebase emulators:exec --only firestore --project queuenight-84044 \"node rules.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.2",
+    "firebase": "^10.12.0"
+  }
+}
