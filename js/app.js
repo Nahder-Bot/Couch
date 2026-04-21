@@ -1985,29 +1985,23 @@ function startSync() {
 
 async function boot() {
   // Phase 5: bootstrapAuth MUST resolve before any UI render so the router picks the right screen.
-  let bootResult = { freshFromRedirect: false, user: null };
-  try { bootResult = await bootstrapAuth(); } catch(e) { console.error('[boot] bootstrapAuth error', e); }
-  state.auth = auth.currentUser;
+  // IMPORTANT: boot() intentionally does NOT set state.auth or route into a group itself.
+  // onAuthStateChangedCouch is the single owner of all post-auth routing decisions;
+  // setting state.auth here would make it think wasSignedIn=true and skip the routing.
+  try { await bootstrapAuth(); } catch(e) { console.error('[boot] bootstrapAuth error', e); }
 
-  // Complete email-link sign-in if arriving from a magic link
-  try {
-    const emailUser = await completeEmailLinkIfPresent();
-    if (emailUser) state.auth = emailUser;
-  } catch(e) { console.error('[boot] email-link complete failed', e); }
+  // Complete email-link sign-in if arriving from a magic link (the listener will pick up the user).
+  try { await completeEmailLinkIfPresent(); } catch(e) { console.error('[boot] email-link complete failed', e); }
 
-  // Pre-load saved groups from localStorage for instant paint (will be overwritten by snapshot)
+  // Pre-load saved groups from localStorage for instant paint (will be overwritten by Firestore snapshot).
   state.groups = loadSavedGroups();
 
-  // If not signed in, show the sign-in screen immediately so boot feels fast.
-  if (!state.auth) {
-    showPreAuthScreen('signin-screen');
-  }
+  // Show the sign-in screen synchronously as the default pre-auth surface. If the user IS signed in,
+  // onAuthStateChangedCouch will fire milliseconds later and route them into their group.
+  showPreAuthScreen('signin-screen');
 
-  // Install auth-state listener LAST — it handles ALL post-auth routing, including
-  // restoring the user's group + member from Firestore (users/{uid}/groups/{code}).
-  // boot() intentionally does NOT route past this point; onAuthStateChangedCouch owns
-  // the decision so fresh incognito sign-ins don't flash to mode-pick before the
-  // users/{uid}/groups snapshot loads.
+  // Install the listener. Firebase Auth fires it on install with the current auth state (or null
+  // if not signed in), and we trust that callback to do all routing from here on.
   state.unsubAuth = watchAuth(onAuthStateChangedCouch);
 }
 
