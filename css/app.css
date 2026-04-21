@@ -685,6 +685,21 @@ h3{font-size:var(--t-h3)}
 .intent-rsvp-maybe{background:rgba(232,160,74,0.2);color:var(--accent)}
 .intent-rsvp-no{background:rgba(196,69,54,0.18);color:var(--bad)}
 .intent-rsvp-later{background:rgba(176,137,104,0.18);color:var(--ink-dim)}
+
+/* Intent match banner (Phase 8 Plan 03) — creator-only overlay when threshold crossed.
+   Fixed-position snackbar at top-center with inline action buttons. Stacks if multiple. */
+.intent-match-host{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));left:50%;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:10px;max-width:min(420px, calc(100vw - 32px));width:calc(100vw - 32px);pointer-events:none}
+.intent-match-banner{pointer-events:auto;background:linear-gradient(135deg,rgba(232,160,74,0.95) 0%,rgba(229,49,112,0.92) 100%);color:var(--bg);border-radius:var(--r-xl);padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.18);display:flex;gap:12px;align-items:center;animation:intent-match-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2)}
+.intent-match-bar{width:3px;align-self:stretch;background:rgba(20,17,15,0.4);border-radius:3px}
+.intent-match-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.intent-match-eyebrow{font-size:var(--t-micro);font-weight:700;letter-spacing:0.09em;text-transform:uppercase;opacity:0.85}
+.intent-match-title{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h3);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.intent-match-sub{font-size:var(--t-meta);opacity:0.85}
+.intent-match-actions{display:flex;gap:6px;flex-direction:column;flex-shrink:0}
+.intent-match-actions .pill{padding:6px 12px;font-size:var(--t-micro);white-space:nowrap}
+.intent-match-actions .pill.accent{background:var(--bg);color:var(--accent);border:none}
+.intent-match-actions .pill:not(.accent){background:transparent;color:var(--bg);border:1px solid rgba(20,17,15,0.35)}
+@keyframes intent-match-in{from{opacity:0;transform:translateY(-10px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
 .wp-compose{display:flex;gap:8px}
 .wp-compose input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:11px 14px;border-radius:var(--r-md);font-family:inherit;font-size:var(--t-body);transition:border-color 0.15s}
 .wp-compose input:focus{border-color:var(--accent);outline:none}

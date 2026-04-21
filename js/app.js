@@ -1576,6 +1576,134 @@ window.cancelMyIntent = async function() {
   await cancelIntent(_rsvpIntentId);
   closeIntentRsvpModal();
 };
+
+// === Phase 8 Plan 03 — match detection + conversion ===
+
+// Compute yes-count + required threshold for an intent. eligibleCount excludes expired
+// temporary members (Phase 5 guest model). Creator's own yes IS counted.
+function computeIntentTally(intent) {
+  const now = Date.now();
+  const eligibleCount = (state.members || []).filter(m => !m.temporary || (m.expiresAt || 0) > now).length;
+  const rsvps = intent.rsvps || {};
+  const yesCount = Object.values(rsvps).filter(r => r.value === 'yes').length;
+  const rule = intent.thresholdRule || 'any_yes';
+  // any_yes: creator + ≥1 other yes = match (i.e. ≥2 yes total)
+  // majority: ceil(eligible/2) yes — creator counts toward numerator
+  const required = rule === 'majority'
+    ? Math.max(2, Math.ceil(eligibleCount / 2))
+    : 2;
+  return { required, yesCount, eligibleCount, rule };
+}
+
+// Client-side match detector (D-07). Idempotent under multi-client races via status
+// recheck before write. Both clients writing produces the same doc state.
+async function maybeEvaluateIntentMatches(intents) {
+  if (!intents || !intents.length) return;
+  if (!state.auth) return;
+  for (const intent of intents) {
+    if (intent.status !== 'open') continue;
+    const { required, yesCount } = computeIntentTally(intent);
+    if (yesCount < required) continue;
+    try {
+      const snap = await getDoc(intentRef(intent.id));
+      if (!snap.exists()) continue;
+      const fresh = snap.data();
+      if (fresh.status !== 'open') continue;
+      await updateDoc(intentRef(intent.id), {
+        status: 'matched',
+        matchedAt: Date.now(),
+        ...writeAttribution()
+      });
+    } catch (e) { qnLog('[intent] match write failed', intent.id, e.message); }
+  }
+  // After transitioning any to matched, the snapshot will re-fire and refresh state.intents;
+  // render the creator-only match prompt overlay based on the new state.
+  if (typeof renderIntentMatchPrompts === 'function') renderIntentMatchPrompts();
+}
+
+// Per-session dedupe so we don't re-prompt the creator every time onSnapshot fires.
+// Dismissed-this-session is a separate set from shown-this-session; dismiss is explicit
+// user action via the "Later" button, shown is the automatic first-render signal.
+const _intentMatchShown = new Set();
+const _intentMatchDismissed = new Set();
+
+// Overlay renderer for creator-only match prompts. Renders into a dedicated container
+// (created lazily). Each matched-and-not-yet-converted intent where state.me is creator
+// gets a card with Start/Schedule/Later actions. Multiple cards stack.
+function renderIntentMatchPrompts() {
+  if (!state.me) return;
+  let host = document.getElementById('intent-match-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'intent-match-host';
+    host.className = 'intent-match-host';
+    document.body.appendChild(host);
+  }
+  const mine = (state.intents || []).filter(i =>
+    i.status === 'matched'
+    && i.createdBy === state.me.id
+    && !_intentMatchDismissed.has(i.id)
+  );
+  if (!mine.length) { host.innerHTML = ''; return; }
+  host.innerHTML = mine.map(intent => {
+    const { yesCount, eligibleCount } = computeIntentTally(intent);
+    const isTonightAtTime = intent.type === 'tonight_at_time';
+    const actionPrimary = isTonightAtTime ? 'Start watchparty' : 'Schedule it';
+    return `<div class="intent-match-banner">
+      <div class="intent-match-bar"></div>
+      <div class="intent-match-body">
+        <div class="intent-match-eyebrow">Match · ${yesCount} of ${eligibleCount} yes</div>
+        <div class="intent-match-title">${escapeHtml(intent.titleName)}</div>
+        <div class="intent-match-sub">${isTonightAtTime && intent.proposedStartAt
+          ? new Date(intent.proposedStartAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+          : 'Everyone is in.'}</div>
+      </div>
+      <div class="intent-match-actions">
+        <button class="pill accent" onclick="convertIntent('${intent.id}','${isTonightAtTime ? 'watchparty' : 'schedule'}')">${actionPrimary}</button>
+        <button class="pill" onclick="dismissIntentMatch('${intent.id}')">Later</button>
+      </div>
+    </div>`;
+  }).join('');
+  // Haptic + first-show signal once per intent
+  mine.forEach(intent => {
+    if (!_intentMatchShown.has(intent.id)) {
+      _intentMatchShown.add(intent.id);
+      haptic('success');
+      flashToast('Your intent matched', { kind: 'success' });
+    }
+  });
+}
+
+window.dismissIntentMatch = function(intentId) {
+  _intentMatchDismissed.add(intentId);
+  renderIntentMatchPrompts();
+};
+
+// Conversion router. Stamps status=converted + convertedTo, then routes into the existing
+// watchparty or schedule modal. If the conversion flow is abandoned mid-modal, the intent
+// still records as "converted" — treat the conversion intent itself as the audit event.
+// Alternative would require callback-threading through the downstream modals; out of scope.
+window.convertIntent = async function(intentId, kind) {
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  // Dismiss the banner immediately so the user focuses on the downstream modal
+  _intentMatchDismissed.add(intentId);
+  renderIntentMatchPrompts();
+  // Stamp conversion
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'converted',
+      convertedTo: { type: kind, at: Date.now() },
+      ...writeAttribution()
+    });
+  } catch (e) { qnLog('[intent] convert write failed', intentId, e.message); }
+  // Route
+  if (kind === 'watchparty') {
+    openWatchpartyStart(intent.titleId);
+  } else if (kind === 'schedule') {
+    openScheduleModal(intent.titleId);
+  }
+};
 function activeWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => {
