@@ -207,6 +207,38 @@ async function updateNotificationPref(eventType, value) {
   }
 }
 
+// Quiet-hours writer (PUSH-04). Accepts a partial patch (enabled / start / end / tz)
+// and merges it into users/{uid}.notificationPrefs.quietHours. Timezone auto-detects
+// via Intl when not provided so users don't hand-pick from a long list.
+async function updateQuietHours(patch) {
+  if (!state.auth || !state.auth.uid) return;
+  const existing = (state.notificationPrefs && state.notificationPrefs.quietHours) || {};
+  const tz = patch.tz || existing.tz || (Intl && Intl.DateTimeFormat
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+    : 'America/Los_Angeles');
+  const start = (patch.start !== undefined) ? patch.start : (existing.start || '22:00');
+  const end = (patch.end !== undefined) ? patch.end : (existing.end || '08:00');
+  const enabled = (patch.enabled !== undefined) ? !!patch.enabled : !!existing.enabled;
+  // Rough HH:mm sanity guard; invalid strings fall through as defaults.
+  const looksLikeTime = s => typeof s === 'string' && /^\d{1,2}:\d{2}$/.test(s);
+  const quietHours = {
+    enabled,
+    start: looksLikeTime(start) ? start : '22:00',
+    end:   looksLikeTime(end)   ? end   : '08:00',
+    tz
+  };
+  try {
+    state.notificationPrefs = { ...(state.notificationPrefs || {}), quietHours };
+    await setDoc(
+      doc(db, 'users', state.auth.uid),
+      { notificationPrefs: { quietHours } },
+      { merge: true }
+    );
+  } catch(e) {
+    console.warn('[QN push] updateQuietHours failed:', e.message);
+  }
+}
+
 // Subscribe to users/{uid} for notificationPrefs. Called from onAuthStateChangedCouch on sign-in;
 // torn down on sign-out. Kept separate from startSettingsSubscription (which reads /settings/auth).
 function startNotificationPrefsSubscription(uid) {
@@ -938,6 +970,14 @@ function renderNotificationPrefsRows(card, subscribed) {
   rows.style.display = '';
   const prefs = getNotificationPrefs();
   const eventTypes = Object.keys(DEFAULT_NOTIFICATION_PREFS);
+  const qh = prefs.quietHours || {};
+  const qhEnabled = !!qh.enabled;
+  const qhStart = qh.start || '22:00';
+  const qhEnd = qh.end || '08:00';
+  const detectedTz = (Intl && Intl.DateTimeFormat)
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+    : '';
+  const qhTz = qh.tz || detectedTz || '';
   rows.innerHTML = eventTypes.map(ev => {
     const meta = NOTIFICATION_EVENT_LABELS[ev] || { label: ev, hint: '' };
     const on = !!prefs[ev];
@@ -951,17 +991,46 @@ function renderNotificationPrefsRows(card, subscribed) {
       </label>
     `;
   }).join('') + `
-    <div class="notif-quiet-stub muted" style="font-size:0.85em;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-      Quiet hours — coming with the next Push update.
+    <div class="notif-quiet-row" style="padding-top:10px;margin-top:4px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:8px;">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="notif-quiet-enabled" ${qhEnabled ? 'checked' : ''} style="margin-top:3px;flex-shrink:0;">
+        <span style="display:flex;flex-direction:column;gap:2px;">
+          <span style="font-weight:500;">Quiet hours</span>
+          <span class="muted" style="font-size:0.85em;">Silence pushes during your set window. Watchparties you RSVP'd to still come through.</span>
+        </span>
+      </label>
+      <div class="notif-quiet-times" style="display:${qhEnabled ? 'flex' : 'none'};gap:10px;align-items:center;flex-wrap:wrap;padding-left:26px;font-size:0.9em;">
+        <span>From</span>
+        <input type="time" id="notif-quiet-start" value="${escapeHtml(qhStart)}" style="padding:4px 6px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.15);border-radius:6px;">
+        <span>to</span>
+        <input type="time" id="notif-quiet-end" value="${escapeHtml(qhEnd)}" style="padding:4px 6px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.15);border-radius:6px;">
+        <span class="muted" style="font-size:0.85em;">${qhTz ? `Timezone: ${escapeHtml(qhTz)}` : ''}</span>
+      </div>
     </div>
   `;
-  // Wire each checkbox. Delegation-free because the rows re-render on every updateNotifCard.
+  // Wire event-type checkboxes
   rows.querySelectorAll('input[type="checkbox"][data-event]').forEach(cb => {
-    cb.addEventListener('change', (e) => {
-      const ev = cb.getAttribute('data-event');
-      updateNotificationPref(ev, cb.checked);
+    cb.addEventListener('change', () => {
+      updateNotificationPref(cb.getAttribute('data-event'), cb.checked);
     });
   });
+  // Wire quiet-hours controls
+  const qhEnabledCb = rows.querySelector('#notif-quiet-enabled');
+  const qhStartInput = rows.querySelector('#notif-quiet-start');
+  const qhEndInput = rows.querySelector('#notif-quiet-end');
+  const qhTimes = rows.querySelector('.notif-quiet-times');
+  if (qhEnabledCb) {
+    qhEnabledCb.addEventListener('change', () => {
+      if (qhTimes) qhTimes.style.display = qhEnabledCb.checked ? 'flex' : 'none';
+      updateQuietHours({ enabled: qhEnabledCb.checked });
+    });
+  }
+  if (qhStartInput) {
+    qhStartInput.addEventListener('change', () => updateQuietHours({ start: qhStartInput.value }));
+  }
+  if (qhEndInput) {
+    qhEndInput.addEventListener('change', () => updateQuietHours({ end: qhEndInput.value }));
+  }
 }
 
 window.enableNotifications = async function() {
