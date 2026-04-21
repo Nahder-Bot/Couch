@@ -1426,9 +1426,56 @@ async function _bootIntoGroup(code) {
       state.group = { code, mode: 'family', name: code, picker: null };
     }
   } catch(e) { state.group = { code, mode: 'family', name: code, picker: null }; }
-  const savedMe = localStorage.getItem('qn_me');
-  if (savedMe) {
-    try { state.me = JSON.parse(savedMe); showApp(); return; } catch(e) {}
+
+  // Restore the user's member identity for this group. Source of truth order:
+  //   1. Firestore users/{uid}/groups/{code}.memberId — set when user first claimed in this group
+  //   2. members collection lookup by uid == state.auth.uid — covers the case where
+  //      the index doc is missing but the member doc has a uid stamped (e.g., Phase 5.8
+  //      claim flow wrote uid but not the index, or index got cleared)
+  //   3. localStorage.qn_me — legacy fallback for pre-Phase-5 clients
+  let resolvedMemberId = null;
+  let resolvedMemberName = null;
+  try {
+    const indexed = (state.groups || []).find(g => (g.familyCode === code || g.code === code));
+    if (indexed && indexed.memberId) {
+      resolvedMemberId = indexed.memberId;
+      resolvedMemberName = indexed.memberName || null;
+    }
+  } catch(e) {}
+  if (!resolvedMemberId && state.auth) {
+    try {
+      const q = await getDocs(membersRef());
+      const mine = q.docs.find(d => d.data().uid === state.auth.uid);
+      if (mine) {
+        resolvedMemberId = mine.id;
+        resolvedMemberName = mine.data().name || null;
+      }
+    } catch(e) {}
+  }
+  if (!resolvedMemberId) {
+    const savedMe = localStorage.getItem('qn_me');
+    if (savedMe) {
+      try {
+        const parsed = JSON.parse(savedMe);
+        resolvedMemberId = parsed.id;
+        resolvedMemberName = parsed.name;
+      } catch(e) {}
+    }
+  }
+
+  if (resolvedMemberId) {
+    // Fetch the member doc to get the current name (in case it changed on another device).
+    if (!resolvedMemberName) {
+      try {
+        const ms = await getDoc(doc(membersRef(), resolvedMemberId));
+        if (ms.exists()) resolvedMemberName = ms.data().name;
+      } catch(e) {}
+    }
+    state.me = { id: resolvedMemberId, name: resolvedMemberName || 'You' };
+    try { localStorage.setItem('qn_me', JSON.stringify(state.me)); } catch(e) {}
+    try { localStorage.setItem('qn_active_group', code); localStorage.setItem('qn_family', code); } catch(e) {}
+    showApp();
+    return;
   }
   await showNameScreen();
 }
@@ -1948,39 +1995,20 @@ async function boot() {
     if (emailUser) state.auth = emailUser;
   } catch(e) { console.error('[boot] email-link complete failed', e); }
 
-  // Install auth-state listener (handles sign-out from any surface, token revoke, etc.)
-  state.unsubAuth = watchAuth(onAuthStateChangedCouch);
-
-  // Pre-load saved groups from localStorage for instant paint
+  // Pre-load saved groups from localStorage for instant paint (will be overwritten by snapshot)
   state.groups = loadSavedGroups();
 
-  // Route to the appropriate screen based on auth state
+  // If not signed in, show the sign-in screen immediately so boot feels fast.
   if (!state.auth) {
-    // Not signed in → show sign-in screen
     showPreAuthScreen('signin-screen');
-    return;
   }
 
-  // Signed in → check for stored group to resume, else mode-pick
-  const active = localStorage.getItem('qn_active_group') || localStorage.getItem('qn_family');
-  const savedMe = localStorage.getItem('qn_me');
-  if (active) {
-    state.familyCode = active;
-    try {
-      const snap = await getDoc(familyDocRef());
-      if (snap.exists()) {
-        const d = snap.data();
-        state.group = { code: active, mode: d.mode || 'family', name: d.name || active, picker: d.picker || null };
-      } else {
-        state.group = { code: active, mode: 'family', name: active, picker: null };
-      }
-    } catch(e) { state.group = { code: active, mode: 'family', name: active, picker: null }; }
-    if (savedMe) { try { state.me = JSON.parse(savedMe); showApp(); return; } catch(e){} }
-    await showNameScreen();
-    return;
-  }
-  // Signed in but no saved group → mode-pick → family-code entry
-  document.getElementById('screen-mode').style.display = 'block';
+  // Install auth-state listener LAST — it handles ALL post-auth routing, including
+  // restoring the user's group + member from Firestore (users/{uid}/groups/{code}).
+  // boot() intentionally does NOT route past this point; onAuthStateChangedCouch owns
+  // the decision so fresh incognito sign-ins don't flash to mode-pick before the
+  // users/{uid}/groups snapshot loads.
+  state.unsubAuth = watchAuth(onAuthStateChangedCouch);
 }
 
 function showApp() {
