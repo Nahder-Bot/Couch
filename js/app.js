@@ -1035,15 +1035,17 @@ function renderNotificationPrefsRows(card, subscribed) {
 
 window.enableNotifications = async function() {
   const result = await notif.request();
-  updateNotifCard();
   if (result === 'granted') {
     // Fire a friendly confirmation notification so the user knows it worked.
     try {
       new Notification('Notifications on', { body: "You'll hear from Couch when something's happening.", icon: '/mark-192.png', tag: 'qn-confirm' });
     } catch(e) {}
-    // Subscribe this device for real OS-level pushes (works when app is closed)
-    subscribeToPush();
+    // Subscribe FIRST, then refresh the card — otherwise the card paints
+    // "Permission granted but not subscribed" while subscribe is mid-flight
+    // and the user sees a stale "Resubscribe" button that does nothing useful.
+    try { await subscribeToPush(); } catch(e) {}
   }
+  updateNotifCard();
 };
 
 // Watchparty notification trigger: hooked into the watchparty subscription.
