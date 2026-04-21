@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 LIVE on prod. Deploy complete 2026-04-22 (watchpartyTick CF + hosting). Phase 6 partially UAT'd (2/7 PASS). Phase 5 UAT still partial.
-stopped_at: 2026-04-22 -- Phase 7 production deploy complete. watchpartyTick scheduled CF created (runs every 5 min, 3 branches: scheduled→active flip, stale-scheduled archive, empty-active archive). Hosting released with client flip timer (maybeFlipScheduledParties in 1-sec tick + onSnapshot handler), "Watch together" CTA on Tonight spin result, '+more' emoji picker hooking iOS native keyboard via Intl.Segmenter, advisory per-member timer chips in live modal, detail-modal close fix + tap-outside-to-dismiss. sw.js cache bumped v15→v16 → v15 → v16 across multiple deploys this session. Phase 6's watchpartyStarting push finally reachable (flip mechanism now exists).
-last_updated: "2026-04-22T18:30:00.000Z"
-last_activity: 2026-04-22 -- Phase 7 execute + deploy (7 commits: 6a8d473, febdc8a, 544fcf5, 2136aae, and prior session) + 2 firebase deploys
+status: Phase 8 LIVE on prod. Deploy complete 2026-04-22 (rules + 3 functions + hosting). Awaiting device UAT. Phases 5/6/7 UAT partial.
+stopped_at: 2026-04-22 -- Phase 8 Watch-Intent Flows production deploy complete. Firestore rules released with /intents/{id} 4-branch update block. 2 new CFs created (onIntentCreated, onIntentUpdate). watchpartyTick CF updated with intent-expiry branch. Hosting released (cache v17) with: intent CRUD helpers (createIntent / setIntentRsvp / cancelIntent), onSnapshot subscription, action-sheet entries ('📆 Propose tonight @ time' + '💭 Ask the family'), propose-tonight modal with 8pm/9pm/10pm quick picks + custom datetime, Tonight-screen open-intents strip with yes-tally + RSVP badges, RSVP modal with Yes/Maybe/No(+Later), client-side match detector + creator-only match-banner overlay, conversion routing to existing watchparty/schedule modals, 2 new notificationPrefs (intentProposed, intentMatched). Scope deviation flagged: match prompt is a custom top-center snackbar overlay rather than extending flashToast.
+last_updated: "2026-04-22T19:45:00.000Z"
+last_activity: 2026-04-22 -- Phase 8 execute + deploy (6 commits: 6dc0422, 3a8a62c, 156edea, af05cd6, 43c26f2 + STATE) + 3 firebase deploys
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 23
-  completed_plans: 14
-  percent: 70
+  total_plans: 28
+  completed_plans: 18
+  percent: 78
 ---
 
 # Project State
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 7 Watchparty — deployed, awaiting device UAT. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed.
+**Current focus:** Phase 8 Watch-Intent Flows — deployed, awaiting device UAT. Phase 7 also deployed + UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
