@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 6 code-complete (autonomous session 2026-04-21 overnight). Awaiting user deploy batch + device UAT. Phase 5 UAT still partial from prior session.
-stopped_at: 2026-04-21 overnight -- Autonomous Phase 6 discuss→plan→execute landed 9 commits. CONTEXT + RESEARCH + 5 plans + code for VAPID wiring + self-echo guard + per-event prefs + quiet-hours + 2 new CF triggers. Client synced to queuenight/public/. Rules synced to queuenight/. Nothing deployed to prod (auto-mode constraint). Deploy batch documented in .planning/phases/06-push-notifications/06-SESSION-SUMMARY.md. Scope deviations: tonightPickChosen CF trigger skipped (schema lacks pickedTitleId transition), vetoCapReached uses session.vetoes map size with cap=3. Account-linking + Apple Sign-In seeds recategorized from phase-09 to phase-05x.
-last_updated: "2026-04-22T06:00:00.000Z"
-last_activity: 2026-04-21 overnight -- Phase 6 autonomous discuss+plan+execute; 9 commits; deploy pending user approval
+status: Phase 6 LIVE on prod. Deploy complete 2026-04-22 (rules + 5 functions + hosting). Awaiting device UAT. Phase 5 UAT still partial from prior session.
+stopped_at: 2026-04-22 -- Phase 6 production deploy complete. Rules released to cloud.firestore (match /users/{u} now live). 2 new functions created (onInviteCreated, onSessionUpdate); 3 functions updated (onWatchpartyCreate, onWatchpartyUpdate, onTitleApproval) all with eventType + self-echo + quiet-hours honoring. Hosting 47 files released to couchtonight.app (VAPID wiring + per-event toggles + quiet-hours UI). Ready for 06-UAT-RESULTS.md scenario runs on iPhone.
+last_updated: "2026-04-22T06:15:00.000Z"
+last_activity: 2026-04-22 -- Phase 6 deploy batch complete (rules → functions → hosting)
 progress:
   total_phases: 8
   completed_phases: 2
