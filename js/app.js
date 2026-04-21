@@ -1347,7 +1347,26 @@ function startUserGroupsSubscription(uid) {
   let firstSnapshotResolver;
   const firstSnapshot = new Promise(resolve => { firstSnapshotResolver = resolve; });
   state.unsubUserGroups = onSnapshot(groupsCol, (snap) => {
-    state.groups = snap.docs.map(d => d.data());
+    // Normalize Firestore shape {familyCode, memberId} into the legacy local shape
+    // {code, myMemberId, myMemberName} that switchToGroup / renderGroupSwitcher /
+    // loadSavedGroups all read. Keep the Firestore-native fields alongside so any
+    // newer callers (routeAfterAuth, etc.) that read .familyCode still work.
+    state.groups = snap.docs.map(d => {
+      const data = d.data() || {};
+      const code = data.familyCode || d.id;
+      return {
+        code,
+        familyCode: code,
+        name: data.name || code,
+        mode: data.mode || 'family',
+        myMemberId: data.memberId || null,
+        myMemberName: data.memberName || null,
+        memberId: data.memberId || null,
+        memberName: data.memberName || null,
+        joinedAt: data.joinedAt || null,
+        lastActiveAt: data.lastActiveAt || null,
+      };
+    });
     try { localStorage.setItem('qn_groups', JSON.stringify(state.groups)); } catch(e) {}
     if (typeof renderGroupSwitcher === 'function') renderGroupSwitcher();
     if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
@@ -1398,6 +1417,16 @@ async function handlePostSignInIntent() {
 
 function routeAfterAuth() {
   if (!state.auth) { showPreAuthScreen('signin-screen'); return; }
+  // Add-group intent (set by openAddGroup before reload): skip auto-boot into existing group
+  // and drop the user at mode-pick so they can create/join another. Consume the sentinel so
+  // a subsequent reload returns to the normal existing-group path.
+  let addGroupIntent = false;
+  try { addGroupIntent = sessionStorage.getItem('qn_add_group_intent') === '1'; } catch(e) {}
+  if (addGroupIntent) {
+    try { sessionStorage.removeItem('qn_add_group_intent'); } catch(e) {}
+    showPreAuthScreen('screen-mode');
+    return;
+  }
   // If user has existing groups, land on Tonight (of most-recent active group)
   const active = localStorage.getItem('qn_active_group') || localStorage.getItem('qn_family');
   if (active && state.groups && state.groups.find(g => g.familyCode === active || g.code === active)) {
@@ -1618,7 +1647,7 @@ window.joinAsNew = async function() {
       try {
         await setDoc(doc(db, 'users', state.auth.uid, 'groups', state.familyCode), {
           familyCode: state.familyCode, name: state.group?.name || state.familyCode,
-          mode: currentMode(), memberId: id, joinedAt: Date.now(), lastActiveAt: Date.now()
+          mode: currentMode(), memberId: id, memberName: name, joinedAt: Date.now(), lastActiveAt: Date.now()
         }, { merge: true });
       } catch(e) {}
     }
@@ -1702,10 +1731,10 @@ window.switchToGroup = async function(code) {
 
 window.openAddGroup = function() {
   closeGroupSwitcher();
-  // Reset the active group so boot() reroutes into mode-pick flow for a fresh join/create
-  localStorage.removeItem('qn_family');
-  localStorage.removeItem('qn_me');
-  localStorage.removeItem('qn_active_group');
+  // Add-group intent: tell routeAfterAuth (after the reload) to skip the existing-group
+  // auto-boot and show mode-pick. We intentionally KEEP qn_family / qn_me / qn_active_group
+  // so if the user bails out of mode-pick the old group still resolves on the next reload.
+  try { sessionStorage.setItem('qn_add_group_intent', '1'); } catch(e) {}
   location.reload();
 };
 
@@ -1996,9 +2025,13 @@ async function boot() {
   // Pre-load saved groups from localStorage for instant paint (will be overwritten by Firestore snapshot).
   state.groups = loadSavedGroups();
 
-  // Show the sign-in screen synchronously as the default pre-auth surface. If the user IS signed in,
-  // onAuthStateChangedCouch will fire milliseconds later and route them into their group.
-  showPreAuthScreen('signin-screen');
+  // Only paint the sign-in screen when we're SURE the user is signed out. After bootstrapAuth's
+  // getRedirectResult resolves, auth.currentUser is synchronously populated from persistence —
+  // so when it's non-null we skip the pre-auth paint entirely and let onAuthStateChangedCouch
+  // route straight into the group. This avoids the half-second sign-in flash on reload / switch.
+  if (!auth.currentUser) {
+    showPreAuthScreen('signin-screen');
+  }
 
   // Install the listener. Firebase Auth fires it on install with the current auth state (or null
   // if not signed in), and we trust that callback to do all routing from here on.
@@ -2009,6 +2042,7 @@ function showApp() {
   document.getElementById('screen-mode').style.display = 'none';
   document.getElementById('screen-family-join').style.display = 'none';
   document.getElementById('screen-name').style.display = 'none';
+  document.getElementById('signin-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   document.getElementById('me-label').textContent = state.me.name;
   // Account hero identity: avatar + family chip inline with group noun
