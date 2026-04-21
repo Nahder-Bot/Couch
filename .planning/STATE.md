@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 6 LIVE on prod. Deploy complete 2026-04-22 (rules + 5 functions + hosting). Awaiting device UAT. Phase 5 UAT still partial from prior session.
-stopped_at: 2026-04-22 -- Phase 6 production deploy complete. Rules released to cloud.firestore (match /users/{u} now live). 2 new functions created (onInviteCreated, onSessionUpdate); 3 functions updated (onWatchpartyCreate, onWatchpartyUpdate, onTitleApproval) all with eventType + self-echo + quiet-hours honoring. Hosting 47 files released to couchtonight.app (VAPID wiring + per-event toggles + quiet-hours UI). Ready for 06-UAT-RESULTS.md scenario runs on iPhone.
-last_updated: "2026-04-22T06:15:00.000Z"
-last_activity: 2026-04-22 -- Phase 6 deploy batch complete (rules → functions → hosting)
+status: Phase 7 LIVE on prod. Deploy complete 2026-04-22 (watchpartyTick CF + hosting). Phase 6 partially UAT'd (2/7 PASS). Phase 5 UAT still partial.
+stopped_at: 2026-04-22 -- Phase 7 production deploy complete. watchpartyTick scheduled CF created (runs every 5 min, 3 branches: scheduled→active flip, stale-scheduled archive, empty-active archive). Hosting released with client flip timer (maybeFlipScheduledParties in 1-sec tick + onSnapshot handler), "Watch together" CTA on Tonight spin result, '+more' emoji picker hooking iOS native keyboard via Intl.Segmenter, advisory per-member timer chips in live modal, detail-modal close fix + tap-outside-to-dismiss. sw.js cache bumped v15→v16 → v15 → v16 across multiple deploys this session. Phase 6's watchpartyStarting push finally reachable (flip mechanism now exists).
+last_updated: "2026-04-22T18:30:00.000Z"
+last_activity: 2026-04-22 -- Phase 7 execute + deploy (7 commits: 6a8d473, febdc8a, 544fcf5, 2136aae, and prior session) + 2 firebase deploys
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 19
-  completed_plans: 11
-  percent: 58
+  total_plans: 23
+  completed_plans: 14
+  percent: 70
 ---
 
 # Project State
@@ -21,23 +21,26 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 6 Push Notifications — code-complete awaiting deploy + UAT. Phase 5 in parallel awaiting hands-on UAT.
+**Current focus:** Phase 7 Watchparty — deployed, awaiting device UAT. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 6 (Push Notifications) — CODE-COMPLETE (5 plans: 06-01..06-04 shipped; 06-05 scaffolded, pending hands-on)
-Plan: 5 of 5
-Status: Autonomous overnight session landed Phase 6 end-to-end stage-only. VAPID public key wired (was placeholder). sendToMembers extended with excludeUid/excludeMemberId/eventType + quiet-hours enforcement. 2 new CF triggers (onInviteCreated, onSessionUpdate). Client-side per-event toggles + quiet-hours picker rendered in Settings. Couch repo clean; queuenight/ synced (public/ + functions/ + firestore.rules). Nothing deployed to prod. Deploy batch: (1) firestore:rules (2) functions:onInviteCreated,onSessionUpdate,onWatchpartyCreate,onWatchpartyUpdate,onTitleApproval (3) hosting.
+Phase: 7 (Watchparty) — DEPLOYED (4 plans: 07-01..07-03 shipped + deployed; 07-04 UAT scaffolded, pending hands-on)
+Plan: 4 of 4
+Status: Autonomous session 2026-04-22 landed Phase 7 plans + deployed to prod. 3 code commits (lifecycle state machine; spin CTA + detail-modal fix; emoji picker + participant strip). Scope deviations honest: kept 10-emoji palette (not 8) + added '+more' picker; banner session-dismiss skipped (25h archive covers it); GIF reactions seeded for Phase 9.x. watchpartyTick CF live every 5 min. Client flip timer piggybacks on existing 1-sec watchpartyTick interval. Phase 6's watchpartyStarting push now reachable through the flip.
 
-Phase 5 status unchanged from pre-session: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2,3,4,6,8,9,10), iOS PWA round-trip still owed, Apple DEFERRED to Phase 5.x (seed recategorized).
+Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
-Last activity: 2026-04-21 overnight -- Phase 6 autonomous session (9 commits on master)
-Resume file: .planning/phases/06-push-notifications/06-SESSION-SUMMARY.md
-Resume UAT from: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (all 7 scenarios scaffolded PENDING)
-Phase 5 UAT resume from: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
+Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
 
-Progress: [██████░░░░] 58% (Phases 3-4 complete; Phase 5 implementation complete, UAT partial; Phase 6 code-complete, UAT pending; Phases 7-10 pending)
+Last activity: 2026-04-22 -- Phase 7 execute + deploy (commits 6a8d473 lifecycle, febdc8a spin CTA, 544fcf5 emoji+timer, 2136aae UAT scaffold)
+Resume file: .planning/phases/07-watchparty/07-UAT-RESULTS.md
+Resume UAT from: .planning/phases/07-watchparty/07-UAT-RESULTS.md (8 scenarios scaffolded PENDING; flagship = Scenario 1 scheduled→active push)
+Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
+Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
+
+Progress: [███████░░░] 70% (Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; 7 deployed UAT-pending; 8-10 pending)
 
 ## Performance Metrics
 
