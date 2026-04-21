@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 5 executing — 05-08 deployed + phone-input fix deployed. 05-09 in progress; UAT-RESULTS.md partial (4 PASS, 7 PENDING hands-on, 1 DEFERRED to Phase 9).
-stopped_at: 2026-04-21 -- Production deploy complete. Functions mintClaimTokens + claimMember (with graduatedAt) live on queuenight-84044. Hosting deployed to couchtonight.app (47 files, includes phone-input fix b3a0ca3). Couch repo clean at b7f2ab0. Phase 5 now blocked only on hands-on UAT for scenarios 2, 3, 4, 6, 8, 9, 10 + iOS standalone PWA verification.
-last_updated: "2026-04-21T12:00:00.000Z"
-last_activity: 2026-04-21 -- 05-09 deploy pass: phone-input fix + CF refresh + hosting deploy to prod (commits b3a0ca3, d85d6f5, b7f2ab0)
+status: Phase 6 code-complete (autonomous session 2026-04-21 overnight). Awaiting user deploy batch + device UAT. Phase 5 UAT still partial from prior session.
+stopped_at: 2026-04-21 overnight -- Autonomous Phase 6 discuss→plan→execute landed 9 commits. CONTEXT + RESEARCH + 5 plans + code for VAPID wiring + self-echo guard + per-event prefs + quiet-hours + 2 new CF triggers. Client synced to queuenight/public/. Rules synced to queuenight/. Nothing deployed to prod (auto-mode constraint). Deploy batch documented in .planning/phases/06-push-notifications/06-SESSION-SUMMARY.md. Scope deviations: tonightPickChosen CF trigger skipped (schema lacks pickedTitleId transition), vetoCapReached uses session.vetoes map size with cap=3. Account-linking + Apple Sign-In seeds recategorized from phase-09 to phase-05x.
+last_updated: "2026-04-22T06:00:00.000Z"
+last_activity: 2026-04-21 overnight -- Phase 6 autonomous discuss+plan+execute; 9 commits; deploy pending user approval
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 14
-  completed_plans: 7
-  percent: 50
+  total_plans: 19
+  completed_plans: 11
+  percent: 58
 ---
 
 # Project State
@@ -21,19 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 5 — Auth + Groups (next up, after roadmap restructure)
+**Current focus:** Phase 6 Push Notifications — code-complete awaiting deploy + UAT. Phase 5 in parallel awaiting hands-on UAT.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 5 (Auth + Groups) — EXECUTING (9 plans, 7 waves)
-Plan: 9 of 9 (05-08 deployed; 05-09 in-progress — partial UAT + full prod deploy)
-Status: Prod deploy complete on 2026-04-21. Functions mintClaimTokens + claimMember (with graduatedAt) deployed to queuenight-84044 (v2 callable, nodejs22). Hosting deployed to couchtonight.app with phone-input validation fix (commit b3a0ca3 — strip spaces/dashes/parens, auto-+1 for bare 10-digit US numbers). UAT-RESULTS.md current: Google/Email-link/Phone-SMS/Sign-out PASS; Apple DEFERRED to Phase 9; scenarios 2 (sub-profile act-as), 3 (password join), 4 (guest invite), 6 (Sports Watchparty), 8 (migration claim), 9 (graduation), 10 (grace cutoff) PENDING hands-on. iOS standalone PWA round-trip also still owed (single-provider Google is sufficient minimum per RESEARCH §9).
-Last activity: 2026-04-21 -- 05-09 deploy pass: phone fix + CF refresh + hosting (3 commits: b3a0ca3, d85d6f5, b7f2ab0)
-Resume file: .planning/phases/05-auth-groups/05-09-PLAN.md
-Resume UAT from: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
+Phase: 6 (Push Notifications) — CODE-COMPLETE (5 plans: 06-01..06-04 shipped; 06-05 scaffolded, pending hands-on)
+Plan: 5 of 5
+Status: Autonomous overnight session landed Phase 6 end-to-end stage-only. VAPID public key wired (was placeholder). sendToMembers extended with excludeUid/excludeMemberId/eventType + quiet-hours enforcement. 2 new CF triggers (onInviteCreated, onSessionUpdate). Client-side per-event toggles + quiet-hours picker rendered in Settings. Couch repo clean; queuenight/ synced (public/ + functions/ + firestore.rules). Nothing deployed to prod. Deploy batch: (1) firestore:rules (2) functions:onInviteCreated,onSessionUpdate,onWatchpartyCreate,onWatchpartyUpdate,onTitleApproval (3) hosting.
 
-Progress: [█████░░░░░] 50% (Phases 3-4 complete; 05-01..05-08 complete; 05-09 pending; Phases 6-10 pending)
+Phase 5 status unchanged from pre-session: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2,3,4,6,8,9,10), iOS PWA round-trip still owed, Apple DEFERRED to Phase 5.x (seed recategorized).
+
+Last activity: 2026-04-21 overnight -- Phase 6 autonomous session (9 commits on master)
+Resume file: .planning/phases/06-push-notifications/06-SESSION-SUMMARY.md
+Resume UAT from: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (all 7 scenarios scaffolded PENDING)
+Phase 5 UAT resume from: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
+
+Progress: [██████░░░░] 58% (Phases 3-4 complete; Phase 5 implementation complete, UAT partial; Phase 6 code-complete, UAT pending; Phases 7-10 pending)
 
 ## Performance Metrics
 
