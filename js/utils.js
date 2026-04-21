@@ -1,3 +1,5 @@
+import { state } from './state.js';
+
 export function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -70,4 +72,36 @@ export function posterFallbackLetter(t) {
   if (t.poster) return '';
   const letter = (t.name || '?').trim().charAt(0).toUpperCase();
   return `<span class="tc-poster-letter">${escapeHtml(letter)}</span>`;
+}
+
+/**
+ * writeAttribution — canonical payload builder for every Firestore write
+ * that previously carried { memberId, memberName }. Returns a fragment to
+ * be spread into the write payload. During the grace window (D-15), writes
+ * dual-carry legacy memberId + memberName alongside the new actingUid +
+ * managedMemberId fields, so pre-auth reads and post-auth reads both work.
+ *
+ * Snapshot-then-clear semantics: reads state.actingAs into a local before
+ * constructing the payload, then clears state.actingAs and
+ * state.actingAsName. This matches the VETO-03 post-spin-veto pattern — a
+ * re-render between the call and the write resolve cannot mis-attribute.
+ *
+ * @param {object} extraFields  — optional extra keys merged into the payload
+ * @returns {object}  — { actingUid, managedMemberId?, memberId, memberName, ...extraFields }
+ */
+export function writeAttribution(extraFields = {}) {
+  const actingUid = (state.auth && state.auth.uid) || null;
+  const actingAsSubProfile = state.actingAs || null;
+  const actingAsName = state.actingAsName || null;
+  const payload = {
+    actingUid,
+    ...(actingAsSubProfile ? { managedMemberId: actingAsSubProfile } : {}),
+    // Dual-write (D-20): legacy memberId + memberName remain for grace-window readers
+    memberId: actingAsSubProfile || (state.me && state.me.id) || null,
+    memberName: actingAsName || (state.me && state.me.name) || null,
+    ...extraFields
+  };
+  // D-04 per-action semantics: clear acting-as so the next write is self-attributed
+  if (actingAsSubProfile) { state.actingAs = null; state.actingAsName = null; }
+  return payload;
 }
