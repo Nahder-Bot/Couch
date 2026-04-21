@@ -92,6 +92,29 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
 // VAPID public key is imported from js/constants.js (public-by-design, matches TMDB_KEY posture).
 // Matching private key lives server-side in queuenight/functions/.env.
 
+// Per-event-type notification defaults (PUSH-02). Written to users/{uid}.notificationPrefs when
+// the user touches a toggle; server reads and respects these in queuenight/functions sendToMembers.
+// Four events default ON (the ones users expect). Two default OFF because they can be noisy
+// if the family is large — users opt in via Settings when they want them.
+const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
+  watchpartyScheduled: true,
+  watchpartyStarting: true,
+  titleApproval: true,
+  inviteReceived: true,
+  vetoCapReached: false,
+  tonightPickChosen: false
+});
+
+// UI copy for each toggle — label shown in Settings + description hint.
+const NOTIFICATION_EVENT_LABELS = Object.freeze({
+  watchpartyScheduled: { label: 'New watchparty scheduled', hint: 'When someone sets up a watchparty' },
+  watchpartyStarting:  { label: 'Watchparty starting',       hint: 'Right when the movie starts' },
+  titleApproval:       { label: 'Parent approval',           hint: 'When a parent approves or declines a request you sent' },
+  inviteReceived:      { label: 'Invites',                   hint: 'When someone invites you to a family' },
+  vetoCapReached:      { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row' },
+  tonightPickChosen:   { label: 'Tonight’s pick chosen', hint: 'When the spinner lands on a movie' }
+});
+
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -154,6 +177,48 @@ async function unsubscribeFromPush() {
   } catch(e) {
     console.warn('[QN push] Unsubscribe failed:', e.message);
   }
+}
+
+// === Notification preferences (PUSH-02) ===
+// Stored at users/{uid}.notificationPrefs as a flat map. We merge with defaults on read so a
+// never-touched user gets sensible behavior; the server does the same merge authoritatively.
+
+function getNotificationPrefs() {
+  const stored = (state.notificationPrefs && typeof state.notificationPrefs === 'object') ? state.notificationPrefs : {};
+  return { ...DEFAULT_NOTIFICATION_PREFS, ...stored };
+}
+
+async function updateNotificationPref(eventType, value) {
+  if (!state.auth || !state.auth.uid) return;
+  if (!(eventType in DEFAULT_NOTIFICATION_PREFS)) {
+    qnLog('[QN push] updateNotificationPref unknown eventType:', eventType);
+    return;
+  }
+  try {
+    // Optimistic local update so the toggle flips instantly; the onSnapshot reconciles.
+    state.notificationPrefs = { ...(state.notificationPrefs || {}), [eventType]: !!value };
+    await setDoc(
+      doc(db, 'users', state.auth.uid),
+      { notificationPrefs: { [eventType]: !!value } },
+      { merge: true }
+    );
+  } catch(e) {
+    console.warn('[QN push] updateNotificationPref failed:', e.message);
+  }
+}
+
+// Subscribe to users/{uid} for notificationPrefs. Called from onAuthStateChangedCouch on sign-in;
+// torn down on sign-out. Kept separate from startSettingsSubscription (which reads /settings/auth).
+function startNotificationPrefsSubscription(uid) {
+  if (state.unsubNotifPrefs) { try { state.unsubNotifPrefs(); } catch(e) {} }
+  const ref = doc(db, 'users', uid);
+  state.unsubNotifPrefs = onSnapshot(ref, (snap) => {
+    const data = (snap && snap.data()) || {};
+    state.notificationPrefs = data.notificationPrefs || {};
+    if (typeof updateNotifCard === 'function') updateNotifCard();
+  }, (err) => {
+    qnLog('[QN push] prefs snapshot error:', err.message);
+  });
 }
 
 // SHA-256 hash a string and return as hex. Used to make safe Firestore key names from URLs.
@@ -816,7 +881,7 @@ window.updateNotifCard = async function() {
   if (p === 'granted') {
     const subscribed = await isThisDeviceSubscribed();
     if (subscribed) {
-      status.innerHTML = "<strong style='color:var(--good);'>✓ This device is on</strong><br>You'll get notifications for new watchparties, starts, and parent approvals while the app is closed.";
+      status.innerHTML = "<strong style='color:var(--good);'>✓ This device is on</strong><br>Pick which events ping you. Turn off anything that feels noisy.";
     } else {
       status.innerHTML = "<strong style='color:var(--warn,#ffb66d);'>Permission granted but not subscribed</strong><br>Tap Resubscribe below to fix.";
     }
@@ -831,6 +896,9 @@ window.updateNotifCard = async function() {
       btn.classList.add('accent');
       btn.style.opacity = '';
     }
+    // Render per-event-type toggle list (PUSH-02). Only when subscribed so users don't fiddle
+    // with toggles that do nothing — permission-granted-but-no-subscription is a transient state.
+    renderNotificationPrefsRows(card, subscribed);
   } else if (p === 'denied') {
     status.textContent = 'Notifications are blocked in your browser. Open the site settings to re-enable them.';
     btn.textContent = 'Blocked';
@@ -851,6 +919,50 @@ window.updateNotifCard = async function() {
     btn.style.opacity = '';
   }
 };
+
+// Render per-event toggle rows inside the notif-card. Keeps rows in a dedicated container so
+// updateNotifCard() can blow them away on permission changes without touching status/button.
+function renderNotificationPrefsRows(card, subscribed) {
+  let rows = card.querySelector('#notif-prefs-rows');
+  if (!subscribed) {
+    if (rows) rows.style.display = 'none';
+    return;
+  }
+  if (!rows) {
+    rows = document.createElement('div');
+    rows.id = 'notif-prefs-rows';
+    rows.className = 'notif-prefs';
+    rows.style.cssText = 'margin-top:12px;display:flex;flex-direction:column;gap:8px;';
+    card.appendChild(rows);
+  }
+  rows.style.display = '';
+  const prefs = getNotificationPrefs();
+  const eventTypes = Object.keys(DEFAULT_NOTIFICATION_PREFS);
+  rows.innerHTML = eventTypes.map(ev => {
+    const meta = NOTIFICATION_EVENT_LABELS[ev] || { label: ev, hint: '' };
+    const on = !!prefs[ev];
+    return `
+      <label class="notif-pref-row" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,0.06);cursor:pointer;">
+        <input type="checkbox" data-event="${escapeHtml(ev)}" ${on ? 'checked' : ''} style="margin-top:3px;flex-shrink:0;">
+        <span style="display:flex;flex-direction:column;gap:2px;">
+          <span style="font-weight:500;">${escapeHtml(meta.label)}</span>
+          <span class="muted" style="font-size:0.85em;">${escapeHtml(meta.hint)}</span>
+        </span>
+      </label>
+    `;
+  }).join('') + `
+    <div class="notif-quiet-stub muted" style="font-size:0.85em;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
+      Quiet hours — coming with the next Push update.
+    </div>
+  `;
+  // Wire each checkbox. Delegation-free because the rows re-render on every updateNotifCard.
+  rows.querySelectorAll('input[type="checkbox"][data-event]').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const ev = cb.getAttribute('data-event');
+      updateNotificationPref(ev, cb.checked);
+    });
+  });
+}
 
 window.enableNotifications = async function() {
   const result = await notif.request();
@@ -1315,6 +1427,7 @@ async function onAuthStateChangedCouch(user) {
     try { await Promise.race([unsubscribeFromPush(), new Promise(r => setTimeout(r, 1500))]); } catch(e) {}
     if (state.unsubUserGroups) { try { state.unsubUserGroups(); } catch(e) {} state.unsubUserGroups = null; }
     if (state.unsubSettings) { try { state.unsubSettings(); } catch(e) {} state.unsubSettings = null; }
+    if (state.unsubNotifPrefs) { try { state.unsubNotifPrefs(); } catch(e) {} state.unsubNotifPrefs = null; }
     if (state.unsubMembers) { try { state.unsubMembers(); } catch(e) {} state.unsubMembers = null; }
     if (state.unsubTitles) { try { state.unsubTitles(); } catch(e) {} state.unsubTitles = null; }
     state.me = null;
@@ -1322,6 +1435,7 @@ async function onAuthStateChangedCouch(user) {
     state.members = [];
     state.group = null;
     state.ownerUid = null;
+    state.notificationPrefs = null;
     showPreAuthScreen('signin-screen');
     return;
   }
@@ -1329,6 +1443,7 @@ async function onAuthStateChangedCouch(user) {
   // User is signed in
   const groupsReady = startUserGroupsSubscription(user.uid);
   startSettingsSubscription();
+  startNotificationPrefsSubscription(user.uid);
 
   if (!wasSignedIn) {
     // Fresh sign-in: wait for the first users/{uid}/groups snapshot before routing

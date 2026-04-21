@@ -93,6 +93,12 @@ service cloud.firestore {
     // Per-user group index (self-only)
     // ==========================================================
 
+    // Top-level user doc — holds notificationPrefs (PUSH-02) + future per-user state.
+    // Self-read/write only. Other users cannot read a peer's notification settings.
+    match /users/{u} {
+      allow read, write: if signedIn() && u == uid();
+    }
+
     match /users/{u}/groups/{familyCode} {
       allow read, write: if signedIn() && u == uid();
     }
