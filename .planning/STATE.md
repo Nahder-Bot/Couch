@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 5 (Auth + Groups) — READY TO EXECUTE (9 plans, 7 waves)
-Plan: 0 of 9 (planning complete; verification passed iter 1/3)
-Status: Phase 5 planned. Research + PATTERNS + 9 plans committed. Run /gsd-execute-phase 5.
-Last activity: 2026-04-20 -- Phase 5 planning complete (research + patterns + 9 plans + revision iter 1/3 passed)
-Resume file: .planning/phases/05-auth-groups/05-01-PLAN.md
+Phase: 5 (Auth + Groups) — EXECUTING (9 plans, 7 waves)
+Plan: 3 of 9 (05-03 complete — 5 CFs written + syntax verified; npm install + deploy pending)
+Status: 05-03 complete. 5 Callable Functions in queuenight/functions/src/. Orchestrator to run npm install + firebase deploy.
+Last activity: 2026-04-20 -- 05-03 complete: setGroupPassword, joinGroup, claimMember, inviteGuest, transferOwnership CFs
+Resume file: .planning/phases/05-auth-groups/05-04-PLAN.md
 
 Progress: [██░░░░░░░░] 25% (Phases 3-4 complete; Phases 5-10 pending)
 
@@ -97,6 +97,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-21T00:21:14.967Z
-Stopped at: Phase 5 context gathered
-Resume file: (none — phase complete, run /gsd-verify-work)
+Last session: 2026-04-20T00:00:00.000Z
+Stopped at: 05-03 complete — 5 CFs written to queuenight/functions/src/, syntax verified, npm install + firebase deploy pending orchestrator action
+Resume file: .planning/phases/05-auth-groups/05-04-PLAN.md
