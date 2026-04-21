@@ -196,6 +196,9 @@
 
     <div id="wp-banner-tonight"></div>
 
+    <!-- Phase 8: Open intents strip. Populated by renderIntentsStrip() from onSnapshot handler. -->
+    <div id="tonight-intents-strip"></div>
+
     <div class="who-card">
       <div class="who-title" id="who-title-label">Who's on the couch</div>
       <div class="who-list" id="who-list"></div>
@@ -824,6 +827,16 @@
   <input id="wp-emoji-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
     aria-hidden="true" tabindex="-1"
     style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+
+  <!-- Phase 8: Propose-tonight-at-time modal -->
+  <div class="modal-bg" id="intent-propose-modal-bg">
+    <div class="modal" id="intent-propose-modal-content"></div>
+  </div>
+
+  <!-- Phase 8: RSVP modal (both flow types) -->
+  <div class="modal-bg" id="intent-rsvp-modal-bg">
+    <div class="modal" id="intent-rsvp-modal-content"></div>
+  </div>
 
   <div class="modal-bg" id="yir-modal-bg">
     <div class="modal yir-modal" id="yir-content"></div>

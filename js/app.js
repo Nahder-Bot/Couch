@@ -1364,6 +1364,218 @@ async function cancelIntent(intentId) {
     });
   } catch (e) { qnLog('[intent] cancel failed', intentId, e.message); }
 }
+
+// === Phase 8 — UX entry points, strip, modals ===
+
+// Shortcut for the "watch this title" ambient-interest poll. No modal — one-tap create.
+window.askTheFamily = async function(titleId) {
+  if (guardReadOnlyWrite && guardReadOnlyWrite()) return;
+  try {
+    await createIntent({ type: 'watch_this_title', titleId });
+    flashToast('Asked your family', { kind: 'success' });
+  } catch (e) { flashToast('Could not post: ' + e.message, { kind: 'warn' }); }
+};
+
+// Propose-tonight modal state
+let _proposeIntentTitleId = null;
+let _proposeIntentLeadMinutes = 60; // default 1h out
+
+// Preferred evening hours, extracted from spin/schedule localStorage pattern
+function _nextEveningHour(h) {
+  const d = new Date();
+  d.setHours(h, 0, 0, 0);
+  if (d.getTime() <= Date.now() + 5 * 60 * 1000) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+
+window.openProposeIntent = function(titleId) {
+  if (guardReadOnlyWrite && guardReadOnlyWrite()) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  _proposeIntentTitleId = titleId;
+  const posterHtml = t.poster
+    ? `<div class="intent-propose-poster" style="background-image:url('${t.poster}')"></div>`
+    : `<div class="intent-propose-poster" style="background:var(--surface-2);display:grid;place-items:center;font-size:28px;">🎬</div>`;
+  const content = document.getElementById('intent-propose-modal-content');
+  content.innerHTML = `
+    <h3 style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;margin:0 0 6px;">Propose tonight @ time</h3>
+    <div class="intent-propose-header">
+      ${posterHtml}
+      <div class="intent-propose-title">${escapeHtml(t.name)}</div>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>When?</label>
+      <div class="intent-propose-times" id="intent-propose-times">
+        <button class="intent-time-btn" data-hour="20">8 pm</button>
+        <button class="intent-time-btn on" data-hour="21">9 pm</button>
+        <button class="intent-time-btn" data-hour="22">10 pm</button>
+        <button class="intent-time-btn" data-custom="1">Pick time</button>
+      </div>
+      <input type="datetime-local" id="intent-propose-custom" style="display:none;width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-body);margin-top:8px;">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Note (optional)</label>
+      <input type="text" id="intent-propose-note" placeholder='"Popcorn ready"' maxlength="120" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-body);">
+    </div>
+    <button class="modal-close" style="margin-top:14px;" onclick="confirmProposeIntent()">Propose</button>
+    <button class="pill" onclick="closeProposeIntent()" style="width:100%;margin-top:8px;">Cancel</button>
+  `;
+  // Wire time-button selection
+  content.querySelectorAll('.intent-time-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      content.querySelectorAll('.intent-time-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const customInput = document.getElementById('intent-propose-custom');
+      if (btn.dataset.custom) {
+        customInput.style.display = '';
+        const d = new Date(); d.setHours(21, 0, 0, 0);
+        if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+        customInput.value = toLocalInputValue(d);
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+      }
+    });
+  });
+  document.getElementById('intent-propose-modal-bg').classList.add('on');
+};
+
+window.closeProposeIntent = function() {
+  document.getElementById('intent-propose-modal-bg').classList.remove('on');
+  _proposeIntentTitleId = null;
+};
+
+window.confirmProposeIntent = async function() {
+  if (!_proposeIntentTitleId) return;
+  const titleId = _proposeIntentTitleId;
+  // Resolve chosen time
+  const selectedBtn = document.querySelector('#intent-propose-times .intent-time-btn.on');
+  let startAt;
+  if (selectedBtn && selectedBtn.dataset.custom) {
+    const val = document.getElementById('intent-propose-custom').value;
+    if (!val) { flashToast('Pick a date/time', { kind: 'warn' }); return; }
+    startAt = new Date(val).getTime();
+  } else if (selectedBtn) {
+    startAt = _nextEveningHour(Number(selectedBtn.dataset.hour));
+  } else {
+    startAt = _nextEveningHour(21);
+  }
+  if (startAt < Date.now() - 60 * 1000) {
+    flashToast("That's in the past — pick a future time", { kind: 'warn' });
+    return;
+  }
+  const note = (document.getElementById('intent-propose-note').value || '').trim();
+  try {
+    await createIntent({
+      type: 'tonight_at_time',
+      titleId,
+      proposedStartAt: startAt,
+      proposedNote: note || undefined
+    });
+    closeProposeIntent();
+    flashToast('Proposed', { kind: 'success' });
+  } catch (e) { flashToast('Could not propose: ' + e.message, { kind: 'warn' }); }
+};
+
+// Tonight-screen intents strip. Rendered on every onSnapshot tick and on Tonight enter.
+function renderIntentsStrip() {
+  const el = document.getElementById('tonight-intents-strip');
+  if (!el) return;
+  const open = (state.intents || [])
+    .filter(i => i.status === 'open')
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (!open.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="intents-strip">${open.map(renderIntentCard).join('')}</div>`;
+}
+
+function renderIntentCard(intent) {
+  const icon = intent.type === 'tonight_at_time' ? '📆' : '💭';
+  const timeLabel = intent.type === 'tonight_at_time' && intent.proposedStartAt
+    ? new Date(intent.proposedStartAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const rsvps = intent.rsvps || {};
+  const yesCount = Object.values(rsvps).filter(r => r.value === 'yes').length;
+  const eligibleCount = (state.members || []).filter(m => !m.temporary || (m.expiresAt || 0) > Date.now()).length;
+  const myRsvp = state.me && rsvps[state.me.id] ? rsvps[state.me.id].value : null;
+  const myRsvpBadge = myRsvp
+    ? `<span class="intent-my-rsvp intent-my-${myRsvp}">You: ${myRsvp}</span>`
+    : `<span class="intent-my-rsvp intent-my-pending">Tap to RSVP</span>`;
+  const poster = intent.titlePoster
+    ? `<div class="intent-card-poster" style="background-image:url('${intent.titlePoster}')"></div>`
+    : `<div class="intent-card-poster" style="background:var(--surface-2);"></div>`;
+  return `<div class="intent-card" role="button" tabindex="0"
+    onclick="openIntentRsvpModal('${intent.id}')"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openIntentRsvpModal('${intent.id}');}">
+    ${poster}
+    <div class="intent-card-body">
+      <div class="intent-card-type">${icon} ${intent.type === 'tonight_at_time' ? `Tonight${timeLabel ? ' @ ' + timeLabel : ''}` : 'Asking the family'}</div>
+      <div class="intent-card-title">${escapeHtml(intent.titleName)}</div>
+      <div class="intent-card-meta">${yesCount} of ${eligibleCount} yes · ${myRsvpBadge}</div>
+    </div>
+  </div>`;
+}
+
+// RSVP modal
+let _rsvpIntentId = null;
+
+window.openIntentRsvpModal = function(intentId) {
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  _rsvpIntentId = intentId;
+  const content = document.getElementById('intent-rsvp-modal-content');
+  const rsvps = intent.rsvps || {};
+  const myVal = state.me && rsvps[state.me.id] ? rsvps[state.me.id].value : null;
+  const rows = Object.entries(rsvps).map(([mid, r]) => {
+    const member = state.members.find(m => m.id === mid);
+    const name = (member && member.name) || r.memberName || 'Member';
+    const badgeClass = `intent-rsvp-badge intent-rsvp-${r.value}`;
+    return `<div class="intent-rsvp-row"><span>${escapeHtml(name)}</span><span class="${badgeClass}">${r.value}</span></div>`;
+  }).join('');
+  const isPoll = intent.type === 'watch_this_title';
+  const proposedLine = intent.type === 'tonight_at_time' && intent.proposedStartAt
+    ? `<div class="muted" style="margin-bottom:4px;">📆 ${new Date(intent.proposedStartAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>`
+    : '';
+  const noteLine = intent.proposedNote
+    ? `<div class="muted" style="font-style:italic;margin-bottom:4px;">"${escapeHtml(intent.proposedNote)}"</div>`
+    : '';
+  const isCreator = state.me && intent.createdBy === state.me.id;
+  content.innerHTML = `
+    <h3 style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;margin:0 0 6px;">${escapeHtml(intent.titleName)}</h3>
+    ${proposedLine}
+    ${noteLine}
+    <div class="muted" style="margin-bottom:10px;font-size:var(--t-meta);">Proposed by ${escapeHtml(intent.createdByName || 'a member')}</div>
+    <div class="intent-rsvp-buttons">
+      <button class="intent-rsvp-btn ${myVal === 'yes' ? 'on' : ''}" onclick="setMyRsvp('yes')">Yes</button>
+      <button class="intent-rsvp-btn ${myVal === 'maybe' ? 'on' : ''}" onclick="setMyRsvp('maybe')">Maybe</button>
+      <button class="intent-rsvp-btn ${myVal === 'no' ? 'on' : ''}" onclick="setMyRsvp('no')">No</button>
+      ${isPoll ? `<button class="intent-rsvp-btn ${myVal === 'later' ? 'on' : ''}" onclick="setMyRsvp('later')">Later</button>` : ''}
+    </div>
+    <div class="intent-rsvp-feed">${rows || '<div class="muted">No RSVPs yet.</div>'}</div>
+    ${isCreator ? `<button class="pill danger" style="width:100%;margin-top:12px;" onclick="cancelMyIntent()">Cancel this</button>` : ''}
+    <button class="pill" style="width:100%;margin-top:8px;" onclick="closeIntentRsvpModal()">Close</button>
+  `;
+  document.getElementById('intent-rsvp-modal-bg').classList.add('on');
+};
+
+window.closeIntentRsvpModal = function() {
+  document.getElementById('intent-rsvp-modal-bg').classList.remove('on');
+  _rsvpIntentId = null;
+};
+
+window.setMyRsvp = async function(value) {
+  if (!_rsvpIntentId) return;
+  await setIntentRsvp(_rsvpIntentId, value);
+  // Re-render modal with fresh state once snapshot lands; for responsiveness, re-open immediately
+  const id = _rsvpIntentId;
+  setTimeout(() => { if (_rsvpIntentId === id) openIntentRsvpModal(id); }, 400);
+};
+
+window.cancelMyIntent = async function() {
+  if (!_rsvpIntentId) return;
+  if (!confirm('Cancel this intent? It will be archived.')) return;
+  await cancelIntent(_rsvpIntentId);
+  closeIntentRsvpModal();
+};
 function activeWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => {
@@ -8827,6 +9039,10 @@ window.openActionSheet = function(titleId, e) {
     } else {
       items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openWatchpartyStart('${titleId}')"><span class="icon">🎬</span>Start a watchparty</button>`);
     }
+    // Phase 8 intent-flow entry points. Placed after watchparty (higher-commitment) so
+    // the lower-friction "ask" sits closer to cheaper actions (veto, comments, list).
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openProposeIntent('${titleId}')"><span class="icon">📆</span>Propose tonight @ time</button>`);
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();askTheFamily('${titleId}')"><span class="icon">💭</span>Ask the family</button>`);
   }
   if (!t.watched && state.me) {
     const mv = myVetoToday();
