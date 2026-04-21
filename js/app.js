@@ -1,7 +1,7 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField } from './firebase.js';
 import { TMDB_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
-import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter } from './utils.js';
+import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
 async function fetchTmdbExtras(mediaType, tmdbId) {
   const out = { trailerKey: null, rating: null, providers: [], rentProviders: [], buyProviders: [], providersChecked: true, providersSchemaVersion: 3, runtime: null };
   try {
@@ -4799,7 +4799,7 @@ window.postActivityReply = async function(ts) {
   const a = recentActivity.find(x => x.ts === ts);
   if (!a || !a.id) return;
   const existing = a.replies || [];
-  const reply = { memberId: state.me.id, memberName: state.me.name, text, ts: Date.now() };
+  const reply = { ...writeAttribution(), text, ts: Date.now() };
   try {
     await updateDoc(doc(activityRef(), a.id), { replies: [...existing, reply] });
   } catch(e) { flashToast('Could not reply. Try again.', { kind: 'warn' }); }
@@ -5358,8 +5358,7 @@ window.submitVeto = async function() {
   const t = state.titles.find(x => x.id === vetoTitleId);
   const titleName = (t && t.name) || 'a title';
   const baseEntry = {
-    memberId: state.me.id,
-    memberName: state.me.name,
+    ...writeAttribution(),
     comment: comment || '',
     at: Date.now()
   };
@@ -6092,8 +6091,7 @@ async function postReaction(payload) {
   const elapsedMs = computeElapsed(mine);
   const reaction = {
     id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-    memberId: state.me.id,
-    memberName: state.me.name,
+    ...writeAttribution(),
     elapsedMs,
     at: Date.now(),
     ...payload
@@ -7584,8 +7582,7 @@ window.saveDiary = async function() {
   if (!dateStr) { alert('Pick a date.'); return; }
   const entry = {
     id: 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-    memberId: state.me.id,
-    memberName: state.me.name,
+    ...writeAttribution(),
     date: dateStr,
     stars: diaryStars,
     // Always record the score (0-10) alongside stars so new displays work immediately
