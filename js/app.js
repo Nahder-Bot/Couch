@@ -1,7 +1,14 @@
-import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField } from './firebase.js';
+import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable } from './firebase.js';
 import { TMDB_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
+import {
+  bootstrapAuth, watchAuth,
+  signInWithGoogle, signInWithApple,
+  sendEmailLink, completeEmailLinkIfPresent,
+  initPhoneCaptcha, sendPhoneCode, resetPhoneCaptcha,
+  signOutUser
+} from './auth.js';
 async function fetchTmdbExtras(mediaType, tmdbId) {
   const out = { trailerKey: null, rating: null, providers: [], rentProviders: [], buyProviders: [], providersChecked: true, providersSchemaVersion: 3, runtime: null };
   try {
@@ -1233,25 +1240,252 @@ window.backToModePick = function() {
   document.getElementById('screen-mode').style.display = 'block';
 };
 
+// ===== Phase 5: Sign-in screen handlers =====
+// Apple (handleSigninApple) intentionally omitted — deferred to Phase 9.
+// See .planning/seeds/phase-09-apple-signin.md and 05-06-SUMMARY.md.
+
+window.handleSigninGoogle = async function() {
+  try { haptic('light'); await signInWithGoogle(); /* redirect takes over */ }
+  catch(e) { console.error('[signin][google]', e); flashToast("Couldn't start Google sign-in. Try again?", { kind: 'warn' }); }
+};
+
+window.handleSigninEmail = async function() {
+  const email = (document.getElementById('signin-email-input').value || '').trim();
+  if (!email || !email.includes('@')) { flashToast('Enter a valid email', { kind: 'warn' }); return; }
+  try {
+    await sendEmailLink(email);
+    flashToast('Sign-in link sent — check your inbox.', { kind: 'success' });
+    haptic('success');
+  } catch(e) {
+    console.error('[signin][email]', e);
+    flashToast("Couldn't send email link. Try again?", { kind: 'warn' });
+  }
+};
+
+let _pendingPhoneConfirmation = null;
+
+window.handleSigninPhoneSend = async function() {
+  const phone = (document.getElementById('signin-phone-input').value || '').trim();
+  if (!phone || !phone.startsWith('+')) { flashToast('Enter phone in +country format', { kind: 'warn' }); return; }
+  try {
+    _pendingPhoneConfirmation = await sendPhoneCode(phone, 'signin-phone-send');
+    document.getElementById('signin-phone-code-wrap').style.display = 'flex';
+    flashToast('SMS sent — enter the code below.', { kind: 'success' });
+    haptic('light');
+  } catch(e) {
+    console.error('[signin][phone-send]', e);
+    resetPhoneCaptcha();
+    flashToast("Couldn't send code. Try again?", { kind: 'warn' });
+  }
+};
+
+window.handleSigninPhoneVerify = async function() {
+  const code = (document.getElementById('signin-phone-code').value || '').trim();
+  if (!_pendingPhoneConfirmation) { flashToast('Send a code first', { kind: 'warn' }); return; }
+  try {
+    await _pendingPhoneConfirmation.confirm(code);
+    // onAuthStateChanged listener picks up from here
+  } catch(e) {
+    console.error('[signin][phone-verify]', e);
+    flashToast('Wrong code — try again?', { kind: 'warn' });
+  }
+};
+
+// ===== Phase 5: Pre-app screen router (sign-in / family-code / name screens) =====
+// This is distinct from window.showScreen which handles in-app tabs.
+function showPreAuthScreen(id) {
+  ['signin-screen', 'screen-mode', 'screen-family-join', 'screen-name'].forEach(sid => {
+    const el = document.getElementById(sid);
+    if (el) el.style.display = (sid === id) ? 'block' : 'none';
+  });
+  // app-shell is always hidden during pre-auth
+  const shell = document.getElementById('app-shell');
+  if (shell) shell.style.display = 'none';
+}
+
+// ===== Phase 5: Auth-state change handler =====
+async function onAuthStateChangedCouch(user) {
+  const wasSignedIn = !!state.auth;
+  state.auth = user;
+
+  if (!user) {
+    // Teardown on sign-out (covers button press AND server-side token revoke)
+    try { await Promise.race([unsubscribeFromPush(), new Promise(r => setTimeout(r, 1500))]); } catch(e) {}
+    if (state.unsubUserGroups) { try { state.unsubUserGroups(); } catch(e) {} state.unsubUserGroups = null; }
+    if (state.unsubSettings) { try { state.unsubSettings(); } catch(e) {} state.unsubSettings = null; }
+    if (state.unsubMembers) { try { state.unsubMembers(); } catch(e) {} state.unsubMembers = null; }
+    if (state.unsubTitles) { try { state.unsubTitles(); } catch(e) {} state.unsubTitles = null; }
+    state.me = null;
+    state.familyCode = null;
+    state.members = [];
+    state.group = null;
+    state.ownerUid = null;
+    showPreAuthScreen('signin-screen');
+    return;
+  }
+
+  // User is signed in
+  startUserGroupsSubscription(user.uid);
+  startSettingsSubscription();
+
+  if (!wasSignedIn) {
+    // Fresh sign-in: consume any pending claim / invite token
+    await handlePostSignInIntent();
+  }
+}
+
+function startUserGroupsSubscription(uid) {
+  if (state.unsubUserGroups) { try { state.unsubUserGroups(); } catch(e) {} }
+  const groupsCol = collection(db, 'users', uid, 'groups');
+  state.unsubUserGroups = onSnapshot(groupsCol, (snap) => {
+    state.groups = snap.docs.map(d => d.data());
+    try { localStorage.setItem('qn_groups', JSON.stringify(state.groups)); } catch(e) {}
+    if (typeof renderGroupSwitcher === 'function') renderGroupSwitcher();
+  }, (e) => console.error('[user-groups] snapshot error', e));
+}
+
+function startSettingsSubscription() {
+  if (state.unsubSettings) { try { state.unsubSettings(); } catch(e) {} }
+  const settingsDoc = doc(db, 'settings', 'auth');
+  state.unsubSettings = onSnapshot(settingsDoc, (snap) => {
+    state.settings = snap.exists() ? snap.data() : null;
+  }, (e) => console.error('[settings] snapshot error', e));
+}
+
+async function handlePostSignInIntent() {
+  let claimToken = null, claimFamily = null, inviteToken = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    claimToken = params.get('claim') || sessionStorage.getItem('qn_claim');
+    claimFamily = params.get('family') || sessionStorage.getItem('qn_claim_family');
+    inviteToken = params.get('invite') || sessionStorage.getItem('qn_invite');
+    // Remove from URL if present
+    if (claimToken || inviteToken) {
+      try {
+        const u = new URL(window.location.href);
+        ['claim','family','invite'].forEach(k => u.searchParams.delete(k));
+        history.replaceState(null, '', u.toString());
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  if (claimToken && claimFamily) {
+    try { sessionStorage.removeItem('qn_claim'); sessionStorage.removeItem('qn_claim_family'); } catch(e) {}
+    showClaimConfirmScreen(claimToken, claimFamily);
+    return;
+  }
+  if (inviteToken) {
+    try { sessionStorage.removeItem('qn_invite'); } catch(e) {}
+    showInviteRedeemScreen(inviteToken);
+    return;
+  }
+  routeAfterAuth();
+}
+
+function routeAfterAuth() {
+  if (!state.auth) { showPreAuthScreen('signin-screen'); return; }
+  // If user has existing groups, land on Tonight (of most-recent active group)
+  const active = localStorage.getItem('qn_active_group') || localStorage.getItem('qn_family');
+  if (active && state.groups && state.groups.find(g => g.familyCode === active || g.code === active)) {
+    // Re-use existing boot path: set familyCode and load
+    state.familyCode = active;
+    _bootIntoGroup(active);
+    return;
+  }
+  if (state.groups && state.groups.length > 0) {
+    const preferred = state.groups[0].familyCode || state.groups[0].code;
+    _bootIntoGroup(preferred);
+    return;
+  }
+  // Authed but no groups → mode pick → family-code screen
+  showPreAuthScreen('screen-mode');
+}
+
+async function _bootIntoGroup(code) {
+  state.familyCode = code;
+  try {
+    const snap = await getDoc(familyDocRef());
+    if (snap.exists()) {
+      const d = snap.data();
+      state.group = { code, mode: d.mode || 'family', name: d.name || code, picker: d.picker || null };
+    } else {
+      state.group = { code, mode: 'family', name: code, picker: null };
+    }
+  } catch(e) { state.group = { code, mode: 'family', name: code, picker: null }; }
+  const savedMe = localStorage.getItem('qn_me');
+  if (savedMe) {
+    try { state.me = JSON.parse(savedMe); showApp(); return; } catch(e) {}
+  }
+  await showNameScreen();
+}
+
+// Stubs — Plan 08 fills these in fully.
+function showClaimConfirmScreen(token, family) {
+  flashToast('Claim link detected — setup in progress. Sign-in complete.', { kind: 'success' });
+  routeAfterAuth();
+}
+function showInviteRedeemScreen(token) {
+  flashToast('Invite detected — setup in progress. Sign-in complete.', { kind: 'success' });
+  routeAfterAuth();
+}
+
+// ===== Phase 5: Auth-aware submitFamily =====
 window.submitFamily = async function() {
+  if (!state.auth) { flashToast('Please sign in first', { kind: 'warn' }); showPreAuthScreen('signin-screen'); return; }
+
   const code = normalizeCode(document.getElementById('family-input').value);
   if (!code || code.length < 3) { alert('Please enter at least 3 letters or numbers.'); return; }
+
   state.familyCode = code;
   let existing = null;
   try { const snap = await getDoc(familyDocRef()); if (snap.exists()) existing = snap.data(); } catch(e){}
+
+  if (existing && existing.passwordHash) {
+    // Password-protected: route through joinGroup Cloud Function
+    const password = window.prompt('This group is password-protected. Enter the password:') || '';
+    if (!password) { flashToast('Password required', { kind: 'warn' }); state.familyCode = null; return; }
+    try {
+      const joinGroupFn = httpsCallable(functions, 'joinGroup');
+      const r = await joinGroupFn({ familyCode: code, password, displayName: state.auth.displayName || state.auth.email || 'Member' });
+      if (!r.data || !r.data.ok) throw new Error('join failed');
+      state.group = { code, mode: existing.mode || 'family', name: existing.name || code, picker: existing.picker || null };
+      localStorage.setItem('qn_family', code);
+      localStorage.setItem('qn_active_group', code);
+      await continueToNameScreen();
+    } catch(e) {
+      console.error('[submit-family][joinGroup-CF]', e);
+      const msg = (e && e.code === 'permission-denied') ? 'Wrong password.' : "Couldn't join. Try again?";
+      flashToast(msg, { kind: 'warn' });
+      state.familyCode = null;
+    }
+    return;
+  }
+
+  // Not password-protected: open group (D-11 addendum code-only path for permanent-adult invite).
   const mode = existing?.mode || state.pendingMode || 'family';
-  const docPayload = existing ? { code, mode } : { code, mode, createdAt: Date.now() };
+  const isNew = !existing;
+  const docPayload = isNew
+    ? { code, mode, createdAt: Date.now(), ownerUid: state.auth.uid }
+    : { code, mode };
   try { await setDoc(familyDocRef(), docPayload, { merge: true }); } catch(e){}
-  state.group = { code, mode, name: existing?.name || code };
+  state.group = { code, mode, name: existing?.name || code, picker: existing?.picker || null };
   localStorage.setItem('qn_family', code);
   localStorage.setItem('qn_active_group', code);
-  await showNameScreen();
+  // Write users/{uid}/groups/{code} index doc (CF does this for password joins; we do it here for open joins)
+  try {
+    await setDoc(doc(db, 'users', state.auth.uid, 'groups', code), {
+      familyCode: code, name: existing?.name || code, mode,
+      joinedAt: Date.now(), lastActiveAt: Date.now()
+    }, { merge: true });
+  } catch(e) {}
+  await continueToNameScreen();
 };
 
-async function showNameScreen() {
-  document.getElementById('screen-mode').style.display = 'none';
-  document.getElementById('screen-family-join').style.display = 'none';
-  document.getElementById('screen-name').style.display = 'block';
+// continueToNameScreen — the canonical name-screen loader used by submitFamily + showNameScreen.
+// The existing-members chip list rendering is INLINE here (not a stub reference) to preserve
+// the exact pre-Phase-5 chip behavior verbatim (per plan warning W5).
+async function continueToNameScreen() {
+  showPreAuthScreen('screen-name');
   document.getElementById('name-family-name').textContent = state.familyCode;
   const lbl = document.getElementById('name-family-label');
   if (lbl) {
@@ -1262,7 +1496,10 @@ async function showNameScreen() {
   if (ageEl) ageEl.style.display = modeAllowsAgeTiers() ? '' : 'none';
   try {
     const snap = await getDocs(membersRef());
-    const existing = snap.docs.map(d => d.data());
+    const existingRaw = snap.docs.map(d => d.data());
+    // Plan 07 will extend this filter for sub-profiles + active guests.
+    // Plan 06 preserves the existing behavior exactly: show every member doc.
+    const existing = existingRaw;
     const el = document.getElementById('existing-members-list');
     if (existing.length > 0) {
       document.getElementById('existing-members').style.display = 'block';
@@ -1276,65 +1513,109 @@ async function showNameScreen() {
   } catch(e) { console.error(e); }
 }
 
+// showNameScreen — thin wrapper for backward compat with any existing callers.
+async function showNameScreen() {
+  document.getElementById('screen-mode').style.display = 'none';
+  document.getElementById('screen-family-join').style.display = 'none';
+  return continueToNameScreen();
+}
+
 window.joinAsNew = async function() {
   const name = document.getElementById('new-name-input').value.trim();
   if (!name) { alert('Please enter your name.'); return; }
   const ageInputEl = document.getElementById('new-age-input');
   const age = (modeAllowsAgeTiers() && ageInputEl && ageInputEl.value) ? parseInt(ageInputEl.value) : null;
-  // Check existing members — if this is the first one, they become parent by default
+  // Check existing members — if this is the first one, they become parent + owner
   let isFirstMember = false;
   try {
     const snap = await getDocs(membersRef());
-    const existing = snap.docs.map(d => d.data()).find(m => m.name.toLowerCase() === name.toLowerCase());
-    if (existing) { joinAsExisting(existing.id, existing.name); return; }
+    const existingMember = snap.docs.map(d => d.data()).find(m => m.name.toLowerCase() === name.toLowerCase());
+    if (existingMember) { joinAsExisting(existingMember.id, existingMember.name); return; }
     isFirstMember = snap.empty;
   } catch(e) { console.error(e); }
   const id = 'm_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   const color = COLORS[Math.floor(Math.random()*COLORS.length)];
-  const member = { id, name, color };
+  const member = { id, name, color, uid: state.auth ? state.auth.uid : null };
   if (age != null) member.age = age;
-  // Creator of a family (or any first member to join an empty one) gets parent privileges.
-  // In family mode, this means they can approve requests, set rating caps, etc.
   if (isFirstMember && currentMode() === 'family') {
     member.isParent = true;
   }
   try {
-    await setDoc(doc(membersRef(), id), member);
+    // Atomic batch: member doc + ownerUid on family doc (when first member in family mode)
+    const batch = writeBatch(db);
+    const memberDocRef = doc(membersRef(), id);
+    batch.set(memberDocRef, member);
+    if (isFirstMember && currentMode() === 'family' && state.auth) {
+      batch.set(familyDocRef(), { ownerUid: state.auth.uid }, { merge: true });
+    }
+    await batch.commit();
     state.me = { id, name };
     localStorage.setItem('qn_me', JSON.stringify(state.me));
     upsertSavedGroup({ code: state.familyCode, name: state.group?.name || state.familyCode, mode: currentMode(), myMemberId: id, myMemberName: name });
+    // Write users/{uid}/groups/{code} index doc
+    if (state.auth) {
+      try {
+        await setDoc(doc(db, 'users', state.auth.uid, 'groups', state.familyCode), {
+          familyCode: state.familyCode, name: state.group?.name || state.familyCode,
+          mode: currentMode(), memberId: id, joinedAt: Date.now(), lastActiveAt: Date.now()
+        }, { merge: true });
+      } catch(e) {}
+    }
     showApp();
   } catch(e) { alert('Could not join: '+e.message); }
 };
 
-window.joinAsExisting = function(id, name) {
+window.joinAsExisting = async function(id, name) {
   state.me = { id, name };
   localStorage.setItem('qn_me', JSON.stringify(state.me));
   upsertSavedGroup({ code: state.familyCode, name: state.group?.name || state.familyCode, mode: currentMode(), myMemberId: id, myMemberName: name });
+  // Opportunistic claim: if member has no uid yet, write current user's uid onto doc (grace-window)
+  if (state.auth) {
+    try {
+      const memberSnap = await getDoc(doc(membersRef(), id));
+      const memberData = memberSnap.exists() ? memberSnap.data() : null;
+      if (memberData && !memberData.uid) {
+        await updateDoc(doc(membersRef(), id), { uid: state.auth.uid, claimedAt: Date.now() });
+      }
+    } catch(e) {}
+    // Write users/{uid}/groups/{code} index doc
+    try {
+      await setDoc(doc(db, 'users', state.auth.uid, 'groups', state.familyCode), {
+        familyCode: state.familyCode, name: state.group?.name || state.familyCode,
+        mode: currentMode(), memberId: id, joinedAt: Date.now(), lastActiveAt: Date.now()
+      }, { merge: true });
+    } catch(e) {}
+  }
   showApp();
 };
 
 window.signOut = async function() {
-  // Best-effort unsubscribe so we don't keep pushing to a device that's signed out.
-  // We await briefly but don't block reload if it's slow or errors.
-  try { await Promise.race([unsubscribeFromPush(), new Promise(r => setTimeout(r, 1500))]); } catch(e) {}
-  localStorage.removeItem('qn_me');
-  if (state.unsubMembers) state.unsubMembers();
-  if (state.unsubTitles) state.unsubTitles();
-  location.reload();
+  // Delegate entirely to Firebase Auth sign-out.
+  // The onAuthStateChanged(null) listener handles all teardown + screen transition.
+  try { haptic('light'); } catch(e) {}
+  try { await signOutUser(); }
+  catch(e) { console.error('[signout]', e); }
 };
 
 window.leaveFamily = async function() {
+  if (!state.auth) { location.reload(); return; }
   const label = groupNoun();
   if (!confirm(`Leave this ${label}? You can rejoin with the code.`)) return;
   try { await Promise.race([unsubscribeFromPush(), new Promise(r => setTimeout(r, 1500))]); } catch(e) {}
+  // Remove member doc and group index doc; do NOT sign out (D-10 one-uid-many-groups)
+  if (state.me && state.familyCode) {
+    try { await deleteDoc(doc(membersRef(), state.me.id)); } catch(e) {}
+    try { await deleteDoc(doc(db, 'users', state.auth.uid, 'groups', state.familyCode)); } catch(e) {}
+  }
   if (state.familyCode) removeSavedGroup(state.familyCode);
   localStorage.removeItem('qn_me');
   localStorage.removeItem('qn_family');
   localStorage.removeItem('qn_active_group');
-  if (state.unsubMembers) state.unsubMembers();
-  if (state.unsubTitles) state.unsubTitles();
-  location.reload();
+  state.me = null;
+  state.familyCode = null;
+  state.group = null;
+  // Stay signed in; route back to group-switcher or create-or-join
+  routeAfterAuth();
 };
 
 // ===== Group switching =====
@@ -1636,12 +1917,35 @@ function startSync() {
 }
 
 async function boot() {
+  // Phase 5: bootstrapAuth MUST resolve before any UI render so the router picks the right screen.
+  let bootResult = { freshFromRedirect: false, user: null };
+  try { bootResult = await bootstrapAuth(); } catch(e) { console.error('[boot] bootstrapAuth error', e); }
+  state.auth = auth.currentUser;
+
+  // Complete email-link sign-in if arriving from a magic link
+  try {
+    const emailUser = await completeEmailLinkIfPresent();
+    if (emailUser) state.auth = emailUser;
+  } catch(e) { console.error('[boot] email-link complete failed', e); }
+
+  // Install auth-state listener (handles sign-out from any surface, token revoke, etc.)
+  state.unsubAuth = watchAuth(onAuthStateChangedCouch);
+
+  // Pre-load saved groups from localStorage for instant paint
   state.groups = loadSavedGroups();
+
+  // Route to the appropriate screen based on auth state
+  if (!state.auth) {
+    // Not signed in → show sign-in screen
+    showPreAuthScreen('signin-screen');
+    return;
+  }
+
+  // Signed in → check for stored group to resume, else mode-pick
   const active = localStorage.getItem('qn_active_group') || localStorage.getItem('qn_family');
   const savedMe = localStorage.getItem('qn_me');
   if (active) {
     state.familyCode = active;
-    // Pull the group doc so we know the mode before rendering anything mode-aware
     try {
       const snap = await getDoc(familyDocRef());
       if (snap.exists()) {
@@ -1655,6 +1959,7 @@ async function boot() {
     await showNameScreen();
     return;
   }
+  // Signed in but no saved group → mode-pick → family-code entry
   document.getElementById('screen-mode').style.display = 'block';
 }
 

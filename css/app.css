@@ -1916,3 +1916,24 @@ h3{font-size:var(--t-h3)}
 .legal-footer a:hover{color:var(--ink-dim)}
 .legal-footer .sep{opacity:0.5}
 @media (display-mode:standalone){.legal-footer{display:none}}
+
+/* ===== Phase 5 sign-in screen — functional styling on existing tokens; polish in Phase 9 ===== */
+#signin-screen { padding: 24px 20px; max-width: 420px; margin: 0 auto; }
+.signin-header { text-align: center; margin: 40px 0 32px; }
+.signin-title { font-family: 'Fraunces', serif; font-size: 48px; margin: 0; letter-spacing: -0.02em; color: var(--ink); }
+.signin-tag { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--ink-warm); margin: 8px 0 0; font-style: italic; }
+.signin-providers { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.provider-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 18px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+.provider-btn:active { transform: scale(0.99); opacity: 0.85; }
+.provider-google { background: #fff; color: #1f1f1f; border-color: #ddd; }
+.provider-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.signin-more { background: var(--surface); border: 1px solid var(--border-mid); border-radius: 10px; padding: 12px 16px; margin-top: 8px; }
+.signin-more summary { cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-warm); user-select: none; list-style: none; }
+.signin-more summary::-webkit-details-marker { display: none; }
+.signin-more-body { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; }
+.signin-email, .signin-phone { display: flex; flex-direction: column; gap: 8px; }
+.signin-email input, .signin-phone input { padding: 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
+.provider-email { background: var(--surface-2); }
+.provider-phone { background: var(--surface-2); }
+#signin-phone-code-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.signin-footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--ink-faint); line-height: 1.5; padding-bottom: 40px; }
