@@ -7788,11 +7788,27 @@ function renderParticipantTimerStrip(wp) {
       statusLabel = mins === 0 ? 'Just started' : `${mins} min in`;
     }
     const isMe = state.me && state.me.id === mid;
+    // Phase 7 Plan 08 (Issue #4): on-time override control on OWN chip only.
+    // isLate = joinedAt is past the on-time grace window from startAt — i.e. the default
+    // inference branch won't fire for this user. Show the claim button so they can anchor
+    // their timer to startAt if they were actually watching from the scheduled start.
+    // hasOverride = effectiveStartAt explicitly set — show a revert affordance instead.
+    let ontimeControl = '';
+    if (isMe && typeof p.joinedAt === 'number' && typeof wp.startAt === 'number') {
+      const isLate = p.joinedAt > wp.startAt + ONTIME_GRACE_MS;
+      const hasOverride = typeof p.effectiveStartAt === 'number';
+      if (hasOverride) {
+        ontimeControl = `<button class="wp-ontime-revert" onclick="claimStartedOnTime('${escapeHtml(wp.id)}', { toggleOff: true })" title="Revert to join-time anchor">On time ✓</button>`;
+      } else if (isLate) {
+        ontimeControl = `<button class="wp-ontime-claim" onclick="claimStartedOnTime('${escapeHtml(wp.id)}')" title="I was already watching from the start — anchor my timer to the scheduled start time">I started on time</button>`;
+      }
+    }
     return `<div class="wp-participant-chip ${chipClass} ${isMe ? 'me' : ''}" data-member-id="${escapeHtml(mid)}">
       <div class="wp-participant-av" style="background:${color};" aria-hidden="true">${escapeHtml(initial)}</div>
       <div class="wp-participant-info">
         <div class="wp-participant-name">${escapeHtml(name)}${isMe ? ' <span class="muted">(you)</span>' : ''}</div>
         <div class="wp-participant-time" data-role="pt-time">${escapeHtml(statusLabel)}</div>
+        ${ontimeControl}
       </div>
     </div>`;
   }).join('');
@@ -7996,6 +8012,38 @@ window.setReactionDelay = async function(seconds) {
       ...writeAttribution()
     });
   } catch(e) { alert('Could not change delay: ' + e.message); }
+};
+
+// Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
+// elapsed-time anchor. When a participant joined AFTER startAt + grace (default inference
+// branch doesn't fire for them) but they WERE actually watching from the scheduled start,
+// this flips their effectiveStartAt to wp.startAt. Idempotent — opts.toggleOff reverts to
+// null, which falls back to the default inference / startedAt cascade in effectiveStartFor.
+//
+// Adopts the SAME pre-await optimistic shape as setWpMode (Plan 06 Gap #2a) and
+// setReactionDelay (Plan 07): mutate local state + synchronous renderWatchpartyLive()
+// BEFORE awaiting the Firestore write so the chip re-renders instantly. Distinct from
+// postReaction's post-await echo pattern — override toggle is a local UI preference where
+// zero-latency feel matters and rollback via onSnapshot authoritative overwrite is trivial
+// for a single primitive field.
+window.claimStartedOnTime = async function(wpId, opts) {
+  const options = opts || {};
+  const wp = state.watchparties.find(x => x.id === wpId);
+  if (!wp || !state.me) return;
+  const mine = wp.participants && wp.participants[state.me.id];
+  if (!mine) return;
+  const toggleOff = !!options.toggleOff;
+  const nextValue = toggleOff ? null : wp.startAt;
+  // Pre-await optimistic mutation — matches setWpMode / setReactionDelay shape.
+  mine.effectiveStartAt = nextValue;
+  renderWatchpartyLive();
+  try {
+    await updateDoc(watchpartyRef(wpId), {
+      [`participants.${state.me.id}.effectiveStartAt`]: nextValue,
+      lastActivityAt: Date.now(),  // consistent with setWpMode + Phase 7 D-06 orphan detection
+      ...writeAttribution()
+    });
+  } catch(e) { alert('Could not update: ' + e.message); }
 };
 
 window.leaveWatchparty = async function(wpId) {

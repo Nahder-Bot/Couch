@@ -713,6 +713,11 @@ h3{font-size:var(--t-h3)}
 .wp-delay-row{display:flex;gap:6px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
 .wp-delay-label{font-size:var(--t-meta);color:var(--ink-dim);margin-right:2px}
 .wp-control-btn.wp-delay{min-width:44px;padding:4px 10px;font-size:var(--t-meta)}
+/* Phase 7 Plan 08 (Issue #4): on-time override controls on OWN participant chip. Secondary affordance — subtle, not competing with primary controls. */
+.wp-ontime-claim{margin-top:4px;min-height:32px;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--ink-dim);font-size:var(--t-meta);border-radius:var(--r-sm,8px);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.wp-ontime-claim:hover{color:var(--ink);border-color:var(--border-strong)}
+.wp-ontime-revert{margin-top:4px;min-height:32px;padding:4px 8px;background:rgba(232,160,74,0.10);border:1px solid rgba(232,160,74,0.35);color:var(--accent);font-size:var(--t-meta);border-radius:var(--r-sm,8px);cursor:pointer}
+.wp-ontime-revert:hover{background:rgba(232,160,74,0.18)}
 .wp-participants{font-size:var(--t-eyebrow);color:var(--ink-dim);margin-top:6px}
 .wp-prelaunch{text-align:center;padding:48px 20px}
 .wp-prelaunch-count{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:48px;font-weight:400;color:var(--accent);margin:14px 0;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
