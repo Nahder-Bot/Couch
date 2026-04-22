@@ -7325,6 +7325,12 @@ window.scheduleSportsWatchparty = async function(eventId) {
   const league = SPORTS_LEAGUES[sportsCurrentLeague];
   const matchupLabel = game.awayTeam + ' at ' + game.homeTeam;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  // Phase 7 Plan 5 (PARTY-06): capture creator's IANA timezone for CF push body rendering.
+  // Parallel to confirmStartWatchparty above — sports wps flow through the same onWatchpartyCreate CF.
+  const creatorTimeZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+    catch (e) { return null; }
+  })();
   const wp = {
     id,
     titleId: null,
@@ -7332,6 +7338,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     titlePoster: '',
     hostId: state.me.id,
     hostName: state.me.name,
+    creatorTimeZone: creatorTimeZone || null,  // Phase 7 Plan 5: CF renders startAt in creator's tz
     startAt: game.startTime,
     createdAt: Date.now(),
     status: game.startTime <= Date.now() ? 'active' : 'scheduled',
@@ -7388,6 +7395,13 @@ window.confirmStartWatchparty = async function() {
   if (!startAt) { alert('Pick a start time.'); return; }
   if (startAt < Date.now() - 60*1000) { alert("That's in the past. Pick a future time."); return; }
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  // Phase 7 Plan 5 (PARTY-06): capture the creator's IANA timezone at write-time so
+  // the onWatchpartyCreate CF can render startAt in their local zone in the push body
+  // (GCP Cloud Functions runtime defaults to UTC — bug #1 from 07-UAT-RESULTS.md).
+  const creatorTimeZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+    catch (e) { return null; }
+  })();
   const wp = {
     id,
     titleId: wpStartTitleId,
@@ -7396,6 +7410,7 @@ window.confirmStartWatchparty = async function() {
     hostId: state.me.id,
     hostName: state.me.name,
     hostUid: (state.auth && state.auth.uid) || null,  // Phase 6: self-echo attribution on push
+    creatorTimeZone: creatorTimeZone || null,         // Phase 7 Plan 5: CF renders startAt in creator's tz
     startAt,
     createdAt: Date.now(),
     lastActivityAt: Date.now(),  // Phase 7 D-06: orphan detection source of truth
