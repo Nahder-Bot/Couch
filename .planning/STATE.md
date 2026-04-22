@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 7 (Watchparty) — UAT COMPLETE-WITH-GAPS (8/8 PASS, 4 fix-gaps, 1 seed). Needs gap-closure plan + re-verify before clean Phase 7 close.
-Plan: UAT done; next = /gsd-plan-phase 7 --gaps
-Status: 2026-04-21 /gsd-verify-work 7 run. Scenarios 1-6 PASS hands-on (iPhone PWA + second device). Scenarios 7-8 (orphan-archive branches) PASS on code+health verification — watchpartyTick CF observed ticking every 5 min, 10 families scanned, 0 errors; branch logic reviewed at functions/index.js:425-441. Flagship push loop closed. Gap closure needed before Phase 7 is fully verified — Issues #1-#4 in 07-UAT-RESULTS.md. Issue #5 (banner dismiss + async-replay) seeded to seeds/phase-9x-async-replay.md.
+Phase: 7 (Watchparty) — GAP-CLOSURE PLANS READY. 4 plans (07-05..07-08) planner+checker-verified (2 iterations, clean pass). Next = /gsd-execute-phase 7 --gaps-only.
+Plan: 8 of 8 (4 shipped + 4 planned gap-closure)
+Status: 2026-04-21 full verify→diagnose→plan→check loop complete. UAT surfaced 4 in-scope gaps + 1 out-of-scope seed. Root causes confirmed via 3 parallel code-explorer agents. gsd-planner produced 4 plans (07-05 CF timezone, 07-06 hide-reactions + late-joiner backlog, 07-07 reaction-delay feature net-new, 07-08 on-time inference + late-joiner override). gsd-plan-checker flagged 2 blockers + 4 majors + 3 minors; planner revised in-place; checker re-verified VERIFICATION PASSED. Wave structure: W1=[07-05 || 07-06], W2=[07-07], W3=[07-08]. Issue #5 seeded to .planning/seeds/phase-9x-async-replay.md — do NOT include in execute.
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
 Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
 
-Last activity: 2026-04-21 -- Phase 7 UAT run (commit 996268e) + Phase-9x async-replay seed
-Resume file: .planning/phases/07-watchparty/07-UAT-RESULTS.md (8/8 PASS table + 5 outstanding issues detailed)
-Next action: /gsd-plan-phase 7 --gaps (covers Issues #1-#4; Issue #5 deferred to seeds/phase-9x-async-replay.md)
+Last activity: 2026-04-21 -- Phase 7 gap-closure planning complete: UAT commit 996268e → diagnosis 371b2ff → plans + ROADMAP 24ed8f3
+Resume file: .planning/phases/07-watchparty/07-05-PLAN.md (execution entry point, Wave 1)
+Next action: /clear then /gsd-execute-phase 7 --gaps-only (executes 07-05..07-08 per wave structure)
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
 Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
 
