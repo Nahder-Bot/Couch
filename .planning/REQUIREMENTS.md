@@ -74,7 +74,7 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 - [ ] **DESIGN-01**: Final logo + app icon set + favicon shipped in the repo; wired to manifest, head, and iOS/Android home-screen icons
 - [x] **DESIGN-02**: Warm dark palette audited and canonicalized into design tokens (colors, type, spacing, motion, radius) ✓ Phase 9 Plan 02 (2026-04-22)
 - [x] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces ✓ Plan 02 token layer (2026-04-22) + Plan 03 inline-style purge (2026-04-22) — 83 brand-critical inline declarations migrated to 53 token-backed classes; zero inline Fraunces/Instrument Serif remain
-- [~] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system — first half complete in Plan 03 (2026-04-22, brand-critical surfaces tokenized); second half in Plan 04 (desktop responsive layer)
+- [x] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system ✓ Plan 03 tokenized brand-critical surfaces + Plan 04 desktop responsive layer (2026-04-22) — `.phone-shell` wrapper + single `@media (min-width: 900px)` block; Phase 7 UAT deferred watchparty-modal gap closed (`.wp-live-modal` 520→800px on desktop)
 - [ ] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup
 - [ ] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page
 - [ ] **DESIGN-07**: First-run onboarding polished to match the redesign and introduces feature surfaces tastefully (moods, veto, watchparty, push opt-in, intent flows)
@@ -164,7 +164,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | DESIGN-01 | Phase 9 | Pending |
 | DESIGN-02 | Phase 9 | Complete |
 | DESIGN-03 | Phase 9 | Complete |
-| DESIGN-04 | Phase 9 | First half complete (Plan 03); second half in Plan 04 |
+| DESIGN-04 | Phase 9 | Complete |
 | DESIGN-05 | Phase 9 | Pending |
 | DESIGN-06 | Phase 9 | Pending |
 | DESIGN-07 | Phase 9 | Pending |
