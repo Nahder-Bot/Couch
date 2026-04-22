@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phases 5 + 7 + 8 COMPLETE this session (3 closures back-to-back). Phase 6 UAT still partial (2/7). Phase 9 (Redesign) owns the desktop responsive-layout gap surfaced during Phase 7 UAT + Phase 5/7/8 polish items.
-stopped_at: 2026-04-22 -- Three UAT cycles completed this session. /gsd-verify-work 7: 8/8, 2 runtime fixes shipped (14e959a snapshot re-render + ce3c507 wall-clock filter). /gsd-verify-work 5: 8/8, 0 code bugs, environmental repair for legacy-family ownerUid, 3 seeds captured. /gsd-verify-work 8: 7/7 via browser-Claude autonomous automation — 4 runtime PASS (Tests 1-create, 2-create+cancel, 3 RSVP change, 4 pref toggle write, 5 cancel) + 3 static-verified (Tests 6 expiry CF, 7 majority math + 1/2 convert paths). 0 feature-code bugs. 1 incidental gap seeded: onIntentCreated CF renders proposedStartAt without timeZone option (same class as Phase 7 Plan 05 bug but on intent-creation path — phase-08x-intent-cf-timezone.md). Browser-Claude drove the full Chrome flow: openProposeIntent, confirmProposeIntent, RSVP modal clicks, checkbox toggle of users/{uid}.notificationPrefs.intentProposed, cancel button invoke. Match + convert runtime flows not testable solo (7-member family majority rule needs 4 authed Yes RSVPs; setIntentRsvp keys by state.me.id so act-as doesn't help by design). Phase 8 closes code-complete with runtime coverage for all single-user paths. Next: /gsd-verify-work 6 (5/7 push-notification scenarios still pending) or /gsd-plan-phase 9 (Redesign — owns multiple deferred polish items now).
-last_updated: "2026-04-22T04:05:00Z"
-last_activity: 2026-04-22 -- /gsd-verify-work 8 complete. UAT + seed commit c34776e + Phase 8 marked COMPLETE in ROADMAP.
+status: Phases 5 + 7 + 8 COMPLETE this session. Phase 9 PLANNED (8 plans, 5 waves, verified in 1 revision iteration). Phase 6 UAT still partial (2/7). Ready to execute Phase 9 or pick up Phase 6.
+stopped_at: 2026-04-22 -- /gsd-plan-phase 9 complete. Research → 7 plans → checker (3 blocker + 5 major + 6 minor) → revision 1 → checker (PASS) → 8 plans final. Wave structure: W1 09-01/09-02, W2 09-03/09-04, W3 09-05/09-06, W4 09-07a, W5 09-07b. Absorbs 4 seeds (phase-05x-account-linking items #6+#7, phase-05x-guest-invite-redemption full, phase-05x-legacy-family-ownership-migration full, phase-08x-intent-cf-timezone full) + Phase 7 deferred responsive-layout gap. Leaves 2 seeds standalone (phase-05x-apple-signin needs \$99 Apple Dev account; phase-07-watchparty-lifecycle-transitions is backend behavioral not brand polish). Key architectural calls from research: design system is 90% built (css/app.css:1-90 token :root block already has colors/spacing/type/radii/motion); desktop responsive root cause is single line body{max-width:480px} at css/app.css:101 (fix = .phone-shell wrapper + @media 900px); 119 inline style= attrs in index.html (target <20 for DESIGN-04); landing architecture = separate landing.html + rename app to app.html + Firebase Hosting rewrites, self-hosted fonts for Lighthouse ≥90. 26 total tasks across 8 plans (18 auto + 1 decision + 5 human-verify + 2 human-action). Next: /gsd-execute-phase 9 OR /gsd-verify-work 6 (continuing partial UAT).
+last_updated: "2026-04-22T04:30:00Z"
+last_activity: 2026-04-22 -- /gsd-plan-phase 9 complete. Research + 8 plans + ROADMAP + checker-pass commit f54ff8b.
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 28
+  total_plans: 36
   completed_plans: 22
-  percent: 93
+  percent: 61
 ---
 
 # Project State
@@ -21,12 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phases 5 + 7 + 8 all CLOSED this session (3 phase closures in a row). 5/8 phases complete (3, 4, 5, 7, 8). Remaining: Phase 6 (deployed, UAT 2/7), Phase 9 (not started — Redesign, owns all deferred polish items), Phase 10 (not started — YIR). Next natural targets: /gsd-verify-work 6 to close Phase 6 or /gsd-plan-phase 9 to kick off Redesign.
+**Current focus:** Phases 5 + 7 + 8 CLOSED + Phase 9 PLANNED (8 plans, 5 waves) this session. 5/8 phases complete (3, 4, 5, 7, 8). Remaining: Phase 6 (deployed, UAT 2/7), Phase 9 (8 plans ready to execute), Phase 10 (not started — depends on Phase 9 for brand tokens). Next natural targets: /gsd-execute-phase 9 to start Redesign execution, or /gsd-verify-work 6 to close Phase 6 first.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 5 + 7 + 8 all COMPLETE this session (three phase closures in a row). Next up: Phase 6 (UAT 5/7 pending) or Phase 9 (not started — Redesign, absorbs 7+ deferred polish items accumulated this session).
+Phase: Phase 9 PLANNED (fresh — 8 plans, 5 waves, verified in 1 revision iteration). Phases 5 + 7 + 8 all COMPLETE this session. Next up: /gsd-execute-phase 9 (begin Redesign execution, 26 total tasks across 8 plans) OR /gsd-verify-work 6 (Phase 6 UAT 5/7 still pending).
+
+Phase 9 planning (2026-04-22, /gsd-plan-phase 9): Research → 7 initial plans → checker (3 blockers + 5 majors + 6 minors) → revision 1 → checker (PASS) → 8 plans final. Waves: W1 09-01 identity + 09-02 tokens; W2 09-03 inline-style purge + 09-04 desktop responsive; W3 09-05 landing page + 09-06 marketing assets; W4 09-07a onboarding + self-claim + BRAND.md + intent tz fix; W5 09-07b guest-invite redemption + motion audit. Absorbs 4 seeds + Phase 7 deferred responsive gap. Research revealed: design system is 90% already built in css/app.css:1-90; desktop responsive fix is one-line `.phone-shell` wrapper + @media 900px; 119 inline style= attrs in index.html to purge; landing becomes separate landing.html + app.html rewrite for perf + SEO. 26 total tasks (18 auto + 1 decision + 5 human-verify + 2 human-action). Commit: f54ff8b.
 
 Phase 8 closure (2026-04-22, /gsd-verify-work 8): UAT 7/7 accounted for via browser-Claude autonomous Chrome automation. 4 runtime PASS (Tests 1/2 create + cancel paths, Test 3 RSVP live-sync, Test 4 pref toggle persistence, Test 5 creator cancel) + 3 static-verified (Test 6 expiry CF logic trivial, Test 7 majority-rule ceil(n/2) math + family→majority binding, plus match+convert paths on 1/2). Zero feature-code bugs. 1 incidental gap seeded: onIntentCreated CF renders proposedStartAt via toLocaleTimeString without timeZone option — same class as Phase 7 Plan 05 bug (which we fixed for watchparty pushes) but on the intent-creation path. Seed: .planning/seeds/phase-08x-intent-cf-timezone.md. Match + convert runtime flows not testable solo: 7-member family majority rule needs 4 authenticated Yes RSVPs; setIntentRsvp keys by state.me.id directly so act-as sub-profile workaround doesn't help (by product design — intents are real-member polls, sub-profiles don't vote).
 
@@ -54,14 +56,19 @@ Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 
 Phase 8 UAT file: .planning/phases/08-intent-flows/08-UAT.md (closed)
 Phase 5 UAT file: .planning/phases/05-auth-groups/05-UAT.md (closed); 05-UAT-RESULTS.md (prior state preserved)
 
-Active seeds accumulated this session:
-  - phase-05x-legacy-family-ownership-migration.md (self-claim CTA for pre-Phase-5 family docs)
-  - phase-05x-guest-invite-redemption.md (ship consumeGuestInvite CF + showInviteRedeemScreen)
-  - phase-05x-account-linking.md (expanded with #6 set-password-for-resign-in + #7 sign-in-vs-create-account UX split)
-  - phase-08x-intent-cf-timezone.md (onIntentCreated CF timezone echo of 07-05 fix)
-  - Phase 9 responsive-layout gap (watchparty live modal desktop viewport) — tracked in Phase 7 UAT, routed to Phase 9
+Seeds absorbed into Phase 9 (4 of 6):
+  - phase-05x-legacy-family-ownership-migration.md → 09-07a Task 1
+  - phase-05x-guest-invite-redemption.md → 09-07b Task 2 (full CF + client)
+  - phase-05x-account-linking.md items #6 + #7 → 09-07a Task 1
+  - phase-08x-intent-cf-timezone.md → 09-07a Task 3
+  - Phase 7 deferred responsive-layout gap → 09-04
 
-Progress: [█████████░] 93% of plans (22/28); phase-level: Phases 3-4 complete; **5 COMPLETE** (all plans + UAT + 3 seeds); 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); **8 COMPLETE** (all plans + UAT + 1 seed); 9-10 pending
+Seeds remaining standalone:
+  - phase-05x-apple-signin.md (needs \$99 Apple Dev account — gated on external purchase)
+  - phase-07-watchparty-lifecycle-transitions.md (backend behavioral, not brand polish)
+
+Progress: Phase-level: Phases 3-4 complete; **5 COMPLETE** (all plans + UAT); 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); **8 COMPLETE** (all plans + UAT + 1 seed); **9 PLANNED** (8 plans, 5 waves, 26 tasks — ready to execute); 10 pending (depends on Phase 9 brand tokens).
+Plan count changed: total_plans 28 → 36 (Phase 9 added 8 plans). Execution progress 22/36 = 61%.
 
 ## Performance Metrics
 
