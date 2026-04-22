@@ -7360,6 +7360,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
         joinedAt: Date.now(),
         rsvpStatus: 'in',
         reactionsMode: 'elapsed',
+        reactionDelay: 0,        // Phase 7 Plan 07 (PARTY-04): viewer-side delay (seconds); 0 = off
         pausedOffset: 0
       }
     },
@@ -7421,6 +7422,7 @@ window.confirmStartWatchparty = async function() {
         joinedAt: Date.now(),
         rsvpStatus: 'in',
         reactionsMode: 'elapsed', // 'elapsed' | 'wallclock' | 'hidden'
+        reactionDelay: 0,         // Phase 7 Plan 07 (PARTY-04): viewer-side delay (seconds); 0 = off
         pausedOffset: 0
       }
     },
@@ -7456,6 +7458,7 @@ window.joinWatchparty = async function(wpId) {
       joinedAt: Date.now(),
       rsvpStatus: 'in',
       reactionsMode: 'elapsed',
+      reactionDelay: 0,         // Phase 7 Plan 07 (PARTY-04): viewer-side delay (seconds); 0 = off
       pausedOffset: 0
     }
   };
@@ -7710,11 +7713,22 @@ function renderReactionsFeed(wp, mine, modeOverride) {
   }
   const myElapsed = computeElapsed(mine);
   const allReactions = wp.reactions || [];
+  // Phase 7 Plan 07 (PARTY-04): viewer-side reaction delay. Shift elapsed-mode comparison
+  // backward by (mine.reactionDelay || 0) * 1000 so a reaction posted at runtime position T
+  // only appears in this viewer's feed once THEIR timer reads T + delay. Spoiler protection
+  // for the viewer who's a few seconds behind the fastest co-watcher.
+  // Poster-self is exempt: r.memberId === state.me.id bypasses the delay so you always see
+  // your own reactions immediately. memberId is the canonical attribution field pinned by
+  // writeAttribution() in js/utils.js:100 — postReaction at js/app.js:~7820 spreads it into
+  // every reaction object. No grep needed; this is deterministic.
+  const delayMs = (mine.reactionDelay || 0) * 1000;
   // Filter based on mode
   const visible = allReactions.filter(r => {
     if (mode === 'wallclock') return true;
-    // elapsed mode: only show reactions whose elapsed <= mine
-    return (r.elapsedMs || 0) <= myElapsed;
+    // elapsed mode: poster-self always sees their own reactions immediately
+    if (r.memberId === state.me.id) return (r.elapsedMs || 0) <= myElapsed;
+    // other viewers: shift by delayMs (0 when no delay configured)
+    return (r.elapsedMs || 0) <= (myElapsed - delayMs);
   });
   if (!visible.length) {
     return `<div class="wp-live-body" id="wp-reactions-feed"><div style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);padding:20px;">Reactions will flow in as people post them.</div></div>`;
@@ -7781,6 +7795,18 @@ function renderWatchpartyFooter(wp, mine) {
   // Keeps palette familiar while unlocking unlimited emoji choice without a JS picker library.
   const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')">${e}</button>`).join('')
     + `<button class="wp-emoji-btn wp-emoji-more" onclick="openEmojiPicker()" aria-label="More emoji">+</button>`;
+  // Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Only meaningful in elapsed mode
+  // — wallclock ignores delay by design (shows everything as-posted) and hidden renders nothing
+  // regardless. Chips are a thin visual modifier on the base .wp-control-btn class.
+  const currentDelay = (mine.reactionDelay || 0);
+  const delayPresets = [0, 5, 15, 30];
+  const delayChips = delayPresets.map(s => {
+    const label = s === 0 ? 'Off' : s + 's';
+    const on = s === currentDelay;
+    const title = s === 0 ? 'No reaction delay' : `Delay reactions by ${s} seconds`;
+    return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" title="${title}">${label}</button>`;
+  }).join('');
+  const delayRowDisplay = (mode === 'elapsed') ? 'flex' : 'none';
   const controls = `<div class="wp-controls">
     ${paused
       ? `<button class="wp-control-btn on" onclick="toggleWpPause()">▶ Resume</button>`
@@ -7788,6 +7814,10 @@ function renderWatchpartyFooter(wp, mine) {
     <button class="wp-control-btn ${mode==='hidden'?'on':''}" onclick="setWpMode('${mode==='hidden'?'elapsed':'hidden'}')" title="${mode==='hidden'?'Reactions are hidden from you right now':'Hide reactions for a bit (bathroom break, etc.)'}">${mode==='hidden'?'Reactions off':'Hide reactions'}</button>
     <button class="wp-control-btn ${mode==='wallclock'?'on':''}" onclick="setWpMode('${mode==='wallclock'?'elapsed':'wallclock'}')" title="${mode==='wallclock'?'Showing reactions in real time. Tap to switch back to synced mode':'Reactions are timed to your progress. Tap to see them all in real time'}">${mode==='wallclock'?'Real-time on':'Real-time'}</button>
     <button class="wp-control-btn danger" onclick="endMyWatchparty('${wp.id}')">Done</button>
+  </div>
+  <div class="wp-delay-row" style="display:${delayRowDisplay};">
+    <span class="wp-delay-label">Delay</span>
+    ${delayChips}
   </div>`;
   return `<div class="wp-live-footer">
     ${controls}
@@ -7912,6 +7942,31 @@ window.setWpMode = async function(mode) {
       ...writeAttribution()
     });
   } catch(e) { alert('Could not change mode: ' + e.message); }
+};
+
+// Phase 7 Plan 07 (PARTY-04): setReactionDelay — viewer-side reaction-delay preset toggle.
+// Adopts the SAME pre-await optimistic shape as setWpMode above (Plan 06's Gap #2a fix):
+// mutate local state + synchronous renderWatchpartyLive() BEFORE the await updateDoc, so the
+// preset chip highlights instantly. Distinct from postReaction's post-await echo pattern —
+// delay is a local UI preference (zero-latency feel matters, rollback is trivial via
+// onSnapshot authoritative overwrite). Seconds are clamped [0, 60] defensively — UI only
+// offers 0 / 5 / 15 / 30 but console callers could pass anything.
+window.setReactionDelay = async function(seconds) {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp || !state.me) return;
+  const s = Math.max(0, Math.min(60, parseInt(seconds, 10) || 0));
+  // Pre-await optimistic mutation — matches setWpMode's shape (Plan 06 Gap #2a).
+  if (wp.participants && wp.participants[state.me.id]) {
+    wp.participants[state.me.id].reactionDelay = s;
+  }
+  renderWatchpartyLive();
+  try {
+    await updateDoc(watchpartyRef(wp.id), {
+      [`participants.${state.me.id}.reactionDelay`]: s,
+      lastActivityAt: Date.now(),  // consistent with setWpMode + Phase 7 D-06 orphan detection
+      ...writeAttribution()
+    });
+  } catch(e) { alert('Could not change delay: ' + e.message); }
 };
 
 window.leaveWatchparty = async function(wpId) {

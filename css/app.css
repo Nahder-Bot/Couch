@@ -709,6 +709,10 @@ h3{font-size:var(--t-h3)}
 .wp-control-btn:hover{border-color:var(--border-strong)}
 .wp-control-btn.on{background:var(--brand-grad);color:var(--bg);border-color:transparent;font-weight:700;box-shadow:0 2px 8px rgba(232,160,74,0.2),inset 0 1px 0 rgba(255,255,255,0.15)}
 .wp-control-btn.danger{color:var(--bad,#e53170)}
+/* Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Reuses .wp-control-btn base; .wp-delay tightens padding for chip-look. */
+.wp-delay-row{display:flex;gap:6px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
+.wp-delay-label{font-size:var(--t-meta);color:var(--ink-dim);margin-right:2px}
+.wp-control-btn.wp-delay{min-width:44px;padding:4px 10px;font-size:var(--t-meta)}
 .wp-participants{font-size:var(--t-eyebrow);color:var(--ink-dim);margin-top:6px}
 .wp-prelaunch{text-align:center;padding:48px 20px}
 .wp-prelaunch-count{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:48px;font-weight:400;color:var(--accent);margin:14px 0;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
