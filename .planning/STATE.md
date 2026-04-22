@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 gap-closure Wave 1 COMPLETE (07-05 + 07-06 both shipped and deployed to prod; UAT deferred to /gsd-verify-work 7). 07-07 (Wave 2) + 07-08 (Wave 3) pending. Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial.
-stopped_at: 2026-04-22 -- Phase 7 Plan 6 executed: setWpMode pre-await optimistic render (commit 674afae — Gap #2a, hide-reactions toggle) + renderReactionsFeed modeOverride param + renderWatchpartyLive !mine/!mine.startedAt branch split (commit d873e62 — Gap #3, late-joiner wallclock backlog). Both committed on master. Firebase hosting redeployed from C:\Users\nahde\queuenight — 47 files uploaded to queuenight-84044.web.app, release complete. This redeploy also carries 07-05's creatorTimeZone client changes to production, unblocking that plan's Scenario 1 UAT repro. UAT (Gaps #2a + #3 + un-joined regression check) deferred to /gsd-verify-work 7 per project pattern.
-last_updated: "2026-04-22T00:26:05Z"
-last_activity: 2026-04-22 -- Phase 7 Plan 6 shipped: commits 674afae + d873e62 on master + hosting deploy successful (also ships 07-05 client bundle to prod)
+status: Phase 7 gap-closure Wave 1 + Wave 2 COMPLETE (07-05 + 07-06 + 07-07 all shipped and deployed to prod; UAT deferred to /gsd-verify-work 7). 07-08 (Wave 3) pending. Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial.
+stopped_at: 2026-04-21 -- Phase 7 Plan 7 executed: reaction-delay feature (commit d3fe64a — net-new PARTY-04 closure). Single commit per plan commit_strategy — UI + state field + persist fn + filter shift all land together as a cohesive unit. 4 surfaces: (1) reactionDelay:0 added to 3 participant write sites (scheduleSportsWatchparty, confirmStartWatchparty, joinWatchparty), (2) window.setReactionDelay persist fn adopting 07-06's pre-await optimistic shape (mutate -> render -> await) placed next to setWpMode, (3) renderReactionsFeed elapsed-filter shift with poster-self bypass via r.memberId === state.me.id and delayMs = (mine.reactionDelay||0)*1000, (4) 4 preset UI chips (Off/5s/15s/30s) in .wp-delay-row in renderWatchpartyFooter (hidden in wallclock + hidden modes). CSS adds .wp-delay-row + .wp-delay-label + .wp-control-btn.wp-delay. Firebase hosting redeployed — 47 files to queuenight-84044.web.app, release complete. Grep acceptance all PASS: reactionDelay 8 hits, setReactionDelay 3 hits, wp-delay css 4 hits, delayMs 3 hits, r.memberId === state.me.id 1 functional hit. node --check js/app.js OK. UAT (8-sub-check behavioral verification) deferred to /gsd-verify-work 7 per project pattern. Next: 07-08 (on-time inference, Wave 3).
+last_updated: "2026-04-21T00:00:00Z"
+last_activity: 2026-04-21 -- Phase 7 Plan 7 shipped: commit d3fe64a on master + hosting deploy successful (reaction-delay feature, PARTY-04 closure)
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 28
-  completed_plans: 20
-  percent: 86
+  completed_plans: 21
+  percent: 89
 ---
 
 # Project State
@@ -21,26 +21,26 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 7 gap closure — Wave 1 COMPLETE (07-05 + 07-06 shipped + deployed to prod). Wave 2 = 07-07 next. Phase 8 deployed UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work; Phase-9x async-replay seed captured.
+**Current focus:** Phase 7 gap closure — Wave 1 + Wave 2 COMPLETE (07-05 + 07-06 + 07-07 shipped + deployed to prod). Wave 3 = 07-08 next. Phase 8 deployed UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work; Phase-9x async-replay seed captured.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 7 (Watchparty) — Wave 1 gap closure COMPLETE. 07-05 + 07-06 both SHIPPED and deployed. UAT for both deferred to /gsd-verify-work 7. 07-07 (Wave 2) + 07-08 (Wave 3) next.
-Plan: 6 of 8 (4 original + 2 gap-closure shipped; 2 gap-closure remaining)
-Status: 2026-04-22 Plan 7-06 executed per commit_strategy. Two commits on master: (1) 674afae fix(07-06): setWpMode pre-await optimistic render — mutates wp.participants[uid].reactionsMode + calls renderWatchpartyLive() synchronously BEFORE the await updateDoc, and adds lastActivityAt:Date.now() to the payload — closes Gap #2a (hide-reactions toggle no longer requires modal close/reopen). (2) d873e62 fix(07-06): late-joiner wallclock override — renderReactionsFeed accepts optional modeOverride param, renderWatchpartyLive splits !mine || !mine.startedAt into distinct !mine (unchanged/verbatim) vs !mine.startedAt (new "Ready when you are" prompt + wallclock-forced backlog) branches — closes Gap #3 (late joiners / pre-start creators / re-joiners now see full reaction backlog). Hosting deploy successful: 47 files → queuenight-84044.web.app — this ALSO carries 07-05's creatorTimeZone client changes to prod, unblocking that plan's Scenario 1 UAT repro. Grep acceptance all PASS: modeOverride 3 hits, renderReactionsFeed(wp, mine, 'wallclock') 1 hit, 2-arg call still at post-start branch, "Ready when you are" at 2 branches (un-joined preserved verbatim + new joined-pre-start). node --check js/app.js OK. UAT (Gaps #2a + #3 + un-joined regression check) deferred to /gsd-verify-work 7 per project pattern. Next: 07-07 (reaction delay, Wave 2).
+Phase: 7 (Watchparty) — Waves 1 + 2 gap closure COMPLETE. 07-05 + 07-06 + 07-07 all SHIPPED and deployed. UAT for all three deferred to /gsd-verify-work 7. 07-08 (Wave 3) next.
+Plan: 7 of 8 (4 original + 3 gap-closure shipped; 1 gap-closure remaining)
+Status: 2026-04-21 Plan 7-07 executed per commit_strategy. Single commit on master: d3fe64a feat(07-07): reaction-delay feature — viewer-side spoiler protection (PARTY-04). Shipped as a cohesive net-new feature (UI + state field + persist fn + filter shift, one unit per plan commit_strategy). Surfaces: (1) reactionDelay:0 added to 3 participant write sites (scheduleSportsWatchparty / confirmStartWatchparty / joinWatchparty), (2) window.setReactionDelay persist fn — adopts 07-06's pre-await optimistic shape verbatim (mutate wp.participants[uid].reactionDelay + synchronous renderWatchpartyLive() BEFORE await updateDoc, with lastActivityAt:Date.now() on payload), placed next to setWpMode, clamped [0,60] defensively, (3) renderReactionsFeed elapsed-mode filter shift — delayMs = (mine.reactionDelay||0)*1000 subtracted from myElapsed for all non-self reactions; poster-self bypass via r.memberId === state.me.id (pinned from writeAttribution js/utils.js:100), (4) 4 preset UI chips (Off/5s/15s/30s) in new .wp-delay-row in renderWatchpartyFooter, row hidden when mode !== 'elapsed'. CSS adds .wp-delay-row + .wp-delay-label + .wp-control-btn.wp-delay. Hosting deploy successful: 47 files → queuenight-84044.web.app, release complete. Grep acceptance all PASS: reactionDelay 8 hits, setReactionDelay 3 hits, delayMs 3 hits, r.memberId === state.me.id 1 functional hit, wp-delay css 4 hits. node --check js/app.js OK. Planner decision captured: viewer-side delay over poster-side (use-case is "spoiler protection for me", dramatically simpler, poster-side stacks cleanly if ever needed as a distinct feature). UAT (8-sub-check behavioral verification) deferred to /gsd-verify-work 7 per project pattern. Next: 07-08 (on-time inference, Wave 3).
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
 Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
 
-Last activity: 2026-04-22 -- Phase 7 Plan 6 executed: commits 674afae + d873e62 on master + hosting deploy (queuenight-84044.web.app, 47 files, release complete)
-Resume file: .planning/phases/07-watchparty/07-07-PLAN.md (Wave 2 continuation) OR /gsd-verify-work 7 (Plan 5 + Plan 6 UAT rollup)
-Next action: /clear then /gsd-execute-phase 7 --gaps-only (resumes at 07-07; 07-05 + 07-06 UAT will roll up via /gsd-verify-work 7 later)
+Last activity: 2026-04-21 -- Phase 7 Plan 7 executed: commit d3fe64a on master + hosting deploy (queuenight-84044.web.app, 47 files, release complete)
+Resume file: .planning/phases/07-watchparty/07-08-PLAN.md (Wave 3 continuation) OR /gsd-verify-work 7 (Plan 5 + Plan 6 + Plan 7 UAT rollup)
+Next action: /clear then /gsd-execute-phase 7 --gaps-only (resumes at 07-08; 07-05 + 07-06 + 07-07 UAT will roll up via /gsd-verify-work 7 later)
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
 Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
 
-Progress: [████████▊░] 86% of plans (20/28); phase-level: Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; 7 gap-closure Wave 1 COMPLETE (07-05 + 07-06 both shipped + hosting deployed, UAT pending); Wave 2 (07-07) + Wave 3 (07-08) next; 8 deployed UAT-pending; 9-10 pending
+Progress: [█████████░] 89% of plans (21/28); phase-level: Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; 7 gap-closure Waves 1 + 2 COMPLETE (07-05 + 07-06 + 07-07 all shipped + hosting deployed, UAT pending); Wave 3 (07-08) next; 8 deployed UAT-pending; 9-10 pending
 
 ## Performance Metrics
 
@@ -88,9 +88,11 @@ Recent decisions affecting current work:
 - Auto re-spin does NOT claim spinnership; spinnerId/spinnerAt writes are gated on `!(meta && meta.auto)` in showSpinResult. This is how fairness stays correct after post-spin veto.
 - Progressive filter relaxation (mood only for now) is inline per-call — save/clear/recompute/restore state.selectedMoods. Terminal empty-state renders UI-SPEC copy into the existing spin modal container rather than silent early-return.
 - Real-time veto toasts use the existing session onSnapshot (not a new listener) with a module-scoped prevVetoKeys Set diff + first-snapshot suppression flag. Both reset inside subscribeSession so midnight re-subscribe starts clean (A3 mitigation). Self-echo guard: v.memberId === (state.me && state.me.id).
-- Pre-await optimistic render pattern (Phase 7 Plan 6): for local UI preference toggles (setWpMode hide-reactions), mutate state + call renderXxx() SYNCHRONOUSLY BEFORE awaiting the Firestore write. Distinct from postReaction's post-await echo pattern. Used when instant-feel UX matters and rollback via onSnapshot authoritative overwrite is trivial (single primitive field). 07-07's setReactionDelay will adopt the same shape.
+- Pre-await optimistic render pattern (Phase 7 Plan 6): for local UI preference toggles (setWpMode hide-reactions), mutate state + call renderXxx() SYNCHRONOUSLY BEFORE awaiting the Firestore write. Distinct from postReaction's post-await echo pattern. Used when instant-feel UX matters and rollback via onSnapshot authoritative overwrite is trivial (single primitive field). 07-07's setReactionDelay adopted the same shape (now confirmed as the canonical pattern for Firestore-backed local UI primitives).
 - Optional modeOverride param on renderReactionsFeed (Phase 7 Plan 6): default-undefined semantics preserve existing call-site behavior while specific branches (late-joiner) can force a wallclock render mode orthogonal to the persisted user preference. Avoids conditional branching inside the helper.
 - Render-branch narrowing (Phase 7 Plan 6): when a compound condition (!mine || !mine.startedAt) has two semantically distinct render trees (un-joined viewer CTA vs joined-pre-start backlog), split into separate branches rather than weaving conditional sub-blocks. Easier to scope-gate (e.g. preserving the !mine branch VERBATIM while rebuilding !mine.startedAt).
+- Viewer-side reaction delay (Phase 7 Plan 7, PARTY-04): "spoiler protection for me" chosen over poster-side delay. Viewer picks their own comfort window independently of others via a 4-preset chip (Off/5s/15s/30s). Implementation is a pure render-filter shift in renderReactionsFeed (delayMs = (mine.reactionDelay||0)*1000 subtracted from myElapsed for non-self reactions). Poster-self bypass via r.memberId === state.me.id — you always see your own reactions immediately regardless of your delay setting. Poster-side delay (if ever wanted as a distinct feature) stacks cleanly on a different dimension.
+- Poster-self bypass via r.memberId === state.me.id (Phase 7 Plan 7): canonical attribution predicate for any render-time filter that needs to exempt the poster. memberId is the pinned attribution field written by writeAttribution (js/utils.js:100) and spread into reactions via postReaction. Use verbatim, no grep needed.
 
 ### Pending Todos
 
@@ -108,6 +110,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-22T00:26:05Z
-Stopped at: Phase 7 Plan 6 complete — (a) setWpMode (js/app.js:~7879) now does pre-await optimistic mutation of wp.participants[uid].reactionsMode + synchronous renderWatchpartyLive() BEFORE the await updateDoc (plus lastActivityAt:Date.now() on the payload) — closes Gap #2a (hide-reactions instant toggle); (b) renderReactionsFeed (js/app.js:~7703) accepts optional 3rd modeOverride param; renderWatchpartyLive (js/app.js:~7624) splits the !mine || !mine.startedAt compound branch into distinct !mine (preserved verbatim, footer Join late remains sole CTA) and !mine.startedAt (new "Ready when you are" prompt + participant strip + wallclock-forced reactions feed) branches — closes Gap #3 (late-joiner / pre-start / re-joiner backlog visible). Two commits on master: 674afae + d873e62. Firebase hosting redeployed (queuenight-84044.web.app, 47 files) — this also carries 07-05's creatorTimeZone client capture to prod, so Plan 5's Scenario 1 UAT repro is now unblocked as a side effect. UAT for both 07-05 and 07-06 deferred to /gsd-verify-work 7 per project "deploy first, UAT later" pattern. Next plans: 07-07 (Wave 2 — reaction delay), 07-08 (Wave 3 — on-time inference).
-Resume file: .planning/phases/07-watchparty/07-07-PLAN.md
+Last session: 2026-04-21T00:00:00Z
+Stopped at: Phase 7 Plan 7 complete — reaction-delay feature (PARTY-04) shipped as a single cohesive commit d3fe64a. Four surfaces on master: (a) reactionDelay:0 added to 3 participant write sites at js/app.js:~7363 / ~7425 / ~7461 (scheduleSportsWatchparty / confirmStartWatchparty / joinWatchparty); (b) window.setReactionDelay persist fn at js/app.js:~7954 — adopts 07-06's pre-await optimistic shape (mutate wp.participants[uid].reactionDelay + synchronous renderWatchpartyLive() BEFORE await updateDoc, with lastActivityAt:Date.now() on payload), clamped [0,60] defensively; (c) renderReactionsFeed elapsed-mode filter shift at js/app.js:~7711-7732 — delayMs = (mine.reactionDelay||0)*1000 subtracted from myElapsed for non-self reactions, poster-self bypass via r.memberId === state.me.id (pinned from writeAttribution js/utils.js:100); (d) 4 preset UI chips (Off/5s/15s/30s) in new .wp-delay-row in renderWatchpartyFooter at js/app.js:~7801-7816, row hidden when mode !== 'elapsed'. CSS adds .wp-delay-row + .wp-delay-label + .wp-control-btn.wp-delay at css/app.css:712-715. Firebase hosting redeployed (queuenight-84044.web.app, 47 files, release complete). Planner decision captured: viewer-side delay over poster-side (use-case is "spoiler protection for me", dramatically simpler, poster-side stacks cleanly if ever wanted). Grep acceptance all PASS. UAT (8-sub-check behavioral verification) deferred to /gsd-verify-work 7 per project pattern. Next plan: 07-08 (Wave 3 — on-time inference).
+Resume file: .planning/phases/07-watchparty/07-08-PLAN.md
