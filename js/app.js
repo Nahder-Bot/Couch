@@ -7756,12 +7756,20 @@ function renderReactionsFeed(wp, mine, modeOverride) {
   // every reaction object. No grep needed; this is deterministic.
   const delayMs = (mine.reactionDelay || 0) * 1000;
   // Filter based on mode
+  // Phase 7 followup (mixed-anchor bug): switched from elapsed-based to wall-clock-based
+  // comparison. Pre-fix predicate compared r.elapsedMs (poster-anchored, from poster's
+  // startedAt/effectiveStartAt) against myElapsed (viewer-anchored). When anchors diverge
+  // (late joiner without 07-08 override), the comparison is in incompatible coordinates and
+  // the filter rejects legitimate reactions indefinitely. r.at is a wall-clock ms timestamp
+  // set at post time (line ~7935), so comparing against Date.now() - delayMs is direct and
+  // anchor-agnostic. Synced-viewing case is mathematically identical to the old predicate.
+  const nowMs = Date.now();
   const visible = allReactions.filter(r => {
     if (mode === 'wallclock') return true;
     // elapsed mode: poster-self always sees their own reactions immediately
-    if (r.memberId === state.me.id) return (r.elapsedMs || 0) <= myElapsed;
-    // other viewers: shift by delayMs (0 when no delay configured)
-    return (r.elapsedMs || 0) <= (myElapsed - delayMs);
+    if (r.memberId === state.me.id) return true;
+    // other viewers: show reactions posted at least delayMs ago in wall-clock time
+    return (r.at || 0) <= (nowMs - delayMs);
   });
   if (!visible.length) {
     return `<div class="wp-live-body" id="wp-reactions-feed"><div style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);padding:20px;">Reactions will flow in as people post them.</div></div>`;
