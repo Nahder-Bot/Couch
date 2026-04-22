@@ -1,7 +1,32 @@
 :root{
   /* ===== COUCH DESIGN SYSTEM v2 =====
      Warm · Cinematic · Lived-in. Restraint is the principle.
-     Brand moments get theatrical treatment. Everything else recedes. */
+     Brand moments get theatrical treatment. Everything else recedes.
+
+     — Token tier hierarchy (Phase 9 / DESIGN-02) —
+
+     Layer 1 — PRIMITIVES: short-name tokens (--bg, --accent, --s4, --t-body, --ease-out, etc.)
+       These are the raw values. 50+ tokens. Never renamed.
+       Prefer these when composing brand moments where the exact value matters.
+
+     Layer 2 — SEMANTIC ALIASES: --color-*, --space-*, --text-*, --duration-*, --easing-*, --font-*
+       These alias into primitives via var(). Intent: express what a token IS FOR,
+       not what it IS. Downstream rules should prefer these when the meaning is clear
+       (e.g. .nav { color: var(--color-ink-primary); } not var(--ink)).
+       Font-family tokens (--font-display / --font-serif / --font-sans) map typeface
+       strings to their role so plan 09-03's inline-style purge migrates cleanly.
+
+     Layer 3 — COMPONENT TOKENS: declared inside component selectors, NOT in :root.
+       e.g. .wp-live-modal { --wp-modal-max-width: 520px; max-width: var(--wp-modal-max-width); }
+       Adoption happens in plan 09-03 (inline-style purge) + 09-04 (desktop responsive).
+
+     — Accessibility (WCAG-AA contrast on --bg #14110f) —
+       --ink (#f5ede0) on --bg → ≥ 14:1 (passes AAA for normal text)
+       --ink-warm (#c9bca8) on --bg → ≥ 8.5:1 (passes AA+AAA)
+       --ink-dim (#847868) on --bg → ≥ 4.0:1 (passes AA only for LARGE text; use sparingly)
+       --ink-faint (#5a4f43) on --bg → ~2.3:1 (DECORATIVE only — never for readable content)
+
+     Verify before adding new text/background combinations with webaim.org/resources/contrastchecker. */
 
   /* — Color: Foundation (warm dark, theatrical) — */
   --bg:#14110f;
