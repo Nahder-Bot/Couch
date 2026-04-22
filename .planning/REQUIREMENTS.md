@@ -50,7 +50,7 @@ Skeleton — refined in /gsd-discuss-phase 6. Starts with a research spike compa
 
 - [ ] **PARTY-01**: A member can start a watchparty session from the "Tonight's Pick" card once a title is chosen
 - [ ] **PARTY-02**: Other members in the family can join an active watchparty session from their own device; a push invite reaches those opted in
-- [ ] **PARTY-03**: Play, pause, and seek signals sync across connected devices (sync model — advisory per-member timer vs host-broadcast vs consensus — decided in /gsd-discuss-phase 7)
+- [x] **PARTY-03**: Play, pause, and seek signals sync across connected devices (sync model — advisory per-member timer vs host-broadcast vs consensus — decided in /gsd-discuss-phase 7) ✓ 2026-04-22 (advisory per-member timer with on-time inference + manual override — Plans 07-03 + 07-08)
 - [ ] **PARTY-04**: Members can send reactions (emoji or preset set) during the session
 - [ ] **PARTY-05**: Reactions surface on all devices in the session in real-time
 - [ ] **PARTY-06**: Session ends gracefully — host-ended, all-members-left, or timeout — with no orphan sessions in Firestore
@@ -150,7 +150,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | PUSH-05 | Phase 6 | Pending |
 | PARTY-01 | Phase 7 | Pending |
 | PARTY-02 | Phase 7 | Pending |
-| PARTY-03 | Phase 7 | Pending |
+| PARTY-03 | Phase 7 | Complete (07-03 + 07-08) |
 | PARTY-04 | Phase 7 | Pending |
 | PARTY-05 | Phase 7 | Pending |
 | PARTY-06 | Phase 7 | Pending |

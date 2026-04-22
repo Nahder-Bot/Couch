@@ -116,7 +116,7 @@ Plans:
 - [x] 07-05-PLAN.md — GAP: creatorTimeZone capture + CF push-body tz render (fixes UAT Issue #1 — timezone display offset on watchpartyScheduled push) (PARTY-06) ✓ 2026-04-22
 - [x] 07-06-PLAN.md — GAP: setWpMode optimistic re-render + late-joiner wallclock backlog override (fixes UAT Issues #2a + #3) (PARTY-03, PARTY-04) ✓ 2026-04-22
 - [x] 07-07-PLAN.md — GAP: reaction-delay feature — viewer-side elapsed-filter shift + UI chips + participant field (closes UAT Issue #2b net-new) (PARTY-04) ✓ 2026-04-21
-- [ ] 07-08-PLAN.md — GAP: on-time inference + late-joiner "I started on time" override — effectiveStartFor helper + claimStartedOnTime persist + participant-strip chip affordance (closes UAT Issue #4) (PARTY-03)
+- [x] 07-08-PLAN.md — GAP: on-time inference + late-joiner "I started on time" override — effectiveStartFor helper + claimStartedOnTime persist + participant-strip chip affordance (closes UAT Issue #4) (PARTY-03) ✓ 2026-04-22
 **UI hint**: yes
 
 ### Phase 8: Watch-Intent Flows
@@ -171,7 +171,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 4. Veto System | 3/3 | Implementation complete — awaiting /gsd-verify-work | 04-03 complete 2026-04-20 |
 | 5. Auth + Groups | 0/? | Not started | - |
 | 6. Push Notifications | 0/? | Not started | - |
-| 7. Watchparty | 5/8 | Gap-closure in progress (07-05 shipped + deployed, UAT deferred; 07-06..07-08 pending) | 07-05 deployed 2026-04-22 |
+| 7. Watchparty | 8/8 | Implementation complete — all gap-closure deployed; awaiting consolidated /gsd-verify-work 7 UAT | 07-08 deployed 2026-04-22 |
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/? | Not started | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
