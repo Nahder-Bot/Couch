@@ -7879,9 +7879,19 @@ window.toggleWpPause = async function() {
 window.setWpMode = async function(mode) {
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp || !state.me) return;
+  // Phase 7 Plan 06 (Gap #2a): pre-await optimistic mutation + synchronous re-render so
+  // the toggle feels instant even on flaky networks. Distinct from postReaction's post-await
+  // echo pattern at js/app.js:~7843 — mode toggles are local UI preferences that must feel
+  // immediate, and rollback is trivial (onSnapshot handler overwrites within ~1s if the
+  // write is rejected). See 07-06-PLAN risk_notes for rationale.
+  if (wp.participants && wp.participants[state.me.id]) {
+    wp.participants[state.me.id].reactionsMode = mode;
+  }
+  renderWatchpartyLive();
   try {
     await updateDoc(watchpartyRef(wp.id), {
       [`participants.${state.me.id}.reactionsMode`]: mode,
+      lastActivityAt: Date.now(),  // consistent with 07-01's bookkeeping
       ...writeAttribution()
     });
   } catch(e) { alert('Could not change mode: ' + e.message); }
