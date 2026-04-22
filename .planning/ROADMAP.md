@@ -145,7 +145,7 @@ Plans:
 **Plans**: 8 plans (revised 2026-04-21 — checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)
 Plans:
 - [ ] 09-01-PLAN.md — Identity pipeline: canonical SVG logo + wordmark sources + regenerated PNG icon set + maskable variant (40% safe-zone) + iOS cache-bust verification (DESIGN-01)
-- [ ] 09-02-PLAN.md — Token canonicalization: 3-tier hierarchy (primitive + semantic + motion extensions + font-family tokens) + palette drift reconcile + WCAG contrast notes (DESIGN-02, DESIGN-03, DESIGN-09 first half)
+- [x] 09-02-PLAN.md — Token canonicalization: 3-tier hierarchy (primitive + semantic + motion extensions + font-family tokens) + palette drift reconcile + WCAG contrast notes (DESIGN-02, DESIGN-03, DESIGN-09 first half)
 - [ ] 09-03-PLAN.md — Inline-style purge: 119 style= attrs reduced to at most 20 across Tonight+Settings / Onboarding screens / Misc, token-backed classes, class-count smoke between commits, Pitfall-2 dynamic-UI defense (DESIGN-03, DESIGN-04 first half)
 - [ ] 09-04-PLAN.md — Desktop responsive layer: .phone-shell wrapper + single @media (min-width:900px) block + watchparty-modal expansion closes Phase 7 UAT gap + tabbar clearance probe (DESIGN-04 second half)
 - [ ] 09-05-PLAN.md — Landing page: standalone landing.html at /, app.html at /app, zero-JS install redirect, JSON-LD + OG meta, Firebase Hosting rewrites, git rm stale public/index.html, Lighthouse ≥90 (DESIGN-05)

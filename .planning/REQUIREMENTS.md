@@ -72,14 +72,14 @@ Skeleton — refined in /gsd-discuss-phase 8. Splits the current "who wants to w
 Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI refresh + landing page + marketing assets + onboarding polish.
 
 - [ ] **DESIGN-01**: Final logo + app icon set + favicon shipped in the repo; wired to manifest, head, and iOS/Android home-screen icons
-- [ ] **DESIGN-02**: Warm dark palette audited and canonicalized into design tokens (colors, type, spacing, motion, radius)
-- [ ] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces
+- [x] **DESIGN-02**: Warm dark palette audited and canonicalized into design tokens (colors, type, spacing, motion, radius) ✓ Phase 9 Plan 02 (2026-04-22)
+- [~] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces — token layer complete in Plan 02 (2026-04-22); applied-consistency enforcement in Plan 03 (inline-style purge)
 - [ ] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system
 - [ ] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup
 - [ ] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page
 - [ ] **DESIGN-07**: First-run onboarding polished to match the redesign and introduces feature surfaces tastefully (moods, veto, watchparty, push opt-in, intent flows)
 - [ ] **DESIGN-08**: Invite-flow onboarding (when a new user accepts an invite to an existing family) polished and brand-aligned
-- [ ] **DESIGN-09**: Motion language defined and applied — micro-interactions (toast, modal open, spin flicker, veto shimmer, watchparty state transitions) all use the canonical easing + duration tokens
+- [~] **DESIGN-09**: Motion language defined and applied — micro-interactions (toast, modal open, spin flicker, veto shimmer, watchparty state transitions) all use the canonical easing + duration tokens — token layer complete in Plan 02 (2026-04-22); rule-body adoption in Plan 07b (motion audit)
 - [ ] **DESIGN-10**: Brand-system documentation captured in `.planning/` for future-phase reference (token cheatsheet, do/don't, voice guide)
 
 ### Year-in-Review (Phase 10)
@@ -162,14 +162,14 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | INTENT-05 | Phase 8 | Pending |
 | INTENT-06 | Phase 8 | Pending |
 | DESIGN-01 | Phase 9 | Pending |
-| DESIGN-02 | Phase 9 | Pending |
-| DESIGN-03 | Phase 9 | Pending |
+| DESIGN-02 | Phase 9 | Complete |
+| DESIGN-03 | Phase 9 | Complete (token layer; applied-consistency enforcement in 09-03) |
 | DESIGN-04 | Phase 9 | Pending |
 | DESIGN-05 | Phase 9 | Pending |
 | DESIGN-06 | Phase 9 | Pending |
 | DESIGN-07 | Phase 9 | Pending |
 | DESIGN-08 | Phase 9 | Pending |
-| DESIGN-09 | Phase 9 | Pending |
+| DESIGN-09 | Phase 9 | Complete (token layer; motion audit of rule bodies in 09-07b) |
 | DESIGN-10 | Phase 9 | Pending |
 | YEAR-01 | Phase 10 | Pending |
 | YEAR-02 | Phase 10 | Pending |
