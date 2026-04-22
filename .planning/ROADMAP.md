@@ -114,7 +114,7 @@ Plans:
 - [x] 07-03-PLAN.md — Reaction palette (8 emoji + picker) + advisory per-member timer strip (PARTY-03, PARTY-04, PARTY-05)
 - [x] 07-04-PLAN.md — Phase 7 UAT checkpoint: 8/8 PASS, 4 gap-closure issues surfaced (PARTY-02, PARTY-03, PARTY-04, PARTY-05, PARTY-06, PARTY-07)
 - [x] 07-05-PLAN.md — GAP: creatorTimeZone capture + CF push-body tz render (fixes UAT Issue #1 — timezone display offset on watchpartyScheduled push) (PARTY-06) ✓ 2026-04-22
-- [ ] 07-06-PLAN.md — GAP: setWpMode optimistic re-render + late-joiner wallclock backlog override (fixes UAT Issues #2a + #3) (PARTY-03, PARTY-04)
+- [x] 07-06-PLAN.md — GAP: setWpMode optimistic re-render + late-joiner wallclock backlog override (fixes UAT Issues #2a + #3) (PARTY-03, PARTY-04) ✓ 2026-04-22
 - [ ] 07-07-PLAN.md — GAP: reaction-delay feature — viewer-side elapsed-filter shift + UI chips + participant field (closes UAT Issue #2b net-new) (PARTY-04)
 - [ ] 07-08-PLAN.md — GAP: on-time inference + late-joiner "I started on time" override — effectiveStartFor helper + claimStartedOnTime persist + participant-strip chip affordance (closes UAT Issue #4) (PARTY-03)
 **UI hint**: yes
