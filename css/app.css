@@ -88,6 +88,88 @@
   --fs-body:var(--t-body);
   --fs-meta:var(--t-meta);
   --fs-micro:var(--t-micro);
+
+  /* === Phase 9 / DESIGN-02: Semantic token layer ===
+     Aliases into the primitive layer above. Intent: decouple "what this color IS"
+     (primitive) from "what it's used FOR" (semantic). Downstream rules should
+     prefer these semantic tokens when the meaning is clear; primitives stay
+     available for one-off design moments. */
+
+  /* Color — surfaces */
+  --color-surface-base: var(--bg);
+  --color-surface-sunken: var(--bg-deep);
+  --color-surface-raised: var(--surface);
+  --color-surface-raised-2: var(--surface-2);
+  --color-surface-raised-3: var(--surface-3);
+
+  /* Color — ink (text) */
+  --color-ink-primary: var(--ink);
+  --color-ink-secondary: var(--ink-warm);
+  --color-ink-muted: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+
+  /* Color — accent */
+  --color-accent-primary: var(--accent);
+  --color-accent-secondary: var(--accent-2);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-velvet: var(--velvet);
+  --color-accent-velvet-glow: var(--velvet-glow);
+
+  /* Color — feedback / semantic state */
+  --color-feedback-positive: var(--good);
+  --color-feedback-warning: var(--warn);
+  --color-feedback-danger: var(--bad);
+
+  /* Color — borders */
+  --color-border-subtle: var(--border);
+  --color-border-default: var(--border-mid);
+  --color-border-strong: var(--border-strong);
+  --color-border-accent: var(--border-accent);
+
+  /* Spacing (semantic — "what this space is FOR") */
+  --space-inline-xs: var(--s1);    /* 4px inline between tight items */
+  --space-inline-sm: var(--s2);    /* 8px */
+  --space-inline-md: var(--s3);    /* 12px */
+  --space-inline-lg: var(--s4);    /* 16px */
+  --space-stack-sm: var(--s3);     /* 12px vertical rhythm */
+  --space-stack-md: var(--s5);     /* 20px */
+  --space-stack-lg: var(--s6);     /* 28px */
+  --space-section: var(--s7);      /* 40px between sections */
+  --space-page: var(--s8);         /* 56px page-level breathing */
+
+  /* Typography (semantic) */
+  --text-display-lg: var(--t-hero);
+  --text-heading-xl: var(--t-h1);
+  --text-heading-lg: var(--t-h2);
+  --text-heading-md: var(--t-h3);
+  --text-body-md: var(--t-body);
+  --text-body-sm: var(--t-meta);
+  --text-eyebrow: var(--t-eyebrow);
+  --text-micro: var(--t-micro);
+
+  /* Font-family (typeface-by-role) — DESIGN-03 closure */
+  --font-display: 'Fraunces', serif;                               /* hero + section heading serif */
+  --font-serif: 'Instrument Serif', 'Fraunces', serif;             /* italic brand-voice taglines, inline emphasis */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;  /* body + UI labels */
+
+  /* === Motion token tier additions (DESIGN-09) === */
+  --t-instant: 50ms;       /* hover/active feedback, focus outline */
+  --t-deliberate: 300ms;   /* modal open, screen change */
+
+  /* === Easing additions === */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);              /* Material-standard — general UI */
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);     /* Subtle overshoot — celebratory moments only */
+
+  /* Motion — semantic aliases */
+  --duration-instant: var(--t-instant);
+  --duration-fast: var(--t-quick);
+  --duration-base: var(--t-base);
+  --duration-deliberate: var(--t-deliberate);
+  --duration-cinema: var(--t-cinema);
+  --easing-standard: var(--ease-standard);
+  --easing-out: var(--ease-out);
+  --easing-cinema: var(--ease-cinema);
+  --easing-spring: var(--ease-spring);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,
