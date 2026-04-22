@@ -3136,6 +3136,10 @@ function startSync() {
     // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
     maybeNotifyWatchparties(state.watchparties);
     renderWatchpartyBanner();
+    // Phase 7 fix: full re-render of live modal on every snapshot. Matches the invariant
+    // stated at the tick comment (line ~3153) — passive observers need reactions/participants
+    // to update without requiring a local action to fire an explicit re-render path.
+    if (state.activeWatchpartyId) renderWatchpartyLive();
   }, e => {});
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
