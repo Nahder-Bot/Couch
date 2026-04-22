@@ -142,7 +142,16 @@ Plans:
   3. A landing page at `couchtonight.app` root exists, explaining what Couch is, who it's for, and driving to install/signup — mobile-first, warm cinematic design language.
   4. An App-Store-ready marketing asset set (hero screenshots, feature screenshots, iconography) is produced and stored alongside the landing page.
   5. Onboarding (first-run + invite-flow) is polished to match the redesign and includes tastefully-introduced feature surfaces (moods, veto, watchparty, push opt-in).
-**Plans**: TBD — likely 4-6 plans (identity, design-system audit, UI refresh, landing, marketing assets, onboarding)
+**Plans**: 8 plans (revised 2026-04-21 — checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)
+Plans:
+- [ ] 09-01-PLAN.md — Identity pipeline: canonical SVG logo + wordmark sources + regenerated PNG icon set + maskable variant (40% safe-zone) + iOS cache-bust verification (DESIGN-01)
+- [ ] 09-02-PLAN.md — Token canonicalization: 3-tier hierarchy (primitive + semantic + motion extensions + font-family tokens) + palette drift reconcile + WCAG contrast notes (DESIGN-02, DESIGN-03, DESIGN-09 first half)
+- [ ] 09-03-PLAN.md — Inline-style purge: 119 style= attrs reduced to at most 20 across Tonight+Settings / Onboarding screens / Misc, token-backed classes, class-count smoke between commits, Pitfall-2 dynamic-UI defense (DESIGN-03, DESIGN-04 first half)
+- [ ] 09-04-PLAN.md — Desktop responsive layer: .phone-shell wrapper + single @media (min-width:900px) block + watchparty-modal expansion closes Phase 7 UAT gap + tabbar clearance probe (DESIGN-04 second half)
+- [ ] 09-05-PLAN.md — Landing page: standalone landing.html at /, app.html at /app, zero-JS install redirect, JSON-LD + OG meta, Firebase Hosting rewrites, git rm stale public/index.html, Lighthouse ≥90 (DESIGN-05)
+- [ ] 09-06-PLAN.md — Marketing assets + SEO: 5 required App-Store-ready screenshots (YIR deferred to Phase 10) via AppScreens + og.png + reproducible production doc (DESIGN-06)
+- [ ] 09-07a-PLAN.md — Brand-facing polish: first-run onboarding (DESIGN-07), BRAND.md (DESIGN-10), intent CF timezone fix; absorbs 3 seeds (05x account-linking 6+7, 05x legacy-family-ownership, 08x intent-cf-timezone)
+- [ ] 09-07b-PLAN.md — Guest-auth + motion: firestore.rules invariant check, guest invite redemption + consumeGuestInvite CF (DESIGN-08), motion audit (DESIGN-09 second half); absorbs 1 seed (05x guest-invite-redemption); depends on 09-07a for stability
 **UI hint**: yes (this IS the UI phase)
 
 ### Phase 10: Year-in-Review
@@ -155,7 +164,7 @@ Plans:
   3. Per-member favorites highlight top-rated titles drawn from Yes votes and Trakt ratings.
   4. Family-level stats show most-watched-together, most-vetoed (from Phase 4), longest watchparty (from Phase 7), and most-anticipated-but-never-watched (from Phase 8 intent data).
   5. The recap can be shared off-app — at minimum one of: export image, copy link, or save-to-device — rendered against Phase 9's finalized brand without breaking the warm/cinematic design language.
-**Plans**: 3 plans (TBD — finalized at plan-phase)
+**Plans**: 3 plans (TBD — finalized at plan-phase). Also: the YIR marketing screenshot from Phase 9 plan 09-06 was deferred to Phase 10 (Major-6 checker closure) — rerun the marketing-screenshot-plan.md pipeline once YIR UI surfaces ship.
 **UI hint**: yes
 
 ## Progress
@@ -173,11 +182,12 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 6. Push Notifications | 0/? | Not started | - |
 | 7. Watchparty | 8/8 | Implementation complete — all gap-closure deployed; awaiting consolidated /gsd-verify-work 7 UAT | 07-08 deployed 2026-04-22 |
 | 8. Watch-Intent Flows | 0/? | Not started | - |
-| 9. Redesign / Brand / Marketing | 0/? | Not started | - |
+| 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-04-19*
 *Restructured: 2026-04-20 (inserted Auth/Push/Intent/Redesign; pushed Year-in-Review to Phase 10)*
 *Gap-closure plans added: 2026-04-21 (07-05..07-08 closing UAT Issues #1-#4)*
+*Phase 9 plan split: 2026-04-21 (checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)*
 *v1 milestone: Commercial Release (Phases 3-10)*
