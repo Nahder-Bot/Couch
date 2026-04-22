@@ -21,7 +21,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [x] **Phase 4: Veto System** — Any member can veto pre- or post-spin and the family sees it instantly ✓ 2026-04-20
 - [ ] **Phase 5: Auth + Groups** — Real member accounts, password-protected groups, and a migration path off the family-code-only model
 - [ ] **Phase 6: Push Notifications** — Research-first: real push (not just local) for watchparty starts, vetoes, invites, and other event surfaces
-- [ ] **Phase 7: Watchparty** — Synced multi-device watch sessions with real-time reactions, now identity- and push-aware (was Phase 5 pre-restructure)
+- [x] **Phase 7: Watchparty** — Synced multi-device watch sessions with real-time reactions, now identity- and push-aware (was Phase 5 pre-restructure) ✓ 2026-04-22
 - [ ] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll)
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
 - [ ] **Phase 10: Year-in-Review** — End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
