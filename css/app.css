@@ -205,7 +205,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;
   font-size:var(--t-body);line-height:1.55;overscroll-behavior:none;font-feature-settings:'ss01','cv11';
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-body{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:110px;position:relative}
+body{min-height:100vh;padding-bottom:110px;position:relative}
+.phone-shell{max-width:480px;margin:0 auto;width:100%}
 /* Subtle film-grain overlay — barely visible, adds analog warmth */
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
