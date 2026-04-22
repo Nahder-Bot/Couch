@@ -34,6 +34,51 @@ From Account settings → a new "Sign-in methods" section:
 4. Link Google to an existing phone account — requires `linkWithRedirect(auth.currentUser, new GoogleAuthProvider())`. `bootstrapAuth` needs to distinguish "returning from link redirect" vs "returning from sign-in redirect" via a sessionStorage flag set before redirect.
 5. Link email-link to existing account — requires a full round-trip (send link, user taps, app calls `linkWithCredential` with EmailAuthProvider credential instead of signing in with it).
 
+**Ship with #1 (simplest win — no redirects, no multi-device coordination):**
+6. **"Set a password for faster sign-in" — email+password upgrade for email-link users.**
+   Surfaced during Phase 5 UAT on 2026-04-22: user complained that signing in on a new device (e.g. a new phone or a fresh browser) via Yahoo/email-link requires repeating the entire first-time sign-up ritual — click email link on the initiating device. There's no persistent credential to use on the new device.
+   
+   Firebase fix: `updatePassword(auth.currentUser, password)` on a signed-in user account adds a password credential to the existing Firebase user. Subsequent sign-ins can use `signInWithEmailAndPassword(auth, email, password)` directly — no magic link needed.
+   
+   UX shape:
+   - After successful email-link sign-in on first-time account creation, show a one-time banner / modal: "Set a password so you can sign in faster from your other devices — [Set password / Maybe later]"
+   - Account settings → new "Password" row under Sign-in methods: "Set password" button if none set, "Change password" + "Remove password" if set
+   - Sign-in screen gets a "Sign in with password" path: email + password → direct sign-in (falls back to "send email link" if no password set for that email)
+   - Show `has-password` status via `auth.currentUser.providerData.some(p => p.providerId === 'password')`
+   
+   Error cases:
+   - `auth/weak-password` — show minimum-length hint (Firebase default: 6+ chars)
+   - `auth/requires-recent-login` — re-auth prompt before setting/changing password on an old session
+   - User tries email+password sign-in but no password is set — fall back to email-link automatically, don't show a confusing "wrong password" error
+   
+   File map (delta to existing seed):
+   - `js/firebase.js` — add `updatePassword`, `EmailAuthProvider`, `signInWithEmailAndPassword` re-exports
+   - `js/auth.js` — `setUserPassword(password)`, `signInWithPassword(email, password)`, `hasPasswordCredential()` helpers
+   - `js/app.js` — one-time post-signin "Set password" banner; Account settings row; updated sign-in screen
+   - `index.html` — password input + "Set password" modal
+   
+   Success: user creates account on PC via email link → sets password when prompted → opens app on phone in fresh Safari → enters email + password → signs in directly without touching their email.
+   
+   Estimate: ~1hr on top of the other link work (shares the `auth.currentUser.providerData` pattern).
+
+**Ship with #6 (sign-in-screen UX polish — no code complexity, pure copy/layout):**
+7. **"Sign in" vs "Create account" split on the landing screen.**
+   Surfaced during Phase 5 UAT on 2026-04-22: user reported the current landing screen — "Sign in with Google / Email / Phone" with no further framing — feels like a re-signup dance every time they approach it on a new device. Even when they DO have an account, the UX provides no affordance that says "you already have one of these, just use it."
+   
+   Firebase's underlying flows auto-detect returning users (Google popup recognizes the account, phone/email do implicit sign-in-or-create) so behaviorally nothing is broken. The fix is framing and microcopy, not auth logic.
+   
+   UX shape:
+   - Landing screen restructured into two clear zones:
+     - **"Welcome back"** (top): "Sign in" CTA → opens the current provider picker, but relabeled "Sign in with Google / Email / Phone"
+     - **"New to Couch?"** (bottom): "Create an account" CTA → opens the same provider picker relabeled "Create account with Google / Email / Phone"
+   - Both paths call the same Firebase methods; the copy difference is purely psychological anchoring for returning vs new users.
+   - Consider: a subtle "Last signed in with Google — just tap Continue" hint if `localStorage.qn_last_provider` is set from a prior session on this device. One-tap re-sign-in.
+   - For phone/email: after successful sign-up, stash the provider + masked identifier in localStorage so the next visit (even after sign-out) can show "Continue as +•••5678" instead of a cold phone-input form.
+   
+   Pairs naturally with #6 (set-a-password) — once passwords are ship-able, the "Sign in" path for email can go email+password instead of email-link, which eliminates the "re-signup feeling" entirely.
+   
+   Estimate: ~1hr — layout refactor + copy + the optional last-provider hint.
+
 **Deferred:**
 - Cross-uid data migration (merging two existing Firebase users' group memberships is explicitly out of scope — Firebase provides no safe automated path)
 - Linking Apple to existing account (Apple Sign-In itself is phase-05x-apple-signin)
