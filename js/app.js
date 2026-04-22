@@ -1731,16 +1731,45 @@ function myParticipation(wp) {
   if (!wp || !state.me) return null;
   return (wp.participants || {})[state.me.id] || null;
 }
-// Compute elapsed ms for a participant at this moment (handles pause)
-function computeElapsed(participant) {
-  if (!participant || !participant.startedAt) return 0;
-  const now = Date.now();
+// Phase 7 Plan 08 (Issue #4): on-time inference + manual override for elapsed-time anchor.
+// Grace window accommodates "I tapped Join ~30s after startAt because of network latency" —
+// these users are still effectively on-time and should anchor to startAt, not joinedAt.
+// 60s balances "too short (legit on-time users get anchored wrong)" against "too long
+// (someone 90s late gets treated as on-time, which surprises them)". Revisit if UAT feel wrong.
+const ONTIME_GRACE_MS = 60 * 1000;
+
+// Phase 7 Plan 08: effective-start anchor resolution. Three cascading cases:
+//   1. Explicit override (participant.effectiveStartAt set) — user claimed on-time manually
+//   2. Default on-time inference — joinedAt within grace of startAt → anchor to startAt
+//   3. Fallback to startedAt — late joiner with no override, anchored to when they hit Start
+// Return null if no timer started yet (caller should treat as 0 elapsed).
+function effectiveStartFor(participant, wp) {
+  if (!participant) return null;
+  if (typeof participant.effectiveStartAt === 'number') return participant.effectiveStartAt;
+  if (wp && typeof wp.startAt === 'number' && typeof participant.joinedAt === 'number'
+      && participant.joinedAt <= wp.startAt + ONTIME_GRACE_MS) {
+    return wp.startAt;
+  }
+  if (typeof participant.startedAt === 'number') return participant.startedAt;
+  return null;
+}
+
+// Compute elapsed ms for a participant at this moment (handles pause).
+// Phase 7 Plan 08: takes wp as 2nd arg so effectiveStartFor can resolve the correct anchor.
+// NO default for wp — passing undefined falls back to startedAt semantics, but a missing 2nd
+// arg at a call site is a bug (it hides the on-time inference). Post-edit grep in Plan 08
+// verifies every call site is 2-arg.
+function computeElapsed(participant, wp) {
+  if (!participant) return 0;
+  const start = effectiveStartFor(participant, wp);
+  if (!start) return 0;
   const pausedOffset = participant.pausedOffset || 0;
   if (participant.pausedAt) {
     // Currently paused: freeze elapsed at pauseAt
-    return Math.max(0, participant.pausedAt - participant.startedAt - pausedOffset);
+    return Math.max(0, participant.pausedAt - start - pausedOffset);
   }
-  return Math.max(0, now - participant.startedAt - pausedOffset);
+  const now = Date.now();
+  return Math.max(0, now - start - pausedOffset);
 }
 function formatElapsed(ms) {
   if (!ms || ms < 0) ms = 0;
@@ -3141,7 +3170,7 @@ function updateWatchpartyLiveTick() {
   if (timerEl) {
     const mine = myParticipation(wp);
     if (mine && mine.startedAt) {
-      const next = formatElapsed(computeElapsed(mine));
+      const next = formatElapsed(computeElapsed(mine, wp));
       if (timerEl.textContent !== next) timerEl.textContent = next;
     }
   }
@@ -3164,7 +3193,7 @@ function updateWatchpartyLiveTick() {
     if (!p.startedAt) statusLabel = 'Joined';
     else if (p.pausedAt) statusLabel = 'Paused';
     else {
-      const minutes = Math.floor(computeElapsed(p) / 60000);
+      const minutes = Math.floor(computeElapsed(p, wp) / 60000);
       statusLabel = minutes === 0 ? 'Just started' : `${minutes} min in`;
     }
     if (timeEl.textContent !== statusLabel) timeEl.textContent = statusLabel;
@@ -7521,7 +7550,7 @@ function renderWatchpartyBanner() {
       status = isSport ? `Kickoff ${formatCountdown(wp.startAt - now)}` : `Starts ${formatCountdown(wp.startAt - now)}`;
       actionLabel = joined ? 'Open' : "I'll be there";
     } else if (started) {
-      status = `Watching · ${formatElapsed(computeElapsed(mine))}`;
+      status = `Watching · ${formatElapsed(computeElapsed(mine, wp))}`;
       actionLabel = 'Open';
     } else if (joined) {
       status = isSport ? 'Ready for kickoff' : 'Ready to start';
@@ -7608,7 +7637,7 @@ function renderWatchpartyLive() {
       ${liveTitleHtml}
       <div class="wp-live-status">${statusText}${mine && mine.pausedAt ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
     </div>
-    ${mine && mine.startedAt ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine))}</div>` : ''}
+    ${mine && mine.startedAt ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine, wp))}</div>` : ''}
     <button class="pill icon-only" aria-label="Close watchparty" onclick="closeWatchpartyLive()" style="margin-left:6px;">✕</button>
   </div>`;
 
@@ -7711,7 +7740,7 @@ function renderReactionsFeed(wp, mine, modeOverride) {
   if (mode === 'hidden') {
     return `<div class="wp-live-body" id="wp-reactions-feed"><div class="wp-reactions-hidden">Reactions hidden. You can still post them; they're just not showing for you right now.</div></div>`;
   }
-  const myElapsed = computeElapsed(mine);
+  const myElapsed = computeElapsed(mine, wp);
   const allReactions = wp.reactions || [];
   // Phase 7 Plan 07 (PARTY-04): viewer-side reaction delay. Shift elapsed-mode comparison
   // backward by (mine.reactionDelay || 0) * 1000 so a reaction posted at runtime position T
@@ -7755,7 +7784,7 @@ function renderParticipantTimerStrip(wp) {
     if (!p.startedAt) { statusLabel = 'Joined'; chipClass = 'joined'; }
     else if (p.pausedAt) { statusLabel = 'Paused'; chipClass = 'paused'; }
     else {
-      const mins = Math.floor(computeElapsed(p) / 60000);
+      const mins = Math.floor(computeElapsed(p, wp) / 60000);
       statusLabel = mins === 0 ? 'Just started' : `${mins} min in`;
     }
     const isMe = state.me && state.me.id === mid;
@@ -7878,7 +7907,7 @@ async function postReaction(payload) {
   const mine = myParticipation(wp);
   if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
   if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
-  const elapsedMs = computeElapsed(mine);
+  const elapsedMs = computeElapsed(mine, wp);
   const reaction = {
     id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
     ...writeAttribution(),
