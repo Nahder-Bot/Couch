@@ -2326,3 +2326,34 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 /* — Hidden offscreen input (emoji picker target) — */
 .input-offscreen{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 
+/* ==========================================================================
+   Phase 9 / DESIGN-04 — Desktop responsive layer
+   Phone-column layout stays the default (mobile-first). At >=900px, modals
+   and sticky bars expand to wider max-widths. iOS standalone PWA never hits
+   this breakpoint (viewport <900 on every iPhone). iPad portrait (768px,
+   820px) stays on mobile; iPad Pro portrait (1024px) + all landscape get
+   the desktop expansion.
+   Note: body padding-bottom (tabbar clearance) inherits from the mobile-first
+   rule and is NOT overridden here. Tabbar stays fixed + centered via
+   transform:translateX(-50%); the wider max-width only expands its inner
+   content column.
+   ========================================================================== */
+@media (min-width: 900px) {
+  .phone-shell { max-width: 520px; }
+  .tabbar { max-width: 520px; }
+  .who-mini { max-width: 520px; }
+
+  .modal { max-width: 640px; }
+  .wp-live-modal { max-width: 800px; max-height: 85vh; }
+  .wp-live-header { padding: 20px 24px; }
+  .wp-live-body { padding: 20px 24px; }
+  .wp-live-footer { padding: 18px 24px 20px; }
+
+  .yir-modal,
+  .yir-story-modal { max-width: 720px; }
+  .avatar-picker-modal { max-width: 540px; }
+  .manual-modal { max-width: 560px; }
+  .schedule-modal { max-width: 480px; }
+
+  .swipe-card { max-width: 480px; height: min(640px, 80vh); }
+}
