@@ -89,10 +89,10 @@
 </section>
 
 <div id="screen-mode" class="wrap has-leather" style="display:none;">
-  <div class="brand hero" style="margin:20px 0 32px;">
+  <div class="brand hero brand-hero-mode">
     <img class="brand-logo" src="/logo-h300.png" alt="Couch" width="634" height="300">
   </div>
-  <p style="text-align:center;font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h3);color:var(--ink-warm);margin:0 0 var(--s4);">Who's on the couch?</p>
+  <p class="page-tagline">Who's on the couch?</p>
   <div class="mode-cards">
     <button class="mode-card" onclick="pickMode('family')">
       <div class="mode-ico" aria-hidden="true"><svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="url(#mg1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="mg1" x1="0" y1="0" x2="48" y2="48"><stop offset="0" stop-color="#e8a04a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path d="M8 32v-6a4 4 0 0 1 4-4h24a4 4 0 0 1 4 4v6"/><path d="M6 38h36"/><path d="M10 32v6M38 32v6"/><circle cx="16" cy="14" r="4"/><circle cx="32" cy="14" r="4"/><circle cx="24" cy="20" r="3"/></svg></div>
@@ -110,11 +110,11 @@
       <div class="mode-desc">Just the two of you on the couch. Shared queue, date nights, one yes is enough.</div>
     </button>
   </div>
-  <div style="text-align:center;margin-top:var(--s5);color:var(--ink-faint);font-size:var(--t-meta);letter-spacing:0.02em;">Belong to more than one. Switch anytime.</div>
+  <div class="mode-footer-note">Belong to more than one. Switch anytime.</div>
 </div>
 
 <div id="screen-family-join" class="wrap has-leather" style="display:none;">
-  <div class="brand large" style="margin:var(--s5) 0 var(--s6);">
+  <div class="brand large brand-hero-large">
     <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
   </div>
   <p class="page-title" id="screen-family-title">Pull up a seat on the couch tonight</p>
@@ -126,7 +126,7 @@
 </div>
 
 <div id="screen-name" class="wrap has-leather" style="display:none;">
-  <div class="brand large" style="margin:var(--s5) 0 var(--s6);">
+  <div class="brand large brand-hero-large">
     <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
   </div>
   <div class="family-label" id="name-family-label">Joining the</div>
@@ -147,11 +147,11 @@
 <!-- Plan 5.8 D-14: claim-confirm screen shown after sign-in if URL carried ?claim=TOKEN&family=CODE. -->
 <!-- Display managed manually (not via showScreen) since this is a post-auth, pre-shell screen. -->
 <div id="claim-confirm-screen" class="wrap has-leather" style="display:none;">
-  <div class="brand large" style="margin:var(--s5) 0 var(--s6);">
+  <div class="brand large brand-hero-large">
     <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
   </div>
   <div class="claim-confirm-body">
-    <h2 class="page-title" style="margin-bottom:var(--s3);">Is this you?</h2>
+    <h2 class="page-title">Is this you?</h2>
     <div class="claim-target">
       <div class="who-avatar" id="claim-avatar" aria-hidden="true"></div>
       <div class="claim-name-big" id="claim-name">Your profile</div>
@@ -732,11 +732,11 @@
 
   <div class="modal-bg" id="avatar-picker-bg">
     <div class="modal avatar-picker-modal">
-      <button class="detail-close" aria-label="Close" onclick="closeAvatarPicker()" style="position:absolute;top:12px;right:12px;">✕</button>
-      <h3 style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;margin:0 0 var(--s2);">Choose your avatar</h3>
-      <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s4);">Pick an emoji that feels like you.</p>
+      <button class="detail-close avatar-picker-close" aria-label="Close" onclick="closeAvatarPicker()">✕</button>
+      <h3 class="avatar-picker-title">Choose your avatar</h3>
+      <p class="avatar-picker-sub">Pick an emoji that feels like you.</p>
       <div class="avatar-grid" id="avatar-grid"></div>
-      <div style="margin-top:var(--s4);display:flex;justify-content:space-between;gap:var(--s2);">
+      <div class="avatar-picker-actions">
         <button class="pill" onclick="resetAvatar()">Use initial</button>
         <button class="pill accent" onclick="closeAvatarPicker()">Done</button>
       </div>

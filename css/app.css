@@ -2254,3 +2254,22 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 .subprofile-field-label{display:block;font-size:var(--text-body-sm);color:var(--color-ink-secondary);margin-bottom:var(--space-inline-xs)}
 .subprofile-field-control{width:100%;padding:var(--space-inline-md);border:1px solid var(--color-border-subtle);border-radius:var(--r-md);background:var(--color-surface-raised-2);color:var(--color-ink-primary);font-size:var(--text-body-md)}
 
+/* — Onboarding brand hero wrappers (h300 mode-pick + h200 others) — */
+.brand-hero-large{margin:var(--space-stack-md) 0 var(--space-stack-lg)}
+.brand-hero-mode{margin:var(--space-stack-md) 0 var(--space-section)}
+
+/* — Onboarding page tagline: italic serif under hero — */
+.page-tagline{text-align:center;font-family:var(--font-serif);font-style:italic;font-size:var(--text-heading-md);color:var(--color-ink-secondary);margin:0 0 var(--space-inline-lg)}
+
+/* — Mode-pick footer note (centered micro-copy) — */
+.mode-footer-note{text-align:center;margin-top:var(--space-stack-md);color:var(--color-ink-faint);font-size:var(--text-body-sm);letter-spacing:0.02em}
+
+/* — Claim-confirm screen heading spacing (inside .claim-confirm-body) — */
+.claim-confirm-body .page-title{margin-bottom:var(--space-inline-md)}
+
+/* — Avatar-picker modal heading + sub-line + button row — */
+.avatar-picker-close{position:absolute;top:var(--space-inline-md);right:var(--space-inline-md)}
+.avatar-picker-title{font-family:var(--font-serif);font-style:italic;margin:0 0 var(--space-inline-sm)}
+.avatar-picker-sub{font-size:var(--text-body-sm);color:var(--color-ink-muted);margin:0 0 var(--space-inline-lg)}
+.avatar-picker-actions{margin-top:var(--space-inline-lg);display:flex;justify-content:space-between;gap:var(--space-inline-sm)}
+
