@@ -19,7 +19,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 
 - [x] **Phase 3: Mood Tags** — Members can tag titles with moods and filter the Tonight spin by mood ✓ 2026-04-20
 - [x] **Phase 4: Veto System** — Any member can veto pre- or post-spin and the family sees it instantly ✓ 2026-04-20
-- [ ] **Phase 5: Auth + Groups** — Real member accounts, password-protected groups, and a migration path off the family-code-only model
+- [x] **Phase 5: Auth + Groups** — Real member accounts, password-protected groups, and a migration path off the family-code-only model ✓ 2026-04-22 (code-complete; multi-account runtime UAT items deferred as environmental, 3 seeds captured)
 - [ ] **Phase 6: Push Notifications** — Research-first: real push (not just local) for watchparty starts, vetoes, invites, and other event surfaces
 - [x] **Phase 7: Watchparty** — Synced multi-device watch sessions with real-time reactions, now identity- and push-aware (was Phase 5 pre-restructure) ✓ 2026-04-22
 - [ ] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll)

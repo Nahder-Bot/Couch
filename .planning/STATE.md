@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 COMPLETE — all 8 plans shipped (4 original + 4 gap-closure), UAT passed, 2 in-session runtime fixes. Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial. Phase 9 (Redesign) owns the desktop responsive-layout gap surfaced during Phase 7 UAT.
-stopped_at: 2026-04-22 -- /gsd-verify-work 7 closed cleanly. UAT 8/8 accounted for (Tests 1-2 runtime pass on phone + PC Chrome incognito; Tests 3-8 static-verified via parallel code-explorer). Two runtime fixes landed in-session: (1) 14e959a wired renderWatchpartyLive into watchparties onSnapshot handler at js/app.js:~3138 (the comment at that handler explicitly claimed this call existed but it didn't — pre-existing bug masked until multi-device passive-observer UAT). (2) ce3c507 renderReactionsFeed filter switched from mixed-anchor elapsed-based (r.elapsedMs <= myElapsed - delayMs) to anchor-agnostic wall-clock-based (r.at <= Date.now() - delayMs) at js/app.js:7757-7773 — closes the edge case 07-08 risk_notes explicitly flagged as a follow-up candidate ("poster vs viewer anchor mismatch in rare cases"). Synced-viewing case mathematically identical to old predicate; cross-anchor degrades gracefully. Final re-verify: user confirmed reactions propagate within ~1s of post on PC Chrome incognito with no local action. One deferred gap: desktop responsive layout of watchparty live modal (narrow mobile column in wide viewport) — routed to Phase 9 (Redesign / Brand) which owns desktop surface. One environment note captured: iOS PWA installs do NOT auto-invalidate on Hosting deploys; Safari Website Data purge required for PWA UAT on Hosting-shipped changes. Phase 7 UAT file: .planning/phases/07-watchparty/07-UAT.md. Total Phase 7 commits on master this cycle: 8 feat/fix + 4 docs = 12 + 1 UAT + 2 runtime fixes = 15. Next: /gsd-verify-work 8 or /gsd-verify-work 6 (both have partial/pending UAT).
-last_updated: "2026-04-22T02:30:00Z"
-last_activity: 2026-04-22 -- /gsd-verify-work 7 complete. UAT 8/8 + 2 runtime fixes (14e959a snapshot re-render + ce3c507 wall-clock filter) + deploy + commit bdc2ae3 UAT file.
+status: Phases 5 + 7 COMPLETE this session. Phase 8 LIVE on prod UAT pending. Phase 6 UAT still partial. Phase 9 (Redesign) owns the desktop responsive-layout gap surfaced during Phase 7 UAT.
+stopped_at: 2026-04-22 -- Two UAT cycles completed back-to-back. /gsd-verify-work 7: 8/8 accounted, 2 runtime fixes shipped (14e959a snapshot re-render + ce3c507 mixed-anchor wall-clock filter), Phase 7 closed. /gsd-verify-work 5: 8/8 accounted — 1 runtime PASS (sub-profile act-as), 4 static-verified (Sports WP writeAttribution regression, migration claim, graduation, grace-window cutoff), 1 blocked (password-protected join — needs 2nd Google account), 1 fail_scope_deferred (guest invite redeem — Plan 05-08 explicitly preserved as stub, seed captured), 1 skipped (iOS standalone PWA — user declined physical-device test). Environmental repair in-session: families/ZFAM7 legacy doc missing ownerUid (pre-Phase-5 creation) → client-side updateDoc rules-denied → manual Firebase Console stamp of ownerUid='jpTjwFzWiHaOalIr6OkD81p9ngn2'. Zero code bugs found in Phase 5 plans. Three new seeds: phase-05x-legacy-family-ownership-migration (self-claim CTA for legacy docs + rules update), phase-05x-guest-invite-redemption (ship the recipient-side redeem — consumeGuestInvite CF + showInviteRedeemScreen), phase-05x-account-linking updated (items #6 set-password-for-faster-resign-in + #7 sign-in-vs-create-account UX split). Phase 5 closes code-complete with residual runtime UAT items flagged as environmental (multi-account + iOS physical) not code blockers. Next: /gsd-verify-work 8 (deployed-UAT-pending) or /gsd-verify-work 6 (5/7 still pending).
+last_updated: "2026-04-22T03:45:00Z"
+last_activity: 2026-04-22 -- /gsd-verify-work 5 complete. UAT commit 754da0d + 3 seeds captured + Phase 5 marked COMPLETE in ROADMAP.
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 28
   completed_plans: 22
   percent: 93
@@ -21,39 +21,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 7 gap closure COMPLETE — all 4 gap-closure plans (07-05 + 07-06 + 07-07 + 07-08) shipped + deployed to prod. Phase 7 is implementation-complete. Phase 8 deployed UAT pending. Phase 6 partially verified (2/7 PASS). Phase 5 UAT still owed. Phase 9 Redesign remains future work; Phase-9x async-replay seed captured.
+**Current focus:** Phase 5 + Phase 7 both CLOSED this session. 4/8 phases complete (3, 4, 5, 7). Next targets: Phase 8 UAT (deployed, closest to closure), Phase 6 UAT (5/7 still pending), or Phase 9 planning (Redesign — absorbs Phase 7's deferred desktop responsive-layout gap). Phase 5 residual UAT items are environmental (need 2nd Google account + iPhone PWA session), not code blockers; captured in 3 new seeds (legacy-family-ownership-migration, guest-invite-redemption, account-linking expansions).
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 7 (Watchparty) — COMPLETE. All 8 plans shipped + UAT passed + 2 runtime fixes landed.
-Plan: 8 of 8 (4 original + 4 gap-closure) + 2 in-session runtime fixes = 10 Phase 7 code deliveries on master.
-Status: 2026-04-22 /gsd-verify-work 7 closed cleanly. UAT 8/8 accounted for:
-  - Test 1 (CF timezone push body) — PASS runtime (post-cache-bust doc has creatorTimeZone='America/New_York', CF fired successfully). Initial FAIL was environmental: stale iOS PWA service-worker cache on creator device; resolved via Safari Website Data purge.
-  - Test 2 (Hide-reactions live toggle) — PASS runtime (toggle collapses/expands feed immediately).
-  - Tests 3-8 — static-verified via parallel code-explorer: late-joiner backlog branch, un-joined viewer regression, reaction-delay feature (all 5 sub-surfaces), mode-gated delay row, effectiveStartFor 3-case cascade with all 7 call sites migrated to 2-arg form, claimStartedOnTime persist fn with pre-await optimistic shape + own-chip UI injection + CSS states. Zero shipping bugs in gap-closure plans.
+Phase: 5 + 7 both COMPLETE this session. Next up: Phase 8 (deployed, UAT pending) or Phase 6 (UAT 5/7 pending).
 
-TWO RUNTIME FIXES LANDED IN-SESSION (both on master, both deployed to queuenight-84044.web.app):
-  1. `14e959a` fix(07): wire renderWatchpartyLive into watchparties onSnapshot. Pre-existing bug — the snapshot handler at js/app.js:3121-3139 has a comment explicitly stating "Full re-render still runs from the watchparties onSnapshot when participant state / reactions change" but the actual renderWatchpartyLive() call was missing. Masked until this UAT because prior UAT always had users actively tapping things (which triggers explicit-action re-render paths). The multi-device UAT with passive observers surfaced it. Fix: `if (state.activeWatchpartyId) renderWatchpartyLive();` added after renderWatchpartyBanner() call. Necessary but not sufficient.
-  2. `ce3c507` fix(07): renderReactionsFeed filter uses wall-clock time, not mixed-anchor elapsed. Closes the edge case 07-08's risk_notes explicitly flagged as a follow-up candidate (poster-anchored r.elapsedMs vs viewer-anchored myElapsed in incompatible coordinate spaces). Old predicate `r.elapsedMs <= myElapsed - delayMs` rejected legitimate reactions when participants started timers at different wall-clock moments. New predicate `r.at <= Date.now() - delayMs` uses r.at (already written at post time, line ~7935). Synced-viewing case mathematically identical; cross-anchor degrades gracefully. Final re-verify confirmed: reactions propagate passively within ~1s of post on PC Chrome incognito.
+Phase 5 closure (2026-04-22, /gsd-verify-work 5): UAT 8/8 accounted for. 1 runtime PASS (sub-profile act-as + per-action revert), 4 static-verified via parallel Explore agent (Sports WP writeAttribution regression — all 17 wp write sites spread writeAttribution; migration claim AUTH-04 — mintClaimTokens + claimMember CFs + showClaimConfirmScreen client path all wired; graduation D-16 — mintClaimTokens type='graduation' + claimMember branch clears managedBy + stamps graduatedAt atomically; grace-window cutoff — isReadOnlyForMember + applyReadOnlyState + guardReadOnlyWrite integrated into 10+ write paths + firestore.rules validAttribution + legacyGraceWrite branches + CSS is-readonly dimming), 1 blocked (password-protected join — no 2nd Google account), 1 fail_scope_deferred (guest invite redeem — Plan 05-08 line 139 explicitly preserved showInviteRedeemScreen as stub; seed captured at .planning/seeds/phase-05x-guest-invite-redemption.md), 1 skipped (iOS standalone PWA — user declined physical-device test, previously-owed per 05-UAT-RESULTS.md). Zero code bugs found in Phase 5 plans.
 
-DEFERRED GAP (routed to Phase 9):
-  - Desktop responsive layout of watchparty live modal — modal constrains to ~mobile width in wide desktop viewports; Pause/Hide reactions/Real-time/Done controls squeezed. Pre-existing UX bug, not introduced by Phase 7 plans. Owned by Phase 9 (Redesign / Brand).
+Environmental repair during Phase 5 UAT: families/ZFAM7 legacy doc created 2026-04-08 (pre-Phase-5) had NO ownerUid field; js/app.js:2557 renderOwnerSettings check state.auth.uid===state.ownerUid evaluated undefined; Group admin section was hidden. Client-side updateDoc rules-denied (catch-22 for legacy docs without ownerUid). Repaired via Firebase Console write stamping ownerUid='jpTjwFzWiHaOalIr6OkD81p9ngn2'. Seeded proper fix (client-side self-claim CTA + rules branch) at .planning/seeds/phase-05x-legacy-family-ownership-migration.md. Incidental finding: a second family FILMCLUB exists in prod; may also lack ownerUid — seed's scope may be >1 family.
 
-ENVIRONMENT NOTE (capture for future UAT):
-  - iOS PWA installs do NOT auto-invalidate on Hosting deploys. Cache bust procedure: iPhone Settings → Safari → Advanced → Website Data → delete couchtonight.app → reopen PWA. Required any time UAT verifies a hosting-shipped change on the installed PWA.
+Informal Phase 5 feedback captured as seed items (.planning/seeds/phase-05x-account-linking.md): (6) "Set a password for faster sign-in" — email-link upgrade to email+password via updatePassword() so returning users can skip the magic-link dance on new devices. (7) "Sign in vs Create account" UX split on the landing screen — pure microcopy/layout polish; current flow feels like re-creating an account each visit.
+
+Phase 7 closure (2026-04-22, /gsd-verify-work 7): UAT 8/8 accounted for. Tests 1-2 runtime PASS on phone + PC Chrome incognito; Tests 3-8 static-verified via parallel code-explorer. Two runtime fixes landed in-session, both on master + deployed to queuenight-84044.web.app:
+  1. `14e959a` fix(07): wire renderWatchpartyLive into watchparties onSnapshot. Pre-existing bug — handler at js/app.js:3121-3139 had comment claiming the full re-render ran from snapshot but the call was missing. Masked until multi-device passive-observer UAT.
+  2. `ce3c507` fix(07): renderReactionsFeed filter uses wall-clock time, not mixed-anchor elapsed. Closes the edge case 07-08 risk_notes flagged as follow-up candidate (poster-anchored r.elapsedMs vs viewer-anchored myElapsed incompatibility). New predicate `r.at <= Date.now() - delayMs` uses r.at (already written at post time). Synced-viewing case mathematically identical; cross-anchor degrades gracefully.
+
+DEFERRED GAP (routed to Phase 9): Desktop responsive layout of watchparty live modal — constrains to ~mobile width in wide desktop viewports. Pre-existing, owned by Phase 9 (Redesign / Brand).
+
+ENVIRONMENT NOTE (reusable across future UAT): iOS PWA installs do NOT auto-invalidate on Hosting deploys. Cache bust procedure: iPhone Settings → Safari → Advanced → Website Data → delete couchtonight.app → reopen PWA. Incognito/Private browsing bypasses SW entirely (faster for desktop verification).
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
-Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
+Phase 8 status: deployed on prod, full UAT pending.
 
-Last activity: 2026-04-22 -- /gsd-verify-work 7 complete. UAT + 2 runtime fixes (14e959a + ce3c507) + deploy + UAT commit bdc2ae3. Phase 7 fully closed.
-Resume file: Pick next target — Phase 8 UAT (deployed-pending), Phase 6 UAT (5/7 pending), or Phase 5 UAT (7/11 pending)
-Next action: /gsd-verify-work 8 (closest to done — deployed, just UAT pending) OR /gsd-verify-work 6 (continuing partial UAT) OR /gsd-verify-work 5 (bulk pending)
+Last activity: 2026-04-22 -- /gsd-verify-work 5 complete. UAT commit 754da0d + 3 seeds + ROADMAP flip. Phase 5 closes code-complete.
+Resume file: Pick next target — Phase 8 UAT (deployed-pending, closest to done) OR Phase 6 UAT (5/7 still pending).
+Next action: /gsd-verify-work 8 (deployed-UAT-pending — quick path to another phase closure) OR /gsd-verify-work 6 (continuing partial UAT) OR /gsd-plan-phase 9 (start Redesign — large phase; absorbs deferred Phase 7 responsive-layout gap).
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
-Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
+Phase 5 UAT file: .planning/phases/05-auth-groups/05-UAT.md (closed); 05-UAT-RESULTS.md (prior state preserved)
 
-Progress: [█████████░] 93% of plans (22/28); phase-level: Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); 8 deployed UAT-pending; 9-10 pending
+Progress: [█████████░] 93% of plans (22/28); phase-level: Phases 3-4 complete; **5 COMPLETE** (all plans + UAT + 3 seeds); 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); 8 deployed UAT-pending; 9-10 pending
 
 ## Performance Metrics
 
