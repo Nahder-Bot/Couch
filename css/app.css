@@ -2209,3 +2209,48 @@ body.is-readonly .wp-compose-btn,
 body.is-readonly .detail-mood-add,
 body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 
+/* ==========================================================================
+   Phase 9 / DESIGN-03 — Inline-style migration utility + component classes
+   Replaces inline style= declarations in index.html with token-backed classes.
+   Prefer semantic aliases. Font-family uses --font-display/--font-serif/--font-sans
+   from 09-02 (typeface-by-role). Added in plan 09-03 across 3 commits.
+   ========================================================================== */
+
+/* — Layout utilities (clusters + stacks) — */
+.cluster{display:flex;gap:var(--space-inline-sm);flex-wrap:wrap;align-items:center}
+.cluster--equal>*{flex:1}
+
+/* — Color / surface utilities — */
+.surface-raised-util{background:var(--color-surface-raised-2)}
+
+/* — Settings hero stat cluster (settings YIR action row) — */
+.tab-accent-actions{display:flex;gap:var(--space-inline-sm);flex-wrap:wrap}
+
+/* — Tonight header layout (logo + group pill) — */
+.header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-inline-md)}
+
+/* — Modal width variants (replaces inline style="max-width:Xpx") — */
+.modal--w-440{max-width:440px}
+
+/* — Modal heading utility (replaces inline style="font-size:var(--t-h2);margin-bottom:4px;") — */
+.modal-h2{font-size:var(--text-heading-lg);margin-bottom:var(--space-inline-xs)}
+
+/* — Modal subheader rhythm utility (replaces inline style="margin-bottom:14px;") — */
+.modal-sub-rhythm{margin-bottom:14px}
+
+/* — Modal action row (3-button equal split) — */
+.modal-actions-row{display:flex;gap:var(--space-inline-sm);margin-top:14px}
+.modal-actions-row>.pill{flex:1}
+
+/* — Adults toggle accent (picker-sheet auto-advance row) — */
+.adults-toggle--accent{border-left-color:var(--color-accent-primary);background:var(--color-surface-raised-2)}
+
+/* — Modal instructions paragraph (vote modal helper) — */
+.modal-instructions{font-size:var(--text-body-sm);color:var(--color-ink-muted);margin:0 0 var(--space-inline-xs)}
+
+/* — Subprofile modal field (label + control pair) — */
+.subprofile-field{display:block;margin-bottom:var(--space-inline-md)}
+.subprofile-field--last{margin-bottom:var(--space-inline-lg)}
+.subprofile-field-label{display:block;font-size:var(--text-body-sm);color:var(--color-ink-secondary);margin-bottom:var(--space-inline-xs)}
+.subprofile-field-control{width:100%;padding:var(--space-inline-md);border:1px solid var(--color-border-subtle);border-radius:var(--r-md);background:var(--color-surface-raised-2);color:var(--color-ink-primary);font-size:var(--text-body-md)}
+

@@ -168,7 +168,7 @@
   <a href="#screen-tonight" class="skip-link">Skip to content</a>
   <div class="sync-dot on" id="sync-dot"></div>
   <div class="header">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+    <div class="header-row">
       <div class="logo">Couch</div>
       <button id="group-pill" class="group-pill" aria-label="Switch group" onclick="openGroupSwitcher()"></button>
     </div>
@@ -456,7 +456,7 @@
       <div class="tab-hero-eyebrow">Your account</div>
       <h2 class="tab-hero-title"><span class="accent-piece" id="account-hero-greeting">Hi there</span></h2>
       <div class="tab-identity-strip">
-        <div class="who-avatar" id="account-identity-avatar" style="background:var(--surface-2);"></div>
+        <div class="who-avatar surface-raised-util" id="account-identity-avatar"></div>
         <div class="tab-identity-body">
           <div class="tab-identity-name" id="me-label"></div>
           <div class="tab-identity-meta" id="family-label"></div>
@@ -470,7 +470,7 @@
       <div class="tab-accent-eyebrow" id="yir-eyebrow">Year in Review</div>
       <div class="tab-accent-title">Your year on the couch</div>
       <p class="tab-accent-sub" id="yir-teaser">A recap of the films, shows, and couch nights that defined your year.</p>
-      <div style="display:flex;gap:var(--s2);flex-wrap:wrap;">
+      <div class="tab-accent-actions">
         <button class="pill accent" onclick="openYearInReview()">Open Year in Review</button>
         <button class="pill" onclick="openYearStoryMode()" id="yir-story-btn" style="display:none;">▶ Play recap</button>
       </div>
@@ -574,18 +574,18 @@
   </div>
 
   <div class="modal-bg" id="picker-sheet-bg" onclick="if(event.target.id==='picker-sheet-bg')closePickerSheet()">
-    <div class="modal" style="max-width:440px;">
-      <h3 style="font-size:var(--t-h2);margin-bottom:4px;">Who's picking?</h3>
-      <div class="meta" id="picker-sheet-sub" style="margin-bottom:14px;">Rotate who decides, so everyone gets a turn on the couch.</div>
-      <div id="picker-rotation-list" style="margin-bottom:14px;"></div>
-      <div class="adults-toggle" onclick="event.stopPropagation()" style="border-left-color:var(--accent);background:var(--surface-2);">
+    <div class="modal modal--w-440">
+      <h3 class="modal-h2">Who's picking?</h3>
+      <div class="meta modal-sub-rhythm" id="picker-sheet-sub">Rotate who decides, so everyone gets a turn on the couch.</div>
+      <div id="picker-rotation-list" class="modal-sub-rhythm"></div>
+      <div class="adults-toggle adults-toggle--accent" onclick="event.stopPropagation()">
         <input type="checkbox" id="picker-auto-advance" onchange="togglePickerAuto(this.checked)">
         <label for="picker-auto-advance">Auto-advance when a pick is watched</label>
       </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="pill" style="flex:1;" onclick="passPickerTurn()">Pass turn →</button>
-        <button class="pill" style="flex:1;" onclick="disablePicker()">Turn off</button>
-        <button class="pill accent" style="flex:1;" onclick="closePickerSheet()">Done</button>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="passPickerTurn()">Pass turn →</button>
+        <button class="pill" onclick="disablePicker()">Turn off</button>
+        <button class="pill accent" onclick="closePickerSheet()">Done</button>
       </div>
     </div>
   </div>
@@ -622,13 +622,13 @@
   </div>
 
   <div class="modal-bg" id="group-switcher-bg" onclick="if(event.target.id==='group-switcher-bg')closeGroupSwitcher()">
-    <div class="modal" style="max-width:440px;">
-      <h3 style="font-size:var(--t-h2);margin-bottom:4px;">Your groups</h3>
-      <div class="meta" style="margin-bottom:14px;">Switch between family, crew, and duo.</div>
+    <div class="modal modal--w-440">
+      <h3 class="modal-h2">Your groups</h3>
+      <div class="meta modal-sub-rhythm">Switch between family, crew, and duo.</div>
       <div id="group-switcher-list"></div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="pill accent" style="flex:1;" onclick="openAddGroup()">＋ Join or create</button>
-        <button class="pill" style="flex:1;" onclick="closeGroupSwitcher()">Close</button>
+      <div class="modal-actions-row">
+        <button class="pill accent" onclick="openAddGroup()">＋ Join or create</button>
+        <button class="pill" onclick="closeGroupSwitcher()">Close</button>
       </div>
     </div>
   </div>
@@ -637,7 +637,7 @@
     <div class="modal">
       <h3 id="modal-title"></h3>
       <div class="meta" id="modal-meta"></div>
-      <p id="modal-instructions" style="font-size:var(--t-meta);color:var(--ink-dim);margin:0 0 4px;">Tap each person's vote</p>
+      <p id="modal-instructions" class="modal-instructions">Tap each person's vote</p>
       <div class="vote-grid" id="vote-grid"></div>
       <button class="modal-close" onclick="closeModal()">Done</button>
     </div>
@@ -926,16 +926,16 @@
 
   <!-- Sub-profile create modal (D-01) — opened from Account → Kids & sub-profiles -->
   <div class="modal-bg" id="subprofile-modal-bg" onclick="if(event.target.id==='subprofile-modal-bg')closeSubProfileModal()">
-    <div class="modal" style="max-width:440px;">
+    <div class="modal modal--w-440">
       <h3>Add a sub-profile</h3>
       <div class="meta">Kids on the couch</div>
-      <label style="display:block;margin-bottom:12px;">
-        <span style="display:block;font-size:var(--t-meta);color:var(--ink-warm);margin-bottom:4px;">Name</span>
-        <input id="subprofile-name" type="text" placeholder="e.g. Ella" style="width:100%;padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--ink);font-size:var(--t-body);" />
+      <label class="subprofile-field">
+        <span class="subprofile-field-label">Name</span>
+        <input id="subprofile-name" type="text" placeholder="e.g. Ella" class="subprofile-field-control" />
       </label>
-      <label style="display:block;margin-bottom:16px;">
-        <span style="display:block;font-size:var(--t-meta);color:var(--ink-warm);margin-bottom:4px;">Avatar color</span>
-        <select id="subprofile-color" style="width:100%;padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--ink);font-size:var(--t-body);">
+      <label class="subprofile-field subprofile-field--last">
+        <span class="subprofile-field-label">Avatar color</span>
+        <select id="subprofile-color" class="subprofile-field-control">
           <option value="#f2a365">Apricot</option>
           <option value="#7cb4a9">Sage</option>
           <option value="#c97b5f">Terracotta</option>
@@ -944,9 +944,9 @@
           <option value="#b08cc7">Lavender</option>
         </select>
       </label>
-      <div style="display:flex;gap:8px;">
-        <button class="pill" style="flex:1;" onclick="closeSubProfileModal()">Cancel</button>
-        <button class="pill accent" style="flex:1;" onclick="createSubProfile()">Add</button>
+      <div class="cluster cluster--equal">
+        <button class="pill" onclick="closeSubProfileModal()">Cancel</button>
+        <button class="pill accent" onclick="createSubProfile()">Add</button>
       </div>
     </div>
   </div>
