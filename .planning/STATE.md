@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 UAT complete-with-gaps (8/8 PASS, 4 fix-gaps + 1 seed). Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial.
-stopped_at: 2026-04-21 -- Phase 7 /gsd-verify-work session: all 8 scenarios PASS (6 hands-on iPhone+2nd-device + 2 code/health-verified via watchpartyTick CF logs). 5 issues surfaced. #1 timezone display offset on push/banner (minor). #2 hide-reactions/reaction-delay settings non-functional (major). #3 late-joiner reaction backlog missing (major). #4 on-time inference + late-joiner override affordance (minor). #5 banner dismiss + async-replay watchparty mode → seeded as .planning/seeds/phase-9x-async-replay.md (out of scope for Phase 7 fix). Flagship Scenario 1 (scheduled→active flip + watchpartyStarting push) PASS — closes Phase 6 push loop. Commit 996268e on master.
-last_updated: "2026-04-21T23:45:00.000Z"
-last_activity: 2026-04-21 -- Phase 7 UAT run + commit 996268e + Phase-9x async-replay seed authored
+status: Phase 7 gap-closure Wave 1 partial — 07-05 shipped + CF deployed (UAT deferred to /gsd-verify-work 7). 07-06..07-08 pending. Phase 8 LIVE on prod UAT pending. Phases 5/6 UAT still partial.
+stopped_at: 2026-04-22 -- Phase 7 Plan 5 executed: creatorTimeZone captured client-side in confirmStartWatchparty + scheduleSportsWatchparty (commit 8ac8c9b on master), onWatchpartyCreate CF deployed to queuenight-84044 (Successful update operation, us-central1). UAT deferred — hosting redeploy needed before Scenario 1 repro can run end-to-end. Task 4 reproduction steps preserved verbatim in 07-05-SUMMARY.md for /gsd-verify-work 7.
+last_updated: "2026-04-22T00:20:16Z"
+last_activity: 2026-04-22 -- Phase 7 Plan 5 shipped: commit 8ac8c9b (client) + CF deploy (queuenight/ repo, not tracked in couch)
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 28
-  completed_plans: 18
-  percent: 78
+  completed_plans: 19
+  percent: 81
 ---
 
 # Project State
@@ -26,21 +26,21 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 7 (Watchparty) — GAP-CLOSURE PLANS READY. 4 plans (07-05..07-08) planner+checker-verified (2 iterations, clean pass). Next = /gsd-execute-phase 7 --gaps-only.
-Plan: 8 of 8 (4 shipped + 4 planned gap-closure)
-Status: 2026-04-21 full verify→diagnose→plan→check loop complete. UAT surfaced 4 in-scope gaps + 1 out-of-scope seed. Root causes confirmed via 3 parallel code-explorer agents. gsd-planner produced 4 plans (07-05 CF timezone, 07-06 hide-reactions + late-joiner backlog, 07-07 reaction-delay feature net-new, 07-08 on-time inference + late-joiner override). gsd-plan-checker flagged 2 blockers + 4 majors + 3 minors; planner revised in-place; checker re-verified VERIFICATION PASSED. Wave structure: W1=[07-05 || 07-06], W2=[07-07], W3=[07-08]. Issue #5 seeded to .planning/seeds/phase-9x-async-replay.md — do NOT include in execute.
+Phase: 7 (Watchparty) — Wave 1 gap closure in flight. 07-05 SHIPPED (client commit 8ac8c9b on master + CF deployed to queuenight-84044). UAT deferred to /gsd-verify-work 7. 07-06 (other Wave 1 entry) not yet started; 07-07 (Wave 2) and 07-08 (Wave 3) follow.
+Plan: 5 of 8 (4 original + 1 gap-closure shipped; 3 gap-closure remaining)
+Status: 2026-04-22 Plan 7-05 executed per commit_strategy. Two-commit strategy resolved as: (1) couch-repo feat commit 8ac8c9b for client creatorTimeZone capture in both confirmStartWatchparty (7382) and scheduleSportsWatchparty (7304); (2) Firebase deploy of onWatchpartyCreate CF from C:\Users\nahde\queuenight\functions\ (not git-tracked inside couch repo — deploy itself is the shipping surface). Grep acceptance all PASS: creatorTimeZone 4 hits in js/app.js, timeZone option now present in CF push body rendering. UAT Scenario 1 (11pm EDT → push body reads "11:00 PM" not "3:00 AM") deferred to /gsd-verify-work 7 per project pattern. HOSTING REDEPLOY still pending — needed before UAT so second-device sees newly-written creatorTimeZone field. Next: 07-06 (setWpMode optimistic re-render + late-joiner backlog) completes Wave 1.
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
 Phase 5 status unchanged: 4 PASS (Google / Email-link / Phone / Sign-out), 7 PENDING hands-on (scenarios 2-4, 6, 8-10), iOS PWA round-trip still owed, Apple + account-linking seeds held as Phase 5.x polish.
 
-Last activity: 2026-04-21 -- Phase 7 gap-closure planning complete: UAT commit 996268e → diagnosis 371b2ff → plans + ROADMAP 24ed8f3
-Resume file: .planning/phases/07-watchparty/07-05-PLAN.md (execution entry point, Wave 1)
-Next action: /clear then /gsd-execute-phase 7 --gaps-only (executes 07-05..07-08 per wave structure)
+Last activity: 2026-04-22 -- Phase 7 Plan 5 executed: commit 8ac8c9b + CF deploy (onWatchpartyCreate us-central1 Successful update)
+Resume file: .planning/phases/07-watchparty/07-06-PLAN.md (Wave 1 continuation) OR /gsd-verify-work 7 (Plan 5 UAT + any prior gap-closure verification)
+Next action: /clear then /gsd-execute-phase 7 --gaps-only (resumes at 07-06; 07-05 UAT will roll up via /gsd-verify-work 7 later)
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
 Phase 5 UAT resume: .planning/phases/05-auth-groups/05-UAT-RESULTS.md
 
-Progress: [███████░░░] 70% (Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; 7 deployed UAT-pending; 8-10 pending)
+Progress: [████████░░] 81% of plans (19/28); phase-level: Phases 3-4 complete; 5 impl-complete UAT-partial; 6 deployed UAT-partial; 7 gap-closure Wave 1 in flight (07-05 shipped, 07-06 next); 8 deployed UAT-pending; 9-10 pending
 
 ## Performance Metrics
 
@@ -105,6 +105,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-21T00:00:00.000Z
-Stopped at: 05-08 complete — migration claim panel + claim-confirm screen + sub-profile graduation (D-16 graduatedAt) + post-grace read-only enforcement (D-15 banner + body.is-readonly + guardReadOnlyWrite). Commit cc077ed local; mintClaimTokens CF + claimMember graduatedAt extension authored in queuenight/functions/ (not couch-repo tracked). Orchestrator to: firebase deploy --only functions:mintClaimTokens, then deploy claimMember redeploy, then sync client to queuenight/public/ + firebase deploy --only hosting.
-Resume file: .planning/phases/05-auth-groups/05-09-PLAN.md
+Last session: 2026-04-22T00:20:16Z
+Stopped at: Phase 7 Plan 5 complete — creatorTimeZone captured in confirmStartWatchparty (js/app.js:7382) + scheduleSportsWatchparty (js/app.js:7304) via Intl.DateTimeFormat().resolvedOptions().timeZone with try/catch null fallback; onWatchpartyCreate CF (C:\Users\nahde\queuenight\functions\index.js line 175 region) now renders startAt via toLocaleTimeString with timeZone: wp.creatorTimeZone || 'UTC'. Commit 8ac8c9b on master for client; CF deployed (queuenight repo not tracked here). UAT Scenario 1 repro deferred to /gsd-verify-work 7. HOSTING REDEPLOY still needed before end-to-end UAT so second-device receives the client bundle that writes creatorTimeZone. Next plans: 07-06 (Wave 1 sibling), 07-07 (Wave 2), 07-08 (Wave 3).
+Resume file: .planning/phases/07-watchparty/07-06-PLAN.md
