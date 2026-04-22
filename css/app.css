@@ -2223,9 +2223,6 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 /* — Color / surface utilities — */
 .surface-raised-util{background:var(--color-surface-raised-2)}
 
-/* — Settings hero stat cluster (settings YIR action row) — */
-.tab-accent-actions{display:flex;gap:var(--space-inline-sm);flex-wrap:wrap}
-
 /* — Tonight header layout (logo + group pill) — */
 .header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-inline-md)}
 
@@ -2248,11 +2245,11 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 /* — Modal instructions paragraph (vote modal helper) — */
 .modal-instructions{font-size:var(--text-body-sm);color:var(--color-ink-muted);margin:0 0 var(--space-inline-xs)}
 
-/* — Subprofile modal field (label + control pair) — */
+/* — Subprofile modal field (label wrapper + nested label/control) — */
 .subprofile-field{display:block;margin-bottom:var(--space-inline-md)}
 .subprofile-field--last{margin-bottom:var(--space-inline-lg)}
-.subprofile-field-label{display:block;font-size:var(--text-body-sm);color:var(--color-ink-secondary);margin-bottom:var(--space-inline-xs)}
-.subprofile-field-control{width:100%;padding:var(--space-inline-md);border:1px solid var(--color-border-subtle);border-radius:var(--r-md);background:var(--color-surface-raised-2);color:var(--color-ink-primary);font-size:var(--text-body-md)}
+.subprofile-field>span{display:block;font-size:var(--text-body-sm);color:var(--color-ink-secondary);margin-bottom:var(--space-inline-xs)}
+.subprofile-field>input,.subprofile-field>select{width:100%;padding:var(--space-inline-md);border:1px solid var(--color-border-subtle);border-radius:var(--r-md);background:var(--color-surface-raised-2);color:var(--color-ink-primary);font-size:var(--text-body-md)}
 
 /* — Onboarding brand hero wrappers (h300 mode-pick + h200 others) — */
 .brand-hero-large{margin:var(--space-stack-md) 0 var(--space-stack-lg)}
@@ -2267,9 +2264,64 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 /* — Claim-confirm screen heading spacing (inside .claim-confirm-body) — */
 .claim-confirm-body .page-title{margin-bottom:var(--space-inline-md)}
 
-/* — Avatar-picker modal heading + sub-line + button row — */
-.avatar-picker-close{position:absolute;top:var(--space-inline-md);right:var(--space-inline-md)}
-.avatar-picker-title{font-family:var(--font-serif);font-style:italic;margin:0 0 var(--space-inline-sm)}
-.avatar-picker-sub{font-size:var(--text-body-sm);color:var(--color-ink-muted);margin:0 0 var(--space-inline-lg)}
+/* — Avatar-picker modal: scoped descendant rules under .avatar-picker-modal — */
+.avatar-picker-modal .detail-close{position:absolute;top:var(--space-inline-md);right:var(--space-inline-md)}
+.avatar-picker-modal h3{font-family:var(--font-serif);font-style:italic;margin:0 0 var(--space-inline-sm)}
+.avatar-picker-modal>p{font-size:var(--text-body-sm);color:var(--color-ink-muted);margin:0 0 var(--space-inline-lg)}
 .avatar-picker-actions{margin-top:var(--space-inline-lg);display:flex;justify-content:space-between;gap:var(--space-inline-sm)}
+
+/* — Modal "Cancel" / "Close" full-width footer button (heavy reuse pattern)
+   Replaces inline style="width:100%;margin-top:8px" across 9 modals — */
+.modal-btn-block{width:100%;margin-top:var(--space-inline-sm)}
+.modal-btn-block--lg{margin-top:var(--space-inline-md)}
+
+/* — Modal field-stack rhythm (replaces inline style="margin-top:14px") — */
+.modal-field-stack{margin-top:14px}
+
+/* — Add screen: search-results scope (descendant rules avoid extra classes) — */
+.add-search-results{margin-top:var(--space-inline-lg)}
+.add-search-results .matches-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-inline-md)}
+.add-search-results .matches-title{font-family:var(--font-serif);font-style:italic;font-size:var(--text-heading-md);font-weight:400;color:var(--color-ink-primary);letter-spacing:-0.015em}
+
+/* — Add screen "find manually" footer + button text — */
+.add-manual-footer{margin-top:var(--space-inline-lg);text-align:center}
+.add-manual-footer .pill{font-size:var(--text-body-sm)}
+
+/* — Tonight Add: t-section-head with top spacing — */
+.t-section-head--rhythm{margin-top:var(--space-inline-sm)}
+
+/* — Skeleton line widths (replaces 12 inline style="width:N%" on .sk-line) — */
+.sk-w55{width:55%}.sk-w60{width:60%}.sk-w65{width:65%}.sk-w70{width:70%}
+.sk-w75{width:75%}.sk-w80{width:80%}.sk-w85{width:85%}
+
+/* — svc-suggest modal: serif title + ink-muted body — */
+.svc-suggest-title{font-family:var(--font-serif);font-style:italic;text-align:center;margin:0 0 var(--space-inline-sm)}
+.svc-suggest-body{text-align:center;color:var(--color-ink-muted);font-size:var(--text-body-sm);line-height:1.5;margin:0 0 var(--space-inline-lg)}
+
+/* — Watchparty-start preview meta + sports modal sub — */
+.wp-start-preview{margin-top:6px;font-size:var(--text-body-sm);color:var(--color-ink-muted);font-style:italic}
+.modal-meta-sub{margin-bottom:var(--space-inline-lg)}
+
+/* — Form input field block (textareas + inputs in veto / wp / diary) — */
+.form-input-block{width:100%;background:var(--color-surface-base);border:1px solid var(--color-border-subtle);color:var(--color-ink-primary);padding:var(--space-inline-md);border-radius:10px;font-family:inherit;font-size:var(--text-body-md);margin-top:var(--space-inline-xs);resize:vertical}
+.form-input-block--sm{font-size:var(--text-body-sm)}
+.form-input-block--ta-veto{min-height:70px}
+.form-input-block--ta-diary{min-height:50px;margin-top:var(--space-inline-md)}
+
+/* — Diary modal form rhythm (consolidated; covers stars row, rewatch toggle,
+   cowatchers panel, eyebrow labels, native checkbox theming) — */
+.diary-stars-row,.diary-cowatcher-chips{display:flex;gap:6px}
+.diary-stars-row{margin-top:6px;justify-content:center}
+.diary-cowatcher-chips{flex-wrap:wrap}
+.diary-rewatch-row,.diary-cowatchers-card{padding:var(--space-inline-md);background:var(--color-surface-raised);border-radius:10px;margin-top:var(--space-inline-md)}
+.diary-rewatch-row{display:flex;align-items:center;gap:var(--space-inline-sm);font-size:var(--text-body-sm);cursor:pointer}
+.diary-rewatch-checkbox{width:18px;height:18px;accent-color:var(--color-accent-primary)}
+.diary-eyebrow{font-size:var(--text-eyebrow);color:var(--color-ink-muted);text-transform:uppercase;letter-spacing:0.1em}
+.diary-eyebrow--rhythm{margin-bottom:6px}
+
+/* — Buttons that carry --bad color — */
+.btn-bad{color:var(--color-feedback-danger)}
+
+/* — Hidden offscreen input (emoji picker target) — */
+.input-offscreen{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 

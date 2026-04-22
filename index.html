@@ -298,7 +298,7 @@
   </div>
 
   <div class="screen" id="screen-add">
-    <div class="t-section-head" style="margin-top:var(--s2);">
+    <div class="t-section-head t-section-head--rhythm">
       <div class="t-section-title">Fill the couch</div>
       <div class="t-section-meta">Find something to watch</div>
     </div>
@@ -316,8 +316,8 @@
       </div>
       <div class="sports-entry-chev">›</div>
     </div>
-    <div id="search-results-section" style="display:none;margin-top:var(--s4);" aria-live="polite" aria-atomic="false">
-      <div class="matches-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s3);"><div class="matches-title" style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h3);font-weight:400;color:var(--ink);letter-spacing:-0.015em;">Search results</div><button class="pill" aria-label="Clear search" onclick="clearSearch()">Clear</button></div>
+    <div id="search-results-section" class="add-search-results" style="display:none;" aria-live="polite" aria-atomic="false">
+      <div class="matches-header"><div class="matches-title">Search results</div><button class="pill" aria-label="Clear search" onclick="clearSearch()">Clear</button></div>
       <div id="search-results-list"></div>
     </div>
 
@@ -343,7 +343,7 @@
         </div>
         <div class="discover-row-wrap">
           <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('trending',-1)">◂</button>
-          <div class="discover-row" id="add-row-trending"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:80%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:60%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:75%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:55%;"></div></div></div></div>
+          <div class="discover-row" id="add-row-trending"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div></div></div>
           <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('trending',1)">▸</button>
         </div>
       </div>
@@ -356,7 +356,7 @@
         </div>
         <div class="discover-row-wrap">
           <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('streaming',-1)">◂</button>
-          <div class="discover-row" id="add-row-streaming"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:70%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:85%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:60%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:75%;"></div></div></div></div>
+          <div class="discover-row" id="add-row-streaming"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w70"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w85"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div></div></div>
           <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('streaming',1)">▸</button>
         </div>
       </div>
@@ -369,13 +369,13 @@
         </div>
         <div class="discover-row-wrap">
           <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('gems',-1)">◂</button>
-          <div class="discover-row" id="add-row-gems"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:85%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:65%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:80%;"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line" style="width:55%;"></div></div></div></div>
+          <div class="discover-row" id="add-row-gems"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w85"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w65"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div></div></div>
           <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('gems',1)">▸</button>
         </div>
       </div>
 
-      <div style="margin-top:16px;text-align:center;">
-        <button class="pill" onclick="openManualAdd()" style="font-size:var(--t-meta);">Can't find it? Add manually</button>
+      <div class="add-manual-footer">
+        <button class="pill" onclick="openManualAdd()">Can't find it? Add manually</button>
       </div>
     </div>
   </div>
@@ -470,7 +470,7 @@
       <div class="tab-accent-eyebrow" id="yir-eyebrow">Year in Review</div>
       <div class="tab-accent-title">Your year on the couch</div>
       <p class="tab-accent-sub" id="yir-teaser">A recap of the films, shows, and couch nights that defined your year.</p>
-      <div class="tab-accent-actions">
+      <div class="cluster">
         <button class="pill accent" onclick="openYearInReview()">Open Year in Review</button>
         <button class="pill" onclick="openYearStoryMode()" id="yir-story-btn" style="display:none;">▶ Play recap</button>
       </div>
@@ -657,7 +657,7 @@
         <div class="mood-chips-edit" id="manual-moods"></div>
       </div>
       <button class="modal-close" onclick="submitManualAdd()">Add to library</button>
-      <button class="pill" onclick="closeManualAdd()" style="width:100%;margin-top:8px;">Cancel</button>
+      <button class="pill modal-btn-block" onclick="closeManualAdd()">Cancel</button>
     </div>
   </div>
 
@@ -670,7 +670,7 @@
         <textarea id="comment-input" placeholder="Add a comment..." onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey))postComment()"></textarea>
         <button onclick="postComment()">Post</button>
       </div>
-      <button class="pill" onclick="closeCommentsModal()" style="width:100%;margin-top:10px;">Close</button>
+      <button class="pill modal-btn-block modal-btn-block--lg" onclick="closeCommentsModal()">Close</button>
     </div>
   </div>
 
@@ -687,8 +687,8 @@
       <div class="field"><label>Date & time</label><input type="datetime-local" id="schedule-datetime"></div>
       <div class="field"><label>Note (optional)</label><textarea id="schedule-note" placeholder="Anything to remember?"></textarea></div>
       <button class="modal-close" onclick="saveSchedule()">Save to calendar</button>
-      <button class="pill" id="schedule-clear-btn" onclick="clearSchedule()" style="width:100%;margin-top:8px;display:none;color:var(--bad);">Clear schedule</button>
-      <button class="pill" onclick="closeScheduleModal()" style="width:100%;margin-top:8px;">Cancel</button>
+      <button class="pill modal-btn-block btn-bad" id="schedule-clear-btn" onclick="clearSchedule()" style="display:none;">Clear schedule</button>
+      <button class="pill modal-btn-block" onclick="closeScheduleModal()">Cancel</button>
     </div>
   </div>
 
@@ -721,20 +721,20 @@
   <div class="modal-bg" id="svc-suggest-bg" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
     <div class="modal svc-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title">
       <div class="svc-suggest-icon" aria-hidden="true">📺</div>
-      <h3 id="svc-suggest-title" style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;text-align:center;margin:0 0 var(--s2);"></h3>
-      <p id="svc-suggest-body" style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);line-height:1.5;margin:0 0 var(--s4);"></p>
-      <div style="display:flex;gap:var(--s2);">
-        <button class="pill" id="svc-suggest-skip" style="flex:1;">Not now</button>
-        <button class="pill accent" id="svc-suggest-add" style="flex:1;">Add it</button>
+      <h3 id="svc-suggest-title" class="svc-suggest-title"></h3>
+      <p id="svc-suggest-body" class="svc-suggest-body"></p>
+      <div class="cluster cluster--equal">
+        <button class="pill" id="svc-suggest-skip">Not now</button>
+        <button class="pill accent" id="svc-suggest-add">Add it</button>
       </div>
     </div>
   </div>
 
   <div class="modal-bg" id="avatar-picker-bg">
     <div class="modal avatar-picker-modal">
-      <button class="detail-close avatar-picker-close" aria-label="Close" onclick="closeAvatarPicker()">✕</button>
-      <h3 class="avatar-picker-title">Choose your avatar</h3>
-      <p class="avatar-picker-sub">Pick an emoji that feels like you.</p>
+      <button class="detail-close" aria-label="Close" onclick="closeAvatarPicker()">✕</button>
+      <h3>Choose your avatar</h3>
+      <p>Pick an emoji that feels like you.</p>
       <div class="avatar-grid" id="avatar-grid"></div>
       <div class="avatar-picker-actions">
         <button class="pill" onclick="resetAvatar()">Use initial</button>
@@ -747,12 +747,12 @@
     <div class="modal review-editor">
       <h3 id="review-modal-title"></h3>
       <div class="meta">Write a full review</div>
-      <div style="margin-top:14px;">
+      <div class="modal-field-stack">
         <input type="text" id="review-headline" placeholder="Headline (e.g. A surprising delight)" maxlength="80">
         <textarea id="review-body" placeholder="What did you think? Take your time." maxlength="4000"></textarea>
         <button class="modal-close" onclick="saveReview()">Save review</button>
-        <button class="pill" onclick="deleteMyReview()" id="review-delete-btn" style="width:100%;margin-top:8px;display:none;color:var(--bad);">Delete this review</button>
-        <button class="pill" onclick="closeReviewModal()" style="width:100%;margin-top:8px;">Cancel</button>
+        <button class="pill modal-btn-block btn-bad" onclick="deleteMyReview()" id="review-delete-btn" style="display:none;">Delete this review</button>
+        <button class="pill modal-btn-block" onclick="closeReviewModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -761,21 +761,21 @@
     <div class="modal">
       <h3>Not tonight</h3>
       <div class="meta" id="veto-modal-meta">Pass on this one just for tonight. Everyone else will see it.</div>
-      <div style="margin-top:14px;">
+      <div class="modal-field-stack">
         <div class="field">
           <label>Why (optional)</label>
-          <textarea id="veto-comment" placeholder="Too long? Wrong mood? Already saw it?" maxlength="200" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-body);margin-top:4px;min-height:70px;resize:vertical;"></textarea>
+          <textarea id="veto-comment" class="form-input-block form-input-block--ta-veto" placeholder="Too long? Wrong mood? Already saw it?" maxlength="200"></textarea>
         </div>
         <button class="modal-close" onclick="submitVeto()">Veto for tonight</button>
-        <button class="pill" onclick="closeVetoModal()" style="width:100%;margin-top:8px;">Cancel</button>
+        <button class="pill modal-btn-block" onclick="closeVetoModal()">Cancel</button>
       </div>
     </div>
   </div>
 
   <div class="modal-bg" id="sports-picker-bg" onclick="if(event.target.id==='sports-picker-bg')closeSportsPicker()">
     <div class="modal sports-picker-modal">
-      <h3 style="font-size:var(--t-h2);margin-bottom:4px;">Pick a game</h3>
-      <div class="meta" style="margin-bottom:var(--s4);">Upcoming and live, from the major leagues</div>
+      <h3 class="modal-h2">Pick a game</h3>
+      <div class="meta modal-meta-sub">Upcoming and live, from the major leagues</div>
       <div class="sports-league-tabs" role="tablist" id="sports-league-tabs">
         <button class="sports-league-tab on" data-league="nba" onclick="selectSportsLeague('nba')">NBA</button>
         <button class="sports-league-tab" data-league="mlb" onclick="selectSportsLeague('mlb')">MLB</button>
@@ -785,8 +785,8 @@
       <div class="sports-games-list" id="sports-games-list">
         <div class="sports-loading">Loading games…</div>
       </div>
-      <div style="display:flex;gap:var(--s2);margin-top:var(--s3);">
-        <button class="pill" style="flex:1;" onclick="closeSportsPicker()">Close</button>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="closeSportsPicker()">Close</button>
       </div>
     </div>
   </div>
@@ -795,7 +795,7 @@
     <div class="modal">
       <h3>Start a watchparty</h3>
       <div class="meta" id="wp-start-meta">Everyone watches separately, reactions flow live</div>
-      <div style="margin-top:14px;">
+      <div class="modal-field-stack">
         <div class="field">
           <label>When are you starting?</label>
           <div class="wp-lead-grid" id="wp-lead-grid">
@@ -809,11 +809,11 @@
         </div>
         <div class="field" id="wp-schedule-field" style="display:none;">
           <label>Date & time</label>
-          <input type="datetime-local" id="wp-schedule-input" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-body);margin-top:4px;">
+          <input type="datetime-local" id="wp-schedule-input" class="form-input-block">
         </div>
-        <div id="wp-start-preview" style="margin-top:6px;font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;"></div>
+        <div id="wp-start-preview" class="wp-start-preview"></div>
         <button class="modal-close" onclick="confirmStartWatchparty()">Start watchparty</button>
-        <button class="pill" onclick="closeWatchpartyStart()" style="width:100%;margin-top:8px;">Cancel</button>
+        <button class="pill modal-btn-block" onclick="closeWatchpartyStart()">Cancel</button>
       </div>
     </div>
   </div>
@@ -825,8 +825,7 @@
   <!-- Phase 7 Plan 03: hidden input for native emoji keyboard picker.
        openEmojiPicker() focuses this to pop the iOS/Android emoji keyboard. -->
   <input id="wp-emoji-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
-    aria-hidden="true" tabindex="-1"
-    style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+    aria-hidden="true" tabindex="-1" class="input-offscreen">
 
   <!-- Phase 8: Propose-tonight-at-time modal -->
   <div class="modal-bg" id="intent-propose-modal-bg">
@@ -858,7 +857,7 @@
     <div class="modal edit-modal">
       <h3>Edit title</h3>
       <div class="meta">Fix name, year or poster</div>
-      <div style="margin-top:14px;">
+      <div class="modal-field-stack">
         <div class="field"><label>Name</label><input type="text" id="edit-name"></div>
         <div class="field"><label>Year</label><input type="text" id="edit-year" maxlength="4"></div>
         <div class="field"><label>Poster URL</label><input type="url" id="edit-poster" placeholder="https://..."></div>
@@ -874,7 +873,7 @@
           </div>
         </div>
         <button class="modal-close" onclick="saveEditTitle()">Save changes</button>
-        <button class="pill" onclick="closeEditModal()" style="width:100%;margin-top:8px;">Cancel</button>
+        <button class="pill modal-btn-block" onclick="closeEditModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -883,22 +882,22 @@
     <div class="modal">
       <h3 id="diary-modal-title"></h3>
       <div class="meta">Log a watch date</div>
-      <div style="margin-top:14px;">
-        <div class="field"><label style="font-size:var(--t-eyebrow);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;">When did you watch it?</label><input type="date" id="diary-date" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-body);margin-top:4px;"></div>
-        <div class="field" style="margin-top:10px;"><label style="font-size:var(--t-eyebrow);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;">Stars (tap twice for half)</label>
-          <div id="diary-stars" style="display:flex;gap:6px;margin-top:6px;justify-content:center;"></div>
+      <div class="modal-field-stack">
+        <div class="field"><label class="diary-eyebrow">When did you watch it?</label><input type="date" id="diary-date" class="form-input-block"></div>
+        <div class="field modal-btn-block--lg"><label class="diary-eyebrow">Stars (tap twice for half)</label>
+          <div id="diary-stars" class="diary-stars-row"></div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg-2);border-radius:10px;font-size:var(--t-meta);cursor:pointer;margin-top:10px;">
-          <input type="checkbox" id="diary-rewatch" style="width:18px;height:18px;accent-color:var(--accent);">
+        <label class="diary-rewatch-row">
+          <input type="checkbox" id="diary-rewatch" class="diary-rewatch-checkbox">
           I've seen this before (rewatch)
         </label>
-        <textarea id="diary-note" placeholder="Quick thought (optional)" maxlength="500" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:12px;border-radius:10px;font-family:inherit;font-size:var(--t-meta);resize:vertical;min-height:50px;margin-top:10px;"></textarea>
-        <div id="diary-cowatchers" style="display:none;margin-top:10px;padding:10px;background:var(--bg-2);border-radius:10px;">
-          <div style="font-size:var(--t-eyebrow);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Watched with</div>
-          <div id="diary-cowatchers-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        <textarea id="diary-note" class="form-input-block form-input-block--sm form-input-block--ta-diary" placeholder="Quick thought (optional)" maxlength="500"></textarea>
+        <div id="diary-cowatchers" class="diary-cowatchers-card" style="display:none;">
+          <div class="diary-eyebrow diary-eyebrow--rhythm">Watched with</div>
+          <div id="diary-cowatchers-chips" class="diary-cowatcher-chips"></div>
         </div>
-        <button class="modal-close" onclick="saveDiary()" style="margin-top:12px;">Save diary entry</button>
-        <button class="pill" onclick="closeDiaryModal()" style="width:100%;margin-top:8px;">Cancel</button>
+        <button class="modal-close modal-btn-block--lg" onclick="saveDiary()">Save diary entry</button>
+        <button class="pill modal-btn-block" onclick="closeDiaryModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -916,7 +915,7 @@
         <button class="share-copy" onclick="copyShareText()">📋 Copy</button>
         <button class="share-native" onclick="nativeShare()">Share via...</button>
       </div>
-      <button class="pill" onclick="closeShareModal()" style="width:100%;margin-top:8px;">Close</button>
+      <button class="pill modal-btn-block" onclick="closeShareModal()">Close</button>
     </div>
   </div>
 
@@ -930,12 +929,12 @@
       <h3>Add a sub-profile</h3>
       <div class="meta">Kids on the couch</div>
       <label class="subprofile-field">
-        <span class="subprofile-field-label">Name</span>
-        <input id="subprofile-name" type="text" placeholder="e.g. Ella" class="subprofile-field-control" />
+        <span>Name</span>
+        <input id="subprofile-name" type="text" placeholder="e.g. Ella" />
       </label>
       <label class="subprofile-field subprofile-field--last">
-        <span class="subprofile-field-label">Avatar color</span>
-        <select id="subprofile-color" class="subprofile-field-control">
+        <span>Avatar color</span>
+        <select id="subprofile-color">
           <option value="#f2a365">Apricot</option>
           <option value="#7cb4a9">Sage</option>
           <option value="#c97b5f">Terracotta</option>
