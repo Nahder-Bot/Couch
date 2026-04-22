@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phases 5 + 7 COMPLETE this session. Phase 8 LIVE on prod UAT pending. Phase 6 UAT still partial. Phase 9 (Redesign) owns the desktop responsive-layout gap surfaced during Phase 7 UAT.
-stopped_at: 2026-04-22 -- Two UAT cycles completed back-to-back. /gsd-verify-work 7: 8/8 accounted, 2 runtime fixes shipped (14e959a snapshot re-render + ce3c507 mixed-anchor wall-clock filter), Phase 7 closed. /gsd-verify-work 5: 8/8 accounted — 1 runtime PASS (sub-profile act-as), 4 static-verified (Sports WP writeAttribution regression, migration claim, graduation, grace-window cutoff), 1 blocked (password-protected join — needs 2nd Google account), 1 fail_scope_deferred (guest invite redeem — Plan 05-08 explicitly preserved as stub, seed captured), 1 skipped (iOS standalone PWA — user declined physical-device test). Environmental repair in-session: families/ZFAM7 legacy doc missing ownerUid (pre-Phase-5 creation) → client-side updateDoc rules-denied → manual Firebase Console stamp of ownerUid='jpTjwFzWiHaOalIr6OkD81p9ngn2'. Zero code bugs found in Phase 5 plans. Three new seeds: phase-05x-legacy-family-ownership-migration (self-claim CTA for legacy docs + rules update), phase-05x-guest-invite-redemption (ship the recipient-side redeem — consumeGuestInvite CF + showInviteRedeemScreen), phase-05x-account-linking updated (items #6 set-password-for-faster-resign-in + #7 sign-in-vs-create-account UX split). Phase 5 closes code-complete with residual runtime UAT items flagged as environmental (multi-account + iOS physical) not code blockers. Next: /gsd-verify-work 8 (deployed-UAT-pending) or /gsd-verify-work 6 (5/7 still pending).
-last_updated: "2026-04-22T03:45:00Z"
-last_activity: 2026-04-22 -- /gsd-verify-work 5 complete. UAT commit 754da0d + 3 seeds captured + Phase 5 marked COMPLETE in ROADMAP.
+status: Phases 5 + 7 + 8 COMPLETE this session (3 closures back-to-back). Phase 6 UAT still partial (2/7). Phase 9 (Redesign) owns the desktop responsive-layout gap surfaced during Phase 7 UAT + Phase 5/7/8 polish items.
+stopped_at: 2026-04-22 -- Three UAT cycles completed this session. /gsd-verify-work 7: 8/8, 2 runtime fixes shipped (14e959a snapshot re-render + ce3c507 wall-clock filter). /gsd-verify-work 5: 8/8, 0 code bugs, environmental repair for legacy-family ownerUid, 3 seeds captured. /gsd-verify-work 8: 7/7 via browser-Claude autonomous automation — 4 runtime PASS (Tests 1-create, 2-create+cancel, 3 RSVP change, 4 pref toggle write, 5 cancel) + 3 static-verified (Tests 6 expiry CF, 7 majority math + 1/2 convert paths). 0 feature-code bugs. 1 incidental gap seeded: onIntentCreated CF renders proposedStartAt without timeZone option (same class as Phase 7 Plan 05 bug but on intent-creation path — phase-08x-intent-cf-timezone.md). Browser-Claude drove the full Chrome flow: openProposeIntent, confirmProposeIntent, RSVP modal clicks, checkbox toggle of users/{uid}.notificationPrefs.intentProposed, cancel button invoke. Match + convert runtime flows not testable solo (7-member family majority rule needs 4 authed Yes RSVPs; setIntentRsvp keys by state.me.id so act-as doesn't help by design). Phase 8 closes code-complete with runtime coverage for all single-user paths. Next: /gsd-verify-work 6 (5/7 push-notification scenarios still pending) or /gsd-plan-phase 9 (Redesign — owns multiple deferred polish items now).
+last_updated: "2026-04-22T04:05:00Z"
+last_activity: 2026-04-22 -- /gsd-verify-work 8 complete. UAT + seed commit c34776e + Phase 8 marked COMPLETE in ROADMAP.
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 28
   completed_plans: 22
   percent: 93
@@ -21,12 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 5 + Phase 7 both CLOSED this session. 4/8 phases complete (3, 4, 5, 7). Next targets: Phase 8 UAT (deployed, closest to closure), Phase 6 UAT (5/7 still pending), or Phase 9 planning (Redesign — absorbs Phase 7's deferred desktop responsive-layout gap). Phase 5 residual UAT items are environmental (need 2nd Google account + iPhone PWA session), not code blockers; captured in 3 new seeds (legacy-family-ownership-migration, guest-invite-redemption, account-linking expansions).
+**Current focus:** Phases 5 + 7 + 8 all CLOSED this session (3 phase closures in a row). 5/8 phases complete (3, 4, 5, 7, 8). Remaining: Phase 6 (deployed, UAT 2/7), Phase 9 (not started — Redesign, owns all deferred polish items), Phase 10 (not started — YIR). Next natural targets: /gsd-verify-work 6 to close Phase 6 or /gsd-plan-phase 9 to kick off Redesign.
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 5 + 7 both COMPLETE this session. Next up: Phase 8 (deployed, UAT pending) or Phase 6 (UAT 5/7 pending).
+Phase: 5 + 7 + 8 all COMPLETE this session (three phase closures in a row). Next up: Phase 6 (UAT 5/7 pending) or Phase 9 (not started — Redesign, absorbs 7+ deferred polish items accumulated this session).
+
+Phase 8 closure (2026-04-22, /gsd-verify-work 8): UAT 7/7 accounted for via browser-Claude autonomous Chrome automation. 4 runtime PASS (Tests 1/2 create + cancel paths, Test 3 RSVP live-sync, Test 4 pref toggle persistence, Test 5 creator cancel) + 3 static-verified (Test 6 expiry CF logic trivial, Test 7 majority-rule ceil(n/2) math + family→majority binding, plus match+convert paths on 1/2). Zero feature-code bugs. 1 incidental gap seeded: onIntentCreated CF renders proposedStartAt via toLocaleTimeString without timeZone option — same class as Phase 7 Plan 05 bug (which we fixed for watchparty pushes) but on the intent-creation path. Seed: .planning/seeds/phase-08x-intent-cf-timezone.md. Match + convert runtime flows not testable solo: 7-member family majority rule needs 4 authenticated Yes RSVPs; setIntentRsvp keys by state.me.id directly so act-as sub-profile workaround doesn't help (by product design — intents are real-member polls, sub-profiles don't vote).
+
 
 Phase 5 closure (2026-04-22, /gsd-verify-work 5): UAT 8/8 accounted for. 1 runtime PASS (sub-profile act-as + per-action revert), 4 static-verified via parallel Explore agent (Sports WP writeAttribution regression — all 17 wp write sites spread writeAttribution; migration claim AUTH-04 — mintClaimTokens + claimMember CFs + showClaimConfirmScreen client path all wired; graduation D-16 — mintClaimTokens type='graduation' + claimMember branch clears managedBy + stamps graduatedAt atomically; grace-window cutoff — isReadOnlyForMember + applyReadOnlyState + guardReadOnlyWrite integrated into 10+ write paths + firestore.rules validAttribution + legacyGraceWrite branches + CSS is-readonly dimming), 1 blocked (password-protected join — no 2nd Google account), 1 fail_scope_deferred (guest invite redeem — Plan 05-08 line 139 explicitly preserved showInviteRedeemScreen as stub; seed captured at .planning/seeds/phase-05x-guest-invite-redemption.md), 1 skipped (iOS standalone PWA — user declined physical-device test, previously-owed per 05-UAT-RESULTS.md). Zero code bugs found in Phase 5 plans.
 
@@ -44,15 +47,21 @@ ENVIRONMENT NOTE (reusable across future UAT): iOS PWA installs do NOT auto-inva
 
 Phase 6 status: Scenarios 1-2 PASS (flagship iOS push via watchpartyScheduled event + self-echo guard). 5 PENDING (per-event opt-out, quiet hours, invite received, veto cap, Android delivery).
 
-Phase 8 status: deployed on prod, full UAT pending.
-
-Last activity: 2026-04-22 -- /gsd-verify-work 5 complete. UAT commit 754da0d + 3 seeds + ROADMAP flip. Phase 5 closes code-complete.
-Resume file: Pick next target — Phase 8 UAT (deployed-pending, closest to done) OR Phase 6 UAT (5/7 still pending).
-Next action: /gsd-verify-work 8 (deployed-UAT-pending — quick path to another phase closure) OR /gsd-verify-work 6 (continuing partial UAT) OR /gsd-plan-phase 9 (start Redesign — large phase; absorbs deferred Phase 7 responsive-layout gap).
+Last activity: 2026-04-22 -- /gsd-verify-work 8 complete via browser-Claude autonomous Chrome automation. UAT + seed commit c34776e + Phase 8 marked COMPLETE in ROADMAP.
+Resume file: Pick next target — Phase 6 UAT (5/7 still pending) OR Phase 9 planning (fresh start — Redesign + polish-absorption).
+Next action: /gsd-verify-work 6 (continuing partial UAT) OR /gsd-plan-phase 9 (start Redesign — large phase; absorbs multiple deferred items: Phase 7 desktop responsive-layout gap, Phase 5's account-linking/sign-in-UX polish items, Phase 5's legacy family-ownership seed, Phase 5's guest-invite redemption seed, Phase 8's CF timezone seed).
 Phase 6 UAT resume: .planning/phases/06-push-notifications/06-UAT-RESULTS.md (5 of 7 still PENDING)
+Phase 8 UAT file: .planning/phases/08-intent-flows/08-UAT.md (closed)
 Phase 5 UAT file: .planning/phases/05-auth-groups/05-UAT.md (closed); 05-UAT-RESULTS.md (prior state preserved)
 
-Progress: [█████████░] 93% of plans (22/28); phase-level: Phases 3-4 complete; **5 COMPLETE** (all plans + UAT + 3 seeds); 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); 8 deployed UAT-pending; 9-10 pending
+Active seeds accumulated this session:
+  - phase-05x-legacy-family-ownership-migration.md (self-claim CTA for pre-Phase-5 family docs)
+  - phase-05x-guest-invite-redemption.md (ship consumeGuestInvite CF + showInviteRedeemScreen)
+  - phase-05x-account-linking.md (expanded with #6 set-password-for-resign-in + #7 sign-in-vs-create-account UX split)
+  - phase-08x-intent-cf-timezone.md (onIntentCreated CF timezone echo of 07-05 fix)
+  - Phase 9 responsive-layout gap (watchparty live modal desktop viewport) — tracked in Phase 7 UAT, routed to Phase 9
+
+Progress: [█████████░] 93% of plans (22/28); phase-level: Phases 3-4 complete; **5 COMPLETE** (all plans + UAT + 3 seeds); 6 deployed UAT-partial; **7 COMPLETE** (all plans + UAT + 2 runtime fixes); **8 COMPLETE** (all plans + UAT + 1 seed); 9-10 pending
 
 ## Performance Metrics
 
