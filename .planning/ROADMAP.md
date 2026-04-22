@@ -107,7 +107,16 @@ Plans:
   3. Members can send reactions during a session; reactions surface on every participating device in real-time.
   4. A session ends cleanly via host-end, all-members-left, or inactivity timeout — with no orphan `watchparty` documents remaining in Firestore after end.
   5. The Tonight screen displays the watchparty banner whenever a session is active for the current family.
-**Plans**: 4 plans (TBD — finalized at plan-phase)
+**Plans**: 8 plans (4 original + 4 gap-closure from UAT 2026-04-21)
+Plans:
+- [x] 07-01-PLAN.md — Watchparty lifecycle state machine: scheduled→active flip + watchpartyTick CF + lastActivityAt bookkeeping (PARTY-06)
+- [x] 07-02-PLAN.md — Tonight's Pick "Watch together" CTA + live watchparty banner on Tonight screen (PARTY-01, PARTY-07)
+- [x] 07-03-PLAN.md — Reaction palette (8 emoji + picker) + advisory per-member timer strip (PARTY-03, PARTY-04, PARTY-05)
+- [x] 07-04-PLAN.md — Phase 7 UAT checkpoint: 8/8 PASS, 4 gap-closure issues surfaced (PARTY-02, PARTY-03, PARTY-04, PARTY-05, PARTY-06, PARTY-07)
+- [ ] 07-05-PLAN.md — GAP: creatorTimeZone capture + CF push-body tz render (fixes UAT Issue #1 — timezone display offset on watchpartyScheduled push) (PARTY-06)
+- [ ] 07-06-PLAN.md — GAP: setWpMode optimistic re-render + late-joiner wallclock backlog override (fixes UAT Issues #2a + #3) (PARTY-03, PARTY-04)
+- [ ] 07-07-PLAN.md — GAP: reaction-delay feature — viewer-side elapsed-filter shift + UI chips + participant field (closes UAT Issue #2b net-new) (PARTY-04)
+- [ ] 07-08-PLAN.md — GAP: on-time inference + late-joiner "I started on time" override — effectiveStartFor helper + claimStartedOnTime persist + participant-strip chip affordance (closes UAT Issue #4) (PARTY-03)
 **UI hint**: yes
 
 ### Phase 8: Watch-Intent Flows
@@ -162,7 +171,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 4. Veto System | 3/3 | Implementation complete — awaiting /gsd-verify-work | 04-03 complete 2026-04-20 |
 | 5. Auth + Groups | 0/? | Not started | - |
 | 6. Push Notifications | 0/? | Not started | - |
-| 7. Watchparty | 0/4 | Not started | - |
+| 7. Watchparty | 4/8 | UAT complete-with-gaps — 4 gap-closure plans (07-05..07-08) pending | 07-04 UAT complete 2026-04-21 |
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/? | Not started | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
@@ -170,4 +179,5 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 ---
 *Roadmap created: 2026-04-19*
 *Restructured: 2026-04-20 (inserted Auth/Push/Intent/Redesign; pushed Year-in-Review to Phase 10)*
+*Gap-closure plans added: 2026-04-21 (07-05..07-08 closing UAT Issues #1-#4)*
 *v1 milestone: Commercial Release (Phases 3-10)*
