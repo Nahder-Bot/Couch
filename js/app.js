@@ -7621,12 +7621,26 @@ function renderWatchpartyLive() {
       <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">${participants.length} ${participants.length===1?'person':'people'} in: ${participants.map(([,p]) => p.name).join(', ')}</div>
       <div style="font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;">When you actually hit play, tap "Start my timer" below so your reactions line up with everyone else's.</div>
     </div>`;
-  } else if (!mine || !mine.startedAt) {
+  } else if (!mine) {
+    // Un-joined viewer — UNCHANGED copy. Footer's "Join late" button (js/app.js:~7654)
+    // is the single CTA for this case; do NOT introduce additional H2/body copy here
+    // (would create a redundant/conflicting action with the footer).
     body = `<div class="wp-prelaunch">
       <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
       <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
       ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
     </div>`;
+  } else if (!mine.startedAt) {
+    // Phase 7 Plan 06 (Gap #3): joined participant whose timer hasn't started yet
+    // (late joiner / pre-start creator / re-joiner). Show the "Ready when you are"
+    // prompt ABOVE the participant strip + reactions feed so they see the backlog
+    // in wallclock order while they spin up their own timer.
+    const prompt = `<div class="wp-prelaunch" style="padding-bottom:12px;">
+      <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
+      <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
+      ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
+    </div>`;
+    body = prompt + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine, 'wallclock');
   } else {
     // Active watching — render reactions feed based on mode
     // Phase 7 Plan 03 (PARTY-03): advisory per-member timer strip sits above the reactions feed
@@ -7686,8 +7700,11 @@ function renderWatchpartyLive() {
   }
 }
 
-function renderReactionsFeed(wp, mine) {
-  const mode = mine.reactionsMode || 'elapsed';
+function renderReactionsFeed(wp, mine, modeOverride) {
+  // Phase 7 Plan 06 (Gap #3): optional modeOverride forces a specific render mode,
+  // used by the late-joiner branch to force 'wallclock' so the backlog appears even
+  // when mine.startedAt is absent (myElapsed would be 0 and hide everything in elapsed mode).
+  const mode = modeOverride || mine.reactionsMode || 'elapsed';
   if (mode === 'hidden') {
     return `<div class="wp-live-body" id="wp-reactions-feed"><div class="wp-reactions-hidden">Reactions hidden. You can still post them; they're just not showing for you right now.</div></div>`;
   }
