@@ -75,7 +75,7 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 - [x] **DESIGN-02**: Warm dark palette audited and canonicalized into design tokens (colors, type, spacing, motion, radius) ✓ Phase 9 Plan 02 (2026-04-22)
 - [x] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces ✓ Plan 02 token layer (2026-04-22) + Plan 03 inline-style purge (2026-04-22) — 83 brand-critical inline declarations migrated to 53 token-backed classes; zero inline Fraunces/Instrument Serif remain
 - [x] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system ✓ Plan 03 tokenized brand-critical surfaces + Plan 04 desktop responsive layer (2026-04-22) — `.phone-shell` wrapper + single `@media (min-width: 900px)` block; Phase 7 UAT deferred watchparty-modal gap closed (`.wp-live-modal` 520→800px on desktop)
-- [ ] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup
+- [x] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup ✓ Plan 05 (2026-04-22) — landing.html (162 lines) at /, app.html at /app via Firebase Hosting rewrites; JSON-LD SoftwareApplication schema; install-redirect for standalone + ?invite=/?claim= deep links; user-locked copy with "Why we built it" blended-family hook + "Two ways to couch" SPIN/NOMINATION sections + 5-card audience grid; deployed to couchtonight.app, all 7 automated post-deploy gates green
 - [ ] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page
 - [ ] **DESIGN-07**: First-run onboarding polished to match the redesign and introduces feature surfaces tastefully (moods, veto, watchparty, push opt-in, intent flows)
 - [ ] **DESIGN-08**: Invite-flow onboarding (when a new user accepts an invite to an existing family) polished and brand-aligned
@@ -165,7 +165,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | DESIGN-02 | Phase 9 | Complete |
 | DESIGN-03 | Phase 9 | Complete |
 | DESIGN-04 | Phase 9 | Complete |
-| DESIGN-05 | Phase 9 | Pending |
+| DESIGN-05 | Phase 9 | Complete |
 | DESIGN-06 | Phase 9 | Pending |
 | DESIGN-07 | Phase 9 | Pending |
 | DESIGN-08 | Phase 9 | Pending |
