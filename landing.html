@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Couch — Who's on the couch tonight?</title>
+<meta name="description" content="Couch turns 'what do you want to watch?' into a 30-second ritual everyone on the couch trusts. A PWA for families to pick what to watch together.">
+<meta name="theme-color" content="#14110f">
+<link rel="canonical" href="https://couchtonight.app/">
+
+<!-- OG / Twitter -->
+<meta property="og:site_name" content="Couch">
+<meta property="og:title" content="Couch — Who's on the couch tonight?">
+<meta property="og:description" content="Turn 'what do you want to watch?' into a 30-second ritual everyone on the couch trusts.">
+<meta property="og:url" content="https://couchtonight.app/">
+<meta property="og:image" content="https://couchtonight.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- Icons -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+
+<!-- Google Fonts subset — landing uses Fraunces 400/600/800 + Inter 400/500/600 + Instrument Serif 400 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;800&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+
+<link rel="stylesheet" href="/css/landing.css">
+
+<!-- Installed-PWA + deep-link redirect. Runs before DOMContentLoaded, so no flash -->
+<script>
+(function() {
+  var search = window.location.search || '';
+  var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  var isDeepLink = search.indexOf('invite=') !== -1 || search.indexOf('claim=') !== -1;
+  if (isStandalone || isDeepLink) {
+    window.location.replace('/app' + search + window.location.hash);
+  }
+})();
+</script>
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Couch",
+  "alternateName": "Couch Tonight",
+  "applicationCategory": "EntertainmentApplication",
+  "operatingSystem": "Web, iOS, Android",
+  "description": "Couch turns 'what do you want to watch?' into a 30-second ritual everyone on the couch trusts.",
+  "url": "https://couchtonight.app/",
+  "image": "https://couchtonight.app/og.png",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+
+<main class="landing">
+
+  <section class="hero">
+    <img class="hero-wordmark" src="/logo-h300.png" alt="Couch" width="634" height="300">
+    <p class="hero-tagline">Who's on the couch tonight?</p>
+    <div class="hero-cta">
+      <a class="cta-primary" href="/app">Pull up a seat</a>
+      <a class="cta-secondary" href="/app">Already have an account? Sign in</a>
+    </div>
+  </section>
+
+  <section class="why">
+    <h2>Why we built it</h2>
+    <p><strong>Blended family. Five kids.</strong> Two of them are in the basement halfway through one show. Three more are in three different rooms watching three different things. And the parents still want to put on <em>something</em> together at the end of the night.</p>
+    <p>"What are you watching?" became a daily logistics meeting. Who started what with whom. Who fell asleep on episode 4. Who's free tonight. What everyone could actually agree on if they tried.</p>
+    <p>Every household runs a smaller version of this. Couples who can't remember if they finished the show. Friends across time zones trying to start a series in sync. Anyone who's said "wait, <em>don't spoil it</em>."</p>
+    <p>Couch is the answer to <em>"what are we watching tonight?"</em> — and the bigger question underneath: who, with who, and where did we leave off.</p>
+  </section>
+
+  <section class="about">
+    <h2>Turn the argument into a ritual</h2>
+    <p>Five people, three streaming services, two opinions on tone, one person already half-asleep. "What do you want to watch?" isn't a preference question — it's a coordination puzzle. Couch gives it two answers: <strong>vote together</strong> when nobody's decided, or <strong>drop a pick</strong> when one person already has one. Either way, tonight gets decided in 30 seconds, not 30 minutes.</p>
+  </section>
+
+  <section class="paths">
+    <h2>Two ways to couch</h2>
+    <div class="paths-grid">
+      <div class="path-card">
+        <p class="eyebrow">THE SPIN</p>
+        <p class="frame">Everyone's home. Nobody's picked.</p>
+        <ol>
+          <li><strong>Join the couch.</strong> Share a code. Everyone shows up.</li>
+          <li><strong>Everyone votes.</strong> Yes / maybe / no on the night's lineup. Takes 90 seconds.</li>
+          <li><strong>Spin decides.</strong> One spin, fair pick. Hate it? Veto. The wheel goes again.</li>
+        </ol>
+      </div>
+      <div class="path-card">
+        <p class="eyebrow">THE NOMINATION</p>
+        <p class="frame">One person has a pick. Others decide in.</p>
+        <ol>
+          <li><strong>Drop your pick.</strong> "I'm starting <em>Blade Runner</em> at 9pm."</li>
+          <li><strong>Everyone RSVPs.</strong> In / maybe / can't. See who's joining in real time.</li>
+          <li><strong>Couch calls it.</strong> Majority turns it into a watchparty. Everyone gets a heads-up when it's starting.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="paths-footnote">Both paths land the same place: everyone on the couch at the same time, watching the same thing.</p>
+  </section>
+
+  <section class="audience">
+    <h2>Who it's for</h2>
+    <div class="audience-grid">
+      <div class="audience-card"><span class="emoji">👨‍👩‍👧</span><h3>Family</h3><p>Including grandma three states away. Everybody votes.</p></div>
+      <div class="audience-card"><span class="emoji">💕</span><h3>Couples</h3><p>Stop the 20-minute scroll. Just pick.</p></div>
+      <div class="audience-card"><span class="emoji">🍿</span><h3>Friends</h3><p>Vote works even when you're not in the same room.</p></div>
+      <div class="audience-card"><span class="emoji">🎬</span><h3>Clubs</h3><p>Movie clubs, book-to-screen nights, anything recurring.</p></div>
+      <div class="audience-card"><span class="emoji">💻</span><h3>Teams</h3><p>Remote happy hour, Friday films, off-site warm-ups.</p></div>
+    </div>
+  </section>
+
+  <section class="screenshots" id="screenshots">
+    <h2>See it in use</h2>
+    <div class="screenshot-grid">
+      <!-- Placeholders — plan 09-06 fills these with real screenshots -->
+      <div class="screenshot-card"><div class="screenshot-placeholder">Tonight</div></div>
+      <div class="screenshot-card"><div class="screenshot-placeholder">Watchparty</div></div>
+      <div class="screenshot-card"><div class="screenshot-placeholder">Mood filter</div></div>
+      <div class="screenshot-card"><div class="screenshot-placeholder">Year-in-Review</div></div>
+    </div>
+  </section>
+
+  <section class="install">
+    <h2>Install on your home screen</h2>
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>iOS Safari</h3>
+        <p>Tap Share → Add to Home Screen. Opens like a real app.</p>
+      </div>
+      <div class="install-card">
+        <h3>Android Chrome</h3>
+        <p>Tap menu → Install app. Or hit the banner when it shows.</p>
+      </div>
+      <div class="install-card">
+        <h3>Desktop Chrome</h3>
+        <p>Click the install icon in the URL bar. Lives in its own window.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <!-- TODO pre-launch: wire footer legal links (privacy + terms) when legal copy lands.
+         Deliberately omitted in Phase 9 to avoid shipping 404 links. Tracked in plan 09-05 risk_notes. -->
+    <p>© Couch</p>
+  </footer>
+
+</main>
+
+</body>
+</html>
