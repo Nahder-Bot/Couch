@@ -1,0 +1,9 @@
+# https://couchtonight.app/robots.txt
+# Couch is a PWA for families to pick what to watch together.
+# Crawl the landing; the app shell at /app is private (noindex meta too).
+
+User-agent: *
+Disallow: /app
+Disallow: /app/
+
+Sitemap: https://couchtonight.app/sitemap.xml
