@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Not found — Couch</title>
+<meta name="description" content="This page isn't on the couch. Head back to the main couchtonight.app.">
+<meta name="theme-color" content="#14110f">
+<meta name="robots" content="noindex,nofollow">
+
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+
+<style>
+  :root {
+    --bg: #14110f;
+    --ink: #f5ede0;
+    --ink-warm: #c9bca8;
+    --ink-dim: #847868;
+    --accent: #e8a04a;
+    --border: rgba(245,237,224,0.10);
+    --brand-grad: linear-gradient(135deg, #e8a04a 0%, #d97757 50%, #c54f63 100%);
+    --ease-cinema: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  body { display: grid; place-items: center; padding: 40px 20px; }
+  body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>"); opacity: 0.5; mix-blend-mode: overlay; }
+  main { position: relative; z-index: 2; max-width: 480px; text-align: center; }
+  .eyebrow { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; margin: 0 0 20px; }
+  h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 44px; line-height: 1.05; margin: 0 0 14px; letter-spacing: -0.01em; }
+  p.tagline { font-family: 'Instrument Serif', serif; font-style: italic; color: var(--ink-warm); font-size: 20px; margin: 0 0 28px; }
+  p.body { color: var(--ink-warm); font-size: 15px; margin: 0 auto 32px; max-width: 380px; }
+  .cta { display: inline-block; padding: 13px 30px; background: var(--brand-grad); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px; text-decoration: none; border-radius: 999px; box-shadow: 0 4px 24px rgba(232,160,74,0.22); transition: transform 220ms var(--ease-cinema); }
+  .cta:hover { transform: translateY(-1px); }
+  .code { display: block; margin-top: 48px; font-family: 'Instrument Serif', serif; font-style: italic; font-size: 13px; color: var(--ink-dim); letter-spacing: 0.06em; }
+  @media (min-width: 640px) {
+    h1 { font-size: 56px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cta, .cta:hover { transition: none; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <p class="eyebrow">404</p>
+  <h1>This couch is empty.</h1>
+  <p class="tagline">The page you're looking for took a seat somewhere else.</p>
+  <p class="body">Check the URL, or head back to the main couch.</p>
+  <a class="cta" href="/">Back to Couch</a>
+  <span class="code">not found · couchtonight.app</span>
+</main>
+
+</body>
+</html>
