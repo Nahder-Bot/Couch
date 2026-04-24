@@ -946,6 +946,31 @@
     <div class="modal wp-live-modal" id="wp-live-content"></div>
   </div>
 
+  <!-- Phase 11 / REFR-09 — Post-session modal: rating + photo upload + schedule-next.
+       Triggered on wp.status transition to ended-equivalent (user taps "Done" on the
+       live footer → endMyWatchparty opens this modal before diary). -->
+  <div class="modal-bg" id="wp-post-session-modal-bg" onclick="if(event.target.id==='wp-post-session-modal-bg')closePostSession()">
+    <div class="modal wp-post-session-modal">
+      <h3 class="modal-h2 wp-post-session-title"><em>That's a wrap.</em></h3>
+      <div class="wp-post-session-sub" id="wp-post-session-sub"><em>How was the movie?</em></div>
+      <div class="wp-rating-row" role="radiogroup" aria-label="Rate this watch">
+        <button type="button" class="wp-rating-star" data-stars="1" onclick="setRating(1)" aria-label="1 star">&#9734;</button>
+        <button type="button" class="wp-rating-star" data-stars="2" onclick="setRating(2)" aria-label="2 stars">&#9734;</button>
+        <button type="button" class="wp-rating-star" data-stars="3" onclick="setRating(3)" aria-label="3 stars">&#9734;</button>
+        <button type="button" class="wp-rating-star" data-stars="4" onclick="setRating(4)" aria-label="4 stars">&#9734;</button>
+        <button type="button" class="wp-rating-star" data-stars="5" onclick="setRating(5)" aria-label="5 stars">&#9734;</button>
+      </div>
+      <div class="wp-rating-confirm" id="wp-rating-confirm" style="display:none;"><em>Thanks for the honest take.</em></div>
+      <div class="wp-photo-upload" id="wp-photo-upload-tile">
+        <input type="file" accept="image/jpeg,image/png,image/webp" id="wp-photo-input" style="display:none;" onchange="uploadPostSessionPhoto(event)">
+        <button type="button" class="wp-photo-upload-trigger" onclick="document.getElementById('wp-photo-input').click()">Add a couch photo</button>
+      </div>
+      <div id="wp-photo-preview" style="display:none;"></div>
+      <button type="button" class="wp-schedule-next-cta" onclick="openScheduleNext()">Schedule another night</button>
+      <button type="button" class="wp-post-session-skip" onclick="closePostSession()">Maybe later</button>
+    </div>
+  </div>
+
   <!-- Phase 7 Plan 03: hidden input for native emoji keyboard picker.
        openEmojiPicker() focuses this to pop the iOS/Android emoji keyboard. -->
   <input id="wp-emoji-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"

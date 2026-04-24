@@ -874,6 +874,22 @@ h3{font-size:var(--t-h3)}
 .wp-catchup-rail-emoji{font-size:18px;line-height:1}
 .wp-catchup-dismiss{align-self:center;margin-top:var(--s2)}
 @media (prefers-reduced-motion: reduce){.wp-catchup-card{animation:none;transition:none}}
+/* Phase 11 / REFR-09 — Post-session modal (rating + photo + schedule-next). Reuses
+   .modal-bg + .modal shell; only the body variant below is new. 32px star + 44px min
+   touch floor are token-aliased exceptions per UI-SPEC §Spacing; all other spacing via
+   --s* tokens. */
+.wp-post-session-modal{max-width:480px;padding:var(--s6)}
+.wp-post-session-title{font-family:var(--font-serif);font-style:italic;font-size:var(--t-h2);color:var(--ink);text-align:center;margin:0 0 var(--s2)}
+.wp-post-session-sub{font-family:var(--font-serif);font-style:italic;font-size:var(--t-h3);color:var(--ink-warm);text-align:center;margin-bottom:var(--s5)}
+.wp-rating-row{display:flex;justify-content:center;gap:var(--s2);margin-bottom:var(--s4)}
+.wp-rating-star{background:none;border:none;font-size:32px;color:var(--ink-dim);cursor:pointer;padding:var(--s1);min-width:44px;min-height:44px;display:grid;place-items:center;transition:color var(--duration-fast) var(--easing-spring)}
+.wp-rating-star.filled{color:var(--accent)}
+.wp-rating-confirm{font-family:var(--font-serif);font-style:italic;font-size:var(--t-meta);color:var(--ink-warm);text-align:center;margin-bottom:var(--s4)}
+.wp-photo-upload{margin-bottom:var(--s4)}
+.wp-photo-upload-trigger{display:block;width:100%;padding:var(--s5);background:var(--surface);border:2px dashed var(--border);color:var(--ink-warm);font-family:inherit;font-size:var(--t-body);border-radius:var(--r-md);cursor:pointer;min-height:120px;transition:border-color var(--duration-fast) var(--easing-out)}
+.wp-photo-upload-trigger:hover{border-color:var(--accent);color:var(--ink)}
+.wp-schedule-next-cta{display:block;width:100%;padding:14px var(--s5);background:var(--brand-grad);color:var(--bg);border:none;border-radius:var(--r-md);font-family:inherit;font-weight:700;font-size:var(--t-body);min-height:44px;cursor:pointer;margin-bottom:var(--s2);box-shadow:var(--shadow-warm)}
+.wp-post-session-skip{display:block;width:100%;padding:var(--s2);background:none;border:none;color:var(--ink-dim);font-family:inherit;font-size:var(--t-meta);cursor:pointer;min-height:44px}
 .wp-reactions-hidden{text-align:center;padding:28px;color:var(--ink-dim);font-style:italic;font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-body)}
 .wp-history-list{display:flex;flex-direction:column;gap:10px}
 .wp-history-item{display:flex;align-items:center;gap:12px;padding:14px;background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:all var(--t-quick)}

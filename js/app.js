@@ -1,4 +1,4 @@
-import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword } from './firebase.js';
+import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
@@ -8565,6 +8565,146 @@ window.hostStartSession = async function(wpId) {
   }
 };
 
+// ---- Phase 11 / REFR-09 — Post-session modal handlers ----
+// Opens on endMyWatchparty (user taps "Done" on live footer). Shows 5-star rating +
+// couch-photo upload (Firebase Storage first use, narrow scope per CLAUDE.md) +
+// "Schedule another night" CTA that pre-fills the watchparty start modal with the same
+// title. "Maybe later" dismisses and flags wp.postSessionDismissedBy[memberId]=true.
+let _postSessionWpId = null;
+let _postSessionRating = 0;
+
+window.openPostSession = function(wpId) {
+  const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
+  if (!wp || !state.me) return;
+  const dismissed = wp.postSessionDismissedBy && wp.postSessionDismissedBy[state.me.id];
+  const alreadyRated = wp.ratings && wp.ratings[state.me.id];
+  if (dismissed || alreadyRated) return;
+  _postSessionWpId = wpId;
+  _postSessionRating = 0;
+  const sub = document.getElementById('wp-post-session-sub');
+  if (sub) sub.innerHTML = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
+  // Reset rating + photo UI
+  document.querySelectorAll('.wp-rating-star').forEach(s => { s.classList.remove('filled'); s.innerHTML = '&#9734;'; });
+  const rc = document.getElementById('wp-rating-confirm'); if (rc) rc.style.display = 'none';
+  const pp = document.getElementById('wp-photo-preview'); if (pp) { pp.style.display = 'none'; pp.innerHTML = ''; }
+  const pt = document.getElementById('wp-photo-upload-tile'); if (pt) pt.style.display = '';
+  const pi = document.getElementById('wp-photo-input'); if (pi) pi.value = '';
+  const bg = document.getElementById('wp-post-session-modal-bg');
+  if (bg) bg.classList.add('on');
+};
+
+window.closePostSession = async function() {
+  // Flag dismissal so the modal doesn't reappear on next render of this wp.
+  if (_postSessionWpId && state.me) {
+    try {
+      await updateDoc(watchpartyRef(_postSessionWpId), {
+        [`postSessionDismissedBy.${state.me.id}`]: true,
+        ...writeAttribution()
+      });
+    } catch(e) { /* best effort — dismissal is UX nicety */ }
+  }
+  const bg = document.getElementById('wp-post-session-modal-bg');
+  if (bg) bg.classList.remove('on');
+  _postSessionWpId = null;
+  _postSessionRating = 0;
+};
+
+window.setRating = async function(stars) {
+  _postSessionRating = stars;
+  document.querySelectorAll('.wp-rating-star').forEach((el, idx) => {
+    if (idx < stars) { el.classList.add('filled'); el.innerHTML = '&#9733;'; }
+    else { el.classList.remove('filled'); el.innerHTML = '&#9734;'; }
+  });
+  const rc = document.getElementById('wp-rating-confirm');
+  if (rc) rc.style.display = '';
+  if (_postSessionWpId && state.me) {
+    try {
+      await updateDoc(watchpartyRef(_postSessionWpId), {
+        [`ratings.${state.me.id}`]: stars,
+        ...writeAttribution()
+      });
+      haptic('success');
+    } catch(e) { /* best effort — user can retry */ }
+  }
+};
+
+// Client-side compression to strip EXIF (T-11-05-09 mitigation — canvas.toBlob discards
+// EXIF) and shrink to ≤1MB JPEG before Firebase Storage upload. Canvas resize cap 1600px
+// longest edge, JPEG quality 0.85 per plan spec.
+async function compressImageToBlob(file, maxW, maxH, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = function() {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const ratio = Math.min(maxW / w, maxH / h, 1);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        if (blob) resolve(blob); else reject(new Error('blob fail'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('img load fail')); };
+    img.src = url;
+  });
+}
+
+window.uploadPostSessionPhoto = async function(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  // Client-side validation — defense-in-depth with storage.rules (T-11-05-02/03 mitigation).
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!validTypes.includes(file.type)) {
+    flashToast('Photo must be JPEG, PNG, or WebP', { kind: 'error' });
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    flashToast('Photo too large (max 5MB)', { kind: 'error' });
+    return;
+  }
+  if (!_postSessionWpId || !state.me || !state.familyCode) return;
+  try {
+    const compressed = await compressImageToBlob(file, 1600, 1600, 0.85);
+    const ts = Date.now();
+    const uidForPath = (state.auth && state.auth.uid) || state.me.id;
+    const path = `couch-albums/${state.familyCode}/${_postSessionWpId}/${ts}_${uidForPath}.jpg`;
+    const sref = storageRef(storage, path);
+    await uploadBytes(sref, compressed, { contentType: 'image/jpeg' });
+    const url = await getDownloadURL(sref);
+    await updateDoc(watchpartyRef(_postSessionWpId), {
+      photos: arrayUnion({ url, uploadedBy: state.me.id, uploadedAt: ts }),
+      ...writeAttribution()
+    });
+    const tile = document.getElementById('wp-photo-upload-tile');
+    if (tile) tile.style.display = 'none';
+    const preview = document.getElementById('wp-photo-preview');
+    if (preview) {
+      preview.style.display = '';
+      preview.innerHTML = `<img src="${url}" alt="Couch photo" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;">`;
+    }
+    haptic('success');
+    flashToast('Photo saved', { kind: 'success' });
+  } catch(e) {
+    flashToast('Could not upload photo', { kind: 'error' });
+  }
+};
+
+window.openScheduleNext = function() {
+  // Find the just-ended wp + look up titleId so the schedule modal pre-fills.
+  const wp = state.watchparties && state.watchparties.find(x => x.id === _postSessionWpId);
+  if (!wp) { closePostSession(); return; }
+  const titleId = wp.titleId || ((state.titles || []).find(t => t.name === wp.titleName) || {}).id;
+  // Close the post-session modal first (fire-and-forget dismissal write) then open start modal.
+  closePostSession();
+  if (titleId && typeof window.openWatchpartyStart === 'function') {
+    // Small delay to let modal close transition finish before next opens
+    setTimeout(() => window.openWatchpartyStart(titleId), 180);
+  }
+};
+
 window.leaveWatchparty = async function(wpId) {
   if (!state.me) return;
   if (!confirm('Leave this watchparty?')) return;
@@ -8608,8 +8748,16 @@ window.endMyWatchparty = async function(wpId) {
     .map(([mid, p]) => ({ id: mid, name: p.name }));
   // Close the live modal
   closeWatchpartyLive();
-  // Prompt to log the watch — opens the diary modal for this title
-  if (typeof window.openDiary === 'function') {
+  // Phase 11 / REFR-09 — Post-session modal: rating + photo + schedule-next.
+  // Opens BEFORE the diary modal (diary still fires afterward via the Schedule-next /
+  // Maybe-later flow if desired in a future plan). For v1 the post-session modal is
+  // the primary close-out surface; diary remains available via Couch history.
+  if (typeof window.openPostSession === 'function') {
+    setTimeout(() => window.openPostSession(wpId), 200);
+  } else if (typeof window.openDiary === 'function') {
+    // Defensive fallback — should never fire since openPostSession is defined in the
+    // same module, but keeps the original behavior intact if the window attach somehow
+    // fails during an emergency hot-patch.
     setTimeout(() => window.openDiary(titleId, cowatchers), 150);
   }
 };
