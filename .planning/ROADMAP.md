@@ -25,7 +25,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [x] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll) ✓ 2026-04-22 (UAT autonomous via browser-Claude; 1 seed for CF timezone echo)
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
 - [ ] **Phase 10: Year-in-Review** — End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
-- [ ] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs
+- [x] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs [CODE-COMPLETE 2026-04-24; deploy batch 11-04 through 11-07 pending Blaze billing + Firebase Storage enablement]
 
 ## Phase Details
 
@@ -180,14 +180,14 @@ Plans:
   5. Dedicated Sports Game Mode ships: `SportsDataProvider` abstraction (ESPN + BALLDONTLIE), game picker, live score strip, kickoff countdown + auto-transition, play-scoped amplified reactions, late-joiner "current score + last 3 plays" card, team-flair avatar badges, per-user DVR offset slider.
 **Plans**: 8 plans across 4 waves — finalized 2026-04-24 via /gsd-plan-phase 11
 Plans:
-- [ ] 11-01-PLAN.md — UX tightening: mood chip spacing, picker-hide feature flag, who-card redesign (REFR-01, REFR-02, REFR-03)
-- [ ] 11-02-PLAN.md — Family + Account tab restructures (REFR-11, REFR-12)
-- [ ] 11-03a-PLAN.md — Discovery rotation engine + auto-category rows (REFR-04 first half)
-- [ ] 11-03b-PLAN.md — Curated lists + Browse-all + personalization (REFR-04 second half)
+- [x] 11-01-PLAN.md — UX tightening: mood chip spacing, picker-hide feature flag, who-card redesign (REFR-01, REFR-02, REFR-03) [complete 2026-04-24]
+- [x] 11-02-PLAN.md — Family + Account tab restructures (REFR-11, REFR-12) [complete 2026-04-24]
+- [x] 11-03a-PLAN.md — Discovery rotation engine + auto-category rows (REFR-04 first half) [complete 2026-04-24]
+- [x] 11-03b-PLAN.md — Curated lists + Browse-all + personalization (REFR-04 second half) [complete 2026-04-24]
 - [x] 11-04-PLAN.md — Web RSVP route + Web Share API + async push nurture (REFR-05, REFR-06) [complete 2026-04-24; deploy deferred pending Blaze billing confirmation]
 - [x] 11-05-PLAN.md — Pre-session lobby + late-joiner catch-me-up + post-session loop (REFR-07, REFR-08, REFR-09) [complete 2026-04-24; deploy deferred with 11-04 pending Blaze billing + Firebase Storage enablement]
 - [x] 11-06-PLAN.md — Sports Game Mode v1: SportsDataProvider, game picker, score strip, play-scoped reactions, DVR slider (REFR-10) [complete 2026-04-24; deploy deferred — ESPN ToS-gray accepted per threat model; BALLDONTLIE swap stub in place]
-- [ ] 11-07-PLAN.md — Couch Nights themed ballot packs (REFR-13) — may defer to Phase 12
+- [x] 11-07-PLAN.md — Couch Nights themed ballot packs (REFR-13) [complete 2026-04-24; 8 packs with curated TMDB IDs + pack-detail sheet + seed-ballot Vote-mode launcher; deploy deferred with 11-04+11-05+11-06 batch]
 **UI hint**: yes (heavy UI touches; UI-SPEC.md to be generated via /gsd-ui-phase 11 before planning)
 
 ## Progress
@@ -207,7 +207,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
-| 11. Feature refresh & streamline | 7/8 | Executing — W1 11-01 + 11-02 done, W2 11-03a + 11-03b done, W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 code-complete (Sports Game Mode, REFR-10 closed); 11-07 stretch pending | 11-06 code 2026-04-24 |
+| 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
 
 ---
 *Roadmap created: 2026-04-19*

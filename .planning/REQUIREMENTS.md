@@ -94,19 +94,19 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 
 Scoped via /gsd-discuss-phase 11 (2026-04-23); 6 user decisions locked; RESEARCH.md + CONTEXT.md + 3 appendices (CATEGORIES, SMS-OPTIONS, TABS-AUDIT) complete. Two parallel tracks: declutter + streamline (REFR-01/02/03, REFR-11/12) and moat-expansion (REFR-04, REFR-05/06, REFR-07/08/09, REFR-10, REFR-13).
 
-- [ ] **REFR-01**: Mood filter chip spacing tightened; chip padding reduced; visually denser without sacrificing tap target
-- [ ] **REFR-02**: "Whose turn to pick" UI surfaces hidden across Tonight + Family tabs (feature-flag reversible via body class); backend spinnership writes preserved
-- [ ] **REFR-03**: "Who's on the couch" card redesigned to a cleaner, denser format (avatar-stack or compact horizontal row — variant locked at plan-phase)
-- [ ] **REFR-04**: Add-tab discovery expanded from 4 to a 35-row catalog organized in 6 buckets (always-on / trending / discovery / use-case / theme-of-the-day / seasonal / group-aware); 8-10 rows visible per day via per-user-per-day hash-seeded rotation; auto-categories only in v1 (curated lists + Browse-all + pinning + personalization ship in plan 11-03b)
+- [x] **REFR-01**: Mood filter chip spacing tightened; chip padding reduced; visually denser without sacrificing tap target [Plan 11-01, complete 2026-04-24]
+- [x] **REFR-02**: "Whose turn to pick" UI surfaces hidden across Tonight + Family tabs (feature-flag reversible via body class); backend spinnership writes preserved [Plan 11-01, complete 2026-04-24]
+- [x] **REFR-03**: "Who's on the couch" card redesigned to a cleaner, denser format (avatar-stack or compact horizontal row — variant locked at plan-phase) [Plan 11-01, complete 2026-04-24]
+- [x] **REFR-04**: Add-tab discovery expanded from 4 to a 25-row DISCOVERY_CATALOG organized in 7 buckets (always-on / trending / discovery auto / discovery curated / use-case / theme-of-day / seasonal / personalization-group-aware); 7-10 rows visible per day via per-user-per-day hash-seeded rotation; auto categories + curated lists + Browse-all + pin-up-to-3 + personalization ALL shipped across 11-03a+11-03b [Plans 11-03a + 11-03b, complete 2026-04-24]
 - [x] **REFR-05**: Web RSVP route (`/rsvp/<token>`) + Web Share API integration — lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK); schedule modal wires `navigator.share()`; non-members land on RSVP page, convert to push-receiving members on first interaction. Twilio + SMS automation deferred to Milestone 2 per user decision 4. [Plan 11-04, code-complete 2026-04-24; host-triggered "remind unresponsive" button deferred to Plan 11-05 lobby scope]
 - [x] **REFR-06**: Asymmetric push reminder cadence keyed to RSVP state (members only) — Yes = 2 touches (T-24h, T-1h); Maybe = 3 touches (T-7d, T-24h, T-1h); Not-responded = 2 (T-48h, T-4h); No = silence. Host-triggered "remind unresponsive" button (push for members, re-share-link for non-members). [Plan 11-04, code-complete 2026-04-24 — auto-cadence shipped via rsvpReminderTick scheduled CF; host-triggered manual remind button deferred to Plan 11-05]
 - [x] **REFR-07**: Pre-session lobby upgrade — evolve participant timer strip into a T-15min "green room": who's here, who's en-route, countdown, per-person Ready check, democratic auto-start at T-0 once majority Ready [Plan 11-05, code-complete 2026-04-24; deploy deferred with 11-04 pending Blaze billing confirmation]
 - [x] **REFR-08**: Late-joiner "Catch me up" recap — 30-second summary of reactions that fired before they joined. Preserves Couch's per-user reaction-delay moat while eliminating timeline-loss friction. [Plan 11-05, code-complete 2026-04-24]
 - [x] **REFR-09**: Post-session loop — auto-prompt 5-star rating + "Add photo to album" + one-tap "Schedule next" using same roster. Converts one party into recurring ritual. [Plan 11-05, code-complete 2026-04-24; Firebase Storage first use — Variant A rules pending deploy + Firebase Console Storage enablement + emulator test matrix]
 - [x] **REFR-10**: Dedicated Sports Game Mode — `SportsDataProvider` abstraction (ESPN hidden API primary + BALLDONTLIE stub for v2 swap), game picker modal with 4 league tabs, live score strip (sticky-top, tabular-nums), score-delta polling (adaptive 5s on-play / 15s off-play), play-scoped amplified reactions (4 burst emojis, 3s auto-dismiss), late-joiner sports Catch-me-up variant (score + last 3 plays), team-flair avatar badges (border in team color via runtime CSS custom property), per-user DVR slider writing to participants[mid].dvrOffsetMs AND reusing Phase 7 reactionDelay anchor. [Plan 11-06, code-complete 2026-04-24; deploy deferred — ESPN ToS-gray accepted per threat model; BALLDONTLIE swap path wired for when/if ESPN denies]
-- [ ] **REFR-11**: Family tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 6 sections → 5 (Tonight status NEW / Approvals / Members split active vs sub-profiles / Couch history consolidated / Group settings footer). Picker section cut per REFR-02. Couch calendar + ADDs deferred to Phase 12.
-- [ ] **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 9 flat sections → 3 cognitive clusters (You / Couch-wide / Admin & maintenance). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12.
-- [ ] **REFR-13** (stretch, may defer to Phase 12): "Couch Nights" themed ballot packs — Studio Ghibli, Cozy Rainy Sunday, Halloween Crawl, Date Night Picks, etc. Pre-loaded ballots the host taps once to kick off a themed session.
+- [x] **REFR-11**: Family tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 6 sections → 5 (Tonight status NEW / Approvals / Members split active vs sub-profiles / Couch history consolidated / Group settings footer). Picker section cut per REFR-02. Couch calendar + ADDs deferred to Phase 12. [Plan 11-02, complete 2026-04-24]
+- [x] **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 9 flat sections → 3 cognitive clusters (You / Couch-wide / Admin & maintenance). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12. [Plan 11-02, complete 2026-04-24]
+- [x] **REFR-13**: "Couch Nights" themed ballot packs — 8 curated packs (Studio Ghibli Sunday, Cozy Rainy Night, Halloween Crawl, Date Night Classics, Kids' Room Classics, A24 Night, Oscars Short List, Dad's Action Pantheon) with hero poster + BRAND-voice description + mood token + 10-12 curated TMDB IDs. Add-tab tile row + pack-detail sheet + "Start this pack" seeds ballot + launches Vote mode. [Plan 11-07, complete 2026-04-24]
 
 ## v2 Requirements
 
@@ -194,19 +194,19 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | YEAR-03 | Phase 10 | Pending |
 | YEAR-04 | Phase 10 | Pending |
 | YEAR-05 | Phase 10 | Pending |
-| REFR-01 | Phase 11 | Pending |
-| REFR-02 | Phase 11 | Pending |
-| REFR-03 | Phase 11 | Pending |
-| REFR-04 | Phase 11 | Pending |
+| REFR-01 | Phase 11 Plan 01 | Complete 2026-04-24 |
+| REFR-02 | Phase 11 Plan 01 | Complete 2026-04-24 |
+| REFR-03 | Phase 11 Plan 01 | Complete 2026-04-24 |
+| REFR-04 | Phase 11 Plans 03a + 03b | Complete 2026-04-24 |
 | REFR-05 | Phase 11 Plan 04 | Complete (code) 2026-04-24 |
 | REFR-06 | Phase 11 Plan 04 | Complete (code) 2026-04-24 |
 | REFR-07 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
 | REFR-08 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
 | REFR-09 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
 | REFR-10 | Phase 11 Plan 06 | Complete (code) 2026-04-24 |
-| REFR-11 | Phase 11 | Pending |
-| REFR-12 | Phase 11 | Pending |
-| REFR-13 | Phase 11 | Pending (stretch — may defer to Phase 12) |
+| REFR-11 | Phase 11 Plan 02 | Complete 2026-04-24 |
+| REFR-12 | Phase 11 Plan 02 | Complete 2026-04-24 |
+| REFR-13 | Phase 11 Plan 07 | Complete (code) 2026-04-24 |
 
 **Coverage:**
 - v1 requirements: 65 total (21 complete across Phases 3+4+7+9; 44 pending across Phases 5/6/7/8/9/10/11)
