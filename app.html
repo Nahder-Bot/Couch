@@ -370,6 +370,19 @@
       </div>
       <div class="sports-entry-chev">›</div>
     </div>
+
+    <!-- Phase 11 / REFR-10 — Dedicated Game Mode entry. Distinct from "Schedule a game"
+         above: this flow creates a wp with mode='game' which unlocks the live score strip,
+         score-delta amplified reactions, DVR slider, team-flair badges, and sports
+         Catch-me-up variant. Legacy sports entry stays for compatibility. -->
+    <div class="sports-entry" onclick="openGamePicker()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGamePicker();}">
+      <div class="sports-entry-icon">📺</div>
+      <div class="sports-entry-body">
+        <div class="sports-entry-title">Watch a game live</div>
+        <div class="sports-entry-sub">Live score · amplified reactions · DVR offset</div>
+      </div>
+      <div class="sports-entry-chev">›</div>
+    </div>
     <div id="search-results-section" class="add-search-results" style="display:none;" aria-live="polite" aria-atomic="false">
       <div class="matches-header"><div class="matches-title">Search results</div><button class="pill" aria-label="Clear search" onclick="clearSearch()">Clear</button></div>
       <div id="search-results-list"></div>
