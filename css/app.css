@@ -863,6 +863,17 @@ h3{font-size:var(--t-h3)}
 .wp-ready-check.on{background:var(--good);color:var(--bg);border-color:transparent;font-weight:700}
 .wp-lobby-start-btn{padding:14px var(--s5);background:var(--brand-grad);color:var(--bg);border:none;border-radius:var(--r-md);font-family:inherit;font-weight:700;font-size:var(--t-body);min-height:44px;cursor:pointer;width:100%;box-shadow:var(--shadow-warm)}
 @media (prefers-reduced-motion: reduce){.wp-countdown-ring{animation:none}.wp-ready-check{transition:none}}
+/* Phase 11 / REFR-08 — Late-joiner Catch-me-up card (30s reaction recap rail). */
+.wp-catchup-card{background:linear-gradient(180deg,rgba(232,160,74,0.08) 0%,var(--surface-2) 40%);border:1px solid rgba(232,160,74,0.40);border-radius:var(--r-md);padding:var(--s4);margin-bottom:var(--s3);display:flex;flex-direction:column;gap:var(--s2)}
+.wp-catchup-eyebrow{font-family:var(--font-sans);font-size:var(--t-eyebrow);color:var(--warn);letter-spacing:0.12em;text-transform:uppercase;font-weight:600}
+.wp-catchup-title{font-family:var(--font-serif);font-style:italic;font-size:var(--t-h3);color:var(--ink)}
+.wp-catchup-rail{display:flex;gap:var(--s2);overflow-x:auto;scrollbar-width:none;padding:var(--s2) 0}
+.wp-catchup-rail::-webkit-scrollbar{display:none}
+.wp-catchup-rail-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:32px}
+.wp-catchup-rail-av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:white}
+.wp-catchup-rail-emoji{font-size:18px;line-height:1}
+.wp-catchup-dismiss{align-self:center;margin-top:var(--s2)}
+@media (prefers-reduced-motion: reduce){.wp-catchup-card{animation:none;transition:none}}
 .wp-reactions-hidden{text-align:center;padding:28px;color:var(--ink-dim);font-style:italic;font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-body)}
 .wp-history-list{display:flex;flex-direction:column;gap:10px}
 .wp-history-item{display:flex;align-items:center;gap:12px;padding:14px;background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:all var(--t-quick)}

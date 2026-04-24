@@ -8078,7 +8078,11 @@ function renderWatchpartyLive() {
     // Phase 7 Plan 03 (PARTY-03): advisory per-member timer strip sits above the reactions feed
     // so everyone sees where their co-watchers are in the runtime. No forcing — each member
     // tracks their own pace. See 07-CONTEXT.md D-01/02/03.
-    body = renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine);
+    // Phase 11 / REFR-08: inject the late-joiner Catch-me-up card at the TOP of wp-live-body
+    // so late joiners get a 30s reaction recap without breaking the per-user reaction-delay
+    // moat. Empty state (< 3 pre-join reactions in window) hides the card entirely.
+    const catchupHtml = renderCatchupCard(wp, mine);
+    body = catchupHtml + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine);
   }
 
   // Footer
@@ -8135,6 +8139,50 @@ function renderWatchpartyLive() {
     });
   }
 }
+
+// Phase 11 / REFR-08 — Late-joiner Catch-me-up card. Shows 24px emoji + mini-avatar
+// bubbles from the last 30 seconds of reactions BEFORE the user joined, so they get
+// context without breaking Couch's per-user reaction-delay moat. Hides entirely when
+// < 3 pre-join reactions exist (empty-state noise guard per UI-SPEC REFR-08).
+// Dismissal is per-session local (window._catchupDismissed map) — no Firestore write.
+// Sports mode (REFR-10 / Plan 11-06) will replace the reaction rail with a score +
+// last-3-plays card; placeholder passthrough for now.
+function renderCatchupCard(wp, mine) {
+  const joinedAt = mine && mine.joinedAt ? mine.joinedAt : null;
+  const startedAt = wp && wp.startedAt ? wp.startedAt : null;
+  if (!joinedAt || !startedAt) return '';
+  if (joinedAt <= startedAt + ONTIME_GRACE_MS) return '';
+  if (window._catchupDismissed && window._catchupDismissed[wp.id]) return '';
+  const windowStart = joinedAt - 30 * 1000;
+  const preJoinReactions = (wp.reactions || [])
+    .filter(r => (r.at || 0) < joinedAt && (r.at || 0) >= windowStart)
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+  if (preJoinReactions.length < 3) return '';  // empty state = hide entirely
+  // Sports variant placeholder — Plan 11-06 REFR-10 replaces the reaction rail below
+  // with a score+last-3-plays card. v1 falls through to the movie-mode reaction rail.
+  const rail = preJoinReactions.map(r => {
+    const initial = (r.memberName || '?')[0].toUpperCase();
+    const color = memberColor(r.memberId);
+    const emoji = r.kind === 'emoji' ? (r.emoji || '') : '';
+    return `<div class="wp-catchup-rail-item" title="${escapeHtml(r.memberName || '')}">
+      <div class="wp-catchup-rail-av" style="background:${color};">${escapeHtml(initial)}</div>
+      <div class="wp-catchup-rail-emoji">${emoji || '💬'}</div>
+    </div>`;
+  }).join('');
+  return `<div class="wp-catchup-card">
+    <div class="wp-catchup-eyebrow">YOU MISSED</div>
+    <div class="wp-catchup-title"><em>Here's the last 30 seconds.</em></div>
+    <div class="wp-catchup-rail">${rail}</div>
+    <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+  </div>`;
+}
+
+window.dismissCatchup = function(wpId) {
+  window._catchupDismissed = window._catchupDismissed || {};
+  window._catchupDismissed[wpId] = true;
+  const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
+  if (wp) renderWatchpartyLive();
+};
 
 function renderReactionsFeed(wp, mine, modeOverride) {
   // Phase 7 Plan 06 (Gap #3): optional modeOverride forces a specific render mode,
