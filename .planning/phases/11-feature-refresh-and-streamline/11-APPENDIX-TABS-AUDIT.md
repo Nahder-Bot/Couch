@@ -3,6 +3,12 @@
 **Created:** 2026-04-23 in response to user direction to "reorganize but also review if we should trim, edit, add, or reframe things."
 **Goal:** for every section in both tabs, record what it does today, evaluate value, and propose KEEP / TRIM / EDIT / REFRAME / CUT / ADD with specific actions.
 
+> **DECIDED 2026-04-23: option (b) — accept restructure now, defer ADDs to Phase 12.**
+>
+> Plan 11-02 ships the proposed Family tab (6→5 sections) + Account tab (9→3 cognitive clusters) restructure. NEW sections (Tonight status block F-NEW-1, Couch calendar F-NEW-2, Recent watchparties F-NEW-3 on Family; Notification preferences detail A-NEW-1, Privacy/data controls A-NEW-2, Theme prefs A-NEW-3, About/version/feedback A-NEW-4 on Account) defer to Phase 12 to keep Phase 11 scoped to existing-content reorganization.
+>
+> Note: F-NEW-3 "Recent watchparties" is partially absorbed via the Couch history consolidation (REFR-11 commits F5+F6+recent into one section). Full per-watchparty drill-down with photos waits for REFR-09 post-session loop to ship.
+
 ---
 
 ## Family tab — current 6 sections

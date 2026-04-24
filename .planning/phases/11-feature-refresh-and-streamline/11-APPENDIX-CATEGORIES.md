@@ -3,6 +3,16 @@
 **Created:** 2026-04-23 in response to user direction: "daily rotation but also add more categories if that wasn't clear."
 **Goal:** expand candidate category list well beyond the 12-15 originally proposed, design daily-rotation logic, and surface scope decisions.
 
+> **DECIDED 2026-04-23: accept all recommendations.**
+>
+> 1. **8-10 rows/day visible** (vs current 4)
+> 2. **Per-user-per-day hash-seeded rotation** — stable within day, varies across users + days
+> 3. **Hybrid auto + curated** — auto-only TMDB-derived rows in v1 (Plan 11-03a); curated lists (cult classics, awards, A24, festival picks, director spotlights) ship in Plan 11-03b
+> 4. **Defer Browse-all + pinning** to Plan 11-03b
+> 5. **Plan split** — 11-03a (rotation engine + 8-10 auto rows + day-of-week theme + seasonal injection, ~8-10 hr) + 11-03b (curated content + Browse-all + pinning + personalization, ~7-10 hr)
+>
+> Total adds 1 plan to Phase 11 (now 8 plans, was 7) and ~9-12 hr to total effort estimate.
+
 ---
 
 ## Current state (post-Phase 9)

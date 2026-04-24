@@ -39,7 +39,7 @@ See `11-RESEARCH.md` for the full competitive landscape, watchparty + scheduling
 
 ### Discovery expansion (1)
 
-- **REFR-04**: Add-tab discovery rows expanded from 4 to 12+ candidate rows with daily/weekly rotation logic. 4-6 visible at a time. Categories span time-of-year, use-case, personalization, and group-aware signals.
+- **REFR-04**: Add-tab discovery rows expanded from 4 to a 35-row catalog organized in 6 buckets (always-on / trending / discovery / use-case / theme-of-the-day / seasonal-contextual / group-aware). 8-10 rows visible per day, selected via per-user-per-day hash-seeded rotation. Auto-categories only in v1 (curated lists like cult classics / awards / A24 / festival picks ship in plan 11-03b). Browse-all + pinning surface deferred to 11-03b. See `11-APPENDIX-CATEGORIES.md` for full catalog.
 
 ### Watchparty lifecycle redesign (4)
 
@@ -55,8 +55,8 @@ See `11-RESEARCH.md` for the full competitive landscape, watchparty + scheduling
 
 ### Tab restructures (2)
 
-- **REFR-11**: Family tab restructured. Current 6 sections audited for rhythm; proposed trim: hero+stats kept, approvals promoted when present, members list polished, picker section removed (REFR-02), family favorites + stats consolidated into one "Couch history" section, invite stays. Target: 4-5 sections instead of 6+.
-- **REFR-12**: Account tab restructured. Current 9 sections grouped into 3 clusters: "You" (identity + sub-profiles), "Couch-wide" (services, Trakt, notifications, YIR), "Admin" (owner-only group admin). Footer (sign out + leave) stays. Target: same content, clearer cognitive grouping.
+- **REFR-11**: Family tab restructured per `11-APPENDIX-TABS-AUDIT.md`. Current 6 sections → 5: (1) "Tonight status" (NEW; replaces bare hero — shows active watchparty / intent / next scheduled), (2) Approvals (unchanged conditional), (3) Members (split active vs sub-profiles), (4) Couch history (F5+F6+recent-watchparties consolidated), (5) Group settings footer (invite + group name + guest invites). Picker section CUT per REFR-02. Couch calendar (recurrence) and ADDs beyond what's listed deferred to Phase 12.
+- **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md`. Current 9 flat sections → 3 cognitive clusters: **You** (identity + sub-profiles, optional theme prefs deferred), **Couch-wide** (streaming services, Trakt under "Integrations" expandable, notifications with existing scope, YIR hidden until Phase 10 ships), **Admin & maintenance** (owner-only group admin sub-grouped: security/members/lifecycle, keyboard shortcuts, sign out / leave with confirmation). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12.
 
 ### Themed packs (1 — stretch)
 
@@ -78,13 +78,23 @@ See `11-RESEARCH.md` for the full competitive landscape, watchparty + scheduling
 - Effort: **M (~4-5 hrs)** — mostly HTML reordering + CSS section grouping; no new features
 - Pairs with Plan 11-01 since it shares the surfaces
 
-### Wave 2 — Discovery
+### Wave 2 — Discovery (split into 2 plans per decision 6)
 
-**Plan 11-03** — Discovery expansion (REFR-04)
-- Design the category list (~15 candidates: trending, new releases, hidden gems, by-decade, critically-acclaimed, award-winners, cozy-Sunday, Halloween, kid-friendly, short-films-under-90, binge-worthy, director spotlights, for-your-streaming, family-favorites, your-top-genres)
-- Rotation engine — 4-6 visible daily/weekly, seeded by (day-of-week, user-taste, group-taste), remaining swipeable/via "More categories…"
-- Per-row empty-state handling + TMDB rate-limit budgeting
-- Effort: **M-L (~6-8 hrs)**
+**Plan 11-03a** — Discovery rotation engine + auto-categories (REFR-04, first half)
+- Daily-rotation engine with hash-seeded `(user-id, current-date)` selector
+- 2 always-on rows (On your streaming + What your couch is into)
+- 5-7 auto-rotated rows from the 35-row catalog: trending, new releases, hidden gems, critically-acclaimed, foreign-language, quick-watches, long-binges, family-safe, etc. — all TMDB-derived, no curation needed
+- 1 day-of-week theme row (Mon-Sun rotates: Throwback Thursday, Foreign Friday, Cozy Sunday, etc.)
+- Seasonal injection (Halloween Oct, Holiday Dec, Summer Jun-Aug, etc.)
+- Per-row empty-state handling + TMDB rate-limit caching layer
+- Effort: **M-L (~8-10 hrs)**
+
+**Plan 11-03b** — Curated lists + Browse-all + personalization (REFR-04, second half)
+- Curated lists requiring author judgement: cult classics, award winners, festival favorites, director spotlights, A24/Neon boutique, documentaries, Couch Nights themed packs
+- "Browse all" sheet listing all 35 rows organized by bucket
+- Pin-up-to-3 favorite rows that always show
+- Personalization rows: "Because you watched X", "More from [actor/director]", "From your Want list", "Continue this franchise"
+- Effort: **M-L (~7-10 hrs)** — mostly content curation work + small UI for browse + personalization data wiring
 
 ### Wave 3 — Watchparty lifecycle (the big one)
 
@@ -130,14 +140,15 @@ Ranking by **Impact × Urgency × Fit-with-current-momentum**:
 | Rank | Plan | Why it comes first |
 |---|---|---|
 | 1 | **11-01 UX tightening** | User's explicit direct complaints. Low risk, visible wins, ships in a session. |
-| 2 | **11-02 Tab restructures** | Shares surfaces with 11-01; cognitive cleanup matches the "declutter" goal. |
-| 3 | **11-03 Discovery expansion** | User explicitly asked. Visible, bounded scope, no infra cost. |
+| 2 | **11-02 Tab restructures** | Shares surfaces with 11-01; cognitive cleanup matches the "declutter" goal. ADDs deferred per decision 5. |
+| 3 | **11-03a Discovery rotation engine + auto rows** | User explicitly asked. Visible, bounded scope, no curation overhead. |
 | 4 | **11-05 Live session + post-session** | Closes the biggest UX gap in the watchparty flow. Defensible (per-user delay moat). No new paid infra. |
-| 5 | **11-04 Web RSVP route + async push nurture** | Was deprioritized when it required Twilio. With option (a) chosen, scope drops to ~5-7 hrs and no paid infra — could move up the queue if user wants the recipient experience earlier. |
-| 6 | **11-06 Sports Game Mode** | Big lift, new data layer. Do when the movie watchparty UX is solid so Game Mode has a proven lifecycle to specialize from. |
-| 7 | **11-07 Couch Nights packs** | Content-heavy. Defer to Phase 12 unless a specific launch moment (Halloween season, etc.) moves it up. |
+| 5 | **11-04 Web RSVP + async push nurture** | Simpler scope post-decision-4 (~5-7 hr, no Twilio). Pairs well with 11-05 since both touch watchparty surfaces. |
+| 6 | **11-03b Curated lists + Browse-all + personalization** | Discovery polish that benefits from content curation effort + per-user history accumulating in production. |
+| 7 | **11-06 Sports Game Mode** | Big lift, new data layer. Do when the movie watchparty UX is solid so Game Mode has a proven lifecycle to specialize from. |
+| 8 | **11-07 Couch Nights packs** | Content-heavy. Pairs naturally with 11-03b's curated-list work. Final wave. |
 
-Total effort estimate: **~45-62 hrs** for all 7 plans (revised from prior estimate after locking decisions 1-4: scope held at 7 plans, sports stays dedicated, 11-04 dropped from L→M after Twilio deferred). At your session velocity that's realistically 5-7 sessions.
+Total effort estimate: **~54-74 hrs** for all 8 plans (revised after locking all 6 decisions: scope held at 7 REFR-IDs but plan 11-03 split into 11-03a + 11-03b per decision 6, adding ~9-12 hrs over the original single-plan estimate). At your session velocity that's realistically 6-8 sessions.
 
 ## Non-goals (preserved from prior scope)
 
@@ -169,13 +180,8 @@ Total effort estimate: **~45-62 hrs** for all 7 plans (revised from prior estima
 | 2 | Scope commitment | **All 7 plans** including stretch 11-07 (Couch Nights packs) |
 | 3 | Sports scope (REFR-10) | **Dedicated Game Mode** (research-recommended path) |
 | 4 | SMS infrastructure (REFR-05/06) | **Option (a) — Web Share API + web RSVP route**. Twilio + SMS automation deferred to Milestone 2. Plan 11-04 effort drops L→M (~5-7 hrs). |
-
-### Pending — see appendices for deeper review
-
-| # | Question | Status | Appendix |
-|---|---|---|---|
-| 5 | Tab restructure depth (REFR-11/12) | Awaiting decision after section-by-section trim/edit/add/cut/reframe audit | `11-APPENDIX-TABS-AUDIT.md` |
-| 6 | Discovery categories + rotation (REFR-04) | Awaiting decision after review of expanded 35-row catalog + daily rotation logic | `11-APPENDIX-CATEGORIES.md` |
+| 5 | Tab restructure depth (REFR-11/12) | **Option (b) — restructure now, defer ADDs to Phase 12**. Family 6→5 sections, Account 9 sections → 3 cognitive clusters. New sections (notification prefs detail, data export, theme prefs, about/version) deferred. |
+| 6 | Discovery categories + rotation (REFR-04) | **Accept all recommendations.** 8-10 rows/day, per-user-per-day hash-seeded rotation, auto-only categories for v1 (curated lists deferred to 11-03b), defer Browse-all + pinning to 11-03b. **Plan 11-03 split into 11-03a + 11-03b** (8 plans total now). |
 
 ### Notes from locked decisions
 
@@ -187,11 +193,13 @@ Total effort estimate: **~45-62 hrs** for all 7 plans (revised from prior estima
 
 ### What pending decisions affect downstream
 
-- ~~**#4 SMS**~~ — **LOCKED** to option (a). Plan 11-04 scope = web RSVP route + Web Share API + member-conversion + push-only async nurture. ~5-7 hr.
-- **#5 Tabs** — affects Plan 11-02 scope (pure-reorg vs. include ADDs like notification preferences detail, data export). Effort delta ~3-8 hrs depending on how many ADDs land.
-- **#6 Categories** — affects Plan 11-03 scope (single 11-03 vs split 11-03a + 11-03b). Effort delta ~7-10 hrs if curated lists + Browse all + personalization land in v1.
+All 6 decisions LOCKED. Planner can scope all 8 plans. No external blockers remain.
 
-Until #5/#6 are decided, the planner can scope plans 11-01, 11-04, 11-05, 11-06, 11-07 (which don't depend on these). Plans 11-02 and 11-03 wait.
+- ~~**#4 SMS**~~ — LOCKED option (a). Plan 11-04 scope = web RSVP route + Web Share API + member-conversion + push-only async nurture (~5-7 hr).
+- ~~**#5 Tabs**~~ — LOCKED option (b). Plan 11-02 = pure reorganization (Family 6→5 sections, Account 9→3 clusters). NEW sections (notif prefs detail, data export, theme prefs, about) deferred to Phase 12.
+- ~~**#6 Categories**~~ — LOCKED accept-all. Plan 11-03 split into 11-03a (rotation engine + auto rows + day-of-week + seasonal, ~8-10 hr) + 11-03b (curated lists + Browse-all + personalization, ~7-10 hr).
+
+**Phase 11 is fully scoped. Ready for `/gsd-plan-phase 11`.**
 
 ---
 
