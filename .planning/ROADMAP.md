@@ -178,8 +178,8 @@ Plans:
   3. Add-tab discovery expands from 4 rows to an 8-10 rows/day hash-seeded rotation over a 35-row catalog (6 buckets: always-on / trending / discovery / use-case / theme-of-the-day / seasonal / group-aware); auto-categories in v1 (curated lists + Browse-all + personalization in 11-03b).
   4. Watchparty lifecycle is end-to-end: `/rsvp/<token>` web route serves a lightweight HTML+JS RSVP page (no full app shell), Web Share API integration in schedule modal, member-conversion-on-first-RSVP, asymmetric push reminder cadence per RSVP state (members only; SMS nurture deferred to Milestone 2), pre-session lobby with Ready check + democratic auto-start at T-0, late-joiner catch-me-up 30s recap, post-session 5-star rating + photo + schedule-next.
   5. Dedicated Sports Game Mode ships: `SportsDataProvider` abstraction (ESPN + BALLDONTLIE), game picker, live score strip, kickoff countdown + auto-transition, play-scoped amplified reactions, late-joiner "current score + last 3 plays" card, team-flair avatar badges, per-user DVR offset slider.
-**Plans**: 8 plans across 4 waves (CONTEXT.md proposes — finalized at plan-phase)
-Proposed plans:
+**Plans**: 8 plans across 4 waves — finalized 2026-04-24 via /gsd-plan-phase 11
+Plans:
 - [ ] 11-01-PLAN.md — UX tightening: mood chip spacing, picker-hide feature flag, who-card redesign (REFR-01, REFR-02, REFR-03)
 - [ ] 11-02-PLAN.md — Family + Account tab restructures (REFR-11, REFR-12)
 - [ ] 11-03a-PLAN.md — Discovery rotation engine + auto-category rows (REFR-04 first half)
@@ -207,7 +207,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
-| 11. Feature refresh & streamline | 0/8 | Scoped — CONTEXT + RESEARCH complete 2026-04-23; UI-SPEC + plans pending | - |
+| 11. Feature refresh & streamline | 0/8 | Planned — 8 plans / 13 REFR-* / 4 waves; ready for /gsd-execute-phase 11 | - |
 
 ---
 *Roadmap created: 2026-04-19*
