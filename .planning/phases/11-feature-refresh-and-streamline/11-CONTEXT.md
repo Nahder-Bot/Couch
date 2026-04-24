@@ -157,17 +157,39 @@ Total effort estimate: **~45-60 hrs** of focused work for plans 11-01 through 11
 | **Account tab restructure breaks muscle memory for existing users** — Nahder's family is accustomed to the current layout | 11-02 does not remove features — purely regroups. Ship with a brief in-app "what moved" toast on first load post-deploy. |
 | **Sports Game Mode is big enough to be its own phase** — effort estimate 12-14 hrs, could split into 11-06a (data layer) + 11-06b (UI) | Decide at `/gsd-plan-phase 11` time based on complexity. Splitting is cheap. |
 
-## Open decisions for user before `/gsd-plan-phase 11`
+## User decisions — locked vs. pending
 
-1. **Phase number** — is 11 the right number? Some options:
-   - **11** if this is the next milestone after Phase 10 YIR (proposed)
-   - **9.x / 9.5** if absorbed into the Phase 9 redesign sprint as polish
-   - **Milestone 2** if this kicks off v2 post-v1 commercial release
-2. **Scope commitment** — accept all 7 plans, cut stretch (11-07), or trim further? (Recommended: commit to 11-01 through 11-05; defer 11-06 and 11-07 to next scope conversation.)
-3. **REFR-10 sports scope** — dedicated Game Mode as described, OR lighter-weight "attach-score-strip-to-existing-wp" that reuses movie watchparty flow? (Research says dedicated is the right call; doubling down but wanted to surface the alternative.)
-4. **REFR-05 SMS infrastructure** — Twilio commitment acceptable (~$20-50/mo at early volume), or keep shareable-link-only for v1?
-5. **REFR-11 / REFR-12 tab restructure depth** — purely reorganize (same content, new grouping) OR also cut sections? (Research says keep everything; restructure is about cognition not feature-cut.)
-6. **REFR-04 discovery rotation cadence** — daily (more variety, more TMDB load) or weekly (calmer, less fresh)? (Recommended: weekly base rotation + small daily shuffle.)
+### Locked (2026-04-23)
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Phase number | **Phase 11** within v1.0 milestone (no split, no Milestone 2 yet) |
+| 2 | Scope commitment | **All 7 plans** including stretch 11-07 (Couch Nights packs) |
+| 3 | Sports scope (REFR-10) | **Dedicated Game Mode** (research-recommended path) |
+
+### Pending — see appendices for deeper review
+
+| # | Question | Status | Appendix |
+|---|---|---|---|
+| 4 | SMS infrastructure (REFR-05/06) | Awaiting decision after review of 6 alternatives | `11-APPENDIX-SMS-OPTIONS.md` |
+| 5 | Tab restructure depth (REFR-11/12) | Awaiting decision after section-by-section trim/edit/add/cut/reframe audit | `11-APPENDIX-TABS-AUDIT.md` |
+| 6 | Discovery categories + rotation (REFR-04) | Awaiting decision after review of expanded 35-row catalog + daily rotation logic | `11-APPENDIX-CATEGORIES.md` |
+
+### Notes from locked decisions
+
+**On #1 (Phase 11 in v1):** This work joins Phase 6 UAT closure + Phase 9 remaining (09-06, 09-07a, 09-07b) + Phase 10 YIR as the remaining v1 surfaces. v1 ships when all of those + Phase 11 are complete. Implies a longer v1 runway but a more commercially-ready surface at v1 launch.
+
+**On #2 (all 7 plans):** Stretch plan 11-07 (Couch Nights themed packs) is now committed in-scope. Estimated additional ~5-7 hrs. Total Phase 11 effort estimate revises to **~50-67 hrs** for all 7 plans.
+
+**On #3 (dedicated Game Mode):** Plan 11-06 stays as designed — `SportsDataProvider` abstraction + game picker + score strip + play-scoped reactions + late-joiner card + team-flair badges + DVR offset slider. Movie watchparty flow stays distinct.
+
+### What pending decisions affect downstream
+
+- **#4 SMS** — affects Plan 11-04 scope (Twilio = full async automation; web-share = simpler flow, no SMS infra). Effort delta ~5 hrs.
+- **#5 Tabs** — affects Plan 11-02 scope (pure-reorg vs. include ADDs like notification preferences detail, data export). Effort delta ~3-8 hrs depending on how many ADDs land.
+- **#6 Categories** — affects Plan 11-03 scope (single 11-03 vs split 11-03a + 11-03b). Effort delta ~7-10 hrs if curated lists + Browse all + personalization land in v1.
+
+Until #4/#5/#6 are decided, the planner can scope plans 11-01, 11-05, 11-06, 11-07 (which don't depend on these). Plans 11-02, 11-03, 11-04 wait.
 
 ---
 
