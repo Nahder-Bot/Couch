@@ -12,7 +12,7 @@ source:
   - 11-07-SUMMARY.md
 started: 2026-04-24
 updated: 2026-04-24
-deploy_status: Hosting + Functions LIVE at couchtonight.app (commit ffab048, sw.js v29). Storage pending human enablement in Firebase Console.
+deploy_status: Hosting + Functions + Storage ALL LIVE at couchtonight.app (commit ffab048, sw.js v29). Storage bucket in us-east (user's region); Variant A rules active. Phase 11 fully deployed.
 ---
 
 ## Current Test
@@ -67,8 +67,8 @@ awaiting: user response
   - _What should happen:_ Schedule a watchparty starting in ~2 minutes. On 2+ devices, open the Tonight banner at T-15min. See `.wp-lobby-card` with countdown ring, participant list, Ready toggle per member. Majority Ready before T-0 → auto-start (existing preStart branch mutex-guarded by `!inLobbyWindow`, so no duplicate UI).
 - [ ] **15. Catch-me-up card for late joiner** — plan 11-05 REFR-08 (manual, multi-device)
   - _What should happen:_ During active watchparty (2+ devices posting reactions), join late on device 3 → catch-me-up card renders with 30s reaction summary via `renderReactionsFeed` wall-clock slice.
-- [ ] **16. Post-session modal: rating + photo upload + schedule-next** — plan 11-05 REFR-09 (BLOCKED — Storage pending)
-  - _What should happen:_ End a watchparty → post-session modal with 5-star rating + "Add photo to album" + "Schedule another night". Rating + schedule-next work now. Photo upload WILL FAIL until Firebase Storage product is enabled in Console.
+- [ ] **16. Post-session modal: rating + photo upload + schedule-next** — plan 11-05 REFR-09 (UNBLOCKED — Storage active)
+  - _What should happen:_ End a watchparty → post-session modal with 5-star rating + "Add photo to album" + "Schedule another night". Photo upload: tap → pick image → canvas resizes ≤1024px longest edge + JPEG q=0.85 + ≤5MB cap → uploads to `couch-albums/{familyCode}/{wpId}/{timestamp}_{uid}.jpg` in us-east bucket → URL persists to `wp.photos[]`. Storage is Firebase Variant A (authed writes only, no uid-match requirement — pre-Phase-5 schema).
 - [ ] **17. DVR slider does NOT break Phase 7 reactionDelay** — plan 11-06 REFR-10 regression (manual)
   - _What should happen:_ Plan 11-06's DVR slider dual-writes `dvrOffsetMs` + `reactionDelay` to the same Firestore field. Phase 7's reactionDelay chip still visible alongside DVR slider in sport mode; both feed the same `effectiveStartFor` anchor.
 
@@ -98,9 +98,9 @@ awaiting: user response
 
 Tests 9, 10, 22, 23, 24 — passed pre-deploy + post-deploy HTTP smoke.
 
-### Production blockers (1 item)
+### Production blockers
 
-Test 16 (photo upload in post-session modal) — WILL FAIL until Firebase Storage is enabled in Console. Manual one-time click at https://console.firebase.google.com/project/queuenight-84044/storage → "Get started". Then I'll run `firebase deploy --only storage` to land Variant A rules.
+None. Storage deployed 2026-04-24 in us-east bucket. All 13 REFR-* features testable against live production.
 
 ### Deferred from plan SUMMARYs (Phase 12)
 
