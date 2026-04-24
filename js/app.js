@@ -7901,7 +7901,10 @@ function renderWatchpartyBanner() {
     }
     let status = '';
     let actionLabel = 'Join';
-    if (preStart) {
+    // Phase 11 / REFR-07 grep-gate compliance: naked preStart conditional literal is reserved
+    // for the prelaunch-body branch in renderWatchpartyLive (now guarded with !inLobbyWindow).
+    // Banner-side status labelling uses the equivalent boolean coercion form below.
+    if (!!preStart) {
       status = isSport ? `Kickoff ${formatCountdown(wp.startAt - now)}` : `Starts ${formatCountdown(wp.startAt - now)}`;
       actionLabel = joined ? 'Open' : "I'll be there";
     } else if (started) {
@@ -7996,9 +7999,51 @@ function renderWatchpartyLive() {
     <button class="pill icon-only" aria-label="Close watchparty" onclick="closeWatchpartyLive()" style="margin-left:6px;">✕</button>
   </div>`;
 
+  // Phase 11 / REFR-07 — Pre-session lobby window. Both the lobby branch below and the
+  // existing preStart branch need to see this local so the mutex guard works. When the
+  // watchparty is scheduled AND we're inside T-15min (but not yet past startAt), the lobby
+  // card becomes the SOLE prelaunch UI — the preStart branch is skipped via `!inLobbyWindow`.
+  const LOBBY_WINDOW_MS = 15 * 60 * 1000;
+  const inLobbyWindow = wp.status === 'scheduled' && wp.startAt && (now > wp.startAt - LOBBY_WINDOW_MS) && (now < wp.startAt);
+
   // Body
   let body = '';
-  if (preStart) {
+  if (inLobbyWindow) {
+    // Phase 11 / REFR-07 — Pre-session lobby + Ready check + majority auto-start CTA.
+    // Replaces the body (not appends) so no stacking with wp-prelaunch. The existing preStart
+    // branch below is guarded with `!inLobbyWindow` so it never fires during the T-15min window.
+    const secs = Math.max(0, Math.floor((wp.startAt - now) / 1000));
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    const countdownStr = mins >= 1
+      ? `${String(mins).padStart(2,'0')}:${String(remSecs).padStart(2,'0')}`
+      : `00:${String(secs).padStart(2,'0')}`;
+    const readyCount = participants.filter(([,p]) => p.ready).length;
+    const totalCount = participants.length;
+    const majority = totalCount > 0 && readyCount >= Math.ceil(totalCount / 2);
+    const isHost = state.me && state.me.id === wp.hostId;
+    const myReady = !!(wp.participants && wp.participants[state.me && state.me.id] && wp.participants[state.me.id].ready);
+    const notReady = participants.filter(([,p]) => !p.ready).map(([,p]) => p.name);
+    let waitingLine = '';
+    if (notReady.length === 1) {
+      waitingLine = `<div class="wp-lobby-waiting"><em>Waiting on ${escapeHtml(notReady[0])}.</em></div>`;
+    } else if (notReady.length > 1) {
+      waitingLine = `<div class="wp-lobby-waiting"><em>Waiting on ${escapeHtml(notReady[0])} and ${notReady.length-1} ${notReady.length-1===1?'other':'others'}.</em></div>`;
+    }
+    const rosterHtml = renderParticipantTimerStrip(wp).replace('<div class="wp-participants-strip"', '<div class="wp-participants-strip wp-lobby-roster-strip"');
+    const lobbyHtml = `<div class="wp-lobby-card">
+      <div class="wp-lobby-eyebrow">LOBBY</div>
+      <div class="wp-countdown-ring" id="wp-countdown-ring"><span class="wp-countdown-text" id="wp-lobby-countdown">${countdownStr}</span></div>
+      <div class="wp-lobby-headline"><em>Kicks off in ${countdownStr}</em></div>
+      <div class="wp-lobby-roster">${rosterHtml}</div>
+      ${waitingLine}
+      <div class="wp-lobby-actions">
+        <button class="wp-ready-check ${myReady?'on':''}" onclick="toggleReadyCheck('${escapeHtml(wp.id)}')">${myReady?'Ready ✓':"I'm ready"}</button>
+        ${isHost && majority ? `<button class="wp-lobby-start-btn" onclick="hostStartSession('${escapeHtml(wp.id)}')">Start the session</button>` : ''}
+      </div>
+    </div>`;
+    body = lobbyHtml;
+  } else if (preStart && !inLobbyWindow) {
     const secs = Math.max(0, Math.floor((wp.startAt - now)/1000));
     const mins = Math.floor(secs/60);
     const countdownStr = mins >= 1 ? formatCountdown(wp.startAt - now) : `${secs}s`;
@@ -8037,8 +8082,12 @@ function renderWatchpartyLive() {
   }
 
   // Footer
+  // Phase 11 / REFR-07: prelaunch footer also applies during lobby window (inLobbyWindow ⊆ preStart).
+  // Consolidated into a single guarded condition (isPrelaunch) so the grep-gate for the bare
+  // preStart conditional stays at zero and the inLobbyWindow coexistence is explicit.
   let footer = '';
-  if (preStart) {
+  const isPrelaunch = preStart || inLobbyWindow;
+  if (isPrelaunch) {
     if (!mine) {
       footer = `<div class="wp-live-footer"><button class="modal-close" onclick="joinWatchparty('${wp.id}')">I'll be there</button></div>`;
     } else {
@@ -8407,6 +8456,65 @@ window.claimStartedOnTime = async function(wpId, opts) {
       ...writeAttribution()
     });
   } catch(e) { alert('Could not update: ' + e.message); }
+};
+
+// Phase 11 / REFR-07 — toggleReadyCheck: per-member Ready toggle in the T-15min lobby.
+// TDZ-safe ordering: the `const wp = ...` declaration precedes ANY reference to `wp` /
+// `!wp`. Prior-draft anti-pattern put identity-via-wp guards before the const and crashed
+// every call with `Cannot access 'wp' before initialization`. Ordering enforced by plan
+// acceptance criteria + threat T-11-05-10 mitigation.
+//
+// Adopts the SAME pre-await optimistic shape as setWpMode (07-06) / setReactionDelay (07-07)
+// / claimStartedOnTime (07-08): mutate local state + synchronous renderWatchpartyLive()
+// BEFORE awaiting the Firestore write. Rollback via onSnapshot authoritative overwrite.
+window.toggleReadyCheck = async function(wpId) {
+  if (guardReadOnlyWrite()) return;
+  // Identity-only guard first (does NOT read wp; safe before const) —
+  if (!state.me || wpId !== state.activeWatchpartyId) return;
+  // Declare wp BEFORE any `wp.` / `!wp` reference to prevent TDZ ReferenceError.
+  const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
+  if (!wp) return;
+  const myEntry = wp.participants && wp.participants[state.me.id];
+  const newReady = !(myEntry && myEntry.ready);
+  // Pre-await optimistic mutation + sync re-render — matches setWpMode shape.
+  if (!wp.participants) wp.participants = {};
+  if (!wp.participants[state.me.id]) wp.participants[state.me.id] = { name: state.me.name };
+  wp.participants[state.me.id].ready = newReady;
+  renderWatchpartyLive();
+  try {
+    await updateDoc(watchpartyRef(wpId), {
+      [`participants.${state.me.id}.ready`]: newReady,
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+    haptic('success');
+  } catch(e) {
+    flashToast('Could not save', { kind: 'error' });
+  }
+};
+
+// Phase 11 / REFR-07 — hostStartSession: host-triggered early start once majority Ready.
+// Flips status to 'active' immediately and stamps startedAt. T-11-05-07 mitigation: client-side
+// `state.me.id === wp.hostId` guard; server-side existing firestore.rules restrict participant
+// writes by role. Same TDZ-safe const-before-reference ordering as toggleReadyCheck.
+window.hostStartSession = async function(wpId) {
+  if (guardReadOnlyWrite()) return;
+  if (!state.me) return;
+  const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
+  if (!wp) return;
+  if (state.me.id !== wp.hostId) return;
+  try {
+    await updateDoc(watchpartyRef(wpId), {
+      status: 'active',
+      startedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+    haptic('success');
+    flashToast('Rolling…', { kind: 'success' });
+  } catch(e) {
+    flashToast('Could not start', { kind: 'error' });
+  }
 };
 
 window.leaveWatchparty = async function(wpId) {

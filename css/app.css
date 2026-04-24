@@ -847,6 +847,22 @@ h3{font-size:var(--t-h3)}
 .wp-participants{font-size:var(--t-eyebrow);color:var(--ink-dim);margin-top:6px}
 .wp-prelaunch{text-align:center;padding:48px 20px}
 .wp-prelaunch-count{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:48px;font-weight:400;color:var(--accent);margin:14px 0;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+/* Phase 11 / REFR-07 — Pre-session lobby card, Ready-check toggle, countdown ring, host-start CTA.
+   56px countdown ring + 14px button padding are token-aliased exceptions per UI-SPEC §Spacing.
+   All other margin/padding resolves through --s* / --r* / --t-* design tokens. */
+.wp-lobby-card{background:var(--surface-2);border-radius:var(--r-md);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s3);align-items:center;text-align:center;margin-bottom:var(--s4)}
+.wp-lobby-eyebrow{font-family:var(--font-sans);font-size:var(--t-eyebrow);color:var(--ink-dim);letter-spacing:0.12em;text-transform:uppercase;font-weight:600}
+.wp-countdown-ring{width:56px;height:56px;border-radius:50%;border:2px solid var(--accent);display:grid;place-items:center;background:rgba(232,160,74,0.08)}
+.wp-countdown-text{font-family:var(--font-display);font-style:italic;font-size:var(--t-h3);color:var(--accent);font-variant-numeric:tabular-nums}
+.wp-lobby-headline{font-family:var(--font-serif);font-style:italic;font-size:var(--t-h3);color:var(--ink)}
+.wp-lobby-roster{width:100%}
+.wp-lobby-roster-strip{justify-content:center}
+.wp-lobby-waiting{font-family:var(--font-serif);font-style:italic;font-size:var(--t-meta);color:var(--ink-dim)}
+.wp-lobby-actions{display:flex;flex-direction:column;gap:var(--s2);width:100%;align-items:center}
+.wp-ready-check{background:var(--surface);border:1px solid var(--border);color:var(--ink);padding:var(--s2) var(--s4);border-radius:var(--r-pill);font-family:inherit;font-weight:600;font-size:var(--t-meta);min-height:44px;cursor:pointer;transition:all var(--duration-base) var(--easing-out)}
+.wp-ready-check.on{background:var(--good);color:var(--bg);border-color:transparent;font-weight:700}
+.wp-lobby-start-btn{padding:14px var(--s5);background:var(--brand-grad);color:var(--bg);border:none;border-radius:var(--r-md);font-family:inherit;font-weight:700;font-size:var(--t-body);min-height:44px;cursor:pointer;width:100%;box-shadow:var(--shadow-warm)}
+@media (prefers-reduced-motion: reduce){.wp-countdown-ring{animation:none}.wp-ready-check{transition:none}}
 .wp-reactions-hidden{text-align:center;padding:28px;color:var(--ink-dim);font-style:italic;font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-body)}
 .wp-history-list{display:flex;flex-direction:column;gap:10px}
 .wp-history-item{display:flex;align-items:center;gap:12px;padding:14px;background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:all var(--t-quick)}
