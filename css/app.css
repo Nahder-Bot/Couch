@@ -2552,3 +2552,12 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   border-radius:var(--r-sm);font-family:var(--font-sans);font-size:var(--text-body-md);
 }
 .signin-methods-password-form input:focus{outline:none;border-color:var(--color-accent-primary)}
+
+/* ===== Phase 11 / REFR-11 — Family tab tonight-status block ===== */
+/* Small italic line under the family hero title answering "what's the couch up to tonight?"
+   Full content (CTAs, schedule drilldown) deferred to Phase 12 per CONTEXT.md D-5 option (b). */
+.family-tonight-status{margin-top:var(--s3);font-family:'Instrument Serif','Fraunces',serif;
+  font-style:italic;font-size:var(--t-body);color:var(--ink-warm);line-height:1.35}
+.family-tonight-status:empty{display:none}
+.family-tonight-status-active{color:var(--accent)}
+.family-tonight-status-empty{color:var(--ink-dim)}

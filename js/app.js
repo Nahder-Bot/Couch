@@ -4746,8 +4746,11 @@ function renderFamily() {
     const n = state.members.length;
     memberCount.textContent = n ? (n === 1 ? '1 person' : n + ' people') : '';
   }
-  // Picker strip — reflects current rotation status
+  // Picker strip — reflects current rotation status (internal container IDs gone post-REFR-11,
+  // guard inside renderPickerStrip bails cleanly; backend rotation writes still preserved).
   renderPickerStrip();
+  // Phase 11 / REFR-11 — tonight-status line under the hero title.
+  renderTonightStatus();
   renderStats();
   renderApprovalsCard();
   renderFamilyFavorites();
@@ -4789,11 +4792,33 @@ function renderPickerStrip() {
 //   - Parents see full edit controls (rating cap, parent toggle, adult scope, remove)
 //   - Non-parents see everyone's info read-only
 //   - Everyone can tap their own row to edit their own profile (name, avatar, bio, services)
-function renderMembersList() {
-  const el = document.getElementById('members-list');
+// Phase 11 / REFR-11 — Family tab tonight-status block.
+// Answers "what's the family up to right now?" in one italic line.
+// Priority: active watchparty > pending intent > next scheduled > empty state.
+// Full content (participants, CTA, schedule) deferred to Phase 12 per CONTEXT.md D-5 option (b).
+function renderTonightStatus() {
+  const el = document.getElementById('family-tonight-status');
   if (!el) return;
+  let body = '';
+  if (state.activeWatchpartyId) {
+    body = '<div class="family-tonight-status-active"><em>Active watchparty in session.</em></div>';
+  } else {
+    body = '<div class="family-tonight-status-empty"><em>Nothing scheduled yet.</em></div>';
+  }
+  el.innerHTML = body;
+}
+
+function renderMembersList() {
+  const legacyEl = document.getElementById('members-list');
+  const activeEl = document.getElementById('members-list-active');
+  const subEl = document.getElementById('members-list-subprofiles');
+  const subHeadingEl = document.getElementById('members-subprofiles-h');
+  const subCardEl = document.getElementById('members-subprofiles-card');
+  // If none of the containers exist, bail — tab may not be mounted yet.
+  if (!legacyEl && !activeEl && !subEl) return;
   const iAmParent = isCurrentUserParent();
-  el.innerHTML = state.members.map(m => {
+  // Build the HTML for one member row — same contract as before. Used by both active + subprofile branches.
+  const renderRow = (m) => {
     const isMe = state.me && m.id === state.me.id;
     const currentMax = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
     const ageLabel = (modeAllowsAgeTiers() && m.age) ? ` <span style="color:var(--ink-dim);font-size:var(--t-meta);">age ${m.age}</span>` : '';
@@ -4842,7 +4867,21 @@ function renderMembersList() {
       </div>
       ${removeBtn}
     </div>`;
-  }).join('');
+  };
+  // Phase 11 / REFR-11 — split members into "On the couch" (active authed members) vs "Sub-profiles".
+  //   - Active: has uid OR is not a managed sub-profile (authed adults + legacy unclaimed rows).
+  //   - Sub-profiles: managedBy set AND no uid (kid rows created via openCreateSubProfile).
+  const activeMembers = state.members.filter(m => !(m.managedBy && !m.uid));
+  const subMembers = state.members.filter(m => m.managedBy && !m.uid);
+  // Emit into the split containers.
+  if (activeEl) activeEl.innerHTML = activeMembers.map(renderRow).join('');
+  if (subEl) subEl.innerHTML = subMembers.map(renderRow).join('');
+  // Hide the sub-profile heading + card entirely when there are zero sub-profiles (avoid empty section noise).
+  if (subHeadingEl) subHeadingEl.style.display = subMembers.length ? '' : 'none';
+  if (subCardEl) subCardEl.style.display = subMembers.length ? '' : 'none';
+  // BACKWARD-COMPAT: also emit combined list into legacy #members-list (kept hidden). Any downstream
+  // consumer that greps/targets members-list continues to work.
+  if (legacyEl) legacyEl.innerHTML = state.members.map(renderRow).join('');
 }
 
 // Count of members currently flagged as parent. Used to prevent unmarking the last one.

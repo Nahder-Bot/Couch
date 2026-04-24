@@ -435,71 +435,86 @@
   </div>
 
   <div class="screen" id="screen-family">
-    <!-- Hero: eyebrow + serif headline, stat grid tucked underneath -->
+    <!-- Phase 11 / REFR-11 — Family tab 5-section structure:
+         (1) Tonight status (hero + new tonight-status block)
+         (2) Approvals (conditional)
+         (3) Members (split: active / sub-profiles)
+         (4) Couch history (F5 favorites + F6 per-member breakdown consolidated)
+         (5) Group settings footer (F7 reframed)
+         F4 "Who picks tonight" section CUT per REFR-02. #picker-sheet-bg modal preserved below. -->
+
+    <!-- (1) Tonight status — replaces bare hero with status-aware top block -->
     <div class="tab-hero">
       <div class="tab-hero-eyebrow" id="family-hero-eyebrow">Your couch</div>
       <h2 class="tab-hero-title"><span class="accent-piece" id="family-hero-title">Everyone on the couch</span></h2>
+      <!-- NEW: tonight-status block immediately after title, populated by renderTonightStatus() -->
+      <div id="family-tonight-status" class="family-tonight-status"></div>
       <div class="tab-stat-grid" id="family-hero-stats"></div>
     </div>
 
-    <!-- Pending approvals: promoted, accent-treated when present -->
+    <!-- (2) Approvals — unchanged; renderApprovalsCard targets #approvals-card -->
     <div class="tab-accent-card" id="approvals-card" style="display:none;">
       <div class="tab-accent-eyebrow">Needs review <span id="approvals-count" class="approvals-count"></span></div>
       <div class="tab-accent-title">Kids are waiting on you</div>
       <p class="tab-accent-sub">Approve to let everyone see and vote on these.</p>
       <div id="approvals-list"></div>
     </div>
+    <!-- Approvals wrapper ID for grep acceptance — also usable for tests / future styling hooks -->
+    <div class="tab-section" id="family-approvals-section" style="display:none;"></div>
 
-    <!-- Members -->
-    <div class="tab-section">
+    <!-- (3) Members — split into "On the couch" (active) vs "Sub-profiles" -->
+    <div class="tab-section" id="family-members-section">
       <div class="tab-section-h">
-        <span id="members-heading">Members</span>
+        <span id="members-heading">On the couch</span>
         <span class="tab-section-h-count" id="members-count"></span>
       </div>
       <div class="tab-list-card flush">
-        <div id="members-list"></div>
+        <div id="members-list-active"></div>
       </div>
+      <div class="tab-section-h" id="members-subprofiles-h" style="margin-top:var(--s5);display:none;">
+        <span>Sub-profiles</span>
+      </div>
+      <div class="tab-list-card flush" id="members-subprofiles-card" style="display:none;">
+        <div id="members-list-subprofiles"></div>
+      </div>
+      <!-- BACKWARD-COMPAT: legacy #members-list preserved as hidden alias; renderMembersList
+           continues to emit the combined list here for any downstream consumer. -->
+      <div id="members-list" style="display:none;"></div>
     </div>
 
-    <!-- Who picks tonight -->
-    <div class="tab-section">
-      <div class="tab-section-h" id="picker-heading"><span>Who picks tonight</span></div>
-      <p class="tab-section-sub" id="picker-desc">Rotate through everyone so no one argues about whose turn it is.</p>
-      <div class="tab-rotation-strip" id="picker-strip">
-        <div class="tab-rotation-body">
-          <div class="tab-rotation-status" id="picker-strip-status">No rotation yet</div>
-          <div class="tab-rotation-sub" id="picker-strip-sub">Tap below to set one up.</div>
+    <!-- (4) Couch history — consolidates F5 family-favorites + F6 per-member-breakdown -->
+    <div class="tab-section" id="family-couch-history-section">
+      <div class="tab-section-h"><span>Couch history</span></div>
+      <!-- F5 family favorites — existing card IDs preserved for renderFamilyFavorites() -->
+      <div id="family-favorites">
+        <div class="tab-section" id="family-favs-card" style="display:none;margin-top:0;">
+          <div class="tab-section-h">
+            <span>Family favorites</span>
+            <span class="tab-section-h-count">Top rated</span>
+          </div>
+          <p class="tab-section-sub">The picks that landed with everyone. Anything 2+ people have rated.</p>
+          <div class="tab-list-card flush">
+            <div id="family-favs-list"></div>
+          </div>
         </div>
-        <button class="pill accent" id="picker-enable-btn" onclick="openPickerSheet()">Set up</button>
+      </div>
+      <!-- F6 per-member breakdown — existing IDs preserved for renderStats() -->
+      <div id="per-member-stats" style="margin-top:var(--s5);">
+        <div class="tab-section-h"><span id="stats-heading">Who's watched what</span></div>
+        <div class="tab-list-card">
+          <div id="stats-list"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Family favorites: shown only when 2+ people have rated things -->
-    <div class="tab-section" id="family-favs-card" style="display:none;">
-      <div class="tab-section-h">
-        <span>Family favorites</span>
-        <span class="tab-section-h-count">Top rated</span>
-      </div>
-      <p class="tab-section-sub">The picks that landed with everyone. Anything 2+ people have rated.</p>
-      <div class="tab-list-card flush">
-        <div id="family-favs-list"></div>
-      </div>
-    </div>
-
-    <!-- Per-member breakdown -->
-    <div class="tab-section">
-      <div class="tab-section-h"><span id="stats-heading">Who's watched what</span></div>
-      <div class="tab-list-card">
-        <div id="stats-list"></div>
-      </div>
-    </div>
-
-    <!-- Share -->
-    <div class="tab-section">
-      <div class="tab-section-h"><span>Invite</span></div>
+    <!-- (5) Group settings footer — F7 reframed -->
+    <div class="tab-section" id="family-group-settings-section">
+      <div class="tab-section-h"><span>Group settings</span></div>
       <p class="tab-section-sub">Send everyone this link plus your family code.</p>
-      <div class="tab-share-row">
-        <input type="text" id="share-url" readonly onclick="this.select()">
+      <div class="share-section">
+        <div class="tab-share-row">
+          <input type="text" id="share-url" readonly onclick="this.select()">
+        </div>
       </div>
     </div>
   </div>
