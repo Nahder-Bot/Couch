@@ -504,6 +504,161 @@ export const DISCOVERY_CATALOG = [
         'vote_count.gte': '1000'
       }
     }
+  },
+
+  // ===== Plan 11-03b additions — Curated C rows + Personalization G rows =====
+  // Curated C rows use tmdb-curated-list (hand-picked TMDB IDs) or tmdb-director-rotating.
+  // Personalization G rows read state.titles (group-want-list / group-similar-to-recent /
+  // group-top-genre-discover) and degrade gracefully to empty on cold-start.
+  // See .planning/phases/11-feature-refresh-and-streamline/11-APPENDIX-CATEGORIES.md §§Bucket C + Bucket G.
+
+  // ---------- Bucket C — Curated discovery (planner-judged TMDB IDs) ----------
+  {
+    id: 'c2-cult-classics',
+    label: 'Cult classics',
+    subtitle: 'The midnight-screening canon',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-curated-list',
+      // Hand-picked TMDB movie IDs — the canon most households know by reputation.
+      // 20+ IDs; loader caps at 20 to stay within rate budget.
+      tmdbIds: [
+        141,     // Donnie Darko
+        115,     // The Big Lebowski
+        38,      // Eternal Sunshine of the Spotless Mind
+        680,     // Pulp Fiction
+        550,     // Fight Club
+        807,     // Se7en
+        629,     // The Usual Suspects
+        603,     // The Matrix
+        78,      // Blade Runner
+        694,     // The Shining
+        105,     // Back to the Future
+        562,     // Die Hard
+        489,     // Good Will Hunting
+        745,     // The Sixth Sense
+        11,      // Star Wars: A New Hope
+        62,      // 2001: A Space Odyssey
+        1422,    // The Departed
+        10681,   // WALL·E
+        27205,   // Inception
+        1891,    // The Empire Strikes Back
+        389,     // 12 Angry Men
+        389,     // (dup — harmless filter)
+        155      // The Dark Knight
+      ]
+    }
+  },
+  {
+    id: 'c4-award-winners',
+    label: 'Award winners',
+    subtitle: 'Best Picture, Globes, BAFTA',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        // TMDB keyword 209714 = "oscar winner"
+        'with_keywords': '209714',
+        'vote_average.gte': '7.5',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '500'
+      }
+    }
+  },
+  {
+    id: 'c5-festival-favorites',
+    label: 'Festival favorites',
+    subtitle: 'Cannes, Sundance, TIFF, Venice',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-curated-list',
+      // Hand-picked TMDB movie IDs — Palme d'Or / Sundance / TIFF / Venice award slate.
+      tmdbIds: [
+        496243,   // Parasite (Palme d'Or 2019)
+        915935,   // Anatomy of a Fall (Palme d'Or 2023)
+        758323,   // Drive My Car (Cannes 2021)
+        426426,   // Roma (Venice 2018, Oscar Best Director)
+        581734,   // Nomadland (Venice 2020, Oscar BP)
+        637,      // Life Is Beautiful (Cannes Grand Prix)
+        274,      // The Silence of the Lambs (Berlin Silver Bear)
+        508947,   // Turning Red (festival circuit)
+        76203,    // 12 Years a Slave
+        120467,   // The Grand Budapest Hotel
+        508442,   // Soul
+        398181,   // The Florida Project
+        369557,   // Call Me by Your Name
+        390634,   // Your Name (animation fests)
+        372058,   // Your Name.
+        419430,   // Get Out (Sundance)
+        449563,   // Little Miss Sunshine (Sundance)
+        568332,   // Tár
+        474350,   // It Chapter Two
+        530385,   // Midsommar (Sundance)
+        490132,   // Green Book (TIFF People's Choice)
+        475557    // Joker (Venice Golden Lion)
+      ]
+    }
+  },
+  {
+    id: 'c6-director-spotlight',
+    label: 'Director spotlight',
+    subtitle: 'A focus on one filmmaker',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-director-rotating',
+      // TMDB person IDs — loader picks one deterministically per (rowId, dateKey).
+      directors: [
+        5655,   // Wes Anderson
+        21684,  // Bong Joon-ho
+        45400,  // Greta Gerwig
+        137427, // Denis Villeneuve
+        578,    // Christopher Nolan
+        1032,   // Martin Scorsese
+        1223,   // Quentin Tarantino
+        138,    // Stanley Kubrick
+        5281,   // Spike Lee
+        1769    // Coen Brothers / Joel Coen
+      ]
+    }
+  },
+  {
+    id: 'c8-docs-that-punch',
+    label: 'Documentaries that punch',
+    subtitle: 'Non-fiction with a heartbeat',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        // Genre 99 = Documentary
+        'with_genres': '99',
+        'vote_average.gte': '7.5',
+        'vote_count.gte': '200',
+        'sort_by': 'popularity.desc'
+      }
+    }
+  },
+
+  // ---------- Bucket G — Personalization (fire only when state has enough history) ----------
+  {
+    id: 'g1-want-list',
+    label: 'From your Want list',
+    subtitle: 'Voted Yes, never picked',
+    bucket: 'G',
+    source: { type: 'group-want-list' }
+  },
+  {
+    id: 'g3-because-you-watched',
+    label: 'Because you watched',
+    subtitle: 'Similar films, similar night',
+    bucket: 'G',
+    source: { type: 'group-similar-to-recent' }
+  },
+  {
+    id: 'g7-top-genres',
+    label: 'Your top genres revisited',
+    subtitle: "What your couch keeps coming back to",
+    bucket: 'G',
+    source: { type: 'group-top-genre-discover' }
   }
 ];
 

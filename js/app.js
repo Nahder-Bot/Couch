@@ -9287,6 +9287,122 @@ async function loadDiscoveryRow(row) {
           items = addTabCache.streaming.items;
         }
       }
+    } else if (src.type === 'tmdb-curated-list') {
+      // Plan 11-03b — hand-curated TMDB movie IDs (cult classics, festival winners, etc.).
+      // Cache is per-row-per-day so the 20 parallel /movie/{id} fetches only fire once.
+      const ids = Array.from(new Set(src.tmdbIds || [])).slice(0, 20);
+      const results = await Promise.all(
+        ids.map(id => tmdbFetch(`/movie/${id}`).catch(() => null))
+      );
+      items = results
+        .filter(x => x && x.poster_path && (x.title || x.name))
+        .map(x => mapTmdbItem({ ...x, media_type: 'movie' }, 'movie'));
+    } else if (src.type === 'tmdb-director-rotating') {
+      // Plan 11-03b — pick ONE director deterministically per (rowId, dateKey).
+      // Fresh xmur3 seed so this selection is independent of the daily row picker but still stable.
+      const directors = src.directors || [];
+      if (!directors.length) { items = []; }
+      else {
+        // Inline 32-bit hash — same algorithm as discovery-engine.xmur3 but we avoid the import
+        // (loader is already inside app.js; keeping it self-contained).
+        const seedStr = `${row.id}-${todayKey()}`;
+        let h = 1779033703 ^ seedStr.length;
+        for (let i = 0; i < seedStr.length; i++) {
+          h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+          h = (h << 13) | (h >>> 19);
+        }
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        h ^= h >>> 16;
+        const idx = (h >>> 0) % directors.length;
+        const personId = directors[idx];
+        const d = await tmdbFetch(
+          `/discover/movie?with_people=${personId}&sort_by=vote_average.desc&vote_count.gte=100`
+        );
+        items = (d.results || [])
+          .filter(x => x.poster_path)
+          .slice(0, 20)
+          .map(x => mapTmdbItem(x, 'movie'));
+      }
+    } else if (src.type === 'group-want-list') {
+      // G1 — titles the current user voted Yes on that haven't been watched or picked yet.
+      const myId = state.me && state.me.id;
+      if (!myId) { items = []; }
+      else {
+        items = (state.titles || []).filter(t => {
+          const votes = t.votes || {};
+          const myVote = votes[myId] || votes[`m_${myId}`];
+          return myVote === 'yes' && !t.watched && !t.lastPickedAt && !t.spinnerPickedAt;
+        }).slice(0, 20).map(t => ({
+          id: t.id,
+          tmdbId: t.tmdbId,
+          mediaType: t.mediaType || (t.kind === 'TV' ? 'tv' : 'movie'),
+          name: t.name,
+          year: t.year,
+          kind: t.kind || 'Movie',
+          overview: t.overview || '',
+          poster: t.poster || '',
+          genreIds: t.genreIds || []
+        }));
+      }
+    } else if (src.type === 'group-similar-to-recent') {
+      // G3 — TMDB /similar off the most-recently-watched title that has a tmdbId.
+      const recent = (state.titles || [])
+        .filter(t => t.watched && t.tmdbId)
+        .sort((a, b) => (b.watchedAt || 0) - (a.watchedAt || 0))[0];
+      if (!recent || !recent.tmdbId) { items = []; }
+      else {
+        const mediaPath = (recent.mediaType === 'tv' || recent.kind === 'TV') ? 'tv' : 'movie';
+        const d = await tmdbFetch(`/${mediaPath}/${recent.tmdbId}/similar`);
+        items = (d.results || [])
+          .filter(x => x.poster_path && (x.title || x.name))
+          .slice(0, 20)
+          .map(x => mapTmdbItem(x, mediaPath));
+        // Swap the eyebrow on the live row to reflect which title seeded the similar list.
+        try {
+          const rowEl = document.getElementById('add-row-' + row.id);
+          const section = rowEl && rowEl.closest('.add-section');
+          const eyebrow = section && section.querySelector('.discover-row-eyebrow');
+          if (eyebrow) eyebrow.textContent = `Because you watched ${recent.name}`;
+        } catch (e) { /* non-fatal — eyebrow swap is cosmetic */ }
+      }
+    } else if (src.type === 'group-top-genre-discover') {
+      // G7 — aggregate Yes-voted title genres across the library, map the top 1-2 names back
+      // to TMDB genre IDs, query /discover with those. state.titles carries genres as strings
+      // (TMDB genre NAMES, populated by fetchTmdbExtras) so we need a name→id map.
+      const nameToId = {
+        'Action': 28, 'Adventure': 12, 'Animation': 16, 'Comedy': 35,
+        'Crime': 80, 'Documentary': 99, 'Drama': 18, 'Family': 10751,
+        'Fantasy': 14, 'History': 36, 'Horror': 27, 'Music': 10402,
+        'Mystery': 9648, 'Romance': 10749, 'Science Fiction': 878,
+        'TV Movie': 10770, 'Thriller': 53, 'War': 10752, 'Western': 37,
+        // TV-specific names that map to movie genres well enough for discovery
+        'Action & Adventure': 28, 'Sci-Fi & Fantasy': 878, 'War & Politics': 10752, 'Kids': 10751
+      };
+      const genreCount = {};
+      (state.titles || []).forEach(t => {
+        const votes = t.votes || {};
+        const hasYes = Object.values(votes).some(v => v === 'yes');
+        if (!hasYes || !Array.isArray(t.genres)) return;
+        t.genres.forEach(g => {
+          const gid = nameToId[g];
+          if (gid) genreCount[gid] = (genreCount[gid] || 0) + 1;
+        });
+      });
+      const topGenres = Object.entries(genreCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(e => e[0]);
+      if (!topGenres.length) { items = []; }
+      else {
+        const d = await tmdbFetch(
+          `/discover/movie?with_genres=${topGenres.join(',')}&sort_by=popularity.desc&vote_average.gte=6.5&vote_count.gte=300`
+        );
+        items = (d.results || [])
+          .filter(x => x.poster_path)
+          .slice(0, 20)
+          .map(x => mapTmdbItem(x, 'movie'));
+      }
     } else if (src.type === 'group-recent-yes-similar' || src.type === 'group-rewatch-candidates') {
       // Cold-start stub: empty triggers per-row empty state. Wired fully in Plan 11-03b
       // (personalization Bucket G + comfort-rewatch data model).
