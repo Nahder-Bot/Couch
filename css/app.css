@@ -2603,3 +2603,38 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .leave-family-confirm{background:var(--bad);color:var(--bg);border-color:transparent;
   font-weight:700}
 .leave-family-confirm:hover{opacity:0.92}
+
+/* ===== Phase 11 / REFR-04 second half (Plan 11-03b) — Browse-all + pinning ===== */
+/* Semantic tokens only; 44px touch targets preserved per BRAND.md §7 floor. */
+.add-browse-all-trigger{margin:var(--s5) 0 var(--s7);text-align:center}
+.add-browse-all-btn{padding:var(--s2) var(--s5);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:var(--r-pill);
+  color:var(--ink-warm);font-family:var(--font-sans);font-weight:600;
+  font-size:var(--t-meta);cursor:pointer;min-height:44px;
+  transition:border-color var(--duration-fast) var(--easing-standard),
+             color var(--duration-fast) var(--easing-standard)}
+.add-browse-all-btn:hover{border-color:var(--accent);color:var(--ink)}
+.browse-all-sheet{max-width:540px;max-height:85vh;overflow-y:auto}
+.browse-all-bucket-group{margin-bottom:var(--s5)}
+.browse-all-bucket-group:last-child{margin-bottom:0}
+.browse-all-bucket-h{font-family:var(--font-sans);font-size:var(--t-eyebrow);
+  color:var(--ink-dim);letter-spacing:0.12em;text-transform:uppercase;
+  font-weight:600;margin:0 0 var(--s2)}
+.browse-all-row-tile{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--s3);padding:var(--s3) 0;border-bottom:1px solid var(--border)}
+.browse-all-row-tile:last-child{border-bottom:none}
+.browse-all-row-text{flex:1;min-width:0}
+.browse-all-row-label{font-family:var(--font-sans);font-size:var(--t-body);
+  font-weight:600;color:var(--ink)}
+.browse-all-row-subtitle{font-family:var(--font-serif);font-style:italic;
+  font-size:var(--t-meta);color:var(--ink-warm);margin-top:var(--s1);
+  line-height:1.4}
+.pin-toggle{flex-shrink:0;width:44px;height:44px;border:1px solid var(--border);
+  background:transparent;border-radius:50%;color:var(--ink-dim);
+  font-size:var(--t-h3);cursor:pointer;display:grid;place-items:center;
+  transition:border-color var(--duration-fast) var(--easing-standard),
+             color var(--duration-fast) var(--easing-standard),
+             background var(--duration-fast) var(--easing-standard)}
+.pin-toggle:hover{border-color:var(--accent);color:var(--ink)}
+.pin-toggle.pinned{background:var(--accent);color:var(--bg);border-color:transparent}
+.pinned-section .discover-row-eyebrow{color:var(--accent)}

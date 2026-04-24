@@ -9201,6 +9201,147 @@ async function loadGemsRow() {
   }
 }
 
+// ===== Phase 11 / REFR-04 second half (Plan 11-03b) — Browse-all sheet + pinning =====
+// Pin state persists per-user in localStorage at `couch-pinned-rows-{userId}`,
+// capped at 3 entries. Pinned rows render at top of Add tab via #pinned-rows.
+// Browse-all sheet lists every DISCOVERY_CATALOG entry grouped by bucket with
+// per-row pin toggle. All reads re-cap to PIN_CAP to defend against tampered
+// localStorage (T-11-03b-02 mitigation).
+
+const PIN_CAP = 3;
+
+function pinStorageKey() {
+  const uid = (state.me && state.me.id) || 'anon';
+  return `couch-pinned-rows-${uid}`;
+}
+
+function getPinnedRowIds() {
+  try {
+    const raw = localStorage.getItem(pinStorageKey());
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, PIN_CAP) : [];
+  } catch (e) { return []; }
+}
+
+function setPinnedRowIds(ids) {
+  try {
+    localStorage.setItem(pinStorageKey(), JSON.stringify(ids.slice(0, PIN_CAP)));
+  } catch (e) { /* localStorage full / private mode — silent */ }
+}
+
+window.togglePinRow = function(rowId) {
+  const pinned = getPinnedRowIds();
+  const idx = pinned.indexOf(rowId);
+  if (idx >= 0) {
+    pinned.splice(idx, 1);
+    setPinnedRowIds(pinned);
+    haptic('light');
+    flashToast('Unpinned', { kind: 'info' });
+  } else {
+    if (pinned.length >= PIN_CAP) {
+      haptic('warn');
+      flashToast(`You can pin up to ${PIN_CAP} rows.`, { kind: 'warn' });
+      return;
+    }
+    pinned.push(rowId);
+    setPinnedRowIds(pinned);
+    haptic('success');
+    flashToast('Pinned', { kind: 'success' });
+  }
+  renderBrowseAllSheet();
+  renderPinnedRows();
+};
+
+function renderPinnedRows() {
+  const container = document.getElementById('pinned-rows');
+  if (!container) return;
+  const pinnedIds = getPinnedRowIds();
+  if (!pinnedIds.length) { container.innerHTML = ''; return; }
+  const pinnedRows = pinnedIds
+    .map(id => DISCOVERY_CATALOG.find(r => r.id === id))
+    .filter(Boolean);
+  if (!pinnedRows.length) { container.innerHTML = ''; return; }
+
+  const skeletonPosters =
+    '<div class="sk-row-posters" aria-hidden="true">' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div>' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div>' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div>' +
+    '</div>';
+
+  container.innerHTML = pinnedRows.map(row => {
+    const safeLabel = escapeHtml(row.label);
+    const safeSub = escapeHtml(row.subtitle || '');
+    const safeId = escapeHtml(row.id);
+    return `<div class="add-section pinned-section">
+        <div class="discover-row-eyebrow">PINNED &middot; ${safeLabel}</div>
+        <div class="discover-row-subtitle"><em>${safeSub}</em></div>
+        <div class="discover-row-wrap">
+          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('${safeId}',-1)">◂</button>
+          <div class="discover-row" id="add-row-${safeId}">${skeletonPosters}</div>
+          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('${safeId}',1)">▸</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Stagger loader calls — same budget discipline as renderAddDiscovery.
+  pinnedRows.forEach((row, idx) => {
+    setTimeout(() => loadDiscoveryRow(row), idx * 200);
+  });
+}
+
+window.openBrowseAllSheet = function() {
+  const bg = document.getElementById('browse-all-sheet-bg');
+  if (!bg) return;
+  renderBrowseAllSheet();
+  bg.classList.add('on');
+};
+
+window.closeBrowseAllSheet = function() {
+  const bg = document.getElementById('browse-all-sheet-bg');
+  if (bg) bg.classList.remove('on');
+};
+
+function renderBrowseAllSheet() {
+  const el = document.getElementById('browse-all-content');
+  if (!el) return;
+  const pinned = new Set(getPinnedRowIds());
+  const buckets = [
+    { key: 'A', label: 'Always-on' },
+    { key: 'B', label: 'Trending' },
+    { key: 'C', label: 'Discovery' },
+    { key: 'D', label: 'Use-case' },
+    { key: 'E', label: 'Theme of the day' },
+    { key: 'F', label: 'Seasonal' },
+    { key: 'G', label: 'Personalization' }
+  ];
+  el.innerHTML = buckets.map(b => {
+    const rows = DISCOVERY_CATALOG.filter(r => r.bucket === b.key);
+    if (!rows.length) return '';
+    return `<div class="browse-all-bucket-group">
+        <h4 class="browse-all-bucket-h">${escapeHtml(b.label)}</h4>
+        ${rows.map(row => {
+          const isPinned = pinned.has(row.id);
+          const safeLabel = escapeHtml(row.label);
+          const safeSub = escapeHtml(row.subtitle || '');
+          return `<div class="browse-all-row-tile">
+              <div class="browse-all-row-text">
+                <div class="browse-all-row-label">${safeLabel}</div>
+                <div class="browse-all-row-subtitle"><em>${safeSub}</em></div>
+              </div>
+              <button class="pin-toggle ${isPinned ? 'pinned' : ''}"
+                onclick="togglePinRow('${escapeHtml(row.id)}')"
+                aria-pressed="${isPinned}"
+                aria-label="${isPinned ? 'Unpin' : 'Pin'} ${safeLabel}">
+                ${isPinned ? '&#9733;' : '&#9734;'}
+              </button>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }).join('');
+}
+
 // ===== Phase 11 / REFR-04 — Dynamic discovery rotation =====
 // Builds 7-10 daily-rotated rows from DISCOVERY_CATALOG seeded by (userId, dateKey).
 // Rendered into #add-discovery-rows. Loaders staggered to respect TMDB ~40req/10s budget.
@@ -9509,6 +9650,8 @@ function initAddTab(force) {
   // Phase 11 / REFR-04 — dynamic rotation replaces the 3 hardcoded loaders.
   // loadTrendingRow / loadStreamingRow / loadGemsRow remain in the module and are
   // invoked from loadDiscoveryRow when the rotation selects those buckets.
+  // Plan 11-03b — pinned rows render FIRST (above daily rotation) when any pins exist.
+  renderPinnedRows();
   renderAddDiscovery();
 }
 

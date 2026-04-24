@@ -392,8 +392,14 @@
       <!-- Phase 11 / REFR-04 — Dynamic discovery rotation; populated by renderAddDiscovery().
            Replaces the 4 hardcoded rows (trending/streaming/gems + one more). Loaders still
            live in js/app.js (loadTrendingRow / loadStreamingRow / loadGemsRow) and are
-           invoked on demand via loadDiscoveryRow when the rotation selects them. -->
+           invoked on demand via loadDiscoveryRow when the rotation selects them.
+           Plan 11-03b adds #pinned-rows (always rendered first, up to 3 from localStorage)
+           and #add-browse-all-trigger (opens the Browse-all sheet). -->
+      <div id="pinned-rows"></div>
       <div id="add-discovery-rows"></div>
+      <div id="add-browse-all-trigger" class="add-browse-all-trigger">
+        <button class="add-browse-all-btn" onclick="openBrowseAllSheet()">Browse all rows</button>
+      </div>
 
       <div class="add-manual-footer">
         <button class="pill" onclick="openManualAdd()">Can't find it? Add manually</button>
@@ -1153,6 +1159,20 @@
       <button class="onboarding-skip" onclick="skipOnboarding()">Skip intro</button>
     </div>
     <div class="onboarding-dots" aria-hidden="true"><span class="onboarding-dot"></span><span class="onboarding-dot"></span><span class="onboarding-dot on"></span></div>
+  </div>
+</div>
+
+<!-- Phase 11 / REFR-04 second half (Plan 11-03b) — Browse-all sheet.
+     Lists every DISCOVERY_CATALOG row grouped by bucket with a per-row pin toggle.
+     Pinned rows (max 3) render at the top of Add tab via #pinned-rows container. -->
+<div class="modal-bg" id="browse-all-sheet-bg" onclick="if(event.target.id==='browse-all-sheet-bg')closeBrowseAllSheet()">
+  <div class="modal browse-all-sheet">
+    <h3>Browse all rows</h3>
+    <div class="meta"><em>Pin up to 3 to keep them at the top.</em></div>
+    <div id="browse-all-content"></div>
+    <div class="modal-actions-row">
+      <button class="pill" onclick="closeBrowseAllSheet()">Close</button>
+    </div>
   </div>
 </div>
 
