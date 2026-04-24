@@ -8048,6 +8048,257 @@ function renderSportsScoreStrip(wp) {
   </div>`;
 }
 
+// ---- Phase 11 / REFR-10 — Score-delta polling + amplified reactions ----
+// startSportsScorePolling runs an adaptive-interval loop (5s on-play / 15s off-play)
+// against SportsDataProvider.getScore. On home/away score change we flash the strip,
+// surface a 3s amplified reaction picker, and persist the scoring play for late-joiner
+// catch-me-up via wp.scoringPlays + wp.lastScore updates.
+let _sportsScorePollHandle = null;
+let _sportsLastScore = null;
+let _sportsPollWpId = null;
+
+function startSportsScorePolling(wp) {
+  stopSportsScorePolling();
+  if (!wp || !wp.sportEvent || !wp.sportEvent.id) return;
+  const league = wp.sportEvent.leagueKey || (wp.sportEvent.league || '').toLowerCase();
+  const gameId = wp.sportEvent.id || wp.sportEvent.espnId;
+  if (!gameId || !league) return;
+  _sportsPollWpId = wp.id;
+  // Seed baseline — avoids false scoring-play event on first real tick
+  SportsDataProvider.getScore(gameId, league).then(s => {
+    if (s && _sportsPollWpId === wp.id) {
+      _sportsLastScore = s;
+      updateSportsScoreStrip(wp.id, s);
+    }
+  }).catch(() => {});
+  const tick = async () => {
+    if (_sportsPollWpId !== wp.id) return;  // modal closed during await
+    const newScore = await SportsDataProvider.getScore(gameId, league);
+    if (newScore && _sportsPollWpId === wp.id) {
+      if (_sportsLastScore &&
+          (newScore.homeScore !== _sportsLastScore.homeScore ||
+           newScore.awayScore !== _sportsLastScore.awayScore)) {
+        handleScoringPlay(wp, _sportsLastScore, newScore);
+      }
+      _sportsLastScore = newScore;
+      updateSportsScoreStrip(wp.id, newScore);
+    }
+    // Adaptive interval — faster while live, slower pre/post
+    const nextDelay = (newScore && newScore.state === 'in') ? 5000 : 15000;
+    _sportsScorePollHandle = setTimeout(tick, nextDelay);
+  };
+  _sportsScorePollHandle = setTimeout(tick, 5000);
+}
+
+function stopSportsScorePolling() {
+  if (_sportsScorePollHandle) {
+    clearTimeout(_sportsScorePollHandle);
+    _sportsScorePollHandle = null;
+  }
+  _sportsPollWpId = null;
+  _sportsLastScore = null;
+}
+
+function updateSportsScoreStrip(wpId, score) {
+  const stripEl = document.getElementById(`sports-score-strip-${wpId}`);
+  if (!stripEl || !score) return;
+  const nums = stripEl.querySelectorAll('.sports-score-num');
+  if (nums[0]) nums[0].textContent = parseInt(score.awayScore, 10) || 0;
+  if (nums[1]) nums[1].textContent = parseInt(score.homeScore, 10) || 0;
+  const middleEl = stripEl.querySelector('.sports-score-middle');
+  if (middleEl) {
+    const isLive = score.state === 'in';
+    middleEl.innerHTML = isLive
+      ? `<span class="sports-score-live">LIVE &middot; ${escapeHtml(score.statusDetail || '')}</span>`
+      : `<span>${escapeHtml(score.statusDetail || 'Pre-game')}</span>`;
+  }
+  // Update the team abbreviations in case initial render used fallback placeholders
+  const abbrs = stripEl.querySelectorAll('.sports-score-team-abbr');
+  if (abbrs[0] && score.awayAbbr) abbrs[0].textContent = score.awayAbbr;
+  if (abbrs[1] && score.homeAbbr) abbrs[1].textContent = score.homeAbbr;
+}
+
+async function handleScoringPlay(wp, prevScore, newScore) {
+  // Flash score strip + show amplified reaction picker
+  const stripEl = document.getElementById(`sports-score-strip-${wp.id}`);
+  if (stripEl) {
+    stripEl.classList.remove('flash');
+    // Force reflow so the animation re-fires
+    void stripEl.offsetWidth;
+    stripEl.classList.add('flash');
+    setTimeout(() => { if (stripEl) stripEl.classList.remove('flash'); }, 800);
+  }
+  showAmplifiedReactionPicker(wp);
+  haptic('success');
+  // Write scoring play to Firestore for late-joiner catch-me-up variant
+  try {
+    const league = wp.sportEvent.leagueKey || (wp.sportEvent.league || '').toLowerCase();
+    const plays = await SportsDataProvider.getPlays(wp.sportEvent.id || wp.sportEvent.espnId, league);
+    const lastPlay = plays && plays.length ? plays[plays.length - 1] : null;
+    const playEntry = {
+      ts: Date.now(),
+      homeScore: newScore.homeScore,
+      awayScore: newScore.awayScore,
+      delta: {
+        home: newScore.homeScore - (prevScore ? prevScore.homeScore : 0),
+        away: newScore.awayScore - (prevScore ? prevScore.awayScore : 0)
+      },
+      text: (lastPlay && lastPlay.text) || 'Score!',
+      period: newScore.period || 0,
+      clock: newScore.clock || ''
+    };
+    await updateDoc(watchpartyRef(wp.id), {
+      scoringPlays: arrayUnion(playEntry),
+      lastScore: newScore,
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch(e) {
+    qnLog('[Sports] scoring-play persist failed', e && e.message);
+  }
+}
+
+function showAmplifiedReactionPicker(wp) {
+  const existing = document.getElementById('sports-amplified-picker');
+  if (existing) existing.remove();
+  const picker = document.createElement('div');
+  picker.id = 'sports-amplified-picker';
+  picker.className = 'sports-reaction-picker amplified';
+  const burstEmojis = ['🔥', '🎉', '😱', '💪'];
+  picker.innerHTML = burstEmojis.map(e =>
+    `<button class="sports-burst-btn" onclick="postBurstReaction('${escapeHtml(wp.id)}','${e}')">${e}</button>`
+  ).join('');
+  const liveBody = document.querySelector('.wp-live-modal');
+  if (liveBody) liveBody.appendChild(picker);
+  else document.body.appendChild(picker);
+  setTimeout(() => { if (picker.parentElement) picker.remove(); }, 3000);
+}
+
+window.postBurstReaction = async function(wpId, emoji) {
+  if (!state.me) return;
+  try {
+    const reaction = {
+      memberId: state.me.id,
+      memberName: state.me.name,
+      kind: 'emoji',
+      emoji,
+      at: Date.now(),
+      amplified: true
+    };
+    await updateDoc(watchpartyRef(wpId), {
+      reactions: arrayUnion(reaction),
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+    haptic('success');
+    // Dismiss the picker on tap — the 3s auto-dismiss is a ceiling, not a floor
+    const picker = document.getElementById('sports-amplified-picker');
+    if (picker) picker.remove();
+  } catch(e) {
+    qnLog('[Sports] burst reaction failed', e && e.message);
+  }
+};
+
+// ---- Phase 11 / REFR-10 — DVR slider ----
+// Per-user "I'm N seconds behind" offset for late/paused viewers. Writes to
+// participants[mid].dvrOffsetMs AND participants[mid].reactionDelay so the
+// existing Phase 7 PARTY-04 reaction-delay render filter reuses the same anchor.
+// Throttle Firestore writes to once per 500ms while the slider is dragged.
+function renderDvrSlider(wp, mine) {
+  if (!mine) return '';
+  const offsetMs = mine.dvrOffsetMs || 0;
+  const offsetSec = Math.round(offsetMs / 1000);
+  const readout = dvrReadoutText(offsetSec);
+  return `<div class="wp-dvr-slider">
+    <span class="wp-dvr-label">I'm behind</span>
+    <input type="range" min="0" max="180" value="${offsetSec}" step="5"
+      class="wp-dvr-input"
+      oninput="updateDvrReadout(this.value)"
+      onchange="setDvrOffset('${escapeHtml(wp.id)}', this.value)"
+      aria-label="DVR offset in seconds behind live" />
+    <span class="wp-dvr-readout" id="wp-dvr-readout">${escapeHtml(readout)}</span>
+  </div>`;
+}
+
+function dvrReadoutText(sec) {
+  if (!sec || sec <= 0) return 'On time';
+  if (sec <= 60) return `${sec}s behind`;
+  return `${Math.floor(sec/60)}m ${sec%60}s behind`;
+}
+
+window.updateDvrReadout = function(secStr) {
+  const sec = parseInt(secStr, 10) || 0;
+  const el = document.getElementById('wp-dvr-readout');
+  if (el) el.textContent = dvrReadoutText(sec);
+};
+
+let _dvrThrottleHandle = null;
+window.setDvrOffset = function(wpId, secStr) {
+  const sec = parseInt(secStr, 10) || 0;
+  const ms = sec * 1000;
+  if (!state.me) return;
+  if (_dvrThrottleHandle) clearTimeout(_dvrThrottleHandle);
+  _dvrThrottleHandle = setTimeout(async () => {
+    try {
+      await updateDoc(watchpartyRef(wpId), {
+        [`participants.${state.me.id}.dvrOffsetMs`]: ms,
+        // Reuse Phase 7 reactionDelay field as the canonical anchor so the existing
+        // render-filter in renderReactionsFeed picks up DVR-driven offset without
+        // needing a new code path.
+        [`participants.${state.me.id}.reactionDelay`]: sec,
+        ...writeAttribution()
+      });
+    } catch(e) {
+      qnLog('[Sports] DVR offset write failed', e && e.message);
+    }
+  }, 500);
+};
+
+// ---- Phase 11 / REFR-10 — Team-flair ----
+// On first join of a sport-mode wp, prompt user to pick allegiance. Writes to
+// participants[mid].teamAllegiance + teamColor. Avatar picks up the color via
+// inline style --team-color custom property (see CSS rule for .wp-participant-av).
+function maybeShowTeamFlairPicker(wp, mine) {
+  if (!wp || wp.mode !== 'game') return;
+  if (!mine) return;
+  if (typeof mine.teamAllegiance === 'string') return;  // already picked
+  if (document.getElementById('team-flair-overlay')) return;  // already shown
+  const sport = wp.sportEvent || {};
+  const overlay = document.createElement('div');
+  overlay.id = 'team-flair-overlay';
+  overlay.className = 'modal-bg on';
+  const awayColor = sport.awayTeamColor || '#d97757';
+  const homeColor = sport.homeTeamColor || '#e8a04a';
+  overlay.innerHTML = `
+    <div class="modal team-flair-modal">
+      <h3 class="modal-h2">Who are you rooting for?</h3>
+      <div class="team-flair-options">
+        <button class="pill team-flair-pick" onclick="setUserTeamFlair('${escapeHtml(wp.id)}','away','${escapeHtml(awayColor)}')">${escapeHtml(sport.awayTeam || 'Away team')}</button>
+        <button class="pill team-flair-pick" onclick="setUserTeamFlair('${escapeHtml(wp.id)}','home','${escapeHtml(homeColor)}')">${escapeHtml(sport.homeTeam || 'Home team')}</button>
+        <button class="pill team-flair-pick neutral" onclick="setUserTeamFlair('${escapeHtml(wp.id)}','neutral','')">Just here for the show</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.setUserTeamFlair = async function(wpId, allegiance, hexColor) {
+  if (!state.me) return;
+  try {
+    const patch = {
+      [`participants.${state.me.id}.teamAllegiance`]: allegiance,
+      ...writeAttribution()
+    };
+    if (hexColor) {
+      patch[`participants.${state.me.id}.teamColor`] = hexColor;
+    }
+    await updateDoc(watchpartyRef(wpId), patch);
+  } catch(e) {
+    qnLog('[Sports] team flair write failed', e && e.message);
+  }
+  const overlay = document.getElementById('team-flair-overlay');
+  if (overlay) overlay.remove();
+};
+
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
@@ -8190,10 +8441,19 @@ window.openWatchpartyLive = function(wpId) {
   state.activeWatchpartyId = wpId;
   renderWatchpartyLive();
   document.getElementById('wp-live-modal-bg').classList.add('on');
+  // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt
+  const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
+  if (wp && wp.mode === 'game') {
+    startSportsScorePolling(wp);
+    const mine = myParticipation(wp);
+    maybeShowTeamFlairPicker(wp, mine);
+  }
 };
 
 window.closeWatchpartyLive = function() {
   document.getElementById('wp-live-modal-bg').classList.remove('on');
+  // Phase 11 / REFR-10 — stop any active score polling loop
+  stopSportsScorePolling();
   state.activeWatchpartyId = null;
 };
 
@@ -8414,7 +8674,10 @@ function renderWatchpartyLive() {
     // so late joiners get a 30s reaction recap without breaking the per-user reaction-delay
     // moat. Empty state (< 3 pre-join reactions in window) hides the card entirely.
     const catchupHtml = renderCatchupCard(wp, mine);
-    body = catchupHtml + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine);
+    // Phase 11 / REFR-10: DVR slider tail for sport-mode — per-user "I'm N seconds behind"
+    // offset feeds the existing Phase 7 reactionDelay render filter. Movie mode unchanged.
+    const dvrHtml = (wp.mode === 'game') ? renderDvrSlider(wp, mine) : '';
+    body = catchupHtml + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine) + dvrHtml;
   }
 
   // Footer
@@ -8493,13 +8756,39 @@ function renderCatchupCard(wp, mine) {
   if (!joinedAt || !startedAt) return '';
   if (joinedAt <= startedAt + ONTIME_GRACE_MS) return '';
   if (window._catchupDismissed && window._catchupDismissed[wp.id]) return '';
+  const isSport = wp.mode === 'game' || !!wp.sportEvent;
+  // Phase 11 / REFR-10 — Sports variant: score + last 3 plays card instead of
+  // the reaction rail. Hides the movie-mode <3 reactions guard since a sport
+  // late-joiner benefits from the score even without any reactions in flight.
+  if (isSport) {
+    const score = (wp && wp.lastScore) || {};
+    const recentPlays = (wp.scoringPlays || []).slice(-3);
+    const awayAbbr = score.awayAbbr || (wp.sportEvent && (wp.sportEvent.awayAbbrev || wp.sportEvent.awayTeam)) || 'Away';
+    const homeAbbr = score.homeAbbr || (wp.sportEvent && (wp.sportEvent.homeAbbrev || wp.sportEvent.homeTeam)) || 'Home';
+    const awayScore = parseInt(score.awayScore, 10) || 0;
+    const homeScore = parseInt(score.homeScore, 10) || 0;
+    const playsHtml = recentPlays.length
+      ? recentPlays.map(p => {
+          const qLabel = p.period ? `Q${p.period}` : '';
+          const clockLabel = p.clock ? ` ${escapeHtml(p.clock)}` : '';
+          return `<div class="wp-catchup-sport-play">${escapeHtml(qLabel)}${clockLabel} &mdash; ${escapeHtml(p.text || 'Score')}</div>`;
+        }).join('')
+      : '<div class="wp-catchup-sport-play"><em>No scoring plays yet.</em></div>';
+    return `<div class="wp-catchup-card">
+      <div class="wp-catchup-eyebrow">YOU MISSED</div>
+      <div class="wp-catchup-title"><em>Here's where we are.</em></div>
+      <div class="wp-catchup-sport-score">Score: ${escapeHtml(awayAbbr)} ${awayScore}, ${escapeHtml(homeAbbr)} ${homeScore}</div>
+      <div class="wp-catchup-sport-label">Last 3 plays:</div>
+      ${playsHtml}
+      <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+    </div>`;
+  }
+  // Movie-mode variant — 30s reaction rail
   const windowStart = joinedAt - 30 * 1000;
   const preJoinReactions = (wp.reactions || [])
     .filter(r => (r.at || 0) < joinedAt && (r.at || 0) >= windowStart)
     .sort((a, b) => (a.at || 0) - (b.at || 0));
   if (preJoinReactions.length < 3) return '';  // empty state = hide entirely
-  // Sports variant placeholder — Plan 11-06 REFR-10 replaces the reaction rail below
-  // with a score+last-3-plays card. v1 falls through to the movie-mode reaction rail.
   const rail = preJoinReactions.map(r => {
     const initial = (r.memberName || '?')[0].toUpperCase();
     const color = memberColor(r.memberId);
@@ -8603,8 +8892,16 @@ function renderParticipantTimerStrip(wp) {
         ontimeControl = `<button class="wp-ontime-claim" onclick="claimStartedOnTime('${escapeHtml(wp.id)}')" title="I was already watching from the start — anchor my timer to the scheduled start time">I started on time</button>`;
       }
     }
+    // Phase 11 / REFR-10 — Team-flair badge: apply --team-color custom property to
+    // the avatar inline style when the participant has picked an allegiance. CSS rule
+    // .wp-participant-av[style*="--team-color"] draws a 2px border in team color.
+    const teamColor = p.teamColor || null;
+    const avStyle = teamColor
+      ? `background:${color};--team-color:${escapeHtml(teamColor)};`
+      : `background:${color};`;
+    const teamFlairClass = teamColor ? ' has-team-flair' : '';
     return `<div class="wp-participant-chip ${chipClass} ${isMe ? 'me' : ''}" data-member-id="${escapeHtml(mid)}">
-      <div class="wp-participant-av" style="background:${color};" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-av${teamFlairClass}" style="${avStyle}" aria-hidden="true">${escapeHtml(initial)}</div>
       <div class="wp-participant-info">
         <div class="wp-participant-name">${escapeHtml(name)}${isMe ? ' <span class="muted">(you)</span>' : ''}</div>
         <div class="wp-participant-time" data-role="pt-time">${escapeHtml(statusLabel)}</div>

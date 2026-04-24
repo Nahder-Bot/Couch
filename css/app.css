@@ -2742,3 +2742,76 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   50% { box-shadow: 0 0 24px rgba(232,160,74,0.40); }
 }
 .sports-score-strip.flash{animation:sports-score-pulse var(--t-cinema) var(--easing-spring) 1}
+
+/* Score-delta amplified reaction picker — slides up after a scoring play,
+   auto-dismisses after 3s or on tap. Fixed position so it doesn't displace
+   the reactions feed underneath. */
+.sports-reaction-picker.amplified{position:fixed;bottom:120px;left:50%;
+  transform:translateX(-50%) scale(1.08);
+  display:flex;gap:var(--s2);
+  background:var(--surface-2);
+  padding:var(--s3) var(--s4);
+  border-radius:var(--r-pill);
+  box-shadow:var(--shadow-warm);
+  z-index:10;
+  animation:sports-amplified-enter var(--duration-deliberate) var(--easing-spring) 1}
+@keyframes sports-amplified-enter {
+  from { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  to { transform: translateX(-50%) scale(1.08); opacity: 1; }
+}
+.sports-burst-btn{background:none;border:none;font-size:32px;cursor:pointer;
+  padding:var(--s2);min-width:44px;min-height:44px;line-height:1;
+  transition:transform var(--duration-fast) var(--easing-spring)}
+.sports-burst-btn:hover{transform:scale(1.2)}
+.sports-burst-btn:active{transform:scale(0.95)}
+
+/* DVR slider — per-user "I'm N seconds behind" offset. Styled HTML5 range
+   input with a 22px thumb for 44px effective touch target (thumb radius +
+   track height = ~44 vertical). */
+.wp-dvr-slider{display:flex;align-items:center;gap:var(--s3);
+  padding:var(--s3);background:var(--bg-deep);
+  border-radius:var(--r-sm);margin-top:var(--s3)}
+.wp-dvr-label{font-family:var(--font-sans);font-size:var(--t-meta);
+  color:var(--ink-warm);font-weight:600;flex-shrink:0}
+.wp-dvr-input{flex:1;height:22px;-webkit-appearance:none;appearance:none;
+  background:transparent;outline:none;cursor:pointer}
+.wp-dvr-input::-webkit-slider-runnable-track{height:6px;
+  background:var(--surface);border-radius:3px}
+.wp-dvr-input::-moz-range-track{height:6px;
+  background:var(--surface);border-radius:3px}
+.wp-dvr-input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:22px;height:22px;border-radius:50%;background:var(--accent);
+  cursor:pointer;margin-top:-8px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+.wp-dvr-input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:none;
+  box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+.wp-dvr-readout{font-family:var(--font-sans);font-size:var(--t-meta);
+  color:var(--ink);font-variant-numeric:tabular-nums;
+  flex-shrink:0;min-width:80px;text-align:right}
+
+/* Team-flair: avatar border in team color via --team-color custom property.
+   Falls back to accent if the property is missing. */
+.team-flair-modal{max-width:400px;text-align:center}
+.team-flair-options{display:flex;flex-direction:column;gap:var(--s2);
+  margin-top:var(--s4)}
+.team-flair-pick{min-height:44px;font-weight:600}
+.team-flair-pick.neutral{opacity:0.7;font-style:italic;font-weight:400}
+.wp-participant-av.has-team-flair{box-shadow:0 0 0 2px var(--team-color,var(--accent))}
+
+/* Sports variant of the Catch-me-up card — score + last-3-plays block. */
+.wp-catchup-sport-score{font-family:var(--font-sans);font-size:var(--t-body);
+  font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;
+  margin-top:var(--s2)}
+.wp-catchup-sport-label{font-family:var(--font-sans);font-size:var(--t-eyebrow);
+  color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.12em;
+  margin-top:var(--s3);margin-bottom:var(--s1)}
+.wp-catchup-sport-play{font-family:var(--font-sans);font-size:var(--t-meta);
+  color:var(--ink-warm);font-variant-numeric:tabular-nums;
+  padding:var(--s1) 0;line-height:1.4}
+
+@media (prefers-reduced-motion: reduce) {
+  .sports-reaction-picker.amplified{animation:none;transform:translateX(-50%)}
+  .sports-burst-btn{transition:none}
+  .sports-score-strip.flash{animation:none}
+}
