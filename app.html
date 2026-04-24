@@ -56,6 +56,36 @@
 <body>
 
 <div class="phone-shell">
+
+<!-- Plan 09-07b / DESIGN-08: Guest invite redemption screens.
+     Shown BEFORE the sign-in gate when the URL has ?invite=<token>.
+     Land a guest on Tonight with a temporary member doc — no onboarding, no sign-in flow. -->
+<section id="invite-redeem-screen" class="wrap has-leather" style="display:none;">
+  <div class="brand large brand-hero-large">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+  </div>
+  <p class="page-title" id="invite-redeem-title">Join the couch</p>
+  <p class="page-sub" id="invite-redeem-sub">You've been invited as a guest.</p>
+  <div class="invite-redeem-card">
+    <div class="invite-badge-row">
+      <span class="chip-badge badge-guest">guest pass</span>
+      <span class="invite-duration"><span id="invite-duration-label">7 days</span></span>
+    </div>
+    <input type="text" id="invite-guest-name" class="code-input" placeholder="Your name" autocomplete="given-name" maxlength="40">
+    <button id="invite-redeem-submit" onclick="submitGuestRedeem()">Join the couch</button>
+    <p class="fine-print">Guest access expires <span id="invite-expires-label">in 7 days</span>. You can vote, react, and join watchparties.</p>
+  </div>
+</section>
+
+<section id="invite-expired-screen" class="wrap has-leather" style="display:none;">
+  <div class="brand large brand-hero-large">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+  </div>
+  <p class="page-title">This invite has expired</p>
+  <p class="page-sub">Ask the family owner for a new invite link.</p>
+  <p class="fine-print">Invites are time-limited for security. Your host can mint a fresh one from their Account settings.</p>
+</section>
+
 <section id="signin-screen" class="wrap" style="display:none;">
   <div class="signin-header">
     <h1 class="signin-title">Couch</h1>

@@ -2241,10 +2241,148 @@ window.declineClaim = function() {
 };
 
 // Plan 06 stub — invite-redeem lands in a later plan. Keep as stub for now.
-function showInviteRedeemScreen(token) {
-  flashToast('Invite detected — setup in progress. Sign-in complete.', { kind: 'success' });
-  routeAfterAuth();
+// Plan 09-07b DESIGN-08: Guest invite redemption screen.
+// Flow: bootstrapAuth detects ?invite= -> calls this (unauthed or authed), fetches
+// invite preview via CF, renders redeem screen. On submit: consumeGuestInvite CF.
+// Expired/invalid -> invite-expired-screen (NOT sign-in redirect).
+async function showInviteRedeemScreen(token) {
+  // Hide every other pre-auth screen defensively
+  try {
+    ['signin-screen','screen-mode','screen-family-join','screen-name','claim-confirm-screen','invite-expired-screen']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  } catch(e) {}
+  try { sessionStorage.setItem('qn_invite', token); } catch(e) {}
+
+  // Stamp the token input into the fetch preview phase
+  let preview = null;
+  try {
+    preview = await fetchInvitePreview(token);
+  } catch(e) {
+    console.warn('[invite-redeem] preview failed', e && (e.code || e.message));
+    showInviteExpiredScreen();
+    return;
+  }
+  if (!preview || preview.expired) {
+    showInviteExpiredScreen();
+    return;
+  }
+
+  // Populate labels (family name not surfaced on the unauth preview per T-09-07b-02)
+  const durLabel = preview.durationLabel || '7 days';
+  const expLabel = preview.expiresLabel || ('in ' + durLabel);
+  const dl = document.getElementById('invite-duration-label'); if (dl) dl.textContent = durLabel;
+  const el = document.getElementById('invite-expires-label'); if (el) el.textContent = expLabel;
+  const sc = document.getElementById('invite-redeem-screen'); if (sc) sc.style.display = 'block';
 }
+
+function showInviteExpiredScreen() {
+  try {
+    ['signin-screen','screen-mode','screen-family-join','screen-name','claim-confirm-screen','invite-redeem-screen']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  } catch(e) {}
+  const sc = document.getElementById('invite-expired-screen'); if (sc) sc.style.display = 'block';
+}
+
+// Fetch a minimal invite preview. Uses the consumeGuestInvite CF in 'preview' mode
+// (does NOT consume the invite). Returns { durationLabel, expiresLabel } or { expired: true }.
+async function fetchInvitePreview(token) {
+  try {
+    const fn = httpsCallable(functions, 'consumeGuestInvite');
+    const r = await fn({ token, preview: true });
+    const d = (r && r.data) || {};
+    if (d.expired || d.consumed) return { expired: true };
+    // Compute friendly duration label from expiresAt if provided
+    let durationLabel = '7 days', expiresLabel = 'in 7 days';
+    if (d.expiresAt) {
+      const msLeft = d.expiresAt - Date.now();
+      const days = Math.max(1, Math.round(msLeft / 86400000));
+      durationLabel = days === 1 ? '1 day' : days + ' days';
+      expiresLabel = 'in ' + durationLabel;
+    }
+    return { durationLabel, expiresLabel };
+  } catch(e) {
+    const code = e && (e.code || (e.details && e.details.code));
+    if (code === 'functions/failed-precondition' || code === 'failed-precondition' ||
+        code === 'functions/not-found' || code === 'not-found' ||
+        code === 'functions/deadline-exceeded' || code === 'deadline-exceeded') {
+      return { expired: true };
+    }
+    throw e;
+  }
+}
+
+// Submit guest redemption. Signs in anonymously (so writeAttribution works) then
+// calls consumeGuestInvite CF to create the guest member doc + mark invite consumed.
+window.submitGuestRedeem = async function() {
+  const nameInput = document.getElementById('invite-guest-name');
+  const guestName = (nameInput && nameInput.value.trim()) || '';
+  if (!guestName || guestName.length < 1) { flashToast('Please enter a name', { kind: 'warn' }); return; }
+  let token = '';
+  try { token = sessionStorage.getItem('qn_invite') || ''; } catch(e) {}
+  if (!token) { showInviteExpiredScreen(); return; }
+
+  const btn = document.getElementById('invite-redeem-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Joining…'; }
+
+  try {
+    // Ensure we have an auth user so admin SDK can attribute the member write
+    if (!auth.currentUser) {
+      const { signInAnonymously } = await import('./firebase.js');
+      await signInAnonymously(auth);
+    }
+    const fn = httpsCallable(functions, 'consumeGuestInvite');
+    const r = await fn({ token, guestName });
+    const d = (r && r.data) || {};
+    if (!d.ok) throw new Error('consume-failed');
+
+    // Clear the one-shot token
+    try { sessionStorage.removeItem('qn_invite'); } catch(e) {}
+    // Strip ?invite= from URL
+    try {
+      const u = new URL(window.location.href);
+      ['invite','family'].forEach(k => u.searchParams.delete(k));
+      history.replaceState(null, '', u.toString());
+    } catch(e) {}
+
+    // Stamp state for guest identity
+    state.me = state.me || {};
+    state.me.type = 'guest';
+    state.me.temporary = true;
+    state.me.seenOnboarding = true;
+    state.me.id = d.memberId;
+    state.me.name = d.memberName || guestName;
+    state.me.expiresAt = d.expiresAt || null;
+
+    // Route into the family
+    state.familyCode = d.familyCode;
+    localStorage.setItem('qn_family', d.familyCode);
+    localStorage.setItem('qn_active_group', d.familyCode);
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'groups', d.familyCode), {
+        familyCode: d.familyCode,
+        joinedAt: Date.now(),
+        lastActiveAt: Date.now(),
+        guest: true
+      }, { merge: true });
+    } catch(e) {}
+
+    flashToast('Welcome to the couch', { kind: 'success' });
+    haptic('success');
+    // Defer to the normal auth-routing path so watchers subscribe and Tonight paints
+    try { await _bootIntoGroup(d.familyCode); } catch(e) { console.error('[invite-redeem] bootIntoGroup', e); }
+  } catch(e) {
+    console.error('[invite-redeem] consume failed', e);
+    const code = e && (e.code || '');
+    if (code === 'functions/failed-precondition' || code === 'failed-precondition' ||
+        code === 'functions/not-found' || code === 'not-found' ||
+        code === 'functions/deadline-exceeded' || code === 'deadline-exceeded') {
+      showInviteExpiredScreen();
+      return;
+    }
+    flashToast("Couldn't redeem invite. Try again?", { kind: 'warn' });
+    if (btn) { btn.disabled = false; btn.textContent = 'Join the couch'; }
+  }
+};
 
 // ===== Phase 5: Auth-aware submitFamily =====
 window.submitFamily = async function() {
@@ -2778,7 +2916,14 @@ window.createGuestInvite = async function() {
     const fn = httpsCallable(functions, 'inviteGuest');
     const r = await fn({ familyCode: state.familyCode, durationMs: duration });
     if (r.data && r.data.ok) {
-      const link = r.data.deepLink || `https://couchtonight.app/?invite=${encodeURIComponent(r.data.inviteToken)}&family=${encodeURIComponent(state.familyCode)}`;
+      // Plan 09-07b drift 3: strip `&family=` from owner-side URL (security: token resolves family server-side).
+      // If the CF still returns a deepLink with family= baked in, sanitize it client-side.
+      let link = r.data.deepLink || `https://couchtonight.app/?invite=${encodeURIComponent(r.data.inviteToken)}`;
+      try {
+        const u = new URL(link);
+        u.searchParams.delete('family');
+        link = u.toString();
+      } catch(e) {}
       const out = document.getElementById('settings-guest-link-out');
       if (out) {
         out.innerHTML = `<p>Send this link to your guest:</p><code>${escapeHtml(link)}</code><button onclick="copyGuestLink(this)" data-link="${escapeHtml(link)}">Copy</button>`;
@@ -3253,6 +3398,17 @@ async function maybeFlipScheduledParties(parties) {
 }
 
 async function boot() {
+  // Plan 09-07b DESIGN-08: guest invite detour BEFORE sign-in gate.
+  // If the URL carries ?invite=<token> and the user is not already authed with a valid session,
+  // render the invite-redeem screen instead of the sign-in screen. Signed-in users still see the
+  // normal post-auth invite handler (handlePostSignInIntent) so they can redeem a second invite
+  // against a separate family without losing their existing session.
+  let preAuthInviteToken = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    preAuthInviteToken = params.get('invite') || null;
+  } catch(e) {}
+
   // Phase 5: bootstrapAuth MUST resolve before any UI render so the router picks the right screen.
   // IMPORTANT: boot() intentionally does NOT set state.auth or route into a group itself.
   // onAuthStateChangedCouch is the single owner of all post-auth routing decisions;
@@ -3270,7 +3426,13 @@ async function boot() {
   // so when it's non-null we skip the pre-auth paint entirely and let onAuthStateChangedCouch
   // route straight into the group. This avoids the half-second sign-in flash on reload / switch.
   if (!auth.currentUser) {
-    showPreAuthScreen('signin-screen');
+    // Plan 09-07b DESIGN-08: unauthed + ?invite=<token> -> redeem screen, NOT sign-in.
+    if (preAuthInviteToken) {
+      // showInviteRedeemScreen hides signin-screen itself + fetches preview + routes to expired on failure.
+      showInviteRedeemScreen(preAuthInviteToken);
+    } else {
+      showPreAuthScreen('signin-screen');
+    }
   }
 
   // Install the listener. Firebase Auth fires it on install with the current auth state (or null

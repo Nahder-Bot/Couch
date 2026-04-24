@@ -2147,6 +2147,14 @@ h3{font-size:var(--t-h3)}
 #signin-phone-code-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .signin-footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--ink-faint); line-height: 1.5; padding-bottom: 40px; }
 
+/* ===== Plan 09-07b DESIGN-08: Guest invite redemption screens ===== */
+/* Branded redeem card: badge-guest pill + duration + name input. Mirrors the
+   family-join screen treatment but with a guest-pass visual vocabulary. */
+.invite-redeem-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px 18px; margin: 18px 0 12px; }
+.invite-badge-row { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 16px; }
+.invite-duration { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-warm); }
+.fine-print { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--ink-faint); text-align: center; line-height: 1.5; margin: 14px 0 0; }
+
 /* ===== Phase 5 Plan 07: Sub-profile + guest badges, act-as chip state ===== */
 /* D-01 kid + D-12 guest badges — compact, Inter, warm palette. Appear on name-screen chips + Tonight who-list + subprofile-list rows. */
 .chip-badge { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 4px; margin-left: 4px; text-transform: uppercase; vertical-align: middle; }
