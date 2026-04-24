@@ -915,6 +915,30 @@
     </div>
   </div>
 
+  <!-- Phase 11 / REFR-10 — Game Mode picker modal. Distinct from #sports-picker-bg
+       (the legacy sports watchparty entry). This modal creates a wp with mode='game'
+       and attaches a live score strip + score-delta polling + DVR slider + team-flair
+       badges on render. -->
+  <div class="modal-bg" id="game-picker-modal-bg" onclick="if(event.target.id==='game-picker-modal-bg')closeGamePicker()">
+    <div class="modal game-picker-modal">
+      <h3 class="modal-h2">Tonight's game</h3>
+      <div class="meta modal-meta-sub">Pick a live or upcoming game</div>
+      <div class="game-picker-league-row" role="tablist">
+        <button class="pill game-picker-league-btn" data-league="nfl" onclick="loadGamePickerLeague('nfl')">NFL</button>
+        <button class="pill game-picker-league-btn" data-league="nba" onclick="loadGamePickerLeague('nba')">NBA</button>
+        <button class="pill game-picker-league-btn" data-league="mlb" onclick="loadGamePickerLeague('mlb')">MLB</button>
+        <button class="pill game-picker-league-btn" data-league="nhl" onclick="loadGamePickerLeague('nhl')">NHL</button>
+      </div>
+      <div id="game-picker-list" class="game-picker-list">
+        <div class="game-picker-empty"><em>Pick a league to see games.</em></div>
+      </div>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="closeGamePicker()">Cancel</button>
+        <button class="pill game-picker-confirm" id="game-picker-confirm" onclick="confirmGamePicker()" disabled>Use this game</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="wp-start-modal-bg">
     <div class="modal">
       <h3>Start a watchparty</h3>

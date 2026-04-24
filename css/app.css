@@ -2681,3 +2681,64 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .pin-toggle:hover{border-color:var(--accent);color:var(--ink)}
 .pin-toggle.pinned{background:var(--accent);color:var(--bg);border-color:transparent}
 .pinned-section .discover-row-eyebrow{color:var(--accent)}
+
+/* ==================================================================
+   Phase 11 / REFR-10 — Sports Game Mode
+   Game picker modal + sticky live score strip. All new rules use
+   existing tokens; no raw px/ms literals for spacing/motion.
+   ================================================================== */
+
+/* Game picker modal */
+.game-picker-modal{max-width:540px;padding:var(--s5)}
+.game-picker-league-row{display:flex;gap:var(--s2);margin-bottom:var(--s4);
+  overflow-x:auto;scrollbar-width:none}
+.game-picker-league-row::-webkit-scrollbar{display:none}
+.game-picker-league-btn.on{background:var(--accent);color:var(--bg);
+  border-color:transparent;font-weight:700}
+.game-picker-list{max-height:50vh;overflow-y:auto;margin-bottom:var(--s4);
+  scrollbar-width:thin}
+.game-picker-card{display:grid;grid-template-columns:1fr auto 1fr;
+  gap:var(--s3);align-items:center;padding:var(--s3);
+  background:var(--surface);border:2px solid transparent;
+  border-radius:var(--r-md);margin-bottom:var(--s2);cursor:pointer;
+  transition:border-color var(--duration-fast) var(--easing-standard),
+             transform var(--duration-fast) var(--easing-standard)}
+.game-picker-card:hover{border-color:rgba(232,160,74,0.30)}
+.game-picker-card.on{border-color:var(--accent);transform:scale(0.99)}
+.game-picker-team{display:flex;flex-direction:column;align-items:center;
+  gap:var(--s1)}
+.game-picker-team-name{font-family:var(--font-sans);font-size:var(--t-body);
+  font-weight:600;color:var(--ink);text-align:center;line-height:1.2}
+.game-picker-at{font-family:var(--font-serif);font-style:italic;
+  font-size:var(--t-meta);color:var(--ink-dim)}
+.game-picker-kickoff{grid-column:1/-1;font-family:var(--font-sans);
+  font-size:var(--t-meta);color:var(--ink-warm);text-align:center;
+  margin-top:var(--s1);font-variant-numeric:tabular-nums}
+.game-picker-empty{padding:var(--s5);text-align:center;
+  font-family:var(--font-serif);font-style:italic;color:var(--ink-dim)}
+.game-picker-confirm{background:var(--brand-grad);color:var(--bg);
+  border-color:transparent;font-weight:700}
+.game-picker-confirm:disabled{opacity:0.4;cursor:not-allowed;
+  background:var(--surface);color:var(--ink-dim)}
+
+/* Live score strip — sticky-top chrome inside wp-live-modal when wp.mode === 'game' */
+.sports-score-strip{position:sticky;top:0;z-index:2;
+  background:linear-gradient(180deg,var(--surface-3),var(--surface-2));
+  border-bottom:1px solid rgba(232,160,74,0.40);
+  padding:var(--s2) var(--s3);display:flex;align-items:center;
+  justify-content:space-between;gap:var(--s3);min-height:40px}
+.sports-score-team{display:flex;align-items:center;gap:var(--s2);flex:0 0 auto}
+.sports-score-team-abbr{font-family:var(--font-sans);font-size:var(--t-body);
+  font-weight:700;color:var(--ink);letter-spacing:0.04em}
+.sports-score-num{font-family:var(--font-display);font-size:22px;
+  font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;
+  line-height:1}
+.sports-score-middle{flex:1 1 auto;font-family:var(--font-sans);
+  font-size:var(--t-meta);color:var(--ink-warm);text-align:center;
+  text-transform:uppercase;letter-spacing:0.06em}
+.sports-score-live{color:var(--accent);font-weight:600}
+@keyframes sports-score-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(232,160,74,0); }
+  50% { box-shadow: 0 0 24px rgba(232,160,74,0.40); }
+}
+.sports-score-strip.flash{animation:sports-score-pulse var(--t-cinema) var(--easing-spring) 1}

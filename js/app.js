@@ -7848,6 +7848,206 @@ const SportsDataProvider = {
   }
 };
 
+// ---- Phase 11 / REFR-10 — Game picker modal handlers ----
+// Distinct from the legacy openSportsPicker flow. This modal creates a watchparty
+// with mode='game' which unlocks the score strip + score-delta polling + DVR slider
+// + team-flair prompt on the render side. Movie watchparties untouched.
+let _gamePickerSelected = null;
+let _gamePickerLeague = null;
+
+window.openGamePicker = function() {
+  const bg = document.getElementById('game-picker-modal-bg');
+  if (!bg) return;
+  bg.classList.add('on');
+  _gamePickerSelected = null;
+  _gamePickerLeague = null;
+  const confirmBtn = document.getElementById('game-picker-confirm');
+  if (confirmBtn) confirmBtn.disabled = true;
+  // Reset league buttons
+  document.querySelectorAll('.game-picker-league-btn').forEach(b => b.classList.remove('on'));
+  const listEl = document.getElementById('game-picker-list');
+  if (listEl) listEl.innerHTML = '<div class="game-picker-empty"><em>Pick a league to see games.</em></div>';
+};
+
+window.closeGamePicker = function() {
+  const bg = document.getElementById('game-picker-modal-bg');
+  if (bg) bg.classList.remove('on');
+  _gamePickerSelected = null;
+};
+
+window.loadGamePickerLeague = async function(leagueKey) {
+  _gamePickerLeague = leagueKey;
+  _gamePickerSelected = null;
+  document.querySelectorAll('.game-picker-league-btn').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-league') === leagueKey);
+  });
+  const confirmBtn = document.getElementById('game-picker-confirm');
+  if (confirmBtn) confirmBtn.disabled = true;
+  const listEl = document.getElementById('game-picker-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="game-picker-empty"><em>Loading games…</em></div>';
+  try {
+    const games = await SportsDataProvider.getSchedule(leagueKey, 7);
+    if (!games || !games.length) {
+      listEl.innerHTML = '<div class="game-picker-empty"><em>No live games right now &mdash; check back near kickoff.</em></div>';
+      return;
+    }
+    listEl.innerHTML = games.map(g => {
+      const kickoff = g.startTime ? new Date(g.startTime).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+      // Serialize game JSON into data- attribute (safe for onclick passthrough)
+      const encoded = encodeURIComponent(JSON.stringify(g));
+      return `<div class="game-picker-card" data-id="${escapeHtml(g.id)}" onclick="selectGame('${escapeHtml(g.id)}','${encoded}')">
+        <div class="game-picker-team">
+          <div class="game-picker-team-name">${escapeHtml(g.awayTeam || 'Away')}</div>
+        </div>
+        <div class="game-picker-at"><em>at</em></div>
+        <div class="game-picker-team">
+          <div class="game-picker-team-name">${escapeHtml(g.homeTeam || 'Home')}</div>
+        </div>
+        <div class="game-picker-kickoff">${escapeHtml(kickoff)}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    qnLog('[GamePicker] load failed', e);
+    listEl.innerHTML = '<div class="game-picker-empty"><em>Could not load games. Try again in a moment.</em></div>';
+  }
+};
+
+window.selectGame = function(gameId, encodedJson) {
+  try {
+    _gamePickerSelected = JSON.parse(decodeURIComponent(encodedJson));
+  } catch(e) {
+    _gamePickerSelected = { id: gameId };
+  }
+  if (_gamePickerLeague) _gamePickerSelected.league = _gamePickerLeague;
+  document.querySelectorAll('.game-picker-card').forEach(c => {
+    c.classList.toggle('on', c.getAttribute('data-id') === gameId);
+  });
+  const confirmBtn = document.getElementById('game-picker-confirm');
+  if (confirmBtn) confirmBtn.disabled = false;
+};
+
+window.confirmGamePicker = async function() {
+  if (!_gamePickerSelected || !state.me) return;
+  if (guardReadOnlyWrite()) return;
+  const game = _gamePickerSelected;
+  const leagueEmojis = { nfl: '🏈', nba: '🏀', mlb: '⚾', nhl: '🏒' };
+  const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const creatorTimeZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+    catch (e) { return null; }
+  })();
+  const startAt = game.startTime || Date.now();
+  const matchupLabel = (game.awayTeam || 'Away') + ' at ' + (game.homeTeam || 'Home');
+  const wp = {
+    id,
+    mode: 'game',  // Phase 11 / REFR-10 — unlocks Game Mode UI variants
+    titleId: null,
+    titleName: matchupLabel,
+    titlePoster: '',
+    hostId: state.me.id,
+    hostName: state.me.name,
+    hostUid: (state.auth && state.auth.uid) || null,
+    creatorTimeZone: creatorTimeZone || null,
+    startAt,
+    createdAt: Date.now(),
+    lastActivityAt: Date.now(),
+    status: startAt <= Date.now() ? 'active' : 'scheduled',
+    sportEvent: {
+      id: game.id,
+      espnId: game.id,
+      league: (game.league || '').toUpperCase(),
+      leagueKey: game.league,
+      leagueEmoji: leagueEmojis[game.league] || '🎮',
+      homeTeam: game.homeTeam || 'Home',
+      awayTeam: game.awayTeam || 'Away',
+      homeAbbrev: game.homeAbbrev || '',
+      awayAbbrev: game.awayAbbrev || '',
+      homeLogo: game.homeLogo || '',
+      awayLogo: game.awayLogo || '',
+      venue: game.venue || null,
+      broadcast: game.broadcast || null
+    },
+    participants: {
+      [state.me.id]: {
+        name: state.me.name,
+        joinedAt: Date.now(),
+        rsvpStatus: 'in',
+        reactionsMode: 'elapsed',
+        reactionDelay: 0,
+        pausedOffset: 0
+      }
+    },
+    reactions: [],
+    scoringPlays: []
+  };
+  try {
+    await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
+    logActivity('wp_started', { titleName: matchupLabel, mode: 'game' });
+    closeGamePicker();
+    flashToast('Game scheduled', { kind: 'success' });
+    haptic('success');
+    state.activeWatchpartyId = id;
+    // Web Share path — invite friends to the /rsvp/<wpId> RSVP page. Failures are
+    // decorative (clipboard fallback), never block the watchparty open.
+    try {
+      const rsvpUrl = `https://couchtonight.app/rsvp/${encodeURIComponent(id)}`;
+      const hostName = (state.me && state.me.name) || 'A friend';
+      const shareTitle = `Couch ${(game.league || 'game').toUpperCase()} watch`;
+      const shareText = `${hostName} invited you to watch ${matchupLabel}. RSVP: ${rsvpUrl}`;
+      if (navigator.share) {
+        try { await navigator.share({ title: shareTitle, text: shareText, url: rsvpUrl }); }
+        catch(shareErr) { /* AbortError or fallthrough — harmless */ }
+      }
+    } catch(shareOuterErr) { /* never block */ }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      setTimeout(() => notif.request(), 800);
+    }
+    setTimeout(() => {
+      renderWatchpartyLive();
+      document.getElementById('wp-live-modal-bg').classList.add('on');
+    }, 200);
+  } catch(e) {
+    qnLog('[GamePicker] watchparty create failed', e);
+    const detail = e && (e.message || e.code || String(e));
+    flashToast('Could not start game watch: ' + detail, { kind: 'warn' });
+  }
+};
+
+// renderSportsScoreStrip — sticky-top live score chrome for sport-mode watchparties.
+// Injected at the top of wp-live-body when wp.mode === 'game' || wp.sportEvent.
+// Updated in-place (no full re-render) by updateSportsScoreStrip during score polling.
+function renderSportsScoreStrip(wp) {
+  const sport = (wp && wp.sportEvent) || {};
+  // Seed values from wp.lastScore (persisted by handleScoringPlay) falling back to
+  // pre-game zeros + abbreviations from the sportEvent payload.
+  const score = (wp && wp.lastScore) || {
+    homeScore: 0,
+    awayScore: 0,
+    homeAbbr: sport.homeAbbrev || sport.homeTeam || 'HOM',
+    awayAbbr: sport.awayAbbrev || sport.awayTeam || 'AWY',
+    state: 'pre',
+    statusDetail: 'Pre-game'
+  };
+  const isLive = score.state === 'in';
+  const middleText = isLive
+    ? `<span class="sports-score-live">LIVE &middot; ${escapeHtml(score.statusDetail || '')}</span>`
+    : `<span>${escapeHtml(score.statusDetail || 'Pre-game')}</span>`;
+  const awayAbbr = score.awayAbbr || sport.awayAbbrev || sport.awayTeam || 'AWY';
+  const homeAbbr = score.homeAbbr || sport.homeAbbrev || sport.homeTeam || 'HOM';
+  return `<div class="sports-score-strip" id="sports-score-strip-${escapeHtml(wp.id)}">
+    <div class="sports-score-team">
+      <span class="sports-score-team-abbr">${escapeHtml(awayAbbr)}</span>
+      <span class="sports-score-num">${parseInt(score.awayScore, 10) || 0}</span>
+    </div>
+    <div class="sports-score-middle">${middleText}</div>
+    <div class="sports-score-team">
+      <span class="sports-score-team-abbr">${escapeHtml(homeAbbr)}</span>
+      <span class="sports-score-num">${parseInt(score.homeScore, 10) || 0}</span>
+    </div>
+  </div>`;
+}
+
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
@@ -8242,6 +8442,14 @@ function renderWatchpartyLive() {
     footer = `<div class="wp-live-footer"><button class="modal-close" onclick="startMyWatchpartyTimer('${wp.id}')">▶ Start my timer</button></div>`;
   } else {
     footer = renderWatchpartyFooter(wp, mine);
+  }
+
+  // Phase 11 / REFR-10 — Sticky live score strip for Game Mode watchparties.
+  // Prepended to body (not header) so it scrolls with wp-live-body content but
+  // sticks to the top via position:sticky. Triggered on wp.mode === 'game' OR
+  // the presence of wp.sportEvent (legacy sports wps also get the chrome).
+  if (wp.mode === 'game' || wp.sportEvent) {
+    body = renderSportsScoreStrip(wp) + body;
   }
 
   el.innerHTML = header + body + footer;
