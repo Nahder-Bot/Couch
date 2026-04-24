@@ -128,8 +128,24 @@ service cloud.firestore {
       // rotation config). ownerUid / passwordHash / mode / code must NOT change — those
       // mutations still go through Cloud Functions. The diff check pins mutation scope to
       // the picker field only.
-      allow update: if isMemberOfFamily(familyCode)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker']);
+      //
+      // Plan 09-07a (absorbs 05x-legacy-family-ownership-migration): additive branch for
+      // the legacy self-claim CTA. A signed-in member may stamp ownerUid = their own uid
+      // ONLY when the existing family doc has no ownerUid (first-write-wins). Nothing else
+      // may change in the same write — the diff check scopes the mutation to ownerUid only.
+      // Second caller after ownership is set will get permission-denied, which the client
+      // UI handles gracefully (CTA hides via onSnapshot; toast flashes "just claimed").
+      allow update: if (
+          isMemberOfFamily(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker'])
+        ) || (
+          // Legacy ownership self-claim: no ownerUid exists, caller is auth'd + a member,
+          // caller writes their own uid as ownerUid, and nothing else changes.
+          isMemberOfFamily(familyCode)
+          && !('ownerUid' in resource.data)
+          && request.resource.data.ownerUid == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])
+        );
 
       allow delete: if false;
 

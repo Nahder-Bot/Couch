@@ -2356,4 +2356,153 @@ body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
   .schedule-modal { max-width: 480px; }
 
   .swipe-card { max-width: 480px; height: min(640px, 80vh); }
+
+  .onboarding-overlay { padding: var(--space-section) var(--space-page); }
+  .onboarding-step { max-width: 520px; }
 }
+
+/* ==========================================================================
+   Plan 09-07a (DESIGN-07) — First-run onboarding overlay
+   Full-viewport above app-shell. 3 steps, each with illustration top,
+   serif italic tagline middle, primary + skip buttons bottom.
+   Fades in at --duration-deliberate using --easing-cinema.
+   ========================================================================== */
+.onboarding-overlay{
+  position:fixed;inset:0;z-index:950;
+  background:var(--color-surface-base);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:var(--space-stack-lg) var(--space-stack-md);
+  overflow-y:auto;
+  animation:onboarding-fade-in var(--duration-deliberate) var(--easing-cinema);
+}
+@keyframes onboarding-fade-in{from{opacity:0}to{opacity:1}}
+.onboarding-step{
+  width:100%;max-width:440px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:var(--space-stack-md);
+  animation:onboarding-step-in var(--duration-deliberate) var(--easing-cinema);
+}
+@keyframes onboarding-step-in{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.onboarding-hero{
+  width:100%;display:flex;align-items:center;justify-content:center;
+  min-height:160px;
+  background:linear-gradient(180deg,rgba(232,160,74,0.06) 0%,rgba(197,79,99,0.04) 100%);
+  border:1px solid var(--color-border-accent);
+  border-radius:var(--r-lg);
+  padding:var(--space-stack-md);
+}
+.onboarding-illo{display:flex;align-items:center;justify-content:center}
+.onboarding-illo--grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-inline-md);
+  width:100%;
+}
+.onboarding-grid-cell{
+  display:flex;flex-direction:column;align-items:center;gap:var(--space-inline-xs);
+  padding:var(--space-inline-md);
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-border-default);
+  border-radius:var(--r-md);
+  font-family:var(--font-sans);font-size:var(--text-body-sm);color:var(--color-ink-secondary);
+}
+.onboarding-grid-cell span{font-size:28px;line-height:1}
+.onboarding-grid-cell small{font-size:var(--text-micro);letter-spacing:0.05em;text-transform:uppercase;color:var(--color-ink-muted)}
+.onboarding-title{
+  font-family:var(--font-serif);font-style:italic;font-weight:400;
+  font-size:var(--text-heading-xl);letter-spacing:-0.025em;
+  color:var(--color-ink-primary);margin:0;
+}
+.onboarding-tagline{
+  font-family:var(--font-serif);font-style:italic;
+  font-size:var(--text-heading-md);color:var(--color-ink-secondary);
+  line-height:1.45;max-width:36ch;margin:0 auto;
+}
+.onboarding-tagline em{color:var(--color-accent-primary);font-style:italic}
+.onboarding-actions{
+  display:flex;flex-direction:column;gap:var(--space-inline-sm);
+  width:100%;margin-top:var(--space-stack-sm);
+}
+.onboarding-primary{
+  width:100%;background:var(--brand-grad);color:var(--bg);border:none;
+  padding:var(--s4);border-radius:var(--r-md);
+  font-family:var(--font-serif);font-style:italic;font-weight:400;
+  font-size:var(--text-heading-md);letter-spacing:-0.01em;
+  cursor:pointer;
+  box-shadow:var(--shadow-warm),inset 0 1px 0 rgba(255,255,255,0.15);
+  transition:box-shadow var(--duration-base),transform var(--duration-fast);
+}
+.onboarding-primary:hover{box-shadow:0 6px 28px rgba(232,160,74,0.35),inset 0 1px 0 rgba(255,255,255,0.2)}
+.onboarding-primary:active{transform:scale(0.98)}
+.onboarding-skip{
+  /* Skip gets equal visual weight — not buried. Plan 09-07a must-have. */
+  width:100%;background:transparent;color:var(--color-ink-secondary);
+  border:1px solid var(--color-border-default);
+  padding:var(--s4);border-radius:var(--r-md);
+  font-family:var(--font-sans);font-weight:500;font-size:var(--text-body-md);
+  cursor:pointer;
+  transition:border-color var(--duration-fast),color var(--duration-fast);
+}
+.onboarding-skip:hover{border-color:var(--color-border-strong);color:var(--color-ink-primary)}
+.onboarding-dots{display:flex;gap:8px;margin-top:var(--space-inline-md)}
+.onboarding-dot{width:6px;height:6px;border-radius:var(--r-pill);background:var(--color-border-default)}
+.onboarding-dot.on{background:var(--color-accent-primary)}
+
+/* ==========================================================================
+   Plan 09-07a — Sign-in vs Create-account zones (absorbs 05x-account-linking #7)
+   Two flanking copy zones that bracket the provider stack.
+   ========================================================================== */
+.signin-zones{
+  text-align:left;margin:var(--space-stack-sm) 0;
+}
+.signin-zones--new{margin-top:var(--space-stack-md)}
+.signin-zone-eyebrow{
+  font-family:var(--font-sans);font-size:var(--text-eyebrow);
+  letter-spacing:0.12em;text-transform:uppercase;color:var(--color-accent-primary);
+  margin-bottom:6px;
+}
+.signin-zone-sub{
+  font-family:var(--font-serif);font-style:italic;
+  font-size:var(--text-body-md);color:var(--color-ink-secondary);
+  line-height:1.5;margin:0;
+}
+
+/* ==========================================================================
+   Plan 09-07a — Sign-in methods card (absorbs 05x-account-linking #6)
+   ========================================================================== */
+.signin-method-row{
+  display:flex;align-items:center;gap:var(--space-inline-md);
+  padding:var(--space-inline-md) var(--space-inline-lg);
+  border-bottom:1px solid var(--color-border-subtle);
+}
+.signin-method-row:last-child{border-bottom:none}
+.signin-method-icon{
+  width:32px;height:32px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:var(--r-pill);
+  background:var(--color-surface-raised-2);
+  font-family:var(--font-sans);font-weight:600;font-size:var(--text-body-sm);
+  color:var(--color-ink-secondary);
+}
+.signin-method-body{flex:1;min-width:0}
+.signin-method-label{
+  font-family:var(--font-sans);font-size:var(--text-body-md);
+  color:var(--color-ink-primary);font-weight:500;
+}
+.signin-method-meta{
+  font-family:var(--font-sans);font-size:var(--text-body-sm);
+  color:var(--color-ink-muted);margin-top:2px;
+}
+.signin-method-check{color:var(--color-feedback-positive);font-weight:600;font-size:var(--text-body-sm)}
+.signin-password{margin-top:var(--space-inline-md)}
+.signin-password input{margin-bottom:var(--space-inline-sm)}
+.signin-methods-password-form{
+  display:flex;flex-direction:column;gap:var(--space-inline-sm);
+  padding:var(--space-inline-md) var(--space-inline-lg);
+}
+.signin-methods-password-form input{
+  background:var(--color-surface-base);border:1px solid var(--color-border-default);
+  color:var(--color-ink-primary);padding:var(--space-inline-md);
+  border-radius:var(--r-sm);font-family:var(--font-sans);font-size:var(--text-body-md);
+}
+.signin-methods-password-form input:focus{outline:none;border-color:var(--color-accent-primary)}

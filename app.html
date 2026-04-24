@@ -62,6 +62,15 @@
     <p class="signin-tag">Who's on the couch tonight?</p>
   </div>
 
+  <!-- Plan 09-07a (absorbs 05x-account-linking #7): Sign-in vs Create-account split.
+       Two zones, same Firebase methods behind both — copy is the only differentiator. -->
+  <div class="signin-zones">
+    <div class="signin-zone signin-zone--welcome-back">
+      <div class="signin-zone-eyebrow">Welcome back</div>
+      <p class="signin-zone-sub">You've been here before. Pick your couch back up.</p>
+    </div>
+  </div>
+
   <div class="signin-providers">
     <button id="signin-google" class="provider-btn provider-google" onclick="handleSigninGoogle()">
       <span class="provider-icon">G</span>
@@ -75,6 +84,13 @@
       <button id="signin-email-btn" class="provider-btn provider-email" onclick="handleSigninEmail()">Send sign-in link</button>
     </div>
 
+    <!-- Plan 09-07a (absorbs 05x-account-linking #6): sign-in with password, shown
+         only when a user has previously set one. Mirrors the email-link input above. -->
+    <div id="signin-password-row" class="signin-password" style="display:none;">
+      <input id="signin-password-input" type="password" autocomplete="current-password" placeholder="Password" />
+      <button id="signin-password-btn" class="provider-btn provider-email" onclick="handleSigninPassword()">Sign in with password</button>
+    </div>
+
     <div class="signin-phone">
       <input id="signin-phone-input" type="tel" inputmode="tel" autocomplete="tel" placeholder="+1 555 123 4567" />
       <!-- RecaptchaVerifier must bind to a CLICKABLE element. This button is the verifier anchor. -->
@@ -83,6 +99,13 @@
         <input id="signin-phone-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
         <button id="signin-phone-verify" class="provider-btn provider-phone" onclick="handleSigninPhoneVerify()">Verify</button>
       </div>
+    </div>
+  </div>
+
+  <div class="signin-zones signin-zones--new">
+    <div class="signin-zone signin-zone--new">
+      <div class="signin-zone-eyebrow">New to Couch?</div>
+      <p class="signin-zone-sub">First time here? Use any of the methods above — we'll create your seat automatically.</p>
     </div>
   </div>
 
@@ -477,6 +500,28 @@
       </div>
     </div>
 
+    <!-- Plan 09-07a (absorbs 05x-legacy-family-ownership-migration):
+         Legacy self-claim CTA. Renders only when the current family doc lacks
+         ownerUid and caller hasn't dismissed it this session. First-write-wins;
+         CTA disappears as soon as state.ownerUid is set via onSnapshot. -->
+    <div class="tab-section" id="legacy-claim-card" style="display:none;">
+      <div class="tab-section-h"><span>Claim ownership</span></div>
+      <p class="tab-section-sub">This group doesn't have an admin yet. You're the admin? Lock ownership to this account so you can manage members, invites, and ownership transfer.</p>
+      <div class="cluster">
+        <button class="pill accent" onclick="claimLegacyOwnership()">Claim ownership of this group</button>
+        <button class="pill" onclick="dismissLegacyClaim()">Dismiss for now</button>
+      </div>
+    </div>
+
+    <!-- Plan 09-07a (absorbs 05x-account-linking #6): Sign-in methods card.
+         Shows linked providers, supports setting + removing a password for faster
+         sign-in on other devices. Rendered by renderSignInMethodsCard() from renderSettings(). -->
+    <div class="tab-section" id="signin-methods-card" style="display:none;">
+      <div class="tab-section-h"><span>Sign-in methods</span></div>
+      <p class="tab-section-sub">Your linked ways to sign in. Set a password so you can sign in faster on a new device.</p>
+      <div id="signin-methods-list" class="tab-list-card"></div>
+    </div>
+
     <!-- Streaming services -->
     <div class="tab-section">
       <div class="tab-section-h"><span>Streaming services</span></div>
@@ -567,8 +612,10 @@
       <div class="tab-kb-hint">On a keyboard? Press <kbd class="kb-inline">?</kbd> anywhere for the cheat sheet.</div>
     </div>
 
-    <!-- Footer: sign out / leave family, grouped quietly at the bottom -->
+    <!-- Footer: sign out / leave family / replay intro, grouped quietly at the bottom -->
     <div class="tab-footer">
+      <!-- Plan 09-07a: re-show the first-run onboarding overlay even if seenOnboarding === true. -->
+      <button class="pill" onclick="replayOnboarding()">Replay intro</button>
       <button class="pill" onclick="signOut()">Sign out</button>
       <button class="pill" id="leave-family-btn" onclick="leaveFamily()">Leave family</button>
     </div>
@@ -975,6 +1022,69 @@
   </div>
 </div>
 </div><!-- /.phone-shell -->
+
+<!-- Plan 09-07a (DESIGN-07): first-run onboarding overlay. Rendered above app-shell,
+     full-viewport, 3 steps. maybeShowFirstRunOnboarding() gates render on
+     state.me && state.me.type !== 'guest' && !state.me.seenOnboarding. -->
+<div id="onboarding-overlay" class="onboarding-overlay has-leather" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="onboarding-step-title">
+  <div id="onboarding-step-1" class="onboarding-step">
+    <div class="onboarding-hero" aria-hidden="true">
+      <div class="onboarding-illo onboarding-illo--couch">
+        <svg viewBox="0 0 120 72" width="120" height="72" fill="none" stroke="url(#ob1)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <defs><linearGradient id="ob1" x1="0" y1="0" x2="120" y2="72"><stop offset="0" stop-color="#e8a04a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs>
+          <path d="M12 44v-6a6 6 0 0 1 6-6h84a6 6 0 0 1 6 6v6"/>
+          <path d="M8 58h104"/>
+          <path d="M16 44v14M104 44v14"/>
+          <path d="M24 32V22a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v10"/>
+          <path d="M68 32V22a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v10"/>
+        </svg>
+      </div>
+    </div>
+    <h2 id="onboarding-step-title" class="onboarding-title">Couch</h2>
+    <p class="page-tagline onboarding-tagline">Couch turns <em>"what do you want to watch?"</em> into a 30-second ritual.</p>
+    <div class="onboarding-actions">
+      <button class="onboarding-primary" onclick="nextOnboardingStep()">Show me how</button>
+      <button class="onboarding-skip" onclick="skipOnboarding()">Skip intro</button>
+    </div>
+    <div class="onboarding-dots" aria-hidden="true"><span class="onboarding-dot on"></span><span class="onboarding-dot"></span><span class="onboarding-dot"></span></div>
+  </div>
+  <div id="onboarding-step-2" class="onboarding-step" style="display:none;">
+    <div class="onboarding-hero" aria-hidden="true">
+      <div class="onboarding-illo onboarding-illo--spin">
+        <svg viewBox="0 0 120 72" width="120" height="72" fill="none" stroke="url(#ob2)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <defs><linearGradient id="ob2" x1="0" y1="0" x2="120" y2="72"><stop offset="0" stop-color="#e8a04a"/><stop offset="1" stop-color="#c54f63"/></linearGradient></defs>
+          <circle cx="60" cy="36" r="22"/>
+          <path d="M60 14v10M60 48v10M38 36h10M72 36h10"/>
+          <path d="M50 26l6 6M64 40l6 6M70 26l-6 6M56 40l-6 6"/>
+        </svg>
+      </div>
+    </div>
+    <h2 class="onboarding-title">How picking works</h2>
+    <p class="page-tagline onboarding-tagline">Spin. Pick. One veto each. Re-spin. Everyone gets a say.</p>
+    <div class="onboarding-actions">
+      <button class="onboarding-primary" onclick="nextOnboardingStep()">Got it</button>
+      <button class="onboarding-skip" onclick="skipOnboarding()">Skip intro</button>
+    </div>
+    <div class="onboarding-dots" aria-hidden="true"><span class="onboarding-dot"></span><span class="onboarding-dot on"></span><span class="onboarding-dot"></span></div>
+  </div>
+  <div id="onboarding-step-3" class="onboarding-step" style="display:none;">
+    <div class="onboarding-hero" aria-hidden="true">
+      <div class="onboarding-illo onboarding-illo--grid">
+        <div class="onboarding-grid-cell"><span aria-hidden="true">🎭</span><small>Moods</small></div>
+        <div class="onboarding-grid-cell"><span aria-hidden="true">🎬</span><small>Watchparty</small></div>
+        <div class="onboarding-grid-cell"><span aria-hidden="true">📆</span><small>Tonight&nbsp;@</small></div>
+        <div class="onboarding-grid-cell"><span aria-hidden="true">🔔</span><small>Push</small></div>
+      </div>
+    </div>
+    <h2 class="onboarding-title">What makes it yours</h2>
+    <p class="page-tagline onboarding-tagline">Moods, watchparties, tonight-at-time intents, gentle push.<br>Layer them in as you go.</p>
+    <div class="onboarding-actions">
+      <button class="onboarding-primary" onclick="completeOnboarding()">Let's go</button>
+      <button class="onboarding-skip" onclick="skipOnboarding()">Skip intro</button>
+    </div>
+    <div class="onboarding-dots" aria-hidden="true"><span class="onboarding-dot"></span><span class="onboarding-dot"></span><span class="onboarding-dot on"></span></div>
+  </div>
+</div>
 
 <footer class="legal-footer" aria-label="Legal">
   <a href="/privacy.html">Privacy</a>

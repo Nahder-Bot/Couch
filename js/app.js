@@ -1,4 +1,4 @@
-import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable } from './firebase.js';
+import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword } from './firebase.js';
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode } from './constants.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
@@ -3079,6 +3079,10 @@ function startSync() {
     dot.classList.add('on');
     dot.textContent = '';
     renderAll();
+    // Plan 09-07a (DESIGN-07): gate first-run onboarding once we have the member doc
+    // (seenOnboarding / type fields live there). Guard against double-show via the
+    // state-level check inside maybeShowFirstRunOnboarding itself.
+    try { maybeShowFirstRunOnboarding(); } catch(e) {}
   }, e => {
     const dot = document.getElementById('sync-dot');
     dot.classList.remove('on');
@@ -3107,6 +3111,8 @@ function startSync() {
     renderPickerCard();
     applyModeLabels();
     try { renderOwnerSettings(); } catch(e) {}
+    // Plan 09-07a: re-evaluate legacy self-claim CTA whenever ownership changes.
+    try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
   });
   subscribeSession();
   scheduleMidnightRefresh();
@@ -4447,6 +4453,9 @@ function renderSettings() {
   // Plan 5.8: owner's claim-members panel + grace-window countdown banner.
   try { renderClaimMembersPanel(); } catch(e) {}
   try { renderGraceBanner(); } catch(e) {}
+  // Plan 09-07a: legacy self-claim CTA (state.ownerUid == null) + sign-in methods card.
+  try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
+  try { renderSignInMethodsCard(); } catch(e) {}
   // Refresh identity strip in case name/avatar changed since boot
   if (state.me) {
     const me = state.members.find(x => x.id === state.me.id) || state.me;
@@ -8997,6 +9006,294 @@ function initAddTab(force) {
   loadStreamingRow();
   loadGemsRow();
 }
+
+// ===== Plan 09-07a (DESIGN-07) — First-run brand onboarding overlay =====
+// Separate from the pre-existing feature tour below (maybeStartOnboarding). This is
+// the brand-polished 3-step intro gated on Firestore members/{id}.seenOnboarding.
+// Guests (state.me.type === 'guest') skip entirely — research Pitfall 5 defense,
+// client-side guard even though 09-07b sets seenOnboarding:true at guest creation.
+
+let _onboardingCurrentStep = 1;
+
+function maybeShowFirstRunOnboarding() {
+  if (!state.me) return;
+  // Pitfall 5: guests skip onboarding entirely. 09-07b adds CF-side guarantee; this
+  // is the client-side double-guard.
+  if (state.me.type === 'guest') return;
+  // Enrich state.me with the server-side seenOnboarding flag by reading the live
+  // member doc from state.members (populated by the onSnapshot in startSync).
+  const liveMe = (state.members || []).find(m => m.id === state.me.id);
+  const seen = (liveMe && liveMe.seenOnboarding === true) || state.me.seenOnboarding === true;
+  if (seen) return;
+  // Also respect the legacy localStorage flag so existing users who've seen the
+  // old feature tour don't get bounced back through the new intro.
+  try { if (localStorage.getItem('qn_onboarded')) return; } catch(e) {}
+  showOnboardingStep(1);
+}
+
+function showOnboardingStep(n) {
+  _onboardingCurrentStep = n;
+  const overlay = document.getElementById('onboarding-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  for (let i = 1; i <= 3; i++) {
+    const step = document.getElementById('onboarding-step-' + i);
+    if (step) step.style.display = (i === n) ? 'flex' : 'none';
+  }
+  try { haptic('light'); } catch(e) {}
+}
+
+function hideOnboarding() {
+  const overlay = document.getElementById('onboarding-overlay');
+  if (overlay) overlay.style.display = 'none';
+  for (let i = 1; i <= 3; i++) {
+    const step = document.getElementById('onboarding-step-' + i);
+    if (step) step.style.display = 'none';
+  }
+}
+
+window.nextOnboardingStep = function() {
+  const next = Math.min(3, _onboardingCurrentStep + 1);
+  showOnboardingStep(next);
+};
+
+// Skip and complete both persist seenOnboarding:true. Skip is visible on every step
+// with equal visual weight to primary — user can dismiss without coming back.
+window.skipOnboarding = async function() {
+  hideOnboarding();
+  try { localStorage.setItem('qn_onboarded', '1'); } catch(e) {}
+  try {
+    if (state.me && state.familyCode) {
+      await updateDoc(doc(membersRef(), state.me.id), { seenOnboarding: true });
+    }
+  } catch(e) { console.error('[onboarding] skip write failed', e); }
+};
+
+window.completeOnboarding = async function() {
+  hideOnboarding();
+  try { localStorage.setItem('qn_onboarded', '1'); } catch(e) {}
+  try {
+    if (state.me && state.familyCode) {
+      await updateDoc(doc(membersRef(), state.me.id), { seenOnboarding: true });
+      try { haptic('success'); } catch(e) {}
+    }
+  } catch(e) { console.error('[onboarding] complete write failed', e); }
+};
+
+// Replay intro: forces the overlay to show again even if seenOnboarding === true.
+// Called from Settings → "Replay intro" button. Does NOT unset the Firestore flag
+// (so onboarding doesn't re-fire on next boot); only replays the overlay once.
+window.replayOnboarding = function() {
+  showOnboardingStep(1);
+};
+
+// ===== Plan 09-07a — Legacy family self-claim flow =====
+// Renders CTA in Account settings when state.ownerUid == null && !dismissed.
+// first-write-wins: second tapper gets a permission-denied (rule denies write once
+// ownerUid exists); UI hides CTA the moment the onSnapshot updates state.ownerUid.
+
+function renderLegacyClaimCtaIfApplicable() {
+  const el = document.getElementById('legacy-claim-card');
+  if (!el) return;
+  const applicable = !!(state.me
+    && state.familyCode
+    && state.auth
+    && state.auth.uid
+    && state.ownerUid == null
+    && !state.dismissedOwnerClaim);
+  el.style.display = applicable ? '' : 'none';
+}
+
+window.claimLegacyOwnership = async function() {
+  if (!state.auth || !state.auth.uid || !state.familyCode) return;
+  if (state.ownerUid != null) {
+    flashToast('This group already has an admin.', { kind: 'info' });
+    renderLegacyClaimCtaIfApplicable();
+    return;
+  }
+  const ok = window.confirm('Claim ownership of this group? This locks admin rights to your account.');
+  if (!ok) return;
+  try {
+    await updateDoc(familyDocRef(), { ownerUid: state.auth.uid });
+    flashToast('You are now the group admin.', { kind: 'success' });
+    try { haptic('success'); } catch(e) {}
+    // state.ownerUid will update via onSnapshot; renderLegacyClaimCtaIfApplicable
+    // will hide the card. Force an immediate re-render too in case the snapshot lags.
+    state.ownerUid = state.auth.uid;
+    renderLegacyClaimCtaIfApplicable();
+    try { renderOwnerSettings(); } catch(e) {}
+  } catch(e) {
+    console.error('[legacy-claim]', e);
+    const code = e && e.code;
+    const msg = (code === 'permission-denied')
+      ? 'Someone else just claimed ownership. Refreshing…'
+      : "Couldn't claim ownership. Try again?";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.dismissLegacyClaim = function() {
+  state.dismissedOwnerClaim = true;
+  renderLegacyClaimCtaIfApplicable();
+};
+
+// ===== Plan 09-07a — Sign-in methods card (absorbs 05x-account-linking #6) =====
+// Helpers consolidated into js/app.js (not a separate js/auth.js module) — see
+// 09-07a-SUMMARY.md drift-3 resolution. Single-function scope + existing auth UI
+// already lives here; splitting for one helper would fragment.
+
+function hasPasswordCredential() {
+  const cu = auth && auth.currentUser;
+  if (!cu || !Array.isArray(cu.providerData)) return false;
+  return cu.providerData.some(p => p && p.providerId === 'password');
+}
+
+async function setUserPassword(password) {
+  if (!auth || !auth.currentUser) {
+    throw new Error('no-current-user');
+  }
+  if (!password || password.length < 6) {
+    throw new Error('weak-password');
+  }
+  await updatePassword(auth.currentUser, password);
+}
+
+function renderSignInMethodsCard() {
+  const card = document.getElementById('signin-methods-card');
+  const list = document.getElementById('signin-methods-list');
+  if (!card || !list) return;
+  // Only render when signed-in (auth present). Hide outright for legacy/unauthed.
+  if (!auth || !auth.currentUser) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const providers = (auth.currentUser.providerData || []).map(p => p && p.providerId).filter(Boolean);
+  const rows = [];
+  // Google
+  rows.push(`
+    <div class="signin-method-row">
+      <div class="signin-method-icon">G</div>
+      <div class="signin-method-body">
+        <div class="signin-method-label">Google</div>
+        <div class="signin-method-meta">${providers.includes('google.com') ? escapeHtml(auth.currentUser.email || 'Linked') : 'Not linked'}</div>
+      </div>
+      ${providers.includes('google.com') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
+    </div>`);
+  // Phone
+  rows.push(`
+    <div class="signin-method-row">
+      <div class="signin-method-icon">&#9742;</div>
+      <div class="signin-method-body">
+        <div class="signin-method-label">Phone</div>
+        <div class="signin-method-meta">${providers.includes('phone') ? escapeHtml(auth.currentUser.phoneNumber || 'Linked') : 'Not linked'}</div>
+      </div>
+      ${providers.includes('phone') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
+    </div>`);
+  // Email link / password
+  const hasEmail = providers.includes('emailLink') || providers.includes('password');
+  const hasPw = hasPasswordCredential();
+  rows.push(`
+    <div class="signin-method-row">
+      <div class="signin-method-icon">@</div>
+      <div class="signin-method-body">
+        <div class="signin-method-label">Email</div>
+        <div class="signin-method-meta">${hasEmail ? escapeHtml(auth.currentUser.email || 'Linked') : 'Not linked'}</div>
+      </div>
+      ${hasEmail ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
+    </div>`);
+  // Password row — set or change
+  if (hasPw) {
+    rows.push(`
+      <div class="signin-method-row">
+        <div class="signin-method-icon">&#128274;</div>
+        <div class="signin-method-body">
+          <div class="signin-method-label">Password</div>
+          <div class="signin-method-meta">Set — you can sign in from any device with email + password.</div>
+        </div>
+        <button class="pill" onclick="openSetPasswordForm()">Change</button>
+      </div>`);
+  } else {
+    rows.push(`
+      <div class="signin-method-row">
+        <div class="signin-method-icon">&#128274;</div>
+        <div class="signin-method-body">
+          <div class="signin-method-label">Password</div>
+          <div class="signin-method-meta">Set a password for faster sign-in from other devices.</div>
+        </div>
+        <button class="pill accent" onclick="openSetPasswordForm()">Set password</button>
+      </div>`);
+  }
+  // Inline form (hidden until Set/Change tapped). Kept in-card so focus stays.
+  rows.push(`
+    <div class="signin-methods-password-form" id="signin-methods-password-form" style="display:none;">
+      <input id="signin-methods-password-input" type="password" autocomplete="new-password" placeholder="New password (min 6 chars)" />
+      <div class="cluster">
+        <button class="pill accent" onclick="submitSetPassword()">Save password</button>
+        <button class="pill" onclick="closeSetPasswordForm()">Cancel</button>
+      </div>
+    </div>`);
+  list.innerHTML = rows.join('');
+}
+
+window.openSetPasswordForm = function() {
+  const form = document.getElementById('signin-methods-password-form');
+  if (form) form.style.display = '';
+  const input = document.getElementById('signin-methods-password-input');
+  if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
+};
+
+window.closeSetPasswordForm = function() {
+  const form = document.getElementById('signin-methods-password-form');
+  if (form) form.style.display = 'none';
+};
+
+window.submitSetPassword = async function() {
+  if (!auth || !auth.currentUser) {
+    flashToast('Please sign back in and try again.', { kind: 'warn' });
+    return;
+  }
+  const input = document.getElementById('signin-methods-password-input');
+  const pw = (input && input.value || '').trim();
+  if (!pw || pw.length < 6) {
+    flashToast('Password must be at least 6 characters.', { kind: 'warn' });
+    return;
+  }
+  try {
+    await setUserPassword(pw);
+    flashToast('Password set. You can now sign in with email + password on other devices.', { kind: 'success', duration: 4000 });
+    try { haptic('success'); } catch(e) {}
+    window.closeSetPasswordForm();
+    try { renderSignInMethodsCard(); } catch(e) {}
+  } catch(e) {
+    console.error('[setUserPassword]', e);
+    const code = (e && e.code) || e.message || '';
+    let msg = "Couldn't set password. Try again?";
+    if (code === 'no-current-user') msg = 'Please sign back in first.';
+    else if (code.includes('weak-password')) msg = 'That password is too short or too simple. Try at least 6 characters.';
+    else if (code.includes('requires-recent-login')) msg = 'For security, sign out and back in to set a password.';
+    flashToast(msg, { kind: 'warn', duration: 4500 });
+  }
+};
+
+// Password sign-in from the sign-in screen (05x #6). Only visible when user has
+// previously entered an email in the email field — lightweight hint so password
+// row doesn't compete for attention on a fresh landing.
+window.handleSigninPassword = async function() {
+  const email = (document.getElementById('signin-email-input').value || '').trim();
+  const pw = (document.getElementById('signin-password-input').value || '').trim();
+  if (!email || !email.includes('@')) { flashToast('Enter your email above first', { kind: 'warn' }); return; }
+  if (!pw) { flashToast('Enter your password', { kind: 'warn' }); return; }
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChangedCouch picks up routing.
+  } catch(e) {
+    console.error('[signin][password]', e);
+    const code = (e && e.code) || '';
+    let msg = "Couldn't sign in. Check password and try again.";
+    if (code.includes('wrong-password') || code.includes('invalid-credential')) msg = 'Password didn\'t match. Try again?';
+    else if (code.includes('user-not-found')) msg = 'No account for that email. Send yourself a sign-in link first.';
+    else if (code.includes('too-many-requests')) msg = 'Too many attempts. Try again in a few minutes.';
+    flashToast(msg, { kind: 'warn', duration: 4500 });
+  }
+};
 
 // ===== Onboarding =====
 let onboardStep = 0;
