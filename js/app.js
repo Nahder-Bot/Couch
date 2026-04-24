@@ -2807,6 +2807,26 @@ window.copyClaimLink = async function(btn) {
   catch(e) { flashToast('Select and copy manually', { kind: 'info' }); }
 };
 
+// Phase 11 / REFR-03 — who-card empty-state "Share an invite" handler.
+// Routes the user to Family tab where the Invite section + #share-url input and
+// createGuestInvite CTA live. Uses showScreen() (the app's canonical tab-switch fn)
+// and then scrolls the invite input into view.
+window.openInviteShare = function() {
+  try {
+    if (typeof window.showScreen === 'function') {
+      window.showScreen('family');
+    }
+    // Defer the scroll so the family screen has a tick to render after showScreen.
+    setTimeout(function() {
+      var el = document.getElementById('share-url');
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        try { el.focus({ preventScroll: true }); } catch(e) {}
+      }
+    }, 80);
+  } catch(e) { /* best-effort — silent fail */ }
+};
+
 // ===== Phase 5 Plan 08: post-grace read-only enforcement (D-15) =====
 // Returns true if the given member must operate in read-only mode *right now*.
 // Rules:
@@ -3851,6 +3871,15 @@ function renderTonight() {
     !m.archived &&
     (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
   );
+  // Phase 11 / REFR-03 — empty-state: show branded fallback + invite CTA when no one on couch.
+  if (!tonightMembers.length) {
+    whoEl.innerHTML = `<div class="who-empty">
+      <div class="who-empty-title">Nothing but us.</div>
+      <div class="who-empty-body"><em>Pull up a seat &mdash; invite someone to the couch.</em></div>
+      <button class="who-empty-share" onclick="openInviteShare()">Share an invite</button>
+    </div>`;
+    return;
+  }
   whoEl.innerHTML = tonightMembers.map(m => {
     const isSub = !!m.managedBy && !m.uid;
     const isGuest = !!m.temporary;
