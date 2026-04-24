@@ -147,3 +147,363 @@ export function suggestMoods(tmdbGenreIds, runtimeMins) {
 }
 
 export function normalizeCode(code) { return (code||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+// ===== Phase 11 / REFR-04 — Discovery catalog =====
+// 25-row catalog feeding the Add-tab daily rotation engine (js/discovery-engine.js).
+// Auto-derived TMDB rows only; curated C/G rows ship in Plan 11-03b.
+//
+// Bucket layout (see .planning/phases/11-feature-refresh-and-streamline/11-APPENDIX-CATEGORIES.md):
+//   A — always-on (2 rows, every visit)
+//   B — trending pool (4 rows, 1 picked/day; weekday/weekend-tagged)
+//   C — auto discovery (4 rows from C1/C3/C7/C9; curated C2/C4/C5/C6/C8 in 11-03b)
+//   D — use-case (3 rows with preferredDays hints)
+//   E — day-of-week theme (7 rows, Mon-Sun, dayOfWeek 0=Sunday…6=Saturday)
+//   F — seasonal (5 rows, only fire within active window)
+//
+// Each row:
+//   id          — unique string id used as DOM id suffix and cache key
+//   label       — eyebrow text (UPPERCASE rendered via CSS)
+//   subtitle    — italic subtitle (rendered via CSS, Instrument Serif)
+//   bucket      — 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+//   source      — { type, endpoint?, params? }
+//                   type: 'tmdb-endpoint' | 'tmdb-discover' | 'tmdb-streaming-filter'
+//                        | 'group-recent-yes-similar' | 'group-rewatch-candidates'
+//   dayOfWeek   — E only: 0=Sun, 1=Mon … 6=Sat
+//   preferredDays — D only: [dayOfWeek, …] weighting
+//   weekdayOnly / weekendOnly — B only: tag for selector
+//   seasonalWindow — F only: { monthStart, dayStart, monthEnd, dayEnd } (1-12 months)
+//
+// Copy verbatim from 11-UI-SPEC.md §Copywriting Contract REFR-04.
+export const DISCOVERY_CATALOG = [
+  // ---------- Bucket A — Always on ----------
+  {
+    id: 'a1-streaming',
+    label: 'On your streaming',
+    subtitle: 'What you can watch right now',
+    bucket: 'A',
+    source: { type: 'tmdb-streaming-filter' }
+  },
+  {
+    id: 'a2-couch-into',
+    label: 'What your couch is into',
+    subtitle: 'From your recent Yes votes',
+    bucket: 'A',
+    source: { type: 'group-recent-yes-similar' }
+  },
+
+  // ---------- Bucket B — Trending pool ----------
+  {
+    id: 'b1-trending-week',
+    label: 'Trending this week',
+    subtitle: "What everyone's on",
+    bucket: 'B',
+    weekdayOnly: true,
+    source: { type: 'tmdb-endpoint', endpoint: '/trending/all/week' }
+  },
+  {
+    id: 'b2-trending-day',
+    label: 'Trending today',
+    subtitle: "What's hot right now",
+    bucket: 'B',
+    weekendOnly: true,
+    source: { type: 'tmdb-endpoint', endpoint: '/trending/all/day' }
+  },
+  {
+    id: 'b3-new-releases',
+    label: 'New releases',
+    subtitle: 'Fresh off the projector',
+    bucket: 'B',
+    source: { type: 'tmdb-endpoint', endpoint: '/movie/now_playing' }
+  },
+  {
+    id: 'b4-coming-soon',
+    label: 'Coming soon',
+    subtitle: 'Pencil it in',
+    bucket: 'B',
+    source: { type: 'tmdb-endpoint', endpoint: '/movie/upcoming' }
+  },
+
+  // ---------- Bucket C — Auto discovery ----------
+  {
+    id: 'c1-hidden-gems',
+    label: 'Hidden gems',
+    subtitle: 'Beloved, but quieter',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'sort_by': 'vote_average.desc',
+        'vote_average.gte': '7.5',
+        'vote_count.gte': '200',
+        'vote_count.lte': '2000'
+      }
+    }
+  },
+  {
+    id: 'c3-acclaimed',
+    label: 'Critically acclaimed',
+    subtitle: 'If the reviewers are to be trusted',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'sort_by': 'vote_average.desc',
+        'vote_average.gte': '7.5',
+        'vote_count.gte': '1000'
+      }
+    }
+  },
+  {
+    id: 'c7-foreign',
+    label: 'Foreign gems',
+    subtitle: 'Worth the subtitles',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'sort_by': 'popularity.desc',
+        'with_original_language': 'ko|ja|fr|es|de|it',
+        'vote_count.gte': '200'
+      }
+    }
+  },
+  {
+    id: 'c9-boutique',
+    label: 'A24 & co.',
+    subtitle: 'Boutique studios, sharp taste',
+    bucket: 'C',
+    source: {
+      type: 'tmdb-discover',
+      // A24 production company id = 41077 (TMDB v3)
+      params: {
+        'with_companies': '41077',
+        'sort_by': 'popularity.desc'
+      }
+    }
+  },
+
+  // ---------- Bucket D — Use-case (preferredDays bias) ----------
+  {
+    id: 'd1-quick-watch',
+    label: 'Under 90 minutes',
+    subtitle: 'Short and sweet — school night approved',
+    bucket: 'D',
+    preferredDays: [1, 2], // Mon, Tue
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_runtime.lte': '90',
+        'with_runtime.gte': '60',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '200'
+      }
+    }
+  },
+  {
+    id: 'd3-date-night',
+    label: 'Date night picks',
+    subtitle: 'Romance, dramedies, drama',
+    bucket: 'D',
+    preferredDays: [5, 6], // Fri, Sat
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        // Romance (10749) | Drama (18)
+        'with_genres': '10749|18',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '300'
+      }
+    }
+  },
+  {
+    id: 'd6-comfort-rewatch',
+    label: 'Comfort rewatches',
+    subtitle: 'The ones you already love',
+    bucket: 'D',
+    preferredDays: [0], // Sun
+    source: { type: 'group-rewatch-candidates' }
+  },
+
+  // ---------- Bucket E — Day-of-week theme (one fires per day) ----------
+  {
+    id: 'e-mon',
+    label: 'Monday motivation',
+    subtitle: 'A reason to push through',
+    bucket: 'E',
+    dayOfWeek: 1,
+    source: {
+      type: 'tmdb-discover',
+      // Drama + high rating — inspirational skew
+      params: {
+        'with_genres': '18',
+        'vote_average.gte': '7.5',
+        'vote_count.gte': '500',
+        'sort_by': 'popularity.desc'
+      }
+    }
+  },
+  {
+    id: 'e-tue',
+    label: 'TV pilots worth starting',
+    subtitle: 'A new crew to spend time with',
+    bucket: 'E',
+    dayOfWeek: 2,
+    source: { type: 'tmdb-endpoint', endpoint: '/tv/popular' }
+  },
+  {
+    id: 'e-wed',
+    label: 'Wildcard Wednesday',
+    subtitle: 'Random, but quality-vetted',
+    bucket: 'E',
+    dayOfWeek: 3,
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'sort_by': 'popularity.desc',
+        'vote_average.gte': '7.0',
+        'vote_count.gte': '500'
+      }
+    }
+  },
+  {
+    id: 'e-thu',
+    label: 'Throwback Thursday',
+    subtitle: '90s nostalgia',
+    bucket: 'E',
+    dayOfWeek: 4,
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'primary_release_date.gte': '1990-01-01',
+        'primary_release_date.lte': '1999-12-31',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '500'
+      }
+    }
+  },
+  {
+    id: 'e-fri',
+    label: 'Foreign Film Friday',
+    subtitle: 'Passport not required',
+    bucket: 'E',
+    dayOfWeek: 5,
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_original_language': 'ko|ja|fr|es|de|it',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '300'
+      }
+    }
+  },
+  {
+    id: 'e-sat',
+    label: 'Saturday blockbusters',
+    subtitle: 'Big, loud, worth it',
+    bucket: 'E',
+    dayOfWeek: 6,
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_genres': '28|12', // Action, Adventure
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '1000'
+      }
+    }
+  },
+  {
+    id: 'e-sun',
+    label: 'Cozy Sunday',
+    subtitle: 'Slow, warm, easy',
+    bucket: 'E',
+    dayOfWeek: 0,
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        // Comedy (35), Family (10751), Romance (10749)
+        'with_genres': '35|10751|10749',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '500'
+      }
+    }
+  },
+
+  // ---------- Bucket F — Seasonal injections ----------
+  {
+    id: 'f1-halloween',
+    label: 'Halloween Crawl',
+    subtitle: 'Spooky, not slashy — and slashy too',
+    bucket: 'F',
+    seasonalWindow: { monthStart: 10, dayStart: 1, monthEnd: 11, dayEnd: 1 },
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_genres': '27', // Horror
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '500'
+      }
+    }
+  },
+  {
+    id: 'f2-holiday',
+    label: 'Holiday Classics',
+    subtitle: 'The ones everyone keeps re-watching',
+    bucket: 'F',
+    seasonalWindow: { monthStart: 12, dayStart: 1, monthEnd: 1, dayEnd: 1 },
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        // Christmas keyword id 207317 on TMDB
+        'with_keywords': '207317',
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '200'
+      }
+    }
+  },
+  {
+    id: 'f3-summer',
+    label: 'Summer blockbusters',
+    subtitle: 'Cold drink, warm night',
+    bucket: 'F',
+    seasonalWindow: { monthStart: 6, dayStart: 1, monthEnd: 8, dayEnd: 31 },
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_genres': '28|12', // Action, Adventure
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '1000'
+      }
+    }
+  },
+  {
+    id: 'f6-valentine',
+    label: "Valentine's Date Night",
+    subtitle: 'No pressure, just vibes',
+    bucket: 'F',
+    seasonalWindow: { monthStart: 2, dayStart: 1, monthEnd: 2, dayEnd: 14 },
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'with_genres': '10749', // Romance
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '300'
+      }
+    }
+  },
+  {
+    id: 'f7-awards',
+    label: 'Awards-season prestige',
+    subtitle: "This year's contenders",
+    bucket: 'F',
+    seasonalWindow: { monthStart: 1, dayStart: 1, monthEnd: 3, dayEnd: 31 },
+    source: {
+      type: 'tmdb-discover',
+      params: {
+        'sort_by': 'vote_average.desc',
+        'vote_average.gte': '7.5',
+        'vote_count.gte': '1000'
+      }
+    }
+  }
+];
+
