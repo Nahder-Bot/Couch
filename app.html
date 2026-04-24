@@ -402,6 +402,20 @@
         </div>
       </div>
 
+      <!-- Phase 11 / REFR-13 — Couch Nights themed packs (stretch). Renders horizontal
+           row of 8 pack tiles; tap opens pack-detail sheet; "Start this pack" seeds
+           ballot via existing addFromAddTab flow + launches Vote mode. Placed BETWEEN
+           mood section and dynamic discovery rows per UI-SPEC §Layout line 539. -->
+      <div class="add-section" id="couch-nights-section">
+        <div class="discover-row-eyebrow">COUCH NIGHTS</div>
+        <div class="discover-row-subtitle"><em>Themed packs, ready to roll.</em></div>
+        <div class="discover-row-wrap">
+          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('couch-nights',-1)">◂</button>
+          <div class="discover-row couch-nights-row" id="couch-nights-row"></div>
+          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('couch-nights',1)">▸</button>
+        </div>
+      </div>
+
       <!-- Phase 11 / REFR-04 — Dynamic discovery rotation; populated by renderAddDiscovery().
            Replaces the 4 hardcoded rows (trending/streaming/gems + one more). Loaders still
            live in js/app.js (loadTrendingRow / loadStreamingRow / loadGemsRow) and are
@@ -1234,6 +1248,30 @@
     <div id="browse-all-content"></div>
     <div class="modal-actions-row">
       <button class="pill" onclick="closeBrowseAllSheet()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Phase 11 / REFR-13 — Couch Nights pack detail sheet. Opens when a pack tile is
+     tapped; shows hero poster + title + description + horizontal preview of 8 included
+     titles (lazy-hydrated from TMDB) + gradient "Start this pack" CTA that seeds the
+     family ballot via existing addFromAddTab flow then launches Vote mode. -->
+<div class="modal-bg" id="couch-night-sheet-bg" onclick="if(event.target.id==='couch-night-sheet-bg')closeCouchNightSheet()">
+  <div class="modal couch-night-sheet">
+    <div class="couch-night-hero" id="couch-night-hero"></div>
+    <h2 class="couch-night-sheet-title" id="couch-night-sheet-title"></h2>
+    <div class="couch-night-sheet-desc" id="couch-night-sheet-desc"></div>
+    <div class="couch-night-titles-preview" id="couch-night-titles-preview">
+      <div class="sk-row-posters" aria-hidden="true">
+        <div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div>
+        <div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div>
+        <div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div>
+        <div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div>
+      </div>
+    </div>
+    <button class="start-pack-cta" id="start-pack-cta" onclick="confirmStartPack()">Start this pack</button>
+    <div class="modal-actions-row">
+      <button class="pill" onclick="closeCouchNightSheet()">Close</button>
     </div>
   </div>
 </div>

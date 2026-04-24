@@ -1,5 +1,5 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
-import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG } from './constants.js';
+import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
@@ -10648,7 +10648,189 @@ function initAddTab(force) {
   // invoked from loadDiscoveryRow when the rotation selects those buckets.
   // Plan 11-03b — pinned rows render FIRST (above daily rotation) when any pins exist.
   renderPinnedRows();
+  // Phase 11 / REFR-13 — Couch Nights themed packs render BETWEEN mood + pinned and
+  // the dynamic discovery rotation (per UI-SPEC §Layout line 539). Uses constant data
+  // (COUCH_NIGHTS_PACKS) so no TMDB cost until a pack-detail sheet is opened.
+  renderCouchNightsRow();
   renderAddDiscovery();
+}
+
+// ===== Phase 11 / REFR-13 — Couch Nights themed ballot packs =====
+// Renders horizontal tile row on Add tab; tap opens pack-detail sheet with lazy-hydrated
+// TMDB preview; "Start this pack" CTA seeds the family ballot via the existing
+// addFromAddTab flow then launches Vote mode (openSwipeMode). Pack data is constant-
+// based (COUCH_NIGHTS_PACKS in js/constants.js); Firestore migration deferred to Phase 12.
+
+let _activePackId = null;
+
+function renderCouchNightsRow() {
+  const row = document.getElementById('couch-nights-row');
+  if (!row) return;
+  if (!Array.isArray(COUCH_NIGHTS_PACKS) || !COUCH_NIGHTS_PACKS.length) {
+    // Empty catalog — hide entire section per UI-SPEC §REFR-13 empty state.
+    const section = document.getElementById('couch-nights-section');
+    if (section) section.style.display = 'none';
+    return;
+  }
+  row.innerHTML = COUCH_NIGHTS_PACKS.map(pack => {
+    const safeTitle = escapeHtml(pack.title);
+    const safeId = escapeHtml(pack.id);
+    const safeHero = (pack.heroImageUrl || '').replace(/'/g, '%27');
+    return `<div class="couch-night-tile" role="button" tabindex="0"
+        aria-label="${safeTitle}"
+        onclick="openCouchNightPack('${safeId}')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCouchNightPack('${safeId}')}"
+        style="background-image:linear-gradient(0deg,rgba(20,17,15,0.85),transparent 60%),url('${safeHero}')">
+      <div class="couch-night-tile-title">${safeTitle}</div>
+    </div>`;
+  }).join('');
+}
+
+window.openCouchNightPack = function(packId) {
+  const pack = COUCH_NIGHTS_PACKS.find(p => p.id === packId);
+  if (!pack) return;
+  _activePackId = packId;
+  const heroEl = document.getElementById('couch-night-hero');
+  const titleEl = document.getElementById('couch-night-sheet-title');
+  const descEl = document.getElementById('couch-night-sheet-desc');
+  const previewEl = document.getElementById('couch-night-titles-preview');
+  const ctaBtn = document.getElementById('start-pack-cta');
+  if (heroEl) heroEl.style.backgroundImage = `url('${(pack.heroImageUrl || '').replace(/'/g, '%27')}')`;
+  if (titleEl) titleEl.textContent = pack.title;
+  if (descEl) descEl.innerHTML = `<em>${escapeHtml(pack.description || '')}</em>`;
+  if (previewEl) {
+    previewEl.innerHTML =
+      '<div class="sk-row-posters" aria-hidden="true">' +
+      '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div>' +
+      '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div>' +
+      '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div>' +
+      '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div>' +
+      '</div>';
+  }
+  if (ctaBtn) { ctaBtn.disabled = false; ctaBtn.textContent = 'Start this pack'; }
+  const bg = document.getElementById('couch-night-sheet-bg');
+  if (bg) bg.classList.add('on');
+  loadPackPreview(pack);
+};
+
+window.closeCouchNightSheet = function() {
+  const bg = document.getElementById('couch-night-sheet-bg');
+  if (bg) bg.classList.remove('on');
+  _activePackId = null;
+};
+
+async function loadPackPreview(pack) {
+  const previewEl = document.getElementById('couch-night-titles-preview');
+  if (!previewEl) return;
+  try {
+    const ids = (pack.tmdbIds || []).slice(0, 8);
+    // Parallel fan-out, same posture as loadGamePickerLeague ESPN fan-out — 8 TMDB
+    // fetches well under the 40-req/10s budget; no cache (pack data is stable, hero
+    // sheet is opened on user intent).
+    const fetches = ids.map(id =>
+      fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}`)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+    );
+    const results = await Promise.all(fetches);
+    const valid = results.filter(r => r && r.poster_path);
+    // If the pack was closed or a different pack was opened, bail.
+    if (_activePackId !== pack.id) return;
+    if (!valid.length) {
+      previewEl.innerHTML = '<div class="discover-loading"><em>This pack&rsquo;s being restocked. Try another.</em></div>';
+      return;
+    }
+    previewEl.innerHTML = valid.map(t => {
+      const safeName = escapeHtml(t.title || t.name || '');
+      const poster = `https://image.tmdb.org/t/p/w185${t.poster_path}`;
+      return `<div class="couch-night-preview-card">
+        <div class="couch-night-preview-poster" style="background-image:url('${poster}')"></div>
+        <div class="couch-night-preview-title">${safeName}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    if (_activePackId !== pack.id) return;
+    previewEl.innerHTML = '<div class="discover-loading"><em>Could not load pack.</em></div>';
+  }
+}
+
+window.confirmStartPack = async function() {
+  if (!_activePackId) return;
+  if (!state.me) { alert('Sign in first.'); return; }
+  if (guardReadOnlyWrite && guardReadOnlyWrite()) return;
+  const pack = COUCH_NIGHTS_PACKS.find(p => p.id === _activePackId);
+  if (!pack) return;
+  const btn = document.getElementById('start-pack-cta');
+  if (btn) { btn.disabled = true; btn.textContent = 'Seeding…'; }
+  try {
+    const seededCount = await seedBallotFromPack(pack);
+    haptic('success');
+    if (seededCount > 0) {
+      flashToast(`Pack loaded: ${pack.title}`, { kind: 'success' });
+    } else {
+      flashToast(`${pack.title} is already on the couch`, { kind: 'success' });
+    }
+    closeCouchNightSheet();
+    // Launch Vote mode on the new candidates (existing swipe flow picks up needs-vote titles).
+    if (typeof window.openSwipeMode === 'function') {
+      window.openSwipeMode();
+    }
+  } catch(e) {
+    qnLog('[couch-nights] seed failed', e);
+    flashToast('Could not load pack', { kind: 'warn' });
+    if (btn) { btn.disabled = false; btn.textContent = 'Start this pack'; }
+  }
+};
+
+// Seeds the family ballot with each TMDB ID from the pack. For each id:
+//   - skip if already in state.titles (by tmdbId match)
+//   - fetch TMDB metadata + suggest moods (mirrors addFromAddTab)
+//   - stamp addedVia:`pack:${pack.id}` for attribution + future analytics
+//   - use createTitleWithApprovalCheck so parent-approval flow still applies for kids
+// Returns count of NEW titles added (for the toast copy).
+async function seedBallotFromPack(pack) {
+  let added = 0;
+  for (const tmdbId of (pack.tmdbIds || [])) {
+    try {
+      const titleId = 'tmdb_' + tmdbId;
+      // Dedupe: skip if this tmdbId is already in the library.
+      if (state.titles.find(t => t.id === titleId || t.tmdbId === tmdbId)) continue;
+      // Fetch base metadata — movie only (pack curation is movie-centric for v1).
+      const dr = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_KEY}`);
+      if (!dr.ok) continue;
+      const d = await dr.json();
+      if (!d || !d.poster_path) continue;
+      const baseItem = {
+        id: titleId,
+        tmdbId: d.id,
+        mediaType: 'movie',
+        name: d.title || d.name,
+        year: (d.release_date || '').slice(0, 4),
+        kind: 'Movie',
+        overview: d.overview || '',
+        poster: `https://image.tmdb.org/t/p/w300${d.poster_path}`,
+        genreIds: (d.genres || []).map(g => g.id)
+      };
+      const extras = await fetchTmdbExtras('movie', tmdbId);
+      const moods = suggestMoods(baseItem.genreIds || [], extras.runtime);
+      const newTitle = {
+        ...baseItem,
+        ...extras,
+        moods,
+        votes: {},
+        watched: false,
+        addedVia: `pack:${pack.id}`,
+        addedAt: Date.now()
+      };
+      const res = await createTitleWithApprovalCheck(titleId, newTitle);
+      logActivity(res.pending ? 'requested' : 'added', { titleName: baseItem.name, titleId, source: `pack:${pack.id}` });
+      added += 1;
+    } catch(e) {
+      qnLog('[couch-nights] seed single failed', tmdbId, e);
+      // Skip this id, keep going — partial success is still useful.
+    }
+  }
+  return added;
 }
 
 // ===== Plan 09-07a (DESIGN-07) — First-run brand onboarding overlay =====
