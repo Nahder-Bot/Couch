@@ -3398,6 +3398,11 @@ async function maybeFlipScheduledParties(parties) {
 }
 
 async function boot() {
+  // Phase 11 / REFR-02 — picker UI hidden via feature flag; backend writes preserved.
+  // Rendering paths (renderPickerCard/renderPickerStrip) still run; surfaces are CSS-hidden.
+  // Reversible in one commit: remove this line to restore full picker UI.
+  document.body.classList.add('picker-ui-hidden');
+
   // Plan 09-07b DESIGN-08: guest invite detour BEFORE sign-in gate.
   // If the URL carries ?invite=<token> and the user is not already authed with a valid session,
   // render the invite-redeem screen instead of the sign-in screen. Signed-in users still see the

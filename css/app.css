@@ -2236,6 +2236,15 @@ body.is-readonly .wp-compose-btn,
 body.is-readonly .detail-mood-add,
 body.is-readonly .swipe-btn { opacity: 0.4; pointer-events: none; }
 
+/* Phase 11 / REFR-02 — picker UI feature-flag kill-switch (reversible in 1 commit).
+   Backend spinnership writes (spinnerId/spinnerAt/auto-advance) remain intact —
+   only the UI surfaces are hidden. Remove body.picker-ui-hidden class in js/app.js
+   to restore full picker UI without any other code changes. */
+body.picker-ui-hidden #picker-card,
+body.picker-ui-hidden #picker-heading,
+body.picker-ui-hidden #picker-strip,
+body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
+
 /* ==========================================================================
    Phase 9 / DESIGN-03 — Inline-style migration utility + component classes
    Replaces inline style= declarations in index.html with token-backed classes.
