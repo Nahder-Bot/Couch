@@ -3,6 +3,10 @@
 **Created:** 2026-04-23 in response to user decision to "review further" on SMS infrastructure commitment.
 **Goal:** surface every realistic invite-delivery path so the Twilio-yes/no decision is informed.
 
+> **DECIDED 2026-04-23: option (a) — Web Share API + web RSVP route. Defer Twilio SMS to Milestone 2 / post-PMF.**
+>
+> Rationale: ships in 5-7hr at $0/mo and covers most of what's needed; Twilio can layer in later without rework on the same RSVP route. See "My recommendation" section below for full reasoning. Plan 11-04 scope updated in `11-CONTEXT.md` to reflect this.
+
 ---
 
 ## The actual problem REFR-05 solves

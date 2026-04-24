@@ -43,8 +43,8 @@ See `11-RESEARCH.md` for the full competitive landscape, watchparty + scheduling
 
 ### Watchparty lifecycle redesign (4)
 
-- **REFR-05**: SMS invite links + web-guest RSVP. Non-members land on a web page via SMS shortlink, RSVP with phone number, no install required. Deep-linked into `/app` for those who want more.
-- **REFR-06**: Asymmetric RSVP nurture cadence. Yes = 2 touches (T-24h, T-1h). Maybe = 3 touches (T-7d, T-24h, T-1h). Not-responded = 2 (T-48h, T-4h). No = silence. Host-triggered "text blast unresponsive" button.
+- **REFR-05**: Web RSVP route + Web Share API integration. New `/rsvp/<token>` route serves a lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK). Watchparty schedule modal gets a `navigator.share()` integration so the host shares the link via their preferred channel (iMessage / SMS / WhatsApp / Discord / etc.) — Couch generates the link + handles the recipient experience. Non-members land on the RSVP page, RSVP with name (no phone number captured), and convert to push-receiving members on first interaction. Twilio + SMS automation deferred to Milestone 2 / post-PMF (per user decision 4 → option a, see appendix).
+- **REFR-06**: Asymmetric push reminder cadence keyed to RSVP state — for *members* (where push channel exists). Yes = 2 touches (T-24h, T-1h). Maybe = 3 touches (T-7d, T-24h, T-1h). Not-responded = 2 (T-48h, T-4h). No = silence. Non-member nurture (SMS) deferred along with REFR-05 SMS scope. Host-triggered "remind unresponsive" button targets push for members + re-share-link for non-members.
 - **REFR-07**: Pre-session lobby upgrade. Evolve the participant timer strip into a proper T-15min "green room": who's here, who's en-route, countdown, emoji reactions already live, per-person "Ready" check, democratic auto-start at T-0 once majority Ready.
 - **REFR-08**: Late-joiner "Catch me up" recap. 30-second summary of reactions that fired before they joined. Preserves Couch's unique per-user reaction-delay moat while eliminating the "lost in the timeline" friction.
 - **REFR-09**: Post-session loop. Auto-prompt 5-star rating + "Add photo to album" + one-tap "Schedule next" using same roster. Converts one party into recurring ritual (Partiful's highest-leverage pattern).
@@ -89,12 +89,14 @@ See `11-RESEARCH.md` for the full competitive landscape, watchparty + scheduling
 ### Wave 3 — Watchparty lifecycle (the big one)
 
 **Plan 11-04** — Invitations + async nurture (REFR-05, REFR-06)
-- SMS link delivery via a new `sendInviteSMS` CF (Twilio or similar — needs a paid service)
-- Web-guest RSVP page (new route `/rsvp/<token>` serving a lightweight HTML+JS, no full app shell)
-- Asymmetric reminder CF scheduled for each RSVP state
-- Host-triggered "text blast unresponsive" button in the scheduled-watchparty view
-- Effort: **L (~10-12 hrs)** — requires new paid service + CF infra + new deploy route
-- User setup required: Twilio account, phone number, webhook config
+- New `/rsvp/<token>` route serving a lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK)
+- `navigator.share()` integration in watchparty schedule modal (host triggers share via their preferred channel)
+- Member-conversion-on-first-RSVP flow (web-RSVP page detects existing or new member)
+- Asymmetric **push** reminder cadence (members only) via existing FCM channel — scheduled CF per RSVP state
+- Host-triggered "remind unresponsive" button — push for members, re-share-link for non-members
+- Effort: **M (~5-7 hrs)** — no new paid service, no CF deploy of vendor SDK, just web route + reminder CF
+- User setup required: none (per decision 4 → option a)
+- Defers to Milestone 2: Twilio SMS infra + automated SMS nurture for non-members
 
 **Plan 11-05** — Live session + post-session (REFR-07, REFR-08, REFR-09)
 - Pre-session lobby DOM + render function + Ready check
@@ -131,11 +133,11 @@ Ranking by **Impact × Urgency × Fit-with-current-momentum**:
 | 2 | **11-02 Tab restructures** | Shares surfaces with 11-01; cognitive cleanup matches the "declutter" goal. |
 | 3 | **11-03 Discovery expansion** | User explicitly asked. Visible, bounded scope, no infra cost. |
 | 4 | **11-05 Live session + post-session** | Closes the biggest UX gap in the watchparty flow. Defensible (per-user delay moat). No new paid infra. |
-| 5 | **11-04 SMS invites + async nurture** | Highest conversion lever but requires paid Twilio infra + new deploy route. Waits until the simpler wins land so it doesn't block them. |
+| 5 | **11-04 Web RSVP route + async push nurture** | Was deprioritized when it required Twilio. With option (a) chosen, scope drops to ~5-7 hrs and no paid infra — could move up the queue if user wants the recipient experience earlier. |
 | 6 | **11-06 Sports Game Mode** | Big lift, new data layer. Do when the movie watchparty UX is solid so Game Mode has a proven lifecycle to specialize from. |
 | 7 | **11-07 Couch Nights packs** | Content-heavy. Defer to Phase 12 unless a specific launch moment (Halloween season, etc.) moves it up. |
 
-Total effort estimate: **~45-60 hrs** of focused work for plans 11-01 through 11-06 (the non-stretch scope). At your session velocity that's realistically 4-6 sessions.
+Total effort estimate: **~45-62 hrs** for all 7 plans (revised from prior estimate after locking decisions 1-4: scope held at 7 plans, sports stays dedicated, 11-04 dropped from L→M after Twilio deferred). At your session velocity that's realistically 5-7 sessions.
 
 ## Non-goals (preserved from prior scope)
 
@@ -166,12 +168,12 @@ Total effort estimate: **~45-60 hrs** of focused work for plans 11-01 through 11
 | 1 | Phase number | **Phase 11** within v1.0 milestone (no split, no Milestone 2 yet) |
 | 2 | Scope commitment | **All 7 plans** including stretch 11-07 (Couch Nights packs) |
 | 3 | Sports scope (REFR-10) | **Dedicated Game Mode** (research-recommended path) |
+| 4 | SMS infrastructure (REFR-05/06) | **Option (a) — Web Share API + web RSVP route**. Twilio + SMS automation deferred to Milestone 2. Plan 11-04 effort drops L→M (~5-7 hrs). |
 
 ### Pending — see appendices for deeper review
 
 | # | Question | Status | Appendix |
 |---|---|---|---|
-| 4 | SMS infrastructure (REFR-05/06) | Awaiting decision after review of 6 alternatives | `11-APPENDIX-SMS-OPTIONS.md` |
 | 5 | Tab restructure depth (REFR-11/12) | Awaiting decision after section-by-section trim/edit/add/cut/reframe audit | `11-APPENDIX-TABS-AUDIT.md` |
 | 6 | Discovery categories + rotation (REFR-04) | Awaiting decision after review of expanded 35-row catalog + daily rotation logic | `11-APPENDIX-CATEGORIES.md` |
 
@@ -185,11 +187,11 @@ Total effort estimate: **~45-60 hrs** of focused work for plans 11-01 through 11
 
 ### What pending decisions affect downstream
 
-- **#4 SMS** — affects Plan 11-04 scope (Twilio = full async automation; web-share = simpler flow, no SMS infra). Effort delta ~5 hrs.
+- ~~**#4 SMS**~~ — **LOCKED** to option (a). Plan 11-04 scope = web RSVP route + Web Share API + member-conversion + push-only async nurture. ~5-7 hr.
 - **#5 Tabs** — affects Plan 11-02 scope (pure-reorg vs. include ADDs like notification preferences detail, data export). Effort delta ~3-8 hrs depending on how many ADDs land.
 - **#6 Categories** — affects Plan 11-03 scope (single 11-03 vs split 11-03a + 11-03b). Effort delta ~7-10 hrs if curated lists + Browse all + personalization land in v1.
 
-Until #4/#5/#6 are decided, the planner can scope plans 11-01, 11-05, 11-06, 11-07 (which don't depend on these). Plans 11-02, 11-03, 11-04 wait.
+Until #5/#6 are decided, the planner can scope plans 11-01, 11-04, 11-05, 11-06, 11-07 (which don't depend on these). Plans 11-02 and 11-03 wait.
 
 ---
 
