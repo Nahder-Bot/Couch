@@ -1317,6 +1317,13 @@ async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {
     ? (proposedStartAt || now) + 3 * 60 * 60 * 1000  // 3h past startAt
     : now + 30 * 24 * 60 * 60 * 1000;                // 30d for interest polls
   const th = computeIntentThreshold(state.group || {});
+  // Plan 09-07a (absorbs 08x-intent-cf-timezone): capture the creator's IANA tz name
+  // so onIntentCreated CF can render the push-body time in local instead of UTC.
+  // Defensive: Intl.DateTimeFormat is universal but we wrap anyway for ancient browsers.
+  const creatorTimeZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+    catch(e) { return null; }
+  })();
   const intent = {
     id, type,
     titleId, titleName: t.name, titlePoster: t.poster || '',
@@ -1324,6 +1331,7 @@ async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {
     createdByName: state.me.name || null,
     createdByUid: (state.auth && state.auth.uid) || null,
     createdAt: now,
+    creatorTimeZone,
     rsvps: {
       [state.me.id]: {
         value: 'yes',
