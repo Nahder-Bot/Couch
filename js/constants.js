@@ -662,3 +662,111 @@ export const DISCOVERY_CATALOG = [
   }
 ];
 
+// ===== Phase 11 / REFR-13 — Couch Nights themed ballot packs =====
+// Curated "tap-once to start a themed vote" shortcut. 8 initial packs each with
+// { id (stable slug), title, description (BRAND voice italic serif), mood (maps to
+// MOODS id), heroImageUrl (TMDB poster URL from one canonical film), tmdbIds: [8-12
+// verified movie/TV TMDB IDs] }. Pack data is public-by-design (constant in client
+// source) per CLAUDE.md Firestore-migration posture. See
+// .planning/phases/11-feature-refresh-and-streamline/11-UI-SPEC.md §Copywriting
+// Contract REFR-13 for copy verbatim, §Interaction States REFR-13 for tile + sheet
+// visuals, and 11-07-PLAN.md for TMDB ID curation notes.
+export const COUCH_NIGHTS_PACKS = [
+  {
+    id: 'studio-ghibli-sunday',
+    title: 'Studio Ghibli Sunday',
+    description: 'Slow, lush, and not a single explosion.',
+    mood: 'cozy',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/dMZxEdrWIzUmUoOz2zvmFuulbeS.jpg',
+    tmdbIds: [
+      // Spirited Away, My Neighbor Totoro, Princess Mononoke, Kiki's Delivery Service,
+      // Castle in the Sky, Howl's Moving Castle, Ponyo, Porco Rosso, The Wind Rises, Nausicaä
+      129, 8392, 128, 16859, 10515, 4935, 12429, 11544, 149870, 81
+    ]
+  },
+  {
+    id: 'cozy-rainy-night',
+    title: 'Cozy Rainy Night',
+    description: 'Blanket fort required.',
+    mood: 'cozy',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/7HxYCaA0JI5nzo4OnmYBKJQoMHB.jpg',
+    tmdbIds: [
+      // Amelie, The Secret Life of Walter Mitty, Chef, Julie & Julia, Little Women,
+      // You've Got Mail, Paddington, Paddington 2, About Time, The Holiday, Notting Hill
+      194, 116745, 194662, 31011, 331482, 11005, 228326, 346648, 122906, 6963, 509
+    ]
+  },
+  {
+    id: 'halloween-crawl',
+    title: 'Halloween Crawl',
+    description: 'Spooky, not slashy — and slashy too.',
+    mood: 'spooky',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/aSbxbBUXQUE8dQKWvEARo1WDcTb.jpg',
+    tmdbIds: [
+      // Hocus Pocus, Beetlejuice, The Nightmare Before Christmas, Coraline, ParaNorman,
+      // It Follows, Get Out, The Cabin in the Woods, Ready or Not, Midsommar
+      9532, 4011, 9479, 14164, 82702, 270303, 419430, 22970, 536554, 530385
+    ]
+  },
+  {
+    id: 'date-night-classics',
+    title: 'Date Night Classics',
+    description: 'Romance, dramedies, drama.',
+    mood: 'datenight',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/qom1SZSENdmHFNZBXbtJAU0WTlC.jpg',
+    tmdbIds: [
+      // Before Sunrise, Before Sunset, Before Midnight, When Harry Met Sally, La La Land,
+      // The Big Sick, 500 Days of Summer, Crazy Stupid Love, Silver Linings Playbook, Past Lives
+      76, 80, 152601, 639, 313369, 398818, 19913, 50646, 82690, 666277
+    ]
+  },
+  {
+    id: 'kids-room-classics',
+    title: "Kids' Room Classics",
+    description: "The films they'll ask to rewatch.",
+    mood: 'cozy',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg',
+    tmdbIds: [
+      // Toy Story, Toy Story 3, Finding Nemo, The Incredibles, WALL-E, Up, Inside Out,
+      // Coco, Moana, Frozen, Encanto, Zootopia
+      862, 10193, 12, 9806, 10681, 14160, 150540, 354912, 277834, 109445, 568124, 269149
+    ]
+  },
+  {
+    id: 'a24-night',
+    title: 'A24 Night',
+    description: 'Boutique studio picks, curated loud.',
+    mood: 'mindbender',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/aLaeEEhWvl1vJpd7wEb7HlsZafb.jpg',
+    tmdbIds: [
+      // Everything Everywhere All at Once, The Green Knight, Moonlight, Lady Bird, Hereditary,
+      // Uncut Gems, The Lighthouse, Ex Machina, The Whale, Past Lives, Minari, Talk to Me
+      545611, 550988, 376867, 391713, 493922, 473033, 503919, 264660, 785084, 666277, 615643, 1008042
+    ]
+  },
+  {
+    id: 'oscars-short-list',
+    title: 'Oscars Short List',
+    description: 'If the Academy got it right.',
+    mood: 'tearjerker',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
+    tmdbIds: [
+      // Parasite, Nomadland, CODA, Everything Everywhere All at Once, Oppenheimer, Moonlight,
+      // 12 Years a Slave, Birdman, The Shape of Water, Anatomy of a Fall
+      496243, 581734, 776503, 545611, 872585, 376867, 76203, 194662, 399055, 915935
+    ]
+  },
+  {
+    id: 'dads-action-pantheon',
+    title: "Dad's Action Pantheon",
+    description: 'Loud, proud, and repeatable.',
+    mood: 'action',
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/6DrHO1jr3qVrViUO6s6kFiAGM7.jpg',
+    tmdbIds: [
+      // Die Hard, Mad Max: Fury Road, The Dark Knight, John Wick, Raiders of the Lost Ark,
+      // Terminator 2, Heat, The Matrix, Casino Royale, Mission Impossible: Fallout, Top Gun: Maverick
+      562, 76341, 155, 245891, 85, 280, 949, 603, 36557, 353081, 361743
+    ]
+  }
+];
+
