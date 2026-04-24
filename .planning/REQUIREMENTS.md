@@ -90,6 +90,24 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 - [ ] **YEAR-04**: Family-level stats include most-watched-together, most-vetoed, longest watchparty, and most-anticipated-but-never-watched (from Phase 8 intent data)
 - [ ] **YEAR-05**: Recap has a shareable surface (export image, copy-link, or save-to-device) — rendered against Phase 9 brand tokens
 
+### Feature Refresh & Streamline (Phase 11)
+
+Scoped via /gsd-discuss-phase 11 (2026-04-23); 6 user decisions locked; RESEARCH.md + CONTEXT.md + 3 appendices (CATEGORIES, SMS-OPTIONS, TABS-AUDIT) complete. Two parallel tracks: declutter + streamline (REFR-01/02/03, REFR-11/12) and moat-expansion (REFR-04, REFR-05/06, REFR-07/08/09, REFR-10, REFR-13).
+
+- [ ] **REFR-01**: Mood filter chip spacing tightened; chip padding reduced; visually denser without sacrificing tap target
+- [ ] **REFR-02**: "Whose turn to pick" UI surfaces hidden across Tonight + Family tabs (feature-flag reversible via body class); backend spinnership writes preserved
+- [ ] **REFR-03**: "Who's on the couch" card redesigned to a cleaner, denser format (avatar-stack or compact horizontal row — variant locked at plan-phase)
+- [ ] **REFR-04**: Add-tab discovery expanded from 4 to a 35-row catalog organized in 6 buckets (always-on / trending / discovery / use-case / theme-of-the-day / seasonal / group-aware); 8-10 rows visible per day via per-user-per-day hash-seeded rotation; auto-categories only in v1 (curated lists + Browse-all + pinning + personalization ship in plan 11-03b)
+- [ ] **REFR-05**: Web RSVP route (`/rsvp/<token>`) + Web Share API integration — lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK); schedule modal wires `navigator.share()`; non-members land on RSVP page, convert to push-receiving members on first interaction. Twilio + SMS automation deferred to Milestone 2 per user decision 4.
+- [ ] **REFR-06**: Asymmetric push reminder cadence keyed to RSVP state (members only) — Yes = 2 touches (T-24h, T-1h); Maybe = 3 touches (T-7d, T-24h, T-1h); Not-responded = 2 (T-48h, T-4h); No = silence. Host-triggered "remind unresponsive" button (push for members, re-share-link for non-members).
+- [ ] **REFR-07**: Pre-session lobby upgrade — evolve participant timer strip into a T-15min "green room": who's here, who's en-route, countdown, per-person Ready check, democratic auto-start at T-0 once majority Ready
+- [ ] **REFR-08**: Late-joiner "Catch me up" recap — 30-second summary of reactions that fired before they joined. Preserves Couch's per-user reaction-delay moat while eliminating timeline-loss friction.
+- [ ] **REFR-09**: Post-session loop — auto-prompt 5-star rating + "Add photo to album" + one-tap "Schedule next" using same roster. Converts one party into recurring ritual.
+- [ ] **REFR-10**: Dedicated Sports Game Mode — `SportsDataProvider` abstraction (ESPN hidden API + BALLDONTLIE), game picker, live score strip always visible, kickoff countdown + auto-transition, play-scoped amplified reactions (score-delta polling), late-joiner "current score + last 3 plays" card, team-flair avatar badges, per-user "I'm N seconds behind" DVR slider
+- [ ] **REFR-11**: Family tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 6 sections → 5 (Tonight status NEW / Approvals / Members split active vs sub-profiles / Couch history consolidated / Group settings footer). Picker section cut per REFR-02. Couch calendar + ADDs deferred to Phase 12.
+- [ ] **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 9 flat sections → 3 cognitive clusters (You / Couch-wide / Admin & maintenance). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12.
+- [ ] **REFR-13** (stretch, may defer to Phase 12): "Couch Nights" themed ballot packs — Studio Ghibli, Cozy Rainy Sunday, Halloween Crawl, Date Night Picks, etc. Pre-loaded ballots the host taps once to kick off a themed session.
+
 ## v2 Requirements
 
 Deferred to post-v1. Tracked but not in current roadmap.
@@ -176,12 +194,25 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | YEAR-03 | Phase 10 | Pending |
 | YEAR-04 | Phase 10 | Pending |
 | YEAR-05 | Phase 10 | Pending |
+| REFR-01 | Phase 11 | Pending |
+| REFR-02 | Phase 11 | Pending |
+| REFR-03 | Phase 11 | Pending |
+| REFR-04 | Phase 11 | Pending |
+| REFR-05 | Phase 11 | Pending |
+| REFR-06 | Phase 11 | Pending |
+| REFR-07 | Phase 11 | Pending |
+| REFR-08 | Phase 11 | Pending |
+| REFR-09 | Phase 11 | Pending |
+| REFR-10 | Phase 11 | Pending |
+| REFR-11 | Phase 11 | Pending |
+| REFR-12 | Phase 11 | Pending |
+| REFR-13 | Phase 11 | Pending (stretch — may defer to Phase 12) |
 
 **Coverage:**
-- v1 requirements: 52 total (13 complete across Phases 3+4; 39 pending across Phases 5-10)
-- Mapped to phases: 52 ✓
+- v1 requirements: 65 total (21 complete across Phases 3+4+7+9; 44 pending across Phases 5/6/7/8/9/10/11)
+- Mapped to phases: 65 ✓
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-19*
-*Last updated: 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10. New requirement skeletons (AUTH/PUSH/INTENT/DESIGN) will be expanded during each phase's discuss.*
+*Last updated: 2026-04-24 — added Phase 11 (Feature Refresh & Streamline) with 13 REFR-* items scoped via /gsd-discuss-phase 11 (6 decisions locked 2026-04-23). Prior update 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10.*

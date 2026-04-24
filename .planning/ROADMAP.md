@@ -25,6 +25,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [x] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll) ✓ 2026-04-22 (UAT autonomous via browser-Claude; 1 seed for CF timezone echo)
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
 - [ ] **Phase 10: Year-in-Review** — End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
+- [ ] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs
 
 ## Phase Details
 
@@ -167,10 +168,32 @@ Plans:
 **Plans**: 3 plans (TBD — finalized at plan-phase). Also: the YIR marketing screenshot from Phase 9 plan 09-06 was deferred to Phase 10 (Major-6 checker closure) — rerun the marketing-screenshot-plan.md pipeline once YIR UI surfaces ship.
 **UI hint**: yes
 
+### Phase 11: Feature refresh & streamline
+**Goal**: Take Couch from "functional PWA with post-Phase-9 brand refresh" to "decision ritual product that nobody else ships." Two parallel tracks: (1) declutter + streamline the in-app surfaces the user flagged as too busy / too prominent / too dated, plus a coherent Family + Account tab restructure, and (2) feature-expand the moat — what competitive research identified as Couch's unmet differentiation: Web RSVP route + Web Share API nurture, pre-session lobby, late-joiner catch-me-up recap, post-session loop, dedicated Sports Game Mode, themed "Couch Nights" packs.
+**Depends on**: Phase 9 (design tokens, landing page, app.html + sw.js live). Phase 10 (YIR) independent — can ship before, after, or in parallel.
+**Requirements**: REFR-01, REFR-02, REFR-03, REFR-04, REFR-05, REFR-06, REFR-07, REFR-08, REFR-09, REFR-10, REFR-11, REFR-12, REFR-13 (13 items, 6 user decisions locked 2026-04-23 in 11-CONTEXT.md)
+**Success Criteria** (what must be TRUE):
+  1. UX tightening ships: mood chip spacing tightened, "whose turn to pick" surfaces hidden (feature-flag reversible, backend writes preserved), "who's on the couch" card redesigned to a denser format.
+  2. Family tab regroups 6 sections → 5 (Tonight status NEW, Approvals, Members split active vs sub-profiles, Couch history consolidated, Group settings footer); Account tab regroups 9 sections → 3 cognitive clusters (You, Couch-wide, Admin & maintenance). No feature removal — pure reorganization.
+  3. Add-tab discovery expands from 4 rows to an 8-10 rows/day hash-seeded rotation over a 35-row catalog (6 buckets: always-on / trending / discovery / use-case / theme-of-the-day / seasonal / group-aware); auto-categories in v1 (curated lists + Browse-all + personalization in 11-03b).
+  4. Watchparty lifecycle is end-to-end: `/rsvp/<token>` web route serves a lightweight HTML+JS RSVP page (no full app shell), Web Share API integration in schedule modal, member-conversion-on-first-RSVP, asymmetric push reminder cadence per RSVP state (members only; SMS nurture deferred to Milestone 2), pre-session lobby with Ready check + democratic auto-start at T-0, late-joiner catch-me-up 30s recap, post-session 5-star rating + photo + schedule-next.
+  5. Dedicated Sports Game Mode ships: `SportsDataProvider` abstraction (ESPN + BALLDONTLIE), game picker, live score strip, kickoff countdown + auto-transition, play-scoped amplified reactions, late-joiner "current score + last 3 plays" card, team-flair avatar badges, per-user DVR offset slider.
+**Plans**: 8 plans across 4 waves (CONTEXT.md proposes — finalized at plan-phase)
+Proposed plans:
+- [ ] 11-01-PLAN.md — UX tightening: mood chip spacing, picker-hide feature flag, who-card redesign (REFR-01, REFR-02, REFR-03)
+- [ ] 11-02-PLAN.md — Family + Account tab restructures (REFR-11, REFR-12)
+- [ ] 11-03a-PLAN.md — Discovery rotation engine + auto-category rows (REFR-04 first half)
+- [ ] 11-03b-PLAN.md — Curated lists + Browse-all + personalization (REFR-04 second half)
+- [ ] 11-04-PLAN.md — Web RSVP route + Web Share API + async push nurture (REFR-05, REFR-06)
+- [ ] 11-05-PLAN.md — Pre-session lobby + late-joiner catch-me-up + post-session loop (REFR-07, REFR-08, REFR-09)
+- [ ] 11-06-PLAN.md — Sports Game Mode v1: SportsDataProvider, game picker, score strip, play-scoped reactions, DVR slider (REFR-10)
+- [ ] 11-07-PLAN.md — Couch Nights themed ballot packs (REFR-13) — may defer to Phase 12
+**UI hint**: yes (heavy UI touches; UI-SPEC.md to be generated via /gsd-ui-phase 11 before planning)
+
 ## Progress
 
 **Execution Order:**
-Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 for `uid` targeting. Phase 7 (Watchparty) and Phase 8 (Intent) both depend on 5+6 but can run in either order or in parallel. Phase 9 (Redesign) must run after all feature phases so the design system covers the final surface area. Phase 10 (Year-in-Review) depends on data from 3/4/7/8 and brand tokens from 9, so it runs last.
+Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 for `uid` targeting. Phase 7 (Watchparty) and Phase 8 (Intent) both depend on 5+6 but can run in either order or in parallel. Phase 9 (Redesign) must run after all feature phases so the design system covers the final surface area. Phase 10 (Year-in-Review) depends on data from 3/4/7/8 and brand tokens from 9. Phase 11 (Feature refresh & streamline) slots after Phase 9 and is independent of Phase 10 — can ship before, after, or in parallel with YIR.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -184,10 +207,12 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
+| 11. Feature refresh & streamline | 0/8 | Scoped — CONTEXT + RESEARCH complete 2026-04-23; UI-SPEC + plans pending | - |
 
 ---
 *Roadmap created: 2026-04-19*
 *Restructured: 2026-04-20 (inserted Auth/Push/Intent/Redesign; pushed Year-in-Review to Phase 10)*
 *Gap-closure plans added: 2026-04-21 (07-05..07-08 closing UAT Issues #1-#4)*
 *Phase 9 plan split: 2026-04-21 (checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)*
-*v1 milestone: Commercial Release (Phases 3-10)*
+*Phase 11 added: 2026-04-24 (post-Phase-9 polish + moat expansion; 8 plans / 13 REFR-* requirements; scoped via /gsd-discuss-phase 11 with 6 decisions locked)*
+*v1 milestone: Commercial Release (Phases 3-11)*
