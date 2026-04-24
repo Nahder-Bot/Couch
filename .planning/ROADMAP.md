@@ -186,7 +186,7 @@ Plans:
 - [ ] 11-03b-PLAN.md — Curated lists + Browse-all + personalization (REFR-04 second half)
 - [x] 11-04-PLAN.md — Web RSVP route + Web Share API + async push nurture (REFR-05, REFR-06) [complete 2026-04-24; deploy deferred pending Blaze billing confirmation]
 - [x] 11-05-PLAN.md — Pre-session lobby + late-joiner catch-me-up + post-session loop (REFR-07, REFR-08, REFR-09) [complete 2026-04-24; deploy deferred with 11-04 pending Blaze billing + Firebase Storage enablement]
-- [ ] 11-06-PLAN.md — Sports Game Mode v1: SportsDataProvider, game picker, score strip, play-scoped reactions, DVR slider (REFR-10)
+- [x] 11-06-PLAN.md — Sports Game Mode v1: SportsDataProvider, game picker, score strip, play-scoped reactions, DVR slider (REFR-10) [complete 2026-04-24; deploy deferred — ESPN ToS-gray accepted per threat model; BALLDONTLIE swap stub in place]
 - [ ] 11-07-PLAN.md — Couch Nights themed ballot packs (REFR-13) — may defer to Phase 12
 **UI hint**: yes (heavy UI touches; UI-SPEC.md to be generated via /gsd-ui-phase 11 before planning)
 
@@ -207,7 +207,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 8. Watch-Intent Flows | 0/? | Not started | - |
 | 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
-| 11. Feature refresh & streamline | 6/8 | Executing — W1 11-01 + 11-02 done, W2 11-03a + 11-03b done, W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 next (Sports Game Mode) | 11-05 code 2026-04-24 |
+| 11. Feature refresh & streamline | 7/8 | Executing — W1 11-01 + 11-02 done, W2 11-03a + 11-03b done, W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 code-complete (Sports Game Mode, REFR-10 closed); 11-07 stretch pending | 11-06 code 2026-04-24 |
 
 ---
 *Roadmap created: 2026-04-19*

@@ -103,7 +103,7 @@ Scoped via /gsd-discuss-phase 11 (2026-04-23); 6 user decisions locked; RESEARCH
 - [x] **REFR-07**: Pre-session lobby upgrade — evolve participant timer strip into a T-15min "green room": who's here, who's en-route, countdown, per-person Ready check, democratic auto-start at T-0 once majority Ready [Plan 11-05, code-complete 2026-04-24; deploy deferred with 11-04 pending Blaze billing confirmation]
 - [x] **REFR-08**: Late-joiner "Catch me up" recap — 30-second summary of reactions that fired before they joined. Preserves Couch's per-user reaction-delay moat while eliminating timeline-loss friction. [Plan 11-05, code-complete 2026-04-24]
 - [x] **REFR-09**: Post-session loop — auto-prompt 5-star rating + "Add photo to album" + one-tap "Schedule next" using same roster. Converts one party into recurring ritual. [Plan 11-05, code-complete 2026-04-24; Firebase Storage first use — Variant A rules pending deploy + Firebase Console Storage enablement + emulator test matrix]
-- [ ] **REFR-10**: Dedicated Sports Game Mode — `SportsDataProvider` abstraction (ESPN hidden API + BALLDONTLIE), game picker, live score strip always visible, kickoff countdown + auto-transition, play-scoped amplified reactions (score-delta polling), late-joiner "current score + last 3 plays" card, team-flair avatar badges, per-user "I'm N seconds behind" DVR slider
+- [x] **REFR-10**: Dedicated Sports Game Mode — `SportsDataProvider` abstraction (ESPN hidden API primary + BALLDONTLIE stub for v2 swap), game picker modal with 4 league tabs, live score strip (sticky-top, tabular-nums), score-delta polling (adaptive 5s on-play / 15s off-play), play-scoped amplified reactions (4 burst emojis, 3s auto-dismiss), late-joiner sports Catch-me-up variant (score + last 3 plays), team-flair avatar badges (border in team color via runtime CSS custom property), per-user DVR slider writing to participants[mid].dvrOffsetMs AND reusing Phase 7 reactionDelay anchor. [Plan 11-06, code-complete 2026-04-24; deploy deferred — ESPN ToS-gray accepted per threat model; BALLDONTLIE swap path wired for when/if ESPN denies]
 - [ ] **REFR-11**: Family tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 6 sections → 5 (Tonight status NEW / Approvals / Members split active vs sub-profiles / Couch history consolidated / Group settings footer). Picker section cut per REFR-02. Couch calendar + ADDs deferred to Phase 12.
 - [ ] **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 9 flat sections → 3 cognitive clusters (You / Couch-wide / Admin & maintenance). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12.
 - [ ] **REFR-13** (stretch, may defer to Phase 12): "Couch Nights" themed ballot packs — Studio Ghibli, Cozy Rainy Sunday, Halloween Crawl, Date Night Picks, etc. Pre-loaded ballots the host taps once to kick off a themed session.
@@ -203,7 +203,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | REFR-07 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
 | REFR-08 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
 | REFR-09 | Phase 11 Plan 05 | Complete (code) 2026-04-24 |
-| REFR-10 | Phase 11 | Pending |
+| REFR-10 | Phase 11 Plan 06 | Complete (code) 2026-04-24 |
 | REFR-11 | Phase 11 | Pending |
 | REFR-12 | Phase 11 | Pending |
 | REFR-13 | Phase 11 | Pending (stretch — may defer to Phase 12) |
