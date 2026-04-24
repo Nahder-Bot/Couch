@@ -694,11 +694,11 @@ h3{font-size:var(--t-h3)}
 .upnext-name{font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-body);font-weight:400;margin:2px 0}
 .upnext-meta{font-size:var(--t-eyebrow);color:var(--ink-dim)}
 /* Mood filter chips */
-.mood-filter{display:flex;gap:var(--s2);overflow-x:auto;
+.mood-filter{display:flex;gap:var(--s1);overflow-x:auto;
   padding:var(--s1) 0 var(--s2);-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .mood-filter::-webkit-scrollbar{display:none}
 .mood-chip{display:inline-flex;align-items:center;gap:var(--s2);
-  padding:var(--s2) var(--s4);background:var(--surface);
+  padding:var(--s1) var(--s3);min-height:36px;background:var(--surface);
   border:1px solid var(--border-mid);border-radius:var(--r-pill);
   cursor:pointer;font-family:inherit;color:var(--ink-warm);font-size:var(--t-meta);
   flex-shrink:0;white-space:nowrap;font-weight:500;
