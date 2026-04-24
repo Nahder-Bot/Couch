@@ -7762,6 +7762,61 @@ window.confirmStartWatchparty = async function() {
     logActivity('wp_started', { titleName: t.name });
     document.getElementById('wp-start-modal-bg').classList.remove('on');
     state.activeWatchpartyId = id;
+
+    // Phase 11 / REFR-05 — Web Share API trigger after successful save.
+    // Share text goes out via OS share sheet OR clipboard fallback. Non-members
+    // land on /rsvp/<wpId> (Firebase Hosting rewrite serves rsvp.html) and RSVP
+    // without installing the PWA.
+    try {
+      const rsvpUrl = `https://couchtonight.app/rsvp/${encodeURIComponent(id)}`;
+      const dayStr = wp.startAt ? new Date(wp.startAt).toLocaleDateString([], { weekday: 'long' }) : 'soon';
+      const timeStr = wp.startAt ? new Date(wp.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+      const hostName = (state.me && state.me.name) || 'A friend';
+      const titleName = (t && t.name) || 'a movie';
+      const shareTitle = `Couch Night — ${titleName}`;
+      const shareText = `${hostName} invited you to watch ${titleName} on ${dayStr}${timeStr ? ' at ' + timeStr : ''}. RSVP: ${rsvpUrl}`;
+
+      let shareSucceeded = false;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: shareTitle, text: shareText, url: rsvpUrl });
+          shareSucceeded = true;
+          haptic('success');
+        } catch(shareErr) {
+          // AbortError = user cancelled the sheet — treat as handled.
+          if (shareErr && shareErr.name === 'AbortError') shareSucceeded = true;
+          // Any other error → fall through to clipboard.
+        }
+      }
+      if (!shareSucceeded) {
+        try {
+          await navigator.clipboard.writeText(rsvpUrl);
+          haptic('success');
+          flashToast('Link copied', { kind: 'success' });
+        } catch(clipErr) {
+          // Deep fallback — show a modal with selectable link for browsers that
+          // block both Web Share AND clipboard (rare, e.g. non-HTTPS contexts or
+          // strict enterprise policies). Element id `wp-share-fallback` is created
+          // lazily so repeated saves don't stack duplicates.
+          let fallbackEl = document.getElementById('wp-share-fallback');
+          if (!fallbackEl) {
+            fallbackEl = document.createElement('div');
+            fallbackEl.id = 'wp-share-fallback';
+            fallbackEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:grid;place-items:center;z-index:9999;padding:20px;';
+            fallbackEl.innerHTML = `<div style="background:var(--surface);padding:20px;border-radius:14px;max-width:400px;width:100%;">
+              <p style="margin:0 0 12px;color:var(--ink);">Copy this link:</p>
+              <input readonly value="${escapeHtml(rsvpUrl)}" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--ink);font-family:monospace;font-size:12px;" onclick="this.select()">
+              <button onclick="this.parentElement.parentElement.remove()" style="margin-top:12px;padding:10px 16px;background:var(--accent);color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:700;">Done</button>
+            </div>`;
+            document.body.appendChild(fallbackEl);
+          }
+        }
+      }
+    } catch(shareOuterErr) {
+      // Share is decorative — never let its failure block the watchparty flow.
+      console.warn('Web Share path threw unexpectedly', shareOuterErr);
+    }
+
     // The host has clearly opted into watchparties — this is the right moment to ask for
     // notification permission so future scheduled parties surface even when the tab is backgrounded.
     // We only prompt if the status is unset (never asked), so declining respects the decision.
