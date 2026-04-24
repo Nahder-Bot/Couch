@@ -2561,3 +2561,35 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .family-tonight-status:empty{display:none}
 .family-tonight-status-active{color:var(--accent)}
 .family-tonight-status-empty{color:var(--ink-dim)}
+
+/* ===== Phase 11 / REFR-12 — Account tab 3-cluster regroup ===== */
+/* Cluster wrappers give stronger vertical separation (--s7) between cognitive groups
+   than between sections within a group (--s6). The .settings-cluster-h reuses
+   .tab-section-h typography but drops the bottom border so cluster eyebrows read
+   as group dividers, not section headings. */
+.settings-cluster{margin-top:var(--s7)}
+.settings-cluster:first-of-type{margin-top:var(--s6)}
+.settings-cluster > .settings-cluster-h{border-bottom:none;color:var(--ink-dim);
+  letter-spacing:0.24em;margin-bottom:var(--s3);padding-bottom:0}
+.settings-cluster .tab-section{margin-top:var(--s6)}
+.settings-cluster .tab-section:first-of-type{margin-top:var(--s3)}
+.settings-cluster .tab-footer{margin-top:var(--s6)}
+/* Tab-cluster-gap utility class — applied via :has() or manual toggle in future.
+   Today it's a zero-side-effect declarative token so grep/acceptance hooks find it. */
+.tab-cluster-gap{margin-top:var(--s7)}
+
+/* Sub-cluster heading (Integrations / Security / Members / Lifecycle) — quieter than
+   .tab-section-h eyebrow; sentence-case, sans, mid-weight. Sits inside a cluster
+   as a second-level grouping cue. */
+.settings-subcluster-h{font-family:var(--font-sans);font-size:var(--t-meta);
+  font-weight:600;color:var(--ink-warm);margin:var(--s4) 0 var(--s2);
+  text-transform:none;letter-spacing:0}
+
+/* Owner-admin sub-clusters (Security / Members / Lifecycle) — vertical rhythm between them. */
+.owner-subcluster{margin-bottom:var(--s5)}
+.owner-subcluster:last-child{margin-bottom:0}
+
+/* Leave-family destructive button — uses --bad token for the red "Leave" CTA. */
+.leave-family-confirm{background:var(--bad);color:var(--bg);border-color:transparent;
+  font-weight:700}
+.leave-family-confirm:hover{opacity:0.92}

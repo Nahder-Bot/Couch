@@ -520,6 +520,13 @@
   </div>
 
   <div class="screen" id="screen-settings">
+    <!-- Phase 11 / REFR-12 — Account tab 3-cluster structure:
+         Hero (identity) → Conditional banners (legacy-claim, signin-methods)
+         → CLUSTER 1: YOU (sub-profiles)
+         → CLUSTER 2: YOUR COUCH (services, integrations, notifs, YIR)
+         → CLUSTER 3: ADMIN (owner admin sub-grouped: Security / Members / Lifecycle + shortcuts + footer)
+         Existing DOM IDs all preserved; renderers continue to find their targets. -->
+
     <!-- Hero: identity strip lives here instead of a boxed card -->
     <div class="tab-hero">
       <div class="tab-hero-eyebrow">Your account</div>
@@ -534,21 +541,11 @@
       </div>
     </div>
 
-    <!-- Year in Review: promoted as the marquee feature -->
-    <div class="tab-accent-card">
-      <div class="tab-accent-eyebrow" id="yir-eyebrow">Year in Review</div>
-      <div class="tab-accent-title">Your year on the couch</div>
-      <p class="tab-accent-sub" id="yir-teaser">A recap of the films, shows, and couch nights that defined your year.</p>
-      <div class="cluster">
-        <button class="pill accent" onclick="openYearInReview()">Open Year in Review</button>
-        <button class="pill" onclick="openYearStoryMode()" id="yir-story-btn" style="display:none;">▶ Play recap</button>
-      </div>
-    </div>
-
     <!-- Plan 09-07a (absorbs 05x-legacy-family-ownership-migration):
          Legacy self-claim CTA. Renders only when the current family doc lacks
          ownerUid and caller hasn't dismissed it this session. First-write-wins;
-         CTA disappears as soon as state.ownerUid is set via onSnapshot. -->
+         CTA disappears as soon as state.ownerUid is set via onSnapshot.
+         Stays above the 3 clusters — it's a top-priority banner, not part of any group. -->
     <div class="tab-section" id="legacy-claim-card" style="display:none;">
       <div class="tab-section-h"><span>Claim ownership</span></div>
       <p class="tab-section-sub">This group doesn't have an admin yet. You're the admin? Lock ownership to this account so you can manage members, invites, and ownership transfer.</p>
@@ -560,109 +557,170 @@
 
     <!-- Plan 09-07a (absorbs 05x-account-linking #6): Sign-in methods card.
          Shows linked providers, supports setting + removing a password for faster
-         sign-in on other devices. Rendered by renderSignInMethodsCard() from renderSettings(). -->
+         sign-in on other devices. Rendered by renderSignInMethodsCard() from renderSettings().
+         Stays above the 3 clusters — conditional banner. -->
     <div class="tab-section" id="signin-methods-card" style="display:none;">
       <div class="tab-section-h"><span>Sign-in methods</span></div>
       <p class="tab-section-sub">Your linked ways to sign in. Set a password so you can sign in faster on a new device.</p>
       <div id="signin-methods-list" class="tab-list-card"></div>
     </div>
 
-    <!-- Streaming services -->
-    <div class="tab-section">
-      <div class="tab-section-h"><span>Streaming services</span></div>
-      <p class="tab-section-sub">We'll filter your queue to what you can actually watch. Tap any service you pay for.</p>
-      <div class="tab-list-card" id="services-card">
-        <div id="services-picker" class="tab-services-grid genre-picker"></div>
+    <!-- ===== CLUSTER 1: YOU (identity continuation: sub-profiles) ===== -->
+    <div class="settings-cluster" data-cluster="you">
+      <div class="tab-section-h settings-cluster-h"><span>YOU</span></div>
+
+      <!-- Kids & sub-profiles — D-01 / D-03 / D-04. Anyone signed-in who's in the group can create. -->
+      <div class="tab-section" id="settings-subprofiles">
+        <div class="tab-section-h"><span>Kids &amp; sub-profiles</span></div>
+        <p class="tab-section-sub">Add kids who don't have their own account. Anyone on the couch can tap them in when you watch together.</p>
+        <div id="subprofile-list"></div>
+        <button class="pill" onclick="openCreateSubProfile()">Add a kid</button>
       </div>
     </div>
 
-    <!-- Trakt sync — appears only when Trakt is configured in this deployment -->
-    <div class="tab-section" id="trakt-card" style="display:none;">
-      <div class="tab-section-h"><span>Trakt sync</span></div>
-      <div class="tab-notif-row" id="trakt-row">
-        <div class="tab-notif-body" id="trakt-body"></div>
-        <button class="pill accent" id="trakt-action-btn" onclick="trakt.connect()">Connect</button>
-      </div>
-    </div>
+    <!-- ===== CLUSTER 2: YOUR COUCH (services, integrations, notifications, YIR) ===== -->
+    <div class="settings-cluster" data-cluster="couch">
+      <div class="tab-section-h settings-cluster-h"><span>YOUR COUCH</span></div>
 
-    <!-- Notifications: quieter row, appears only when supported -->
-    <div class="tab-section" id="notif-card" style="display:none;">
-      <div class="tab-section-h"><span>Notifications</span></div>
-      <div class="tab-notif-row">
-        <div class="tab-notif-body">
-          <p id="notif-status">Get a ping when someone schedules a watchparty, when it's starting, and when parents approve your requests.</p>
+      <!-- Streaming services -->
+      <div class="tab-section" id="settings-services-section">
+        <div class="tab-section-h"><span>Streaming services</span></div>
+        <p class="tab-section-sub">We'll filter your queue to what you can actually watch. Tap any service you pay for.</p>
+        <div class="tab-list-card" id="services-card">
+          <div id="services-picker" class="tab-services-grid genre-picker"></div>
         </div>
-        <button class="pill accent" id="notif-enable-btn" onclick="enableNotifications()">Turn on</button>
+      </div>
+
+      <!-- Integrations: Trakt (+ future Letterboxd, IMDb). Only visible when Trakt configured. -->
+      <div class="tab-section" id="settings-integrations-section">
+        <h3 class="settings-subcluster-h">Integrations</h3>
+        <!-- Trakt sync — appears only when Trakt is configured in this deployment -->
+        <div class="tab-section" id="trakt-card" style="display:none;">
+          <div class="tab-section-h"><span>Trakt sync</span></div>
+          <div class="tab-notif-row" id="trakt-row">
+            <div class="tab-notif-body" id="trakt-body"></div>
+            <button class="pill accent" id="trakt-action-btn" onclick="trakt.connect()">Connect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications: quieter row, appears only when supported -->
+      <div class="tab-section" id="notif-card" style="display:none;">
+        <div class="tab-section-h"><span>Notifications</span></div>
+        <div class="tab-notif-row">
+          <div class="tab-notif-body">
+            <p id="notif-status">Get a ping when someone schedules a watchparty, when it's starting, and when parents approve your requests.</p>
+          </div>
+          <button class="pill accent" id="notif-enable-btn" onclick="enableNotifications()">Turn on</button>
+        </div>
+      </div>
+
+      <!-- Year in Review: hidden until Phase 10 ships (gated on state.family.yirReady by renderSettings). -->
+      <div class="tab-section" id="settings-yir-section" style="display:none;">
+        <div class="tab-accent-card">
+          <div class="tab-accent-eyebrow" id="yir-eyebrow">Year in Review</div>
+          <div class="tab-accent-title">Your year on the couch</div>
+          <p class="tab-accent-sub" id="yir-teaser">A recap of the films, shows, and couch nights that defined your year.</p>
+          <div class="cluster">
+            <button class="pill accent" onclick="openYearInReview()">Open Year in Review</button>
+            <button class="pill" onclick="openYearStoryMode()" id="yir-story-btn" style="display:none;">▶ Play recap</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Kids & sub-profiles — D-01 / D-03 / D-04. Anyone signed-in who's in the group can create. -->
-    <div class="tab-section" id="settings-subprofiles">
-      <div class="tab-section-h"><span>Kids &amp; sub-profiles</span></div>
-      <p class="tab-section-sub">Add kids who don't have their own account. Anyone on the couch can tap them in when you watch together.</p>
-      <div id="subprofile-list"></div>
-      <button class="pill" onclick="openCreateSubProfile()">Add a kid</button>
+    <!-- ===== CLUSTER 3: ADMIN (owner admin sub-grouped + shortcuts + footer) ===== -->
+    <div class="settings-cluster" data-cluster="admin">
+      <div class="tab-section-h settings-cluster-h"><span>ADMIN</span></div>
+
+      <!-- Owner-only: sub-grouped into Security / Members / Lifecycle.
+           Hidden by default; renderOwnerSettings() un-hides when state.auth.uid === state.ownerUid. -->
+      <div class="tab-section owner-only" id="settings-owner" style="display:none;">
+        <div class="tab-section-h"><span>Group admin</span></div>
+
+        <!-- Sub-cluster 3a: Security (password + guest invites) -->
+        <div class="owner-subcluster" data-subcluster="security">
+          <h4 class="settings-subcluster-h">Security</h4>
+
+          <div class="settings-row">
+            <label class="settings-row-label">Group password</label>
+            <p class="settings-row-hint">Require a password to join this group. Minimum 4 characters.</p>
+            <input id="settings-password-input" type="password" placeholder="New password" autocomplete="new-password" />
+            <button class="pill" onclick="submitGroupPassword()">Save password</button>
+          </div>
+
+          <div class="settings-row">
+            <label class="settings-row-label">Invite a guest</label>
+            <p class="settings-row-hint">Generate a timed invite link — grandma for a week, friend for a night.</p>
+            <select id="settings-guest-duration">
+              <option value="86400000">1 day</option>
+              <option value="604800000" selected>1 week</option>
+              <option value="2592000000">30 days</option>
+            </select>
+            <button class="pill" onclick="createGuestInvite()">Generate invite link</button>
+            <div id="settings-guest-link-out" class="link-out"></div>
+          </div>
+        </div>
+
+        <!-- Sub-cluster 3b: Members (claim existing members + ownership transfer) -->
+        <div class="owner-subcluster" data-subcluster="members">
+          <h4 class="settings-subcluster-h">Members</h4>
+
+          <!-- Plan 5.8 D-14: Claim-your-members panel. Lists unclaimed adult members (no uid, no managedBy).
+               Owner mints a per-member link via mintClaimTokens CF, then shares each link with the recipient. -->
+          <div class="settings-row">
+            <label class="settings-row-label">Claim your members</label>
+            <p class="settings-row-hint">Send each existing member a link so their account takes over their voting history.</p>
+            <div id="settings-claim-list"></div>
+            <button class="pill" onclick="mintAllMigrationClaims()">Generate links for all unclaimed</button>
+          </div>
+
+          <div class="settings-row">
+            <label class="settings-row-label">Transfer ownership</label>
+            <p class="settings-row-hint">Hand ownership to another authed member. Cannot be undone without the new owner's action.</p>
+            <select id="settings-transfer-target"></select>
+            <button class="pill warn" onclick="transferOwnershipTo()">Transfer ownership</button>
+          </div>
+        </div>
+
+        <!-- Sub-cluster 3c: Lifecycle (grace banner + future: delete group) -->
+        <div class="owner-subcluster" data-subcluster="lifecycle">
+          <h4 class="settings-subcluster-h">Lifecycle</h4>
+
+          <!-- Plan 5.8 D-14: migration grace banner — days remaining until unclaimed members go read-only.
+               Rendered by renderGraceBanner() on settings open + state.settings snapshot updates. -->
+          <div class="settings-row grace-banner" id="settings-grace-banner" style="display:none;">
+            <p><strong>Migration grace period:</strong> <span id="grace-days-remaining">—</span> days remaining. After this, unclaimed members go read-only until they claim their profile.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyboard shortcuts: tiniest treatment -->
+      <div class="tab-section" id="kb-shortcuts-card" style="display:none;">
+        <div class="tab-section-h"><span>Shortcuts</span></div>
+        <div class="tab-kb-hint">On a keyboard? Press <kbd class="kb-inline">?</kbd> anywhere for the cheat sheet.</div>
+      </div>
+
+      <!-- Footer: sign out / leave family / replay intro, grouped quietly at the bottom -->
+      <div class="tab-footer">
+        <!-- Plan 09-07a: re-show the first-run onboarding overlay even if seenOnboarding === true. -->
+        <button class="pill" onclick="replayOnboarding()">Replay intro</button>
+        <button class="pill" onclick="signOut()">Sign out</button>
+        <!-- Phase 11 / REFR-12: two-tap destructive — opens confirmation modal instead of native confirm() -->
+        <button class="pill" id="leave-family-btn" onclick="confirmLeaveFamily()">Leave family</button>
+      </div>
     </div>
+  </div>
 
-    <!-- Owner-only: password, guest invites, ownership transfer (D-12 / D-18 / D-19). -->
-    <!-- Hidden by default; renderOwnerSettings() un-hides when state.auth.uid === state.ownerUid. -->
-    <div class="tab-section owner-only" id="settings-owner" style="display:none;">
-      <div class="tab-section-h"><span>Group admin</span></div>
-
-      <!-- Plan 5.8 D-14: migration grace banner — days remaining until unclaimed members go read-only. -->
-      <!-- Rendered by renderGraceBanner() on settings open + state.settings snapshot updates. -->
-      <div class="settings-row grace-banner" id="settings-grace-banner" style="display:none;">
-        <p><strong>Migration grace period:</strong> <span id="grace-days-remaining">—</span> days remaining. After this, unclaimed members go read-only until they claim their profile.</p>
+  <!-- Phase 11 / REFR-12: Leave-family confirmation modal (two-tap destructive per UI-SPEC §Destructive actions) -->
+  <div class="modal-bg" id="leave-family-confirm-bg" onclick="if(event.target.id==='leave-family-confirm-bg')closeLeaveFamilyConfirm()">
+    <div class="modal modal--w-440">
+      <h3>Leave this group?</h3>
+      <p class="meta">You'll lose access to this couch on this device. Your votes and reactions stay with the group. You can rejoin with the code.</p>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="closeLeaveFamilyConfirm()">Cancel</button>
+        <button class="pill leave-family-confirm" onclick="performLeaveFamily()">Leave</button>
       </div>
-
-      <!-- Plan 5.8 D-14: Claim-your-members panel. Lists unclaimed adult members (no uid, no managedBy). -->
-      <!-- Owner mints a per-member link via mintClaimTokens CF, then shares each link with the recipient. -->
-      <div class="settings-row">
-        <label class="settings-row-label">Claim your members</label>
-        <p class="settings-row-hint">Send each existing member a link so their account takes over their voting history.</p>
-        <div id="settings-claim-list"></div>
-        <button class="pill" onclick="mintAllMigrationClaims()">Generate links for all unclaimed</button>
-      </div>
-
-      <div class="settings-row">
-        <label class="settings-row-label">Group password</label>
-        <p class="settings-row-hint">Require a password to join this group. Minimum 4 characters.</p>
-        <input id="settings-password-input" type="password" placeholder="New password" autocomplete="new-password" />
-        <button class="pill" onclick="submitGroupPassword()">Save password</button>
-      </div>
-
-      <div class="settings-row">
-        <label class="settings-row-label">Invite a guest</label>
-        <p class="settings-row-hint">Generate a timed invite link — grandma for a week, friend for a night.</p>
-        <select id="settings-guest-duration">
-          <option value="86400000">1 day</option>
-          <option value="604800000" selected>1 week</option>
-          <option value="2592000000">30 days</option>
-        </select>
-        <button class="pill" onclick="createGuestInvite()">Generate invite link</button>
-        <div id="settings-guest-link-out" class="link-out"></div>
-      </div>
-
-      <div class="settings-row">
-        <label class="settings-row-label">Transfer ownership</label>
-        <p class="settings-row-hint">Hand ownership to another authed member. Cannot be undone without the new owner's action.</p>
-        <select id="settings-transfer-target"></select>
-        <button class="pill warn" onclick="transferOwnershipTo()">Transfer ownership</button>
-      </div>
-    </div>
-
-    <!-- Keyboard shortcuts: tiniest treatment -->
-    <div class="tab-section" id="kb-shortcuts-card" style="display:none;">
-      <div class="tab-section-h"><span>Shortcuts</span></div>
-      <div class="tab-kb-hint">On a keyboard? Press <kbd class="kb-inline">?</kbd> anywhere for the cheat sheet.</div>
-    </div>
-
-    <!-- Footer: sign out / leave family / replay intro, grouped quietly at the bottom -->
-    <div class="tab-footer">
-      <!-- Plan 09-07a: re-show the first-run onboarding overlay even if seenOnboarding === true. -->
-      <button class="pill" onclick="replayOnboarding()">Replay intro</button>
-      <button class="pill" onclick="signOut()">Sign out</button>
-      <button class="pill" id="leave-family-btn" onclick="leaveFamily()">Leave family</button>
     </div>
   </div>
 

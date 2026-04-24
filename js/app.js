@@ -2567,10 +2567,41 @@ window.signOut = async function() {
   catch(e) { console.error('[signout]', e); }
 };
 
+// Phase 11 / REFR-12 — leave-family two-tap confirmation modal handlers.
+// Replaces the native confirm() inside window.leaveFamily with a branded modal
+// so the destructive action gets proper visual weight + a Cancel affordance
+// adjacent to the red "Leave" button. Existing leaveFamily function kept intact
+// as the write path; performLeaveFamily is a thin wrapper that closes the modal
+// and delegates to it.
+window.confirmLeaveFamily = function() {
+  const bg = document.getElementById('leave-family-confirm-bg');
+  if (bg) bg.classList.add('on');
+};
+window.closeLeaveFamilyConfirm = function() {
+  const bg = document.getElementById('leave-family-confirm-bg');
+  if (bg) bg.classList.remove('on');
+};
+window.performLeaveFamily = async function() {
+  // Close the modal first so it doesn't linger during the async leave work.
+  const bg = document.getElementById('leave-family-confirm-bg');
+  if (bg) bg.classList.remove('on');
+  // Delegate to the existing leave path. We set a flag so window.leaveFamily's
+  // built-in confirm() gets bypassed — it was the destructive gate we just
+  // handled via the modal.
+  window._leaveFamilyConfirmed = true;
+  try {
+    await window.leaveFamily();
+  } finally {
+    window._leaveFamilyConfirmed = false;
+  }
+};
+
 window.leaveFamily = async function() {
   if (!state.auth) { location.reload(); return; }
   const label = groupNoun();
-  if (!confirm(`Leave this ${label}? You can rejoin with the code.`)) return;
+  // Phase 11 / REFR-12: native confirm() is skipped when the modal-driven path
+  // (confirmLeaveFamily → performLeaveFamily) already got explicit user consent.
+  if (!window._leaveFamilyConfirmed && !confirm(`Leave this ${label}? You can rejoin with the code.`)) return;
   try { await Promise.race([unsubscribeFromPush(), new Promise(r => setTimeout(r, 1500))]); } catch(e) {}
   // Remove member doc and group index doc; do NOT sign out (D-10 one-uid-many-groups)
   if (state.me && state.familyCode) {
@@ -4649,9 +4680,21 @@ function renderFamilyFavorites() {
 // Account tab renderer — device/personal stuff
 function renderSettings() {
   yirSettingsTeaser();
+  // Phase 11 / REFR-12 — YIR card hidden until Phase 10 ships.
+  // yirReady flag lives on state.family; when set, un-hide the entire settings-yir-section.
+  // Today Phase 10 hasn't shipped so the section stays hidden — static placeholder isn't exposed.
+  const yirSection = document.getElementById('settings-yir-section');
+  if (yirSection) {
+    yirSection.style.display = (state.family && state.family.yirReady) ? '' : 'none';
+  }
   renderServicesPicker();
   renderTraktCard();
   // Plan 07: sub-profile list + owner-only admin panel (gated on state.ownerUid).
+  // Phase 11 / REFR-12 — owner admin is sub-grouped in app.html via static HTML:
+  //   data-subcluster="security" (password + guest invites)
+  //   data-subcluster="members" (claim members + ownership transfer)
+  //   data-subcluster="lifecycle" (grace banner + future delete-group)
+  // renderOwnerSettings() still only toggles visibility + populates transfer target; layout is static.
   try { renderSubProfileList(); } catch(e) {}
   try { renderOwnerSettings(); } catch(e) {}
   // Plan 5.8: owner's claim-members panel + grace-window countdown banner.
