@@ -210,6 +210,26 @@ service cloud.firestore {
       // ========================================================
       // Server-only surfaces (CFs use admin SDK → bypasses rules)
       // ========================================================
+      //
+      // ARCHITECTURE NOTE (Plan 09-07b, 2026-04-22):
+      //   Guest-invite member docs (type:'guest', temporary:true, expiresAt,
+      //   seenOnboarding:true) are NOT written by rules-evaluated client paths.
+      //   They're written exclusively by Cloud Functions (`joinGroup`,
+      //   `inviteGuest`, `claimMember`, `consumeGuestInvite`) via the admin
+      //   SDK, which bypasses Firestore rules entirely. That's why you WILL
+      //   NOT FIND a `temporary == true` branch in this file — by design.
+      //
+      //   When a future archaeologist asks "where's the rule that lets
+      //   guests exist?", the answer is: there is none at the rules layer.
+      //   The three client-create branches above (A/B/C) exist for
+      //   signed-in member self-creation and sub-profile creation.
+      //   Guest/temporary member creation is an admin-SDK-only path.
+      //
+      //   Seed `05x-guest-invite-redemption` originally hypothesized a
+      //   `temporary == true` rules branch; Plan 05-07 built the feature
+      //   with CF+admin-SDK instead, so that hypothesis never shipped.
+      //   Plan 09-07b's pre-flight invariant grep was a false-positive
+      //   and has been reframed to this documentation comment.
 
       match /invites/{inviteId} {
         allow read, write: if false;
