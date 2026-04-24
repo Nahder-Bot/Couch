@@ -76,7 +76,7 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 - [x] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces ✓ Plan 02 token layer (2026-04-22) + Plan 03 inline-style purge (2026-04-22) — 83 brand-critical inline declarations migrated to 53 token-backed classes; zero inline Fraunces/Instrument Serif remain
 - [x] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system ✓ Plan 03 tokenized brand-critical surfaces + Plan 04 desktop responsive layer (2026-04-22) — `.phone-shell` wrapper + single `@media (min-width: 900px)` block; Phase 7 UAT deferred watchparty-modal gap closed (`.wp-live-modal` 520→800px on desktop)
 - [x] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup ✓ Plan 05 (2026-04-22) — landing.html (162 lines) at /, app.html at /app via Firebase Hosting rewrites; JSON-LD SoftwareApplication schema; install-redirect for standalone + ?invite=/?claim= deep links; user-locked copy with "Why we built it" blended-family hook + "Two ways to couch" SPIN/NOMINATION sections + 5-card audience grid; deployed to couchtonight.app, all 7 automated post-deploy gates green
-- [ ] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page
+- [x] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page ✓ Plan 06 (2026-04-23) — 5 iPhone screenshots captured by user, optimized via sharp, wired to landing.html with CSS phone-frame treatment (border-radius + warm-amber drop shadow + figcaption overlay); deployed to couchtonight.app. og.png deferred to ship with wordmark redesign per user decision. Long-term: refresh screenshots when product surfaces evolve (tracked in Phase 12 docket).
 - [ ] **DESIGN-07**: First-run onboarding polished to match the redesign and introduces feature surfaces tastefully (moods, veto, watchparty, push opt-in, intent flows)
 - [ ] **DESIGN-08**: Invite-flow onboarding (when a new user accepts an invite to an existing family) polished and brand-aligned
 - [~] **DESIGN-09**: Motion language defined and applied — micro-interactions (toast, modal open, spin flicker, veto shimmer, watchparty state transitions) all use the canonical easing + duration tokens — token layer complete in Plan 02 (2026-04-22); rule-body adoption in Plan 07b (motion audit)
@@ -166,7 +166,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | DESIGN-03 | Phase 9 | Complete |
 | DESIGN-04 | Phase 9 | Complete |
 | DESIGN-05 | Phase 9 | Complete |
-| DESIGN-06 | Phase 9 | Pending |
+| DESIGN-06 | Phase 9 | Complete |
 | DESIGN-07 | Phase 9 | Pending |
 | DESIGN-08 | Phase 9 | Pending |
 | DESIGN-09 | Phase 9 | Complete (token layer; motion audit of rule bodies in 09-07b) |

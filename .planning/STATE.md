@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 9 Plan 05 COMPLETE + DEPLOYED (landing page live at couchtonight.app; user-approved). Wave 2 COMPLETE. 09-02 COMPLETE. 09-01 PARTIAL (vectorize-deferred). Phases 5 + 7 + 8 COMPLETE. Phase 6 UAT partial (2/7). Phase 7 UAT watchparty-modal gap CLOSED via 09-04. Next Wave 3 cont'd: 09-06 (marketing assets — user captures 5 screenshots + og.png; Claude wires them).
+status: Phase 9 Plan 06 COMPLETE + DEPLOYED (5 marketing screenshots live at couchtonight.app; user-approved). Wave 2 + Wave 3 COMPLETE. 09-02 + 09-05 + 09-06 all COMPLETE. 09-01 PARTIAL (vectorize-deferred). Phases 5 + 7 + 8 COMPLETE. Phase 6 UAT partial (2/7). Phase 7 UAT watchparty-modal gap CLOSED via 09-04. Phase 11 fully scoped (8 plans, 13 reqs). Next Wave 4: 09-07a (onboarding + BRAND.md + intent CF tz fix) + 09-07b (guest invite + motion audit).
 stopped_at: 2026-04-22 -- /gsd-execute-phase 9 plan 09-03 complete + human-verify approved. 3 atomic commits per commit_strategy: 23d6c2e refactor migrated Tonight + Settings inline styles (~26 styles → token-backed classes); 41489c5 refactor migrated onboarding-surface inline styles (Sign-in + Mode-pick + Family-join + Name + Claim-confirm) to .brand-hero-large + .page-tagline + .signin-card + .claim-confirm-body; e813a99 refactor migrated misc-screens inline styles (Library + Add + Family + Sports + YIR + Swipe + Onboard) + enforced final cumulative gates. Outcome: index.html style= count 119 → 36 (≤20 target NOT met by design — all 36 residuals are JS-controlled display:none toggles per Pitfall-2 defense, plan explicitly forbids migrating screen-section/modal-bg toggles to .is-hidden because js/app.js writes .style.display on every one of these IDs). 53 new CSS rules under "Phase 9 / DESIGN-03" section header in css/app.css (vs ≤40 budget — agent ran 2 consolidation passes per plan guidance, irreducible at 53 without overloading semantic classes). 7-class dynamic-className census preserved verbatim across all 3 commits (wp-banner/is-readonly/act-as-active/on=6/wp-ontime-revert/wp-ontime-claim/picker-card=1 — zero drops). Cumulative zero-gates ALL PASS: zero inline Fraunces/Instrument Serif declarations, zero inline color:var(...), zero inline margin:px, zero inline padding:px. User-approved Task 4 human-verify checkpoint (manual smoke-test: sign-in/mode-pick/onboarding/tonight/title-detail/veto/settings + .on toggle integrity). Closes DESIGN-03 fully + DESIGN-04 first half. Summary: .planning/phases/09-redesign-brand-marketing-surface/09-03-SUMMARY.md. Next: 09-04 desktop responsive (.phone-shell wrapper + @media 900px, closes Phase 7 deferred gap).
-last_updated: "2026-04-23T00:30:00Z"
-last_activity: 2026-04-23 -- /gsd-execute-phase 9 plan 09-05 complete + DEPLOYED. 2 task commits (d2e54f3 landing.html + css/landing.css; 0c39e21 git mv index.html → app.html + robots noindex + canonical) + Wave 2-3 bundled prod deploy to couchtonight.app (49 files). All 7 post-deploy automated gates green. User-approved manual verification next.
+last_updated: "2026-04-23T22:15:00Z"
+last_activity: 2026-04-23 -- /gsd-execute-phase 9 plan 09-06 complete + DEPLOYED. User dropped 5 raw iPhone screenshots, sharp optimized title-detail.PNG 2.3MB→171KB, all 5 wired into landing.html with CSS phone-frame treatment (border-radius + warm shadow + figcaption overlay), originals archived to queuenight/marketing-source/ (outside public/), production deploy via firebase hosting (56 files). All 5 screenshot URLs return 200 + correct Content-Length. og.png deferred. Long-term screenshot refresh added to Phase 12 docket per user direction.
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 36
-  completed_plans: 26
-  percent: 72
+  completed_plans: 27
+  percent: 75
 ---
 
 # Project State

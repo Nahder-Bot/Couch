@@ -71,6 +71,29 @@ These were explicitly considered for Phase 11 and explicitly deferred. They are 
 
 ---
 
+## Source: deferred from completed Phase 9 plans
+
+These were intentionally punted during Phase 9 plan execution; user signaled they should be revisited when the time is right.
+
+### From 09-06 closure (2026-04-23)
+
+- **og.png composite redesign**
+  - Why deferred: current og.png uses the dated wordmark (the photoreal "Couch" with film-reel C). User chose to ship the marketing screenshots without redoing og.png until the wordmark redesign lands (planned via Claude Design session).
+  - Content: 1200×630 vertical-split composition — wordmark + tagline left, tonight-hero in tilted device frame right
+  - Effort: S (~1-2 hr in AppScreens "social preview" template OR ~30 min in Claude Design as part of wordmark session)
+  - Likely Phase 12 priority: **bundle with wordmark redesign** — pointless to do twice
+  - Currently: existing 172KB og.png from April 15 still serving link previews; not broken, just dated
+
+- **Marketing screenshot refresh — long-term improvement**
+  - Why parked: user noted "long term pick better picks" when approving the 09-06 deploy. Current 5 screenshots are functional but capture a single moment in product evolution; better captures could be made as features mature
+  - Refresh triggers: brand wordmark redesign ships (logo in screenshots becomes outdated), new features that should headline (Sports Game Mode v1 from Phase 11, Year-in-Review surfaces from Phase 10), more visually-loaded states (more posters in tonight-hero row, more diverse member chips, more dramatic watchparty moment), ideally a real watchparty in progress with multiple devices joined for a more "live" feel
+  - Pipeline: rerun the playbook at `.planning/phases/09-redesign-brand-marketing-surface/marketing-screenshot-plan.md`
+  - Original raw captures preserved at `/c/Users/nahde/queuenight/marketing-source/` for reference
+  - Effort: M (~2-4 hr per refresh cycle including capture + optimization + commit)
+  - Likely Phase 12 priority: **opportunistic** — bundle with brand refresh OR major-feature shipping moments
+
+---
+
 ## Source: standalone seeds still in `.planning/seeds/`
 
 These pre-existed Phase 11 and weren't absorbed into 9-07a/9-07b/11.
