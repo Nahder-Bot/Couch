@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>You're invited &middot; Couch</title>
+<meta name="description" content="Couch night invitation. RSVP in seconds.">
+<meta name="theme-color" content="#14110f">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400&family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="/css/rsvp.css">
+</head>
+<body>
+  <main class="rsvp-shell">
+    <header class="rsvp-hero">
+      <img class="rsvp-wordmark" src="/logo-h200.png" alt="Couch" width="423" height="200">
+      <p class="rsvp-tagline"><em>You&rsquo;re invited.</em></p>
+    </header>
+
+    <div id="rsvp-content">
+      <!-- Skeleton — populated by inline JS below -->
+      <div class="rsvp-event-card">
+        <div class="rsvp-event-meta"><em>Loading invite&hellip;</em></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function() {
+    // Parse /rsvp/<token> from URL. Hosting rewrite serves /rsvp/** → /rsvp.html
+    // so pathname retains the token for client-side parsing.
+    var path = window.location.pathname || '';
+    var match = path.match(/^\/rsvp\/([^\/?#]+)/);
+    var token = match ? decodeURIComponent(match[1]) : null;
+    // Defense-in-depth: reject tokens that don't match the expected shape.
+    // Firestore auto-ids + wp_-prefixed ids are alphanumerics, underscore, dash.
+    if (token && !/^[A-Za-z0-9_-]{8,64}$/.test(token)) token = null;
+    var contentEl = document.getElementById('rsvp-content');
+
+    var CF_BASE = 'https://us-central1-queuenight-84044.cloudfunctions.net';
+
+    if (!token) {
+      renderExpired();
+      return;
+    }
+
+    // v1: skip a read-only preview CF — let rsvpSubmit validate the token on tap.
+    // Render a minimal generic invite card so the form is actionable immediately.
+    renderInviteForm({ titleName: '', startTime: '', hostName: '', poster: '' });
+
+    function renderInviteForm(invite) {
+      contentEl.innerHTML =
+        '<article class="rsvp-event-card">' +
+          (invite.poster ? '<div class="rsvp-event-poster" style="background-image:url(\'' + escapeAttr(invite.poster) + '\')"></div>' : '') +
+          '<h1 class="rsvp-event-title">' + (esc(invite.titleName) || 'Couch night') + '</h1>' +
+          '<div class="rsvp-event-meta">' + (esc(invite.startTime) || 'Details inside the invite link.') + '</div>' +
+          (invite.hostName ? '<div class="rsvp-event-host"><em>' + esc(invite.hostName) + ' invited you</em></div>' : '') +
+        '</article>' +
+        '<input class="rsvp-name-input" id="rsvp-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40">' +
+        '<div id="rsvp-error" style="display:none;" class="rsvp-error"></div>' +
+        '<div class="rsvp-actions">' +
+          '<button class="rsvp-btn rsvp-yes" data-resp="yes" onclick="submitRsvp(this)">Going</button>' +
+          '<button class="rsvp-btn rsvp-maybe" data-resp="maybe" onclick="submitRsvp(this)">Maybe</button>' +
+          '<button class="rsvp-btn rsvp-no" data-resp="no" onclick="submitRsvp(this)">Can&rsquo;t make it</button>' +
+        '</div>';
+    }
+
+    function renderConfirmation(resp, hostName) {
+      var titles = {
+        yes: '<em>See you there.</em>',
+        maybe: '<em>Noted &mdash; we&rsquo;ll remind you.</em>',
+        no: '<em>No worries.</em>'
+      };
+      var subs = {
+        yes: hostName ? 'Couch sent ' + esc(hostName) + ' a heads up.' : 'Couch sent the host a heads up.',
+        maybe: 'Couch will nudge you closer to the time.',
+        no: 'Next time.'
+      };
+      contentEl.innerHTML =
+        '<div class="rsvp-confirmation">' +
+          '<div class="rsvp-confirmation-eyebrow">CONFIRMED</div>' +
+          '<div class="rsvp-confirmation-title">' + titles[resp] + '</div>' +
+          '<div class="rsvp-confirmation-sub">' + subs[resp] + '</div>' +
+          '<a href="/" class="rsvp-install-cta">Pull up a seat</a>' +
+        '</div>';
+    }
+
+    function renderExpired() {
+      contentEl.innerHTML =
+        '<div class="rsvp-expired">' +
+          '<div class="rsvp-expired-title"><em>This invite has expired.</em></div>' +
+          '<div class="rsvp-expired-sub">Ask the host to send a fresh link.</div>' +
+        '</div>';
+    }
+
+    function showError(msg) {
+      var el = document.getElementById('rsvp-error');
+      if (el) { el.textContent = msg; el.style.display = ''; }
+    }
+
+    window.submitRsvp = async function(btn) {
+      var resp = btn.getAttribute('data-resp');
+      var nameEl = document.getElementById('rsvp-name');
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (!name && resp !== 'no') {
+        showError('Add a name so the host knows who you are.');
+        if (nameEl) nameEl.focus();
+        return;
+      }
+      // Disable buttons during submit
+      var btns = document.querySelectorAll('.rsvp-btn');
+      btns.forEach(function(b){ b.disabled = true; });
+      btn.classList.add('tapped');
+      try {
+        var r = await fetch(CF_BASE + '/rsvpSubmit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { token: token, response: resp, name: name } })
+        });
+        var data = await r.json();
+        if (data && data.error) {
+          showError((data.error && data.error.message) || "Couldn't save — try again in a moment.");
+          btns.forEach(function(b){ b.disabled = false; });
+          btn.classList.remove('tapped');
+          return;
+        }
+        if (data && data.result && data.result.expired) {
+          renderExpired();
+          return;
+        }
+        var hostName = (data && data.result && data.result.hostName) || '';
+        renderConfirmation(resp, hostName);
+      } catch(e) {
+        showError("Couldn't save — try again in a moment.");
+        btns.forEach(function(b){ b.disabled = false; });
+        btn.classList.remove('tapped');
+      }
+    };
+
+    function esc(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(c){
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+      });
+    }
+    function escapeAttr(s) { return esc(s); }
+  })();
+  </script>
+</body>
+</html>
