@@ -98,8 +98,8 @@ Scoped via /gsd-discuss-phase 11 (2026-04-23); 6 user decisions locked; RESEARCH
 - [ ] **REFR-02**: "Whose turn to pick" UI surfaces hidden across Tonight + Family tabs (feature-flag reversible via body class); backend spinnership writes preserved
 - [ ] **REFR-03**: "Who's on the couch" card redesigned to a cleaner, denser format (avatar-stack or compact horizontal row — variant locked at plan-phase)
 - [ ] **REFR-04**: Add-tab discovery expanded from 4 to a 35-row catalog organized in 6 buckets (always-on / trending / discovery / use-case / theme-of-the-day / seasonal / group-aware); 8-10 rows visible per day via per-user-per-day hash-seeded rotation; auto-categories only in v1 (curated lists + Browse-all + pinning + personalization ship in plan 11-03b)
-- [ ] **REFR-05**: Web RSVP route (`/rsvp/<token>`) + Web Share API integration — lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK); schedule modal wires `navigator.share()`; non-members land on RSVP page, convert to push-receiving members on first interaction. Twilio + SMS automation deferred to Milestone 2 per user decision 4.
-- [ ] **REFR-06**: Asymmetric push reminder cadence keyed to RSVP state (members only) — Yes = 2 touches (T-24h, T-1h); Maybe = 3 touches (T-7d, T-24h, T-1h); Not-responded = 2 (T-48h, T-4h); No = silence. Host-triggered "remind unresponsive" button (push for members, re-share-link for non-members).
+- [x] **REFR-05**: Web RSVP route (`/rsvp/<token>`) + Web Share API integration — lightweight HTML+JS RSVP page (no full app shell, no Firebase SDK); schedule modal wires `navigator.share()`; non-members land on RSVP page, convert to push-receiving members on first interaction. Twilio + SMS automation deferred to Milestone 2 per user decision 4. [Plan 11-04, code-complete 2026-04-24; host-triggered "remind unresponsive" button deferred to Plan 11-05 lobby scope]
+- [x] **REFR-06**: Asymmetric push reminder cadence keyed to RSVP state (members only) — Yes = 2 touches (T-24h, T-1h); Maybe = 3 touches (T-7d, T-24h, T-1h); Not-responded = 2 (T-48h, T-4h); No = silence. Host-triggered "remind unresponsive" button (push for members, re-share-link for non-members). [Plan 11-04, code-complete 2026-04-24 — auto-cadence shipped via rsvpReminderTick scheduled CF; host-triggered manual remind button deferred to Plan 11-05]
 - [ ] **REFR-07**: Pre-session lobby upgrade — evolve participant timer strip into a T-15min "green room": who's here, who's en-route, countdown, per-person Ready check, democratic auto-start at T-0 once majority Ready
 - [ ] **REFR-08**: Late-joiner "Catch me up" recap — 30-second summary of reactions that fired before they joined. Preserves Couch's per-user reaction-delay moat while eliminating timeline-loss friction.
 - [ ] **REFR-09**: Post-session loop — auto-prompt 5-star rating + "Add photo to album" + one-tap "Schedule next" using same roster. Converts one party into recurring ritual.
@@ -198,8 +198,8 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | REFR-02 | Phase 11 | Pending |
 | REFR-03 | Phase 11 | Pending |
 | REFR-04 | Phase 11 | Pending |
-| REFR-05 | Phase 11 | Pending |
-| REFR-06 | Phase 11 | Pending |
+| REFR-05 | Phase 11 Plan 04 | Complete (code) 2026-04-24 |
+| REFR-06 | Phase 11 Plan 04 | Complete (code) 2026-04-24 |
 | REFR-07 | Phase 11 | Pending |
 | REFR-08 | Phase 11 | Pending |
 | REFR-09 | Phase 11 | Pending |
