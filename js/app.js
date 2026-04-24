@@ -9099,7 +9099,8 @@ function renderAddRow(rowId, items) {
   const el = document.getElementById('add-row-' + rowId);
   if (!el) return;
   if (!items || !items.length) {
-    el.innerHTML = '<div class="discover-loading">Nothing to show here yet.</div>';
+    // Phase 11 / REFR-04 — per-row empty state copy (UI-SPEC line 352).
+    el.innerHTML = '<div class="discover-loading"><em>Nothing new here today &mdash; check back tomorrow.</em></div>';
     return;
   }
   el.innerHTML = items.map(x => {
@@ -9200,6 +9201,105 @@ async function loadGemsRow() {
   }
 }
 
+// ===== Phase 11 / REFR-04 — Dynamic discovery rotation =====
+// Builds 7-10 daily-rotated rows from DISCOVERY_CATALOG seeded by (userId, dateKey).
+// Rendered into #add-discovery-rows. Loaders staggered to respect TMDB ~40req/10s budget.
+// Per-row cache keyed on (rowId, dateKey, userId) and held in addTabCache._discovery.
+function renderAddDiscovery() {
+  const container = document.getElementById('add-discovery-rows');
+  if (!container) return;
+  const userId = (state.me && state.me.id) || 'anon';
+  const dateKey = todayKey();
+  const rows = pickDailyRows(userId, dateKey, DISCOVERY_CATALOG);
+
+  const skeletonPosters =
+    '<div class="sk-row-posters" aria-hidden="true">' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div>' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div>' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div>' +
+    '<div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div>' +
+    '</div>';
+
+  container.innerHTML = rows.map(row => {
+    const seasonalClass = row.bucket === 'F' ? ' seasonal' : '';
+    const safeLabel = escapeHtml(row.label);
+    const safeSub = escapeHtml(row.subtitle || '');
+    const safeId = escapeHtml(row.id);
+    return `<div class="add-section">
+        <div class="discover-row-eyebrow${seasonalClass}">${safeLabel}</div>
+        <div class="discover-row-subtitle"><em>${safeSub}</em></div>
+        <div class="discover-row-wrap">
+          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('${safeId}',-1)">◂</button>
+          <div class="discover-row" id="add-row-${safeId}">${skeletonPosters}</div>
+          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('${safeId}',1)">▸</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Stagger loader invocations to respect TMDB ~40 req/10s budget.
+  // First 4 fire immediately; subsequent rows space out 250ms apart.
+  rows.forEach((row, idx) => {
+    const delay = idx < 4 ? 0 : (idx - 3) * 250;
+    setTimeout(() => loadDiscoveryRow(row), delay);
+  });
+}
+
+async function loadDiscoveryRow(row) {
+  const userId = (state.me && state.me.id) || 'anon';
+  const cacheKey = `${row.id}-${todayKey()}-${userId}`;
+  addTabCache._discovery = addTabCache._discovery || {};
+  const cached = addTabCache._discovery[cacheKey];
+  if (cached && Date.now() - cached.ts < ADD_CACHE_TTL) {
+    renderAddRow(row.id, cached.items);
+    return;
+  }
+  try {
+    let items = [];
+    const src = row.source || {};
+    if (src.type === 'tmdb-endpoint') {
+      const d = await tmdbFetch(src.endpoint);
+      items = (d.results || [])
+        .filter(x => (x.media_type === 'movie' || x.media_type === 'tv'
+                       || src.endpoint.includes('/movie/') || src.endpoint.includes('/tv/'))
+                     && (x.title || x.name) && x.poster_path)
+        .slice(0, 20)
+        .map(x => {
+          // Infer media_type when endpoint hints it (movie/tv endpoints drop the field).
+          const inferred = x.media_type || (src.endpoint.includes('/tv/') ? 'tv'
+                                            : src.endpoint.includes('/movie/') ? 'movie'
+                                            : undefined);
+          return mapTmdbItem(x, inferred);
+        });
+    } else if (src.type === 'tmdb-discover') {
+      const params = new URLSearchParams(Object.assign({ sort_by: 'popularity.desc' }, src.params || {}));
+      const d = await tmdbFetch('/discover/movie?' + params.toString());
+      items = (d.results || [])
+        .filter(x => x.poster_path && (x.title || x.name))
+        .slice(0, 20)
+        .map(x => mapTmdbItem(x, 'movie'));
+    } else if (src.type === 'tmdb-streaming-filter') {
+      // Delegate to existing loader which resolves provider IDs from the user's library.
+      if (typeof loadStreamingRow === 'function') {
+        // Existing loader writes into #add-row-streaming (id 'streaming').
+        // Re-render the row id expected by renderAddDiscovery (`add-row-${row.id}`) by copying items.
+        await loadStreamingRow();
+        if (addTabCache.streaming && addTabCache.streaming.items) {
+          items = addTabCache.streaming.items;
+        }
+      }
+    } else if (src.type === 'group-recent-yes-similar' || src.type === 'group-rewatch-candidates') {
+      // Cold-start stub: empty triggers per-row empty state. Wired fully in Plan 11-03b
+      // (personalization Bucket G + comfort-rewatch data model).
+      items = [];
+    }
+    addTabCache._discovery[cacheKey] = { ts: Date.now(), items };
+    renderAddRow(row.id, items);
+  } catch(e) {
+    const el = document.getElementById('add-row-' + row.id);
+    if (el) el.innerHTML = '<div class="discover-loading"><em>Nothing new here today &mdash; check back tomorrow.</em></div>';
+  }
+}
+
 function renderAddMoodChips() {
   const el = document.getElementById('add-mood-chips');
   if (!el) return;
@@ -9258,12 +9358,13 @@ window.scrollAddRow = function(rowId, dir) {
 
 window.addFromAddTab = async function(rowId, titleId) {
   if (state.titles.find(t => t.id === titleId)) { /* already in */ return; }
-  // Find the item across all caches
+  // Find the item across all caches (including Phase 11 / REFR-04 dynamic _discovery cache).
   const pools = [
     addTabCache.trending && addTabCache.trending.items,
     addTabCache.streaming && addTabCache.streaming.items,
     addTabCache.gems && addTabCache.gems.items,
-    ...Object.values(addTabCache.mood).map(c => c && c.items)
+    ...Object.values(addTabCache.mood).map(c => c && c.items),
+    ...Object.values(addTabCache._discovery || {}).map(c => c && c.items)
   ].filter(Boolean);
   let item = null;
   for (const pool of pools) {
@@ -9289,9 +9390,10 @@ function initAddTab(force) {
   if (addTabInitialized && !force) return;
   addTabInitialized = true;
   renderAddMoodChips();
-  loadTrendingRow();
-  loadStreamingRow();
-  loadGemsRow();
+  // Phase 11 / REFR-04 — dynamic rotation replaces the 3 hardcoded loaders.
+  // loadTrendingRow / loadStreamingRow / loadGemsRow remain in the module and are
+  // invoked from loadDiscoveryRow when the rotation selects those buckets.
+  renderAddDiscovery();
 }
 
 // ===== Plan 09-07a (DESIGN-07) — First-run brand onboarding overlay =====

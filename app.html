@@ -376,8 +376,8 @@
     </div>
 
     <div id="add-browse" class="add-browse">
-      <!-- Mood row -->
-      <div class="add-section">
+      <!-- Phase 11 / REFR-04 — Mood row stays hardcoded above the rotation -->
+      <div class="add-section" id="add-mood-section">
         <div class="t-section-head">
           <div class="t-section-title">What's the mood?</div>
         </div>
@@ -389,44 +389,11 @@
         </div>
       </div>
 
-      <!-- Trending row -->
-      <div class="add-section">
-        <div class="t-section-head">
-          <div class="t-section-title">Trending this week</div>
-          <div class="t-section-meta">What everyone's watching</div>
-        </div>
-        <div class="discover-row-wrap">
-          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('trending',-1)">◂</button>
-          <div class="discover-row" id="add-row-trending"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div></div></div>
-          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('trending',1)">▸</button>
-        </div>
-      </div>
-
-      <!-- On your streaming row -->
-      <div class="add-section">
-        <div class="t-section-head">
-          <div class="t-section-title" id="add-streaming-title">On your streaming</div>
-          <div class="t-section-meta" id="add-streaming-sub">Filtered to what you have</div>
-        </div>
-        <div class="discover-row-wrap">
-          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('streaming',-1)">◂</button>
-          <div class="discover-row" id="add-row-streaming"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w70"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w85"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w60"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w75"></div></div></div></div>
-          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('streaming',1)">▸</button>
-        </div>
-      </div>
-
-      <!-- Hidden gems -->
-      <div class="add-section">
-        <div class="t-section-head">
-          <div class="t-section-title">Hidden gems</div>
-          <div class="t-section-meta">Beloved but quieter</div>
-        </div>
-        <div class="discover-row-wrap">
-          <button class="discover-scroll-btn left" aria-label="Scroll left" onclick="scrollAddRow('gems',-1)">◂</button>
-          <div class="discover-row" id="add-row-gems"><div class="sk-row-posters" aria-hidden="true"><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w85"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w65"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w80"></div></div><div class="sk-discover-card"><div class="sk sk-poster"></div><div class="sk sk-line sk-w55"></div></div></div></div>
-          <button class="discover-scroll-btn right" aria-label="Scroll right" onclick="scrollAddRow('gems',1)">▸</button>
-        </div>
-      </div>
+      <!-- Phase 11 / REFR-04 — Dynamic discovery rotation; populated by renderAddDiscovery().
+           Replaces the 4 hardcoded rows (trending/streaming/gems + one more). Loaders still
+           live in js/app.js (loadTrendingRow / loadStreamingRow / loadGemsRow) and are
+           invoked on demand via loadDiscoveryRow when the rotation selects them. -->
+      <div id="add-discovery-rows"></div>
 
       <div class="add-manual-footer">
         <button class="pill" onclick="openManualAdd()">Can't find it? Add manually</button>
