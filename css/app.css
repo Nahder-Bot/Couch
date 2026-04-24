@@ -1225,6 +1225,16 @@ h3{font-size:var(--t-h3)}
   box-shadow:var(--shadow-warm),inset 0 1px 0 rgba(255,255,255,0.2)}
 .add-browse{margin-top:18px;display:flex;flex-direction:column;gap:22px}
 .add-section{display:flex;flex-direction:column;gap:8px}
+/* Phase 11 / REFR-04 — Discovery row eyebrow + subtitle (per 11-UI-SPEC Component Inventory).
+   Seasonal variant uses --accent to visually flag Bucket F rows. Semantic tokens only:
+   zero raw px / font-family / hex colors per BRAND.md + Phase 9 motion audit. */
+.discover-row-eyebrow{font-family:var(--font-sans);font-size:var(--t-eyebrow);
+  color:var(--ink-dim);letter-spacing:0.12em;text-transform:uppercase;
+  margin-bottom:var(--s1);font-weight:600}
+.discover-row-eyebrow.seasonal{color:var(--accent)}
+.discover-row-subtitle{font-family:var(--font-serif);font-style:italic;
+  font-size:var(--t-meta);color:var(--ink-warm);margin-bottom:var(--s2);
+  line-height:1.4}
 .add-streaming-empty{padding:20px;text-align:center;color:var(--ink-dim);font-size:var(--t-meta);background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px dashed rgba(232,160,74,0.25);border-radius:var(--r-md);line-height:1.5}
 .onboard-modal{max-width:440px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:90vh}
 .onboard-header{padding:32px 24px 22px;text-align:center;background:linear-gradient(135deg,rgba(232,160,74,0.20) 0%,rgba(139,58,78,0.12) 60%,rgba(229,49,112,0.08) 100%);position:relative;border-bottom:1px solid rgba(232,160,74,0.15)}
