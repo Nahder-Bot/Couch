@@ -78,8 +78,8 @@ Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI r
 - [x] **DESIGN-05**: A landing page exists at `couchtonight.app` root — mobile-first, warm cinematic, explains what Couch is and drives to install / signup ✓ Plan 05 (2026-04-22) — landing.html (162 lines) at /, app.html at /app via Firebase Hosting rewrites; JSON-LD SoftwareApplication schema; install-redirect for standalone + ?invite=/?claim= deep links; user-locked copy with "Why we built it" blended-family hook + "Two ways to couch" SPIN/NOMINATION sections + 5-card audience grid; deployed to couchtonight.app, all 7 automated post-deploy gates green
 - [x] **DESIGN-06**: App-Store-ready marketing asset set (hero screenshot, feature screenshots, icon variants, promo graphics) produced and stored alongside the landing page ✓ Plan 06 (2026-04-23) — 5 iPhone screenshots captured by user, optimized via sharp, wired to landing.html with CSS phone-frame treatment (border-radius + warm-amber drop shadow + figcaption overlay); deployed to couchtonight.app. og.png deferred to ship with wordmark redesign per user decision. Long-term: refresh screenshots when product surfaces evolve (tracked in Phase 12 docket).
 - [x] **DESIGN-07**: First-run onboarding polished to match the redesign and introduces feature surfaces tastefully (moods, veto, watchparty, push opt-in, intent flows) ✓ Plan 07a (2026-04-23) — 3-step overlay (couch silhouette / spin-pick-veto / 4-grid feature tour), guest-skip Pitfall 5 defense, seenOnboarding gate, "Replay intro" in Settings; deployed to couchtonight.app
-- [ ] **DESIGN-08**: Invite-flow onboarding (when a new user accepts an invite to an existing family) polished and brand-aligned
-- [~] **DESIGN-09**: Motion language defined and applied — micro-interactions (toast, modal open, spin flicker, veto shimmer, watchparty state transitions) all use the canonical easing + duration tokens — token layer complete in Plan 02 (2026-04-22); rule-body adoption in Plan 07b (motion audit)
+- [x] **DESIGN-08**: Invite-flow onboarding (when a new user accepts an invite to an existing family) polished and brand-aligned ✓ Plan 07b (2026-04-24) — `?invite=<token>` bootstrap detour, branded redeem screen + expired dead-end, `consumeGuestInvite` CF (admin-SDK, idempotent), `seenOnboarding:true` on guest creation (Pitfall 5 paired with 09-07a), defense-in-depth `&family=` URL strip (server emits token-only + client sanitizes); deployed to couchtonight.app
+- [x] **DESIGN-09**: Motion language defined and applied — micro-interactions (toast, modal open, spin flicker, veto shimmer, watchparty state transitions) all use the canonical easing + duration tokens ✓ Plan 02 token layer (2026-04-22) + Plan 07b motion audit (2026-04-24) — 47 lines normalized / 66 replacements / 5 new motion tokens (`--t-spin`, `--t-celebrate`, `--t-shimmer`, `--t-pulse`, `--t-story`); zero raw ms or cubic-bezier in rule bodies; prefers-reduced-motion block hardened
 - [x] **DESIGN-10**: Brand-system documentation captured in `.planning/` for future-phase reference (token cheatsheet, do/don't, voice guide) ✓ Plan 07a (2026-04-23) — `.planning/BRAND.md` 185 lines / 1497 words; 8 sections (identity, color tokens with WebAIM contrast, typography, spacing+radius+shadow, motion catalog, voice guide, screen patterns, do/don't gallery)
 
 ### Year-in-Review (Phase 10)
@@ -168,8 +168,8 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | DESIGN-05 | Phase 9 | Complete |
 | DESIGN-06 | Phase 9 | Complete |
 | DESIGN-07 | Phase 9 | Complete |
-| DESIGN-08 | Phase 9 | Pending |
-| DESIGN-09 | Phase 9 | Complete (token layer; motion audit of rule bodies in 09-07b) |
+| DESIGN-08 | Phase 9 | Complete |
+| DESIGN-09 | Phase 9 | Complete |
 | DESIGN-10 | Phase 9 | Complete |
 | YEAR-01 | Phase 10 | Pending |
 | YEAR-02 | Phase 10 | Pending |

@@ -151,7 +151,7 @@ Plans:
 - [x] 09-05-PLAN.md — Landing page: standalone landing.html at /, app.html at /app, zero-JS install redirect, JSON-LD + OG meta, Firebase Hosting rewrites, stale public/index.html removed, deployed to couchtonight.app — 2 atomic commits + 1 prod deploy, all 7 post-deploy automated gates green (DESIGN-05 closes)
 - [x] 09-06-PLAN.md — Marketing assets: 5 iPhone screenshots (tonight-hero/watchparty-live/mood-filter/title-detail/intent-rsvp) captured + optimized via sharp + wired to landing with CSS phone-frame treatment + deployed to couchtonight.app. og.png deferred to ship with wordmark redesign. Refresh tracked in Phase 12 docket. (DESIGN-06)
 - [x] 09-07a-PLAN.md — Brand-facing polish: first-run onboarding (DESIGN-07), BRAND.md (DESIGN-10), intent CF timezone fix; absorbs 3 seeds (05x account-linking 6+7, 05x legacy-family-ownership, 08x intent-cf-timezone) — 3 atomic commits + production deploy of hosting + firestore.rules + onIntentCreated CF (2026-04-23)
-- [ ] 09-07b-PLAN.md — Guest-auth + motion: firestore.rules invariant check, guest invite redemption + consumeGuestInvite CF (DESIGN-08), motion audit (DESIGN-09 second half); absorbs 1 seed (05x guest-invite-redemption); depends on 09-07a for stability
+- [x] 09-07b-PLAN.md — Guest-auth + motion: firestore.rules architecture documentation (Task 1 reframed — invariant gate was false-positive; CF+admin-SDK bypasses rules), guest invite redemption + consumeGuestInvite CF (DESIGN-08), motion audit (DESIGN-09 second half); absorbed 05x guest-invite-redemption seed — 3 atomic commits + production deploy of hosting + functions:consumeGuestInvite + functions:inviteGuest (2026-04-24)
 **UI hint**: yes (this IS the UI phase)
 
 ### Phase 10: Year-in-Review
