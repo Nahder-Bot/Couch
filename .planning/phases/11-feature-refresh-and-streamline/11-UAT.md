@@ -111,6 +111,17 @@ These are documented scope deferrals, NOT failures:
 - Account tab new sections (notif prefs detail, data export, theme prefs, about/version+feedback)
 - Sports post-game debrief, voice rooms (11-06 v2)
 
+### Issues surfaced during UAT (routed to Phase 13)
+
+These are real issues but their proper fix lives in the Phase 13 decision-ritual rebuild. Captured for traceability. See `.planning/seeds/phase-13-14-15-decision-ritual-locked-scope.md` for full context.
+
+- **UI-01 Add-tab tile click bug** — clicking a discovery tile silently added it to the family library instead of opening a preview. **FIXED** in commit `0ef9de9` (Phase 11 quick fix): tile click now opens a TMDB preview modal with explicit "+ Add to library" button; +/✓ badge becomes a one-tap quick-add affordance with `event.stopPropagation`. sw.js bumped to v30. Live at couchtonight.app.
+- **UI-02 Title detail close button scrolls out of view** — when scrolling within the title detail modal, the ✕ close button scrolls away. Tap-outside-to-close works but isn't obvious. Fix candidate: make `.detail-close` position:fixed within modal. Routed to Phase 13-01.
+- **UX-01 Vote-prominent tile design** — vote is the only visible action on Tonight tiles; trailer/providers/cast hidden behind ⋯. Phase 13 redesigns this entirely (action sheet model: Watch tonight / Schedule / Ask family / Vote demoted).
+- **UX-02 Already-watched titles cluttering recommendations** — when family is on the couch, titles a member has already watched still appear. Phase 13 ships strict any-watched filter with per-title rewatch override + invitation bypass.
+- **UX-03 No way to track per-group watch progress** — can't say "watched Invincible S4 with wife + stepson" so others don't accidentally schedule a re-watch with the wrong subset. Routed to Phase 14.
+- **UX-04 No recurring watchparty support** — "wife and daughter watch American Idol every Monday" requires a `watchpartySeries` primitive. Routed to Phase 15.
+
 ---
 
 *Use: reply to the Current Test with "yes" / "y" / "next" if it passes, or describe what's different. I'll log the result and advance to the next test. Tests run top-to-bottom; skip any that depend on live-game windows (18-20) or multi-device (14-15) until convenient.*
