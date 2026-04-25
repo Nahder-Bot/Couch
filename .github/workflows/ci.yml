@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: node --check on JS files
+        run: |
+          set -e
+          for f in js/app.js js/firebase.js js/constants.js js/state.js js/utils.js js/discovery-engine.js sw.js; do
+            if [ -f "$f" ]; then
+              echo "checking $f"
+              node --check "$f"
+            fi
+          done
+      - name: validate JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('tests/package.json','utf8'))" 2>/dev/null || echo "(tests/package.json may not exist yet)"
+      - name: html lint (basic — file existence + no obvious truncation)
+        run: |
+          for f in app.html landing.html changelog.html rsvp.html 404.html; do
+            test -f "$f" || (echo "MISSING: $f" && exit 1)
+            head -c 1 "$f" | grep -q '<' || (echo "TRUNCATED OR BAD: $f" && exit 1)
+          done
+          echo "✓ all HTML files present"

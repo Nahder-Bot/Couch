@@ -1,0 +1,224 @@
+---
+created: 2026-04-25
+audience: Nahder when production is broken
+purpose: solo-dev incident response — what to do when something breaks, where to look, how to roll back
+---
+
+# Couch Production Runbook
+
+When prod breaks at 11pm with a user complaining, this is the doc to read.
+
+## Quick triage tree
+
+```
+User reports issue
+├── Can the user load the app at all?
+│   ├── No (white screen / 500 / 404) → Hosting issue → §A
+│   └── Yes, but feature is broken
+│       ├── Console shows JS error → §B
+│       ├── Push notif not arriving → §C
+│       ├── Watchparty / RSVP / lobby broken → §D
+│       └── Photo upload failing → §E
+└── How many users affected?
+    ├── 1 (this user only) → device-specific (cache, permission, browser) → §F
+    └── Many → real outage → roll back → §G
+```
+
+## §A — Hosting issue
+
+Hosting is Firebase Hosting + custom domain via couchtonight.app.
+
+**Quick checks:**
+- `curl -sI https://couchtonight.app/` — HTTP 200 expected
+- `curl -sI https://couchtonight.app/app` — HTTP 200 expected
+- Firebase console: https://console.firebase.google.com/project/queuenight-84044/hosting/sites
+- Look at "Latest release" — was a deploy made recently?
+
+**Roll back to previous release:**
+
+Firebase Hosting keeps versioned releases. To roll back:
+
+```bash
+cd /c/Users/nahde/queuenight
+firebase hosting:clone queuenight-84044:live queuenight-84044:live --version=<PREVIOUS_VERSION_ID>
+```
+
+Or via console: Hosting → click previous release → "Rollback".
+
+The release IDs are visible in the Hosting tab. Each release captures the entire `public/` snapshot.
+
+**If DNS broke:** A/AAAA records for couchtonight.app point to Firebase Hosting. Check the registrar (Namecheap) DNS panel hasn't been changed.
+
+## §B — JS error / module load failure
+
+Symptom: app.html loads (HTML visible) but interactive features don't work.
+
+**Check console first:**
+1. Open Chrome devtools → Console
+2. Look for `SyntaxError`, `ReferenceError`, `TypeError`
+3. Pay attention to module-load errors (e.g., "does not provide an export named X" — this exact bug happened on 2026-04-25)
+
+**Common causes:**
+- **Module-load mismatch:** `app.js` imports something that constants.js doesn't export. Caused by HTTP cache serving stale constants.js while serving fresh app.js. Fix: bump `sw.js` CACHE name + redeploy. The `/js/**` and `/css/**` cache-control headers were tightened in commit `5ed15fc` to prevent recurrence.
+- **Service worker serving stale shell:** When the SW pre-caches `/app`, `/css/app.css`, `/js/app.js` on install, it can catch a stale CDN response. Fix: bump the `CACHE` constant in `sw.js` and redeploy. Each new cache name forces install handler to re-fetch fresh.
+- **Firebase SDK breaking change:** unlikely without an explicit upgrade, but check `js/firebase.js` if SDK was bumped.
+
+**Rapid recovery:** Roll back to previous Hosting release (see §A).
+
+## §C — Push notifications not arriving
+
+Symptom: User says "I scheduled a watchparty but no one got a notification."
+
+**Check the Cloud Functions logs:**
+- https://console.cloud.google.com/functions/list?project=queuenight-84044
+- Click the function (e.g., `onWatchpartyCreate`, `sendToMembers`, `watchpartyTick`)
+- "Logs" tab — look for errors
+
+**Common causes:**
+- **VAPID key mismatch:** unlikely (key is in `js/constants.js` and `functions/index.js`).
+- **Recipient unsubscribed device:** push subscription was deleted; user clicks "Resubscribe" in Account → Notifications.
+- **Permission revoked at OS level:** user changed iOS/Android settings.
+- **Quiet hours active:** Phase 6 server-side enforcement (`isInQuietHours`) intentionally suppresses pushes during user's quiet window.
+- **Per-event toggle off:** Phase 6 + Phase 12 — the recipient turned off that specific event type.
+
+**Diagnostic check (in Cloud Function logs):**
+- Filter for "[QN push]" — look for `notificationPrefs lookup` lines
+- If lookup fires and skips with "in quiet hours" or "preference disabled" — that's expected behavior, not a bug
+
+## §D — Watchparty / RSVP / lobby broken
+
+**Symptom triage:**
+
+- **Watchparty doesn't sync between devices:** Firestore connectivity issue. Check `families/{code}/watchparties/{wpId}` doc directly via Firebase Console → Firestore Data tab.
+- **RSVP page shows "expired" for valid invite:** Token-WP scan in `rsvpSubmit` CF didn't find the wpId. Check Cloud Functions logs for `rsvpSubmit` errors.
+- **Lobby Ready check stuck:** `participants[mid].ready` field not updating. Check `firestore.rules` hasn't been changed.
+- **Majority auto-start not firing at T-0:** `watchpartyTick` scheduled CF (every 1 min) — check it's deployed and running. Console → Cloud Scheduler.
+
+## §E — Photo upload failing
+
+**Symptom:** Post-session modal photo upload errors.
+
+**Check:**
+- Firebase Storage rules at `queuenight/storage.rules` — must allow `couch-albums/{familyCode}/{wpId}/{filename}` writes for authenticated users.
+- File size > 5MB? Storage rule rejects. Client-side compression at `canvas.toBlob(1600, 0.85)` should keep most photos under 1MB.
+- MIME type not image/*? Storage rule rejects.
+
+**Reset:** Re-deploy storage rules from `queuenight/`:
+```bash
+firebase deploy --only storage --project queuenight-84044
+```
+
+## §F — Single-user / device-specific issue
+
+90% of single-user reports are stale cache or permission state.
+
+**Standard recovery script for the user:**
+1. **Hard reload:** Ctrl+Shift+R (desktop) or close-and-reopen the PWA on iOS.
+2. **iOS PWA cache bust:** Settings → Safari → Advanced → Website Data → delete `couchtonight.app` → reopen the PWA from home screen.
+3. **Re-grant notification permission:** Settings → Notifications → Couch.
+4. **Sign out and back in:** Account tab → Sign out → reopen.
+
+If still broken, ask for:
+- Browser/OS + version
+- Console error screenshot
+- The watchparty / family code / pack ID involved
+
+## §G — Multi-user real outage — roll back fast
+
+If multiple users report the same issue within a 5-minute window, treat it as a deploy regression.
+
+**Rapid rollback (under 90 seconds):**
+
+```bash
+# 1. List recent Hosting releases
+cd /c/Users/nahde/queuenight
+firebase hosting:releases --project queuenight-84044
+
+# 2. Identify the LAST KNOWN GOOD release ID
+# 3. Roll back via console (faster) or CLI:
+firebase hosting:clone queuenight-84044:live queuenight-84044:live --version=<GOOD_VERSION_ID>
+```
+
+For Cloud Functions there's no built-in rollback. To restore previous CF code:
+```bash
+cd /c/Users/nahde/claude-projects/couch
+git log --oneline | head -10  # find the last good commit
+git checkout <COMMIT_SHA> -- ../queuenight/functions/  # restore CF source
+firebase deploy --only "functions:rsvpSubmit,functions:rsvpReminderTick,functions:watchpartyTick" --project queuenight-84044
+git checkout -- .  # restore main repo state
+```
+
+## Where to look for things
+
+| What | Where |
+|------|-------|
+| Hosting releases + rollback | https://console.firebase.google.com/project/queuenight-84044/hosting |
+| Firestore data | https://console.firebase.google.com/project/queuenight-84044/firestore/data |
+| Firestore rules | https://console.firebase.google.com/project/queuenight-84044/firestore/rules |
+| Cloud Functions | https://console.cloud.google.com/functions/list?project=queuenight-84044 |
+| Cloud Function logs | Click function → Logs tab |
+| Cloud Scheduler (CF cron) | https://console.cloud.google.com/cloudscheduler?project=queuenight-84044 |
+| Storage bucket + rules | https://console.firebase.google.com/project/queuenight-84044/storage |
+| Auth users | https://console.firebase.google.com/project/queuenight-84044/authentication/users |
+| Billing + budget | https://console.cloud.google.com/billing |
+| Cloud Logging (everything) | https://console.cloud.google.com/logs?project=queuenight-84044 |
+
+## Critical config locations
+
+| Config | File |
+|--------|------|
+| Firestore rules | `firestore.rules` (couch repo) + deployed via `cd queuenight && firebase deploy --only firestore` |
+| Storage rules | `queuenight/storage.rules` |
+| Hosting headers + rewrites | `queuenight/firebase.json` |
+| Cloud Function source | `queuenight/functions/index.js` + `queuenight/functions/src/*.js` |
+| TMDB API key (public) | `js/constants.js` line 1 |
+| VAPID public key (public) | `js/constants.js` |
+| App version + build date | `js/constants.js` `APP_VERSION` + `BUILD_DATE` |
+| SW cache name | `sw.js` `CACHE` constant |
+
+## Pre-flight checklist before every deploy
+
+```bash
+# 1. Make sure tests pass
+cd tests && npm test && cd ..
+
+# 2. node --check all JS
+for f in js/*.js sw.js; do node --check "$f" || break; done
+
+# 3. Stamp BUILD_DATE
+node scripts/stamp-build-date.cjs
+
+# 4. Bump sw.js CACHE if HTML/CSS/JS changed (forces PWA invalidation)
+# Edit sw.js → const CACHE = 'couch-v<NEXT>-<short-tag>'
+
+# 5. Mirror to deploy directory
+cp -v app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml /c/Users/nahde/queuenight/public/
+cp -v css/*.css /c/Users/nahde/queuenight/public/css/
+cp -v js/*.js /c/Users/nahde/queuenight/public/js/
+
+# 6. Diff to confirm
+for f in app.html sw.js js/app.js; do diff -q "$f" "/c/Users/nahde/queuenight/public/$f"; done
+
+# 7. Deploy
+cd /c/Users/nahde/queuenight
+firebase deploy --only hosting --project queuenight-84044
+
+# 8. Smoke test
+curl -sI https://couchtonight.app/ | head -3
+curl -s https://couchtonight.app/sw.js | grep "const CACHE"
+```
+
+## Known good releases (rollback targets)
+
+| Date | Version tag | Notes |
+|------|-------------|-------|
+| 2026-04-25 | sw.js v32.2-asset-cache-control | Phase 12 + P0/P1 fixes + security headers — current production |
+| 2026-04-24 | sw.js v29-11-07-couch-nights | Phase 11 Wave 2 — last known good before Phase 11 deploy batch |
+| 2026-04-23 | sw.js v19-phase9-rename | Phase 9 / DESIGN-05 deploy — landing page first live |
+
+## Communication if something major breaks
+
+You don't have a public status page. For now:
+- Reach out personally to the family members affected
+- Post a brief explanation in the family's group chat
+- Don't need a formal status comms channel until v1 actually has external users

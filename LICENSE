@@ -1,0 +1,25 @@
+Copyright (c) 2026 Couch (operated by Nahder Z.)
+
+All rights reserved.
+
+This software and its source code are proprietary and confidential.
+No part of this codebase may be copied, distributed, modified, or used
+in any form, whether commercially or non-commercially, without the
+prior written permission of the copyright holder, except as expressly
+permitted under applicable law.
+
+The Couch trademark, brand identity (typography, color palette,
+illustrations, copy), and product name are likewise proprietary and
+not licensed for reuse.
+
+This codebase incorporates third-party services (Firebase, TMDB, Trakt)
+under their respective Terms of Service. Use of those services through
+this codebase is subject to those terms, and the copyright holder makes
+no representation regarding their availability.
+
+A future open-source license (likely a permissive license such as MIT
+or Apache-2.0) is under consideration for post-launch. Until that
+decision is made, this LICENSE governs.
+
+For licensing inquiries, partnership requests, or any reuse questions:
+nahderz@gmail.com
