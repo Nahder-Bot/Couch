@@ -46,6 +46,13 @@
 - **Design system:** Fraunces + Instrument Serif + Inter; warm dark palette (`#14110f` theme color). "Warm · Cinematic · Lived-in. Restraint is the principle." Brand moments get theatrical treatment; everything else recedes.
 - **Public-by-design secrets:** TMDB API key and Firebase web config are embedded in client source intentionally. Do not "fix" this.
 
+## Phase numbering + scope safeguards
+
+- **Before reassigning a phase number's scope, check `.planning/seeds/` for any locked scope referencing that number.** When the user says "let's do Phase N" or "make Phase N about X," grep `.planning/seeds/` for phase-number mentions FIRST and surface what would be displaced. Confirm with user before promoting new content into the slot.
+- **Seed-file naming convention:** describe CONTENT, not phase numbers (e.g. `decision-ritual-locked-scope.md`, NOT `phase-13-14-15-decision-ritual.md`). The active ROADMAP.md maps phase number → seed file; the seed file should never claim a phase number it might lose.
+- **When a phase slot IS reassigned**, append a row to ROADMAP.md's "Phase-slot history" section recording (date, slot, original scope, new scope, where the displaced scope now lives) and rename any seed files whose names reference the old number.
+- This convention exists because on 2026-04-25 the Phase 13 slot was reassigned from "Decision Ritual Core" to "Compliance & Ops Sprint" without an audit-trail entry, and the displaced scope was nearly forgotten. See ROADMAP.md "Phase-slot history" for the full incident.
+
 ## GSD workflow reminders
 
 - Run `/gsd-progress` to see where we are before doing anything

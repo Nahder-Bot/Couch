@@ -251,6 +251,24 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
 | 12. Pre-launch polish | 3/3 | **SHIPPED** 2026-04-25 — POL-01 + POL-02 + POL-03/04 all deployed; 8/8 smoke tests pass | 12-03 deployed 2026-04-25 |
 | 13. Compliance & Ops Sprint | 5/5 | **SHIPPED** 2026-04-25 — Code-side complete; 3/4 HUMAN-VERIFY items live in production: ✓ Sentry account+DSN+couchtonight.app deploy (couch-v33.3-sentry-dsn); ✓ branch protection on main (legacy product, repo flipped public per RUNBOOK §L); ✓ 4 Cloud Functions live in us-central1 (requestAccountDeletion + cancel + check + reaper). PR #1 squash-merged db03573. firestore:indexes deploy returned "not necessary" (auto-managed single-field index covers query — TD-7). REMAINING (gcloud-only, user-side): scripts/firestore-export-setup.sh against queuenight-84044. | shipped 2026-04-25 |
+| 14. Decision Ritual Core | 0/8 | **SCOPED, awaiting kickoff** — couch-centered conversation-first ritual replacing the vote-prominent Tonight tile; 2 parallel flows (group-rank-pick + solo-nominate) backed by unified `watchpartyIntent` primitive; 8 plans = already-watched filter / per-member queue / tiered candidate filter / SVG couch viz / tile redesign / watchpartyIntent CF / Flow A / Flow B. Locked scope in `.planning/seeds/decision-ritual-locked-scope.md` (164 lines, multi-round scoping 2026-04-24). Run `/gsd-discuss-phase 14` to formalize. **Originally tagged Phase 13 — see Phase-slot history below.** | - |
+| 15. Tracking Layer | 0/? | **SCOPED, awaiting kickoff** — per-watching-group progress (not just per-individual; "watched Invincible S4 with wife + stepson, finished episode 8") + new-season air-date push notifs + live-release scheduling ("Severance S2E3 airs Friday 9pm — schedule a watchparty?"). Couch's differentiation vs Trakt: tracks GROUPS, not just members. Scope in `.planning/seeds/decision-ritual-locked-scope.md` Phase-15 section. **Originally tagged Phase 14.** | - |
+| 16. Calendar Layer | 0/? | **SCOPED, awaiting kickoff** — recurring + multi-future watchparty scheduling ("Wife and daughter watch American Idol every Monday"). New `watchpartySeries` doc primitive + week-view planning surface + edit/pause/cancel. Scope in `.planning/seeds/decision-ritual-locked-scope.md` Phase-16 section. **Originally tagged Phase 15.** | - |
+| 17. App Store Launch Readiness | 0/? | **SCOPED, awaiting kickoff** — native wrapper (Capacitor or PWABuilder) for iOS App Store + Google Play; Apple Sign-In wiring (gated on $99/yr Apple Developer account); App Store Connect listings + categories + age rating + App Privacy declarations; privacy policy + ToS authoring. Scope notes in `.planning/seeds/phase-roadmap-2026-04-25-audit.md`. **NEW PROPOSAL** from 2026-04-25 audit (was originally suggested as Phase 16 in the audit; renumbered to 17 after Phase 13 slot reassignment.) | - |
+
+---
+
+## Phase-slot history (audit trail)
+
+This section records phase-number reassignments to prevent scoped-but-unstarted work from being silently displaced. **When reassigning a phase number, append a row here AND update `.planning/seeds/` filenames if they reference the old number.**
+
+| Date | Slot | What was originally there | What it became | Where the old scope lives now |
+|------|------|---------------------------|----------------|------------------------------|
+| 2026-04-25 | Phase 13 | Decision Ritual Core (8 plans, locked 2026-04-24) | Compliance & Ops Sprint (account deletion + Sentry + branch protection + CSP + Firestore export) | Decision Ritual scope moved to Phase 14; full content in `.planning/seeds/decision-ritual-locked-scope.md` (renamed from `phase-13-14-15-decision-ritual-locked-scope.md` to drop misleading phase numbers from the filename) |
+| 2026-04-25 | Phase 14 | Tracking Layer (per-group progress) per 2026-04-24 scope | (still scoped; renumbered, not reassigned) | `.planning/seeds/decision-ritual-locked-scope.md` Phase-15 section |
+| 2026-04-25 | Phase 15 | Calendar Layer (recurring watchparties) per 2026-04-24 scope | (still scoped; renumbered, not reassigned) | `.planning/seeds/decision-ritual-locked-scope.md` Phase-16 section |
+
+**Convention:** seed-file names should describe CONTENT, not phase numbers (e.g. `decision-ritual-locked-scope.md`, NOT `phase-13-14-15-decision-ritual.md`). The active ROADMAP maps phase number → seed file; the seed file does not claim a phase number it might lose.
 
 ---
 *Roadmap created: 2026-04-19*
@@ -259,4 +277,5 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 *Phase 9 plan split: 2026-04-21 (checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)*
 *Phase 11 added: 2026-04-24 (post-Phase-9 polish + moat expansion; 8 plans / 13 REFR-* requirements; scoped via /gsd-discuss-phase 11 with 6 decisions locked)*
 *Phase 13 added: 2026-04-25 (post-launch hardening sprint; 5 plans / 6 OPS-13-* + COMP-13-* requirements; planned via /gsd-plan-phase 13 with research + patterns + 6 locked decisions)*
+*Phase 14/15/16/17 recovered: 2026-04-25 (Phase 13 slot reassignment to Compliance & Ops displaced the Decision Ritual / Tracking / Calendar scope; recovered to Phase 14/15/16; App Store readiness moved from audit-Phase-16 to Phase 17. Phase-slot history section added to make future reassignments visible.)*
 *v1 milestone: Commercial Release (Phases 3-11)*
