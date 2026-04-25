@@ -26,7 +26,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
 - [⏸] **Phase 10: Year-in-Review** — DEFERRED 2026-04-25 (revisit post-launch — needs accumulated watch history + audience to feel substantive). End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
 - [x] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs ✓ 2026-04-24 (all 8 plans deployed; sw.js v31 serving; Storage in us-east; UAT 12/25 pass + 13 environmental-deferred)
-- [ ] **Phase 12: Pre-launch polish** — Per-event notif prefs UI (closes Phase 6 UAT loop) + about/version/feedback/changelog footer + Couch Nights pack ID curation pass. Tight ~1-day patch ahead of any larger phase.
+- [x] **Phase 12: Pre-launch polish** — Per-event notif prefs UI (closes Phase 6 UAT loop) + about/version/feedback/changelog footer + Couch Nights pack ID curation pass. Tight ~1-day patch ahead of any larger phase. ✓ CODE-COMPLETE 2026-04-25 (3 plans, 3 atomic commits 004255b/b1ab9a9/6323530, deploy deferred).
 
 ## Phase Details
 
@@ -183,9 +183,9 @@ Plans:
   5. sw.js CACHE bumped (likely v32-pre-launch-polish) so installed PWAs invalidate.
 **Plans**: 3 plans
 Plans:
-- [ ] 12-01-PLAN.md — Per-event notification preferences UI in #notif-card: 6 toggles + quiet hours + BRAND-aligned switch primitive + sw.js CACHE v32-pre-launch-polish bump (POL-01)
-- [ ] 12-02-PLAN.md — ABOUT sub-section in ADMIN cluster: version + mailto feedback + /changelog.html standalone page + Firebase Hosting rewrite + TMDB attribution on landing.html footer (POL-02 / D-19 bundled)
-- [ ] 12-03-PLAN.md — Couch Nights TMDB id curation pass: audit all 8 packs against TMDB API, swap Halloween Crawl 9532 → 10661 Hocus Pocus, drift-prevention header (POL-03, POL-04 stretch)
+- [x] 12-01-PLAN.md — Per-event notification preferences UI in #notif-card: 6 toggles + quiet hours + BRAND-aligned switch primitive + sw.js CACHE v32-pre-launch-polish bump (POL-01) ✓ b1ab9a9
+- [x] 12-02-PLAN.md — ABOUT sub-section in ADMIN cluster: version + mailto feedback + /changelog.html standalone page + Firebase Hosting rewrite + TMDB attribution on landing.html footer (POL-02 / D-19 bundled) ✓ 6323530
+- [x] 12-03-PLAN.md — Couch Nights TMDB id curation pass: audit all 8 packs against TMDB API, swap Halloween Crawl 9532 → 10439 Hocus Pocus (canonical id; plan-text 10661 was wrong, deviation documented), 14 total mismatches across 5 packs corrected, drift-prevention header (POL-03, POL-04) ✓ 004255b
 **UI hint**: yes (Account tab notif card expansion + new ABOUT sub-section)
 
 ### Phase 11: Feature refresh & streamline
