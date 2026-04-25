@@ -100,3 +100,13 @@ When this phase gets formally planned, the planner should:
 2. Pair the small ops items into one plan to keep plan count down
 3. Don't plan COMP-01 and OPS-01 (SDK upgrade) in the same phase — too much risk concentration; move OPS-01 to Phase 14
 4. Threat model COMP-01 carefully — destructive flow with auth bypass risk if Cloud Function is misconfigured
+
+## Pre-planning decisions (2026-04-25 — locks during /gsd-plan-phase 13)
+
+These supersede earlier text in this CONTEXT.md where they conflict.
+
+- **OPS-05 vendor: Sentry, NOT Crashlytics.** Firebase Crashlytics has no web SDK (firebase-js-sdk#710). Use Sentry's CDN loader script for zero-bundler compatibility. PII-scrub email/uid/family code before send. Free tier (5K errors/month) sufficient for v1.
+- **COMP-01 grace window: 14-day soft-delete, then hard-delete.** Inside the 30-day privacy.html promise. User can sign back in within 14 days to cancel. Hard-delete CF runs on Cloud Scheduler tick (reuse `watchpartyTick` pattern).
+- **COMP-01 trigger: HTTPS callable + scheduled reaper, NOT `auth.user().onDelete`.** firebase-functions v2 has no auth triggers and no replacement is planned. Mirrors `consumeGuestInvite` / `rsvpSubmit` patterns.
+- **OPS-04 CSP: HTTP header in `firebase.json`, NOT meta tag.** CSP3 forbids Report-Only via meta. Start in `Content-Security-Policy-Report-Only` mode for v1; flip to enforcing in a later sprint after console reports are clean.
+- **OPS-07 path: Cloud Scheduler HTTP job hitting `firestore.googleapis.com/v1/.../databases/(default):exportDocuments` directly.** No Pub/Sub + Cloud Function detour — single surface, simpler. Bucket `gs://queuenight-84044-backups` in us-central1 (matches Firestore region). 30-day lifecycle rule.
