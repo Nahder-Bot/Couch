@@ -677,7 +677,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Studio Ghibli Sunday',
     description: 'Slow, lush, and not a single explosion.',
     mood: 'cozy',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/dMZxEdrWIzUmUoOz2zvmFuulbeS.jpg',
+    // Hero = Spirited Away poster (TMDB id 129) — verified live 2026-04-25 against /movie/129
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg',
     tmdbIds: [
       // Spirited Away, My Neighbor Totoro, Princess Mononoke, Kiki's Delivery Service,
       // Castle in the Sky, Howl's Moving Castle, Ponyo, Porco Rosso, The Wind Rises, Nausicaä
@@ -689,7 +690,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Cozy Rainy Night',
     description: 'Blanket fort required.',
     mood: 'cozy',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/7HxYCaA0JI5nzo4OnmYBKJQoMHB.jpg',
+    // Hero = Amélie poster (TMDB id 194) — verified live 2026-04-25
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/nSxDa3M9aMvGVLoItzWTepQ5h5d.jpg',
     tmdbIds: [
       // Amelie, The Secret Life of Walter Mitty, Chef, Julie & Julia, Little Women,
       // You've Got Mail, Paddington, Paddington 2, About Time, The Holiday, Notting Hill
@@ -701,7 +703,11 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Halloween Crawl',
     description: 'Spooky, not slashy — and slashy too.',
     mood: 'spooky',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/aSbxbBUXQUE8dQKWvEARo1WDcTb.jpg',
+    // Hero = TMDB id 9532 poster (the first id in the pack) — verified live 2026-04-25
+    // NOTE: id 9532 actually resolves to "Final Destination" on TMDB, not "Hocus Pocus" as
+    // the comment suggests. The hero matches the pack vibe (spooky), but the comment IDs
+    // need a curation pass — captured in 11-UAT.md as part of UI-03 follow-up.
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/nr4MXTXK2in9gxYhFMQGni66KRJ.jpg',
     tmdbIds: [
       // Hocus Pocus, Beetlejuice, The Nightmare Before Christmas, Coraline, ParaNorman,
       // It Follows, Get Out, The Cabin in the Woods, Ready or Not, Midsommar
@@ -713,7 +719,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Date Night Classics',
     description: 'Romance, dramedies, drama.',
     mood: 'datenight',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/qom1SZSENdmHFNZBXbtJAU0WTlC.jpg',
+    // Hero = Before Sunrise poster (TMDB id 76) — verified live 2026-04-25
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/bBS1CfspKXq5RBok85hYvtW9ZwE.jpg',
     tmdbIds: [
       // Before Sunrise, Before Sunset, Before Midnight, When Harry Met Sally, La La Land,
       // The Big Sick, 500 Days of Summer, Crazy Stupid Love, Silver Linings Playbook, Past Lives
@@ -725,7 +732,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: "Kids' Room Classics",
     description: "The films they'll ask to rewatch.",
     mood: 'cozy',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg',
+    // Hero = Toy Story poster (TMDB id 862) — verified live 2026-04-25
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/rki5qLuwb0xnnE9seehxO9TlLhW.jpg',
     tmdbIds: [
       // Toy Story, Toy Story 3, Finding Nemo, The Incredibles, WALL-E, Up, Inside Out,
       // Coco, Moana, Frozen, Encanto, Zootopia
@@ -737,7 +745,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'A24 Night',
     description: 'Boutique studio picks, curated loud.',
     mood: 'mindbender',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/aLaeEEhWvl1vJpd7wEb7HlsZafb.jpg',
+    // Hero = Everything Everywhere All at Once poster (TMDB id 545611) — verified live 2026-04-25
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/u68AjlvlutfEIcpmbYpKcdi09ut.jpg',
     tmdbIds: [
       // Everything Everywhere All at Once, The Green Knight, Moonlight, Lady Bird, Hereditary,
       // Uncut Gems, The Lighthouse, Ex Machina, The Whale, Past Lives, Minari, Talk to Me
@@ -749,6 +758,7 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Oscars Short List',
     description: 'If the Academy got it right.',
     mood: 'tearjerker',
+    // Hero = Parasite poster (TMDB id 496243) — verified live 2026-04-25
     heroImageUrl: 'https://image.tmdb.org/t/p/w780/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
     tmdbIds: [
       // Parasite, Nomadland, CODA, Everything Everywhere All at Once, Oppenheimer, Moonlight,
@@ -761,7 +771,8 @@ export const COUCH_NIGHTS_PACKS = [
     title: "Dad's Action Pantheon",
     description: 'Loud, proud, and repeatable.',
     mood: 'action',
-    heroImageUrl: 'https://image.tmdb.org/t/p/w780/6DrHO1jr3qVrViUO6s6kFiAGM7.jpg',
+    // Hero = Die Hard poster (TMDB id 562) — verified live 2026-04-25
+    heroImageUrl: 'https://image.tmdb.org/t/p/w780/xhnb5lVfwE7NHycdPNdIxHx7kZi.jpg',
     tmdbIds: [
       // Die Hard, Mad Max: Fury Road, The Dark Knight, John Wick, Raiders of the Lost Ark,
       // Terminator 2, Heat, The Matrix, Casino Royale, Mission Impossible: Fallout, Top Gun: Maverick
