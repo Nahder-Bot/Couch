@@ -1,5 +1,5 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
-import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS } from './constants.js';
+import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
@@ -4810,7 +4810,32 @@ function renderSettings() {
         ' <span class="family-chip">' + escapeHtml(state.familyCode) + '</span>';
     }
   }
+  // Phase 12 / POL-02 — ABOUT section (version + feedback + changelog).
+  // Idempotent — safe to call on every renderSettings.
+  try { renderAboutSection(); } catch(e) {}
 }
+
+// Phase 12 / POL-02 — Inject version + feedback + changelog + TMDB attribution
+// into #settings-about-section. Idempotent — safe to call on every renderSettings.
+function renderAboutSection() {
+  const versionEl = document.getElementById('about-version-line');
+  const feedbackEl = document.getElementById('about-feedback-link');
+  const changelogEl = document.getElementById('about-changelog-link');
+  if (!versionEl) return;
+  const v = APP_VERSION;
+  const d = BUILD_DATE;
+  versionEl.textContent = `Couch v${v} — deployed ${d}`;
+  if (feedbackEl) {
+    const subj = encodeURIComponent(`Couch feedback v${v}`);
+    feedbackEl.href = `mailto:nahderz@gmail.com?subject=${subj}`;
+  }
+  if (changelogEl) {
+    // Absolute URL when on production; relative otherwise (dev). The hosting rewrite
+    // will resolve /changelog → /changelog.html on the prod CDN.
+    changelogEl.href = '/changelog';
+  }
+}
+window.renderAboutSection = renderAboutSection;
 
 // Render the Trakt connection card in Account. States:
 //   1. Deployment hasn't configured Trakt — card is hidden entirely.

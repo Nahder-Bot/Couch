@@ -784,3 +784,11 @@ export const COUCH_NIGHTS_PACKS = [
   }
 ];
 
+// Phase 12 / POL-02 — App version + build date.
+// Keep APP_VERSION in lockstep with sw.js CACHE major version (e.g. CACHE
+// 'couch-v32-pre-launch-polish' → APP_VERSION 32). BUILD_DATE is the deploy
+// date in ISO 8601 (UTC); set at hand-edit time when shipping a release.
+// Surfaced in Account → ABOUT and used as mailto subject suffix.
+export const APP_VERSION = 32;
+export const BUILD_DATE = '2026-04-25';
+

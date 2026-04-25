@@ -2972,3 +2972,54 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   .notif-toggle-switch .notif-toggle-thumb,
   .notif-quiet-times{transition:none}
 }
+
+/* ===========================================================================
+   Phase 12 / POL-02 — ABOUT sub-section (version + feedback + changelog +
+   TMDB attribution) at the bottom of the ADMIN cluster on Account tab.
+   Token-backed; serif italic for the attribution per BRAND.md §6.
+   Plan 12-02 / D-09, D-10, D-19.
+   =========================================================================== */
+.settings-about-section{
+  margin-top:var(--space-section,40px);
+  padding-top:var(--space-stack-md,20px);
+  border-top:1px solid var(--border)
+}
+.settings-about-section .tab-section-h span{
+  font-size:var(--t-eyebrow,11px);
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+  font-weight:600
+}
+.about-body{display:flex;flex-direction:column;gap:var(--space-stack-sm,10px);margin-top:var(--space-stack-sm,12px)}
+.about-version{
+  font-family:var(--font-sans);
+  font-size:var(--t-meta,13px);
+  color:var(--ink-warm);
+  margin:0
+}
+.about-link-row{
+  display:flex;align-items:center;gap:var(--space-inline-sm,8px);
+  font-size:var(--t-meta,13px);
+  flex-wrap:wrap
+}
+.about-link{
+  color:var(--accent);
+  text-decoration:none;
+  border-bottom:1px solid transparent;
+  transition:border-color var(--duration-fast,150ms) var(--easing-standard,ease)
+}
+.about-link:hover,.about-link:focus-visible{
+  border-bottom-color:var(--accent);
+  outline:none
+}
+.about-link-sep{color:var(--ink-dim);user-select:none}
+.about-attribution{
+  font-family:var(--font-serif);
+  font-style:italic;
+  font-size:var(--t-meta,13px);
+  color:var(--ink-dim);
+  margin:var(--space-stack-sm,8px) 0 0
+}
+.about-attribution a{color:var(--ink-warm);text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px}
+.about-attribution a:hover,.about-attribution a:focus-visible{color:var(--ink);text-decoration-color:var(--accent)}

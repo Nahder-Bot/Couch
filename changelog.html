@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Couch — Changelog</title>
+<meta name="description" content="What's new on Couch.">
+<meta name="theme-color" content="#14110f">
+<link rel="canonical" href="https://couchtonight.app/changelog">
+<meta name="robots" content="index,follow">
+
+<!-- Icons (mirror landing.html) -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+
+<!-- Same font subset as landing -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;800&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+
+<link rel="stylesheet" href="/css/landing.css">
+
+<style>
+  /* Page-local styles — keep changelog tiny. Reuses landing.css tokens. */
+  .changelog-main{max-width:760px;margin:0 auto;padding:24px 20px 56px}
+  .changelog-hero{text-align:center;padding:32px 0 24px}
+  .changelog-hero h1{font-family:'Fraunces',serif;font-weight:600;font-size:36px;color:var(--ink);margin:0 0 8px}
+  .changelog-hero .tagline{font-family:'Instrument Serif',serif;font-style:italic;color:var(--ink-warm);font-size:18px;margin:0}
+  .release{padding:28px 0;border-top:1px solid var(--border)}
+  .release:first-of-type{border-top:none}
+  .release-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .release-version{font-family:'Fraunces',serif;font-weight:600;font-size:22px;color:var(--ink)}
+  .release-date{font-family:'Inter',sans-serif;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.12em}
+  .release-summary{font-family:'Instrument Serif',serif;font-style:italic;color:var(--ink-warm);font-size:17px;margin:0 0 12px}
+  .release-list{margin:0;padding-left:20px;color:var(--ink-warm);font-size:15px;line-height:1.6}
+  .release-list li{margin-bottom:6px}
+  .release-list li strong{color:var(--ink);font-weight:600}
+  .changelog-back{text-align:center;padding:48px 0 0;color:var(--ink-dim);font-size:13px}
+  .changelog-back a{color:var(--ink-warm);border-bottom:1px solid var(--border)}
+  .changelog-back a:hover{color:var(--ink);border-bottom-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<main class="changelog-main">
+
+  <section class="changelog-hero">
+    <h1>What's new</h1>
+    <p class="tagline">Recent releases on Couch.</p>
+  </section>
+
+  <article class="release">
+    <header class="release-h">
+      <span class="release-version">v32</span>
+      <span class="release-date">2026-04-25 · Pre-launch polish</span>
+    </header>
+    <p class="release-summary">Three small fixes ahead of v1.</p>
+    <ul class="release-list">
+      <li><strong>Notification preferences:</strong> per-event toggles + quiet hours moved to Account → Your Couch.</li>
+      <li><strong>Couch Nights:</strong> Halloween Crawl pack now actually starts with Hocus Pocus.</li>
+      <li><strong>About:</strong> version + feedback + this changelog.</li>
+    </ul>
+  </article>
+
+  <article class="release">
+    <header class="release-h">
+      <span class="release-version">v31</span>
+      <span class="release-date">2026-04-24 · Couch Nights heroes</span>
+    </header>
+    <p class="release-summary">Pack hero images now load reliably.</p>
+    <ul class="release-list">
+      <li>Cached TMDB poster URLs at compile time so the Couch Nights row never flashes empty.</li>
+    </ul>
+  </article>
+
+  <article class="release">
+    <header class="release-h">
+      <span class="release-version">v29</span>
+      <span class="release-date">2026-04-24 · Couch Nights packs</span>
+    </header>
+    <p class="release-summary">Eight themed ballot packs you can spin in one tap.</p>
+    <ul class="release-list">
+      <li><strong>Couch Nights:</strong> Studio Ghibli Sunday, Cozy Rainy Night, Date Night Classics, Kids' Room Classics, A24 Night, Oscars Short List, Halloween Crawl, Dad's Action Pantheon.</li>
+      <li>Tap a pack to preview titles; tap "Start this pack" to seed the ballot in Vote mode.</li>
+    </ul>
+  </article>
+
+  <article class="release">
+    <header class="release-h">
+      <span class="release-version">v28</span>
+      <span class="release-date">2026-04-24 · Sports Game Mode</span>
+    </header>
+    <p class="release-summary">Live score strip + amplified reactions on scoring plays + per-user DVR slider.</p>
+    <ul class="release-list">
+      <li>Pick a live game from NFL / NBA / MLB / NHL.</li>
+      <li>Score updates poll every five seconds while plays are firing, fifteen otherwise.</li>
+      <li>Late joiners see the score and the last three plays.</li>
+    </ul>
+  </article>
+
+  <article class="release">
+    <header class="release-h">
+      <span class="release-version">v27</span>
+      <span class="release-date">2026-04-24 · Watchparty lifecycle</span>
+    </header>
+    <p class="release-summary">RSVP page, pre-session lobby, late-joiner catch-me-up, post-session photo album.</p>
+    <ul class="release-list">
+      <li><strong>Web RSVP:</strong> share a link; non-members can RSVP without installing.</li>
+      <li><strong>Lobby:</strong> roster + countdown + Ready check; majority Ready auto-starts at T-0.</li>
+      <li><strong>Catch me up:</strong> 30-second recap of reactions you missed.</li>
+      <li><strong>Post-session:</strong> rate it, drop a photo, schedule the next one.</li>
+    </ul>
+  </article>
+
+  <p class="changelog-back"><a href="/">Back to Couch</a></p>
+
+</main>
+
+</body>
+</html>

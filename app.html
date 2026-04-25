@@ -709,6 +709,22 @@
         <!-- Phase 11 / REFR-12: two-tap destructive — opens confirmation modal instead of native confirm() -->
         <button class="pill" id="leave-family-btn" onclick="confirmLeaveFamily()">Leave family</button>
       </div>
+
+      <!-- Phase 12 / POL-02 — ABOUT sub-section (version + feedback + changelog + TMDB attribution).
+           Rendered by renderAboutSection() at the end of renderSettings(). The version line
+           pulls from APP_VERSION + BUILD_DATE in js/constants.js. -->
+      <div class="tab-section settings-about-section" id="settings-about-section">
+        <div class="tab-section-h"><span>ABOUT</span></div>
+        <div class="about-body">
+          <p class="about-version" id="about-version-line">—</p>
+          <div class="about-link-row">
+            <a class="about-link" id="about-feedback-link" href="mailto:nahderz@gmail.com">Send feedback</a>
+            <span class="about-link-sep">·</span>
+            <a class="about-link" id="about-changelog-link" href="/changelog">See what's new</a>
+          </div>
+          <p class="about-attribution"><em>Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a></em></p>
+        </div>
+      </div>
     </div>
   </div>
 
