@@ -444,3 +444,27 @@ git branch -D probe/branch-protection-test
 **Emergency override (very rare):** If you absolutely need to bypass -- e.g., main is broken and CI is also broken -- temporarily edit the ruleset in GitHub Settings, push, then re-enable. Document in RETROSPECTIVE.md.
 
 **Solo-dev safety:** the bypass list is intentionally empty so direct pushes from any local machine (including the user's own) are rejected. This catches "wait, I meant to do that on a branch" mistakes.
+
+## §M -- Production services inventory (Phase 13 ship)
+
+Quick reference for the live external services backing couchtonight.app after Phase 13.
+
+**Firebase project: `queuenight-84044`** -- canonical project ID; `firebase use queuenight-84044`.
+- **Hosting:** https://couchtonight.app (vanity), https://queuenight-84044.web.app (default). Files mirrored from couch/ to queuenight/public/ via `bash scripts/deploy.sh [<short-tag>]`.
+- **Cloud Functions (us-central1, Node 22, 2nd Gen):** `requestAccountDeletion`, `cancelAccountDeletion`, `checkAccountDeleteEligibility`, `accountDeletionReaper` (scheduled, hourly), plus the prior phase functions (`rsvpSubmit`, `rsvpReminderTick`, `inviteGuest`, `claimMember`, etc.). Deploy via `firebase deploy --only functions:<name>` from `C:\Users\nahde\queuenight`.
+- **Firestore:** rules at `queuenight/firestore.rules`; composite-indexes file is `queuenight/firestore.indexes.json` and is intentionally empty (TD-7). Single-field indexes are auto-managed.
+- **Cloud Storage:** `queuenight-84044.firebasestorage.app` for couch-albums + Cloud Functions deploy artifacts.
+- **Cloud Scheduler (Phase 13 OPS-13-07, NOT YET CONFIGURED):** to be created via `bash scripts/firestore-export-setup.sh` from a machine with `gcloud` installed and authed to `queuenight-84044`. See §K for the run procedure.
+
+**Sentry org: `couchtonight`** at https://couchtonight.sentry.io.
+- **Project:** `couch` (slug; renamed from auto-generated `javascript` 2026-04-25). Browser JavaScript platform. US data location.
+- **DSN (public-by-design, embedded in client JS at app.html + landing.html):**
+  ```
+  https://f90a302fd66e098b71400bed3efb40ab@o4511281867587584.ingest.us.sentry.io/4511281871454208
+  ```
+- **Replay:** disabled for v1 -- see TECH-DEBT.md TD-6 for re-enable plan (post-launch +30 days).
+- **Settings shortcut:** https://couchtonight.sentry.io/settings/projects/couch/
+
+**GitHub repo: `Nahder-Bot/Couch`** -- now public (was private until 2026-04-25; flipped to enable branch-protection enforcement under free plan).
+- **Branch protection:** legacy product on `main` per §L (PR-required with 0 approvals + syntax-check status check + linear history + conversation resolution + no admin bypass + force-push and deletion blocked).
+- **CI:** `.github/workflows/ci.yml` runs the `syntax-check` job on every push and PR (node --check on JS files + JSON validation + HTML existence check).
