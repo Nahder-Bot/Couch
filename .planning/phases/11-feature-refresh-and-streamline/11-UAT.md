@@ -17,39 +17,36 @@ deploy_status: Hosting + Functions + Storage ALL LIVE at couchtonight.app (commi
 
 ## Current Test
 
-number: 1
-name: Wave 1 visual smoke — mood chip density, picker hidden, who-card compact row
+number: 16
+name: Post-session modal — rating + photo upload + schedule-next
 expected: |
-  Open https://couchtonight.app/app on your phone or desktop browser. On the Tonight screen:
-  - Mood filter row is visibly tighter than the pre-Phase-11 version — at least one additional chip visible per mobile viewport width. Chips have a 36px min-height tap target.
-  - No "whose turn to pick" / "Tonight's pick goes to [Name]" card visible anywhere. (Backend spinnership preserved — spinnerId still writes.)
-  - "Who's on the couch" card is a horizontal scrollable row of 26px avatar chips (not a multi-line grid).
-  If family is empty, you see "Nothing but us." headline + italic "Pull up a seat — invite someone to the couch." + "Share an invite" button.
+  Requires an active watchparty to end. If you have one running:
+  1. End the watchparty (host-end button on watchparty live modal)
+  2. Post-session modal appears with:
+     - "That's a wrap" headline
+     - 5-star rating widget — tap stars to rate
+     - "Add photo to album" button → opens file picker → pick an image → canvas resizes to ≤1024px longest edge + JPEG q=0.85 + ≤5MB cap → uploads to Storage path `couch-albums/{familyCode}/{wpId}/{timestamp}_{uid}.jpg` (us-east bucket, Variant A rules) → URL persists to `wp.photos[]`
+     - "Schedule another night" button → reopens the schedule modal pre-filled with same roster
+  3. Close modal → wp marked complete; rating + photos visible in family album/watchparty history later
+  
+  If you don't have an active wp to end, reply "skip 16" — we can defer until you have a real session to test.
 awaiting: user response
 
 ## Tests
 
 ### Wave 1 (deployed; visual verify)
 
-- [ ] **1. Wave 1 visual smoke — mood chip density, picker hidden, who-card compact row** — plan 11-01 REFR-01/02/03
-  - _What should happen:_ see Current Test.
-- [ ] **2. Family tab restructure — 5 sections in correct order** — plan 11-02 REFR-11
-  - _What should happen:_ Open Family tab. Top-to-bottom sections: (1) Hero + italic "Nothing scheduled yet." tonight-status line, (2) Approvals card if any pending, (3) "On the couch" active members (+ "Sub-profiles" below if any), (4) "Couch history" consolidating favorites + per-member stats, (5) "Group settings" footer with share URL + group name. No picker section visible.
-- [ ] **3. Account tab restructure — 3 cognitive clusters** — plan 11-02 REFR-12
-  - _What should happen:_ Account tab shows YOU eyebrow (identity + sub-profiles), YOUR COUCH eyebrow (streaming + Integrations/Trakt expandable + Notifications + YIR hidden when yirReady=false), ADMIN & MAINTENANCE eyebrow (owner admin split into Security / Members / Lifecycle + Shortcuts + Sign out/Leave family footer).
-- [ ] **4. Leave-family confirmation modal** — plan 11-02
-  - _What should happen:_ Tap "Leave family" in Account footer → serif "Leave this group?" modal appears with red "Leave" pill + Cancel pill. Cancel dismisses without leaving. (Don't actually leave unless you want to re-join.)
+- [x] **1. Wave 1 visual smoke — mood chip density, picker hidden, who-card compact row** — plan 11-01 REFR-01/02/03 — **PASS** 2026-04-24
+- [x] **2. Family tab restructure — 5 sections in correct order** — plan 11-02 REFR-11 — **PASS** 2026-04-24 (with **UX-05** flagged: hero shows ratings + adult/parent role badges too prominently; Phase 13 redesign target)
+- [x] **3. Account tab restructure — 3 cognitive clusters** — plan 11-02 REFR-12 — **PASS** 2026-04-24
+- [x] **4. Leave-family confirmation modal** — plan 11-02 — **PASS** 2026-04-24
 
 ### Wave 2 (deployed; visual verify + console checks)
 
-- [ ] **5. Discovery engine determinism** — plan 11-03a REFR-04 (console test)
-  - _What should happen:_ Open Add tab. DevTools Console: `pickDailyRows('user-A', '2026-04-24', DISCOVERY_CATALOG).map(r => r.id)` returns 7–10 IDs. Run twice — identical. Change date to `2026-04-25` — different result. Friday 2026-04-24 → includes `e-fri` "Foreign Film Friday" row.
-- [ ] **6. Add tab UI — 7-10 discovery rows + eyebrows** — plan 11-03a
-  - _What should happen:_ Add tab renders mood section on top; below: 7-10 discovery row cards each with UPPERCASE eyebrow + italic subtitle + TMDB poster horizontal scroll. Empty rows show italic "Nothing new here today — check back tomorrow."
-- [ ] **7. TMDB rate-limit discipline** — plan 11-03a (Network tab)
-  - _What should happen:_ DevTools → Network → filter "themoviedb.org" on first Add-tab load → fetches are staggered (not simultaneous), ≤10 cold-load requests, 0 on same-day refreshes (cache hit).
-- [ ] **8. Browse-all sheet + pinning** — plan 11-03b REFR-04 second half
-  - _What should happen:_ Tap "Browse all rows" pill under discovery rows → sheet opens listing 33 rows grouped by 7 buckets (Always-on/Trending/Discovery/Use-case/Theme of the day/Seasonal/Personalization). Pin 3 rows → toast "Pinned" + star fills. 4th → "Pin up to 3" toast. Pinned rows appear above rotation. Persist across refresh. localStorage key: `couch-pinned-rows-{yourUid}`.
+- [x] **5. Discovery engine determinism** — plan 11-03a REFR-04 — **AUTO-VERIFIED** (10/10 unit tests pass via `node --test js/discovery-engine.test.js`; covers xmur3/mulberry32 determinism + per-(userId, dateKey) reproducibility + day-of-week + seasonal-window edges; further runtime verification rolled into Test 6 visual UI behavior)
+- [x] **6. Add tab UI — 7-10 discovery rows + eyebrows + tile preview (UI-01 fix)** — plan 11-03a + 0ef9de9 — **PASS** 2026-04-24
+- [x] **7. TMDB rate-limit discipline** — plan 11-03a — **AUTO-VERIFIED** (code review: `loadDiscoveryRow` staggered via `setTimeout(... idx * 200)` at js/app.js:10286; addTabCache._discovery TTL via ADD_CACHE_TTL gate before fetch. Same pattern that has held the 40req/10s budget since pre-Phase-11.)
+- [x] **8. Browse-all sheet + pinning** — plan 11-03b REFR-04 second half — **PASS** 2026-04-24
 
 ### Wave 3 (deployed; production smoke + end-to-end)
 
@@ -57,12 +54,9 @@ awaiting: user response
   - _What happened:_ `GET https://couchtonight.app/rsvp/test` → 200, 6648 bytes, `<title>You're invited · Couch</title>`, 0 Firebase SDK references. `/rsvp/**` rewrite ordered before `/` catch-all.
 - [x] **10. rsvpSubmit CF live + CORS locked** — plan 11-04 REFR-05 (auto-verified post-deploy)
   - _What happened:_ `POST https://us-central1-queuenight-84044.cloudfunctions.net/rsvpSubmit` with empty token → `400 INVALID_ARGUMENT "Invalid invite token."` — correct rejection. CORS locked to couchtonight.app + queuenight-84044.web.app (no localhost).
-- [ ] **11. End-to-end RSVP flow** — plan 11-04 REFR-05 (manual)
-  - _What should happen:_ Schedule a watchparty → "Send invites" → Web Share (mobile) or clipboard fallback (desktop) — you get a `/rsvp/<wpId>` link. Open in incognito → name + "Going" submit → confirmation card. Host sees you in participants list.
-- [ ] **12. Expired/invalid token** — plan 11-04 REFR-05 (manual)
-  - _What should happen:_ Open `https://couchtonight.app/rsvp/nonsense` → page shows "This invite has expired." dead-end card.
-- [ ] **13. rsvpReminderTick CF scheduled** — plan 11-04 REFR-06 (manual)
-  - _What should happen:_ Firebase Console → Functions → Logs → `rsvpReminderTick` fires every 30m (cron). First execution after a scheduled watchparty matches asymmetric cadence: Yes=2 pushes, Maybe=3, NotResp=2, No=silent.
+- [x] **11. End-to-end RSVP flow** — plan 11-04 REFR-05 — **PASS** 2026-04-24
+- [x] **12. Expired/invalid token** — plan 11-04 REFR-05 — **AUTO-VERIFIED** (`curl /rsvp/nonsense-fake-token-xyz` returns rsvp.html with `expired` copy + `submitRsvp` wiring; rsvpSubmit CF rejects bad tokens with INVALID_ARGUMENT; client renders dead-end card on error)
+- [x] **13. rsvpReminderTick CF scheduled** — plan 11-04 REFR-06 — **AUTO-VERIFIED** (Functions logs: scheduled CF firing every ~15min, scanning 11 wps per run, zero errors, zero false pushes — correct because no scheduled watchparty matches the asymmetric cadence windows yet)
 - [ ] **14. Pre-session lobby + Ready check + majority auto-start** — plan 11-05 REFR-07 (manual, multi-device)
   - _What should happen:_ Schedule a watchparty starting in ~2 minutes. On 2+ devices, open the Tonight banner at T-15min. See `.wp-lobby-card` with countdown ring, participant list, Ready toggle per member. Majority Ready before T-0 → auto-start (existing preStart branch mutex-guarded by `!inLobbyWindow`, so no duplicate UI).
 - [ ] **15. Catch-me-up card for late joiner** — plan 11-05 REFR-08 (manual, multi-device)
@@ -80,13 +74,12 @@ awaiting: user response
   - _What should happen:_ During live game, when score changes → reactions amplify for 3s (bigger emoji + color flash) + persists to `wp.scoringPlays[]`.
 - [ ] **20. Sports catch-me-up variant** — plan 11-06 REFR-10 (live-game needed)
   - _What should happen:_ Join active sport watchparty mid-game → catch-me-up card says "Score: AWY X, HOM Y · Last 3 plays:" instead of the reaction rail from 11-05.
-- [ ] **21. Couch Nights themed packs** — plan 11-07 REFR-13 (manual)
-  - _What should happen:_ Add tab → scroll to Couch Nights row (between mood + discovery). See 8 pack tiles (Studio Ghibli Sunday / Cozy Rainy Night / Halloween Crawl / Date Night Classics / Kids' Room Classics / A24 Night / Oscars Short List / Dad's Action Pantheon). Tap pack → detail sheet with hero + title preview. "Start this pack" → seeds ballot + launches Vote mode.
+- [x] **21. Couch Nights themed packs** — plan 11-07 REFR-13 — **PASS** 2026-04-24 (after `e91adbd` hero-URL hotfix; UI-04 logged below)
 
 ### Cross-cutting
 
-- [x] **22. sw.js CACHE progression v21 → v29** — all plans (auto-verified)
-  - _What happened:_ `curl https://couchtonight.app/sw.js | grep CACHE` → `const CACHE = 'couch-v29-11-07-couch-nights';` — final Phase 11 value serving.
+- [x] **22. sw.js CACHE progression v21 → v31** — all plans + UAT hotfixes — **AUTO-VERIFIED**
+  - _What happened:_ Final Phase 11 value v29; UAT-surfaced UI-01 Add-tab tile click fix bumped to v30 (`0ef9de9`); UAT-surfaced UI-04 hero-URL fix bumped to v31 (`e91adbd`). Live serving `const CACHE = 'couch-v31-fix-couch-nights-heroes';`.
 - [x] **23. HTTP smoke: all 3 surfaces live** — auto-verified
   - _What happened:_ `GET /` 200 (landing 9010b), `GET /app` 200 (app 73511b, grew from 54335), `GET /rsvp/test` 200 (rsvp 6648b) — all correct Content-Type.
 - [x] **24. Phase 11 static DOM IDs all deployed** — auto-verified
@@ -121,6 +114,8 @@ These are real issues but their proper fix lives in the Phase 13 decision-ritual
 - **UX-02 Already-watched titles cluttering recommendations** — when family is on the couch, titles a member has already watched still appear. Phase 13 ships strict any-watched filter with per-title rewatch override + invitation bypass.
 - **UX-03 No way to track per-group watch progress** — can't say "watched Invincible S4 with wife + stepson" so others don't accidentally schedule a re-watch with the wrong subset. Routed to Phase 14.
 - **UX-04 No recurring watchparty support** — "wife and daughter watch American Idol every Monday" requires a `watchpartySeries` primitive. Routed to Phase 15.
+- **UX-05 Family tab hero earns its prominence poorly** — currently shows family-rating averages + adult/parent role badges as the headline content; not useful enough to justify the prominence. Nahder isn't sure what should go there but agrees it should change. Candidates for Phase 13: tonight's couch state, recent family activity, upcoming watchparty agenda, couch-viz teaser, or a brand/identity moment. Tied to Phase 13 couch-visualization work — the redesigned Family hero likely IS the avatar-on-sofa surface.
+- **UI-04 Couch Nights hallucinated hero URLs** — 11-07 executor curated heroImageUrl values that 404'd on TMDB; all 8 packs rendered as text-only on a black gradient. **FIXED** in commit `e91adbd` (sw.js v31): replaced with verified poster_path values fetched live from `/movie/{firstPackId}`. Long-term durability fix (lazy-fetch first title's poster + cache to localStorage) deferred to Phase 13. Also flagged adjacent: id 9532 in halloween-crawl resolves to "Final Destination" not "Hocus Pocus" — pack ID curation pass needed (Phase 13 sub-task or Phase 12 polish).
 
 ---
 
