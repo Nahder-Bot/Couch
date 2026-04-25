@@ -63,7 +63,7 @@
 <script>
   window.sentryOnLoad = function () {
     Sentry.init({
-      dsn: 'https://<SENTRY_PUBLIC_KEY>@o<SENTRY_ORGID>.ingest.us.sentry.io/<SENTRY_PROJECTID>',
+      dsn: 'https://f90a302fd66e098b71400bed3efb40ab@o4511281867587584.ingest.us.sentry.io/4511281871454208',
       environment: (location.hostname === 'couchtonight.app') ? 'production' : 'dev',
       tracesSampleRate: 0.1,
       // Review fix MEDIUM-6: Replay disabled for v1 (all replay keys absent).
@@ -122,7 +122,7 @@
     });
   };
 </script>
-<script src="https://js.sentry-cdn.com/<SENTRY_PUBLIC_KEY>.min.js" crossorigin="anonymous"></script>
+<script src="https://js.sentry-cdn.com/f90a302fd66e098b71400bed3efb40ab.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
