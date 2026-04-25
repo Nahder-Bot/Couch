@@ -1,8 +1,9 @@
 # Phase 10: Year-in-Review - Context
 
 **Gathered:** 2026-04-25
-**Status:** Ready for planning (auto-defaults proposed; user reviews at /gsd-plan-phase 10 — defaults can be flipped before research kicks off)
+**Status:** **DEFERRED** — paused 2026-04-25 per user direction. Revisit post-launch once Couch has accumulated meaningful watch history across enough families to make YIR feel substantive. The `#settings-yir-section` UI is already hidden in production via `state.family.yirReady` gate (Plan 11-02), and the partial implementation in `js/app.js` (`openYearInReview` / `renderYearInReview` / `shareYearInReview` + modals in app.html) is unreachable without the flag flipped — so no code changes needed to "hide" YIR. This CONTEXT.md is preserved as the working document for the eventual return.
 **Mode:** `--auto` (Claude proposed defaults from ROADMAP scope + Phase 11 UAT findings + BRAND.md voice — no full discussion loop run)
+**Deferred at:** 2026-04-25 — user judgment: "It's something that makes more sense once the app has had some success." YIR shows recap stats; without enough watch history per family or enough families, the recap feels thin. Revisit when there's data + audience to recap *for*.
 
 <domain>
 ## Phase Boundary

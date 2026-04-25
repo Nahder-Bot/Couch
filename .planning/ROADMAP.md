@@ -24,7 +24,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [x] **Phase 7: Watchparty** — Synced multi-device watch sessions with real-time reactions, now identity- and push-aware (was Phase 5 pre-restructure) ✓ 2026-04-22
 - [x] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll) ✓ 2026-04-22 (UAT autonomous via browser-Claude; 1 seed for CF timezone echo)
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
-- [ ] **Phase 10: Year-in-Review** — End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
+- [⏸] **Phase 10: Year-in-Review** — DEFERRED 2026-04-25 (revisit post-launch — needs accumulated watch history + audience to feel substantive). End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
 - [x] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs [CODE-COMPLETE 2026-04-24; deploy batch 11-04 through 11-07 pending Blaze billing + Firebase Storage enablement]
 
 ## Phase Details
@@ -155,7 +155,9 @@ Plans:
 - [x] 09-07b-PLAN.md — Guest-auth + motion: firestore.rules architecture documentation (Task 1 reframed — invariant gate was false-positive; CF+admin-SDK bypasses rules), guest invite redemption + consumeGuestInvite CF (DESIGN-08), motion audit (DESIGN-09 second half); absorbed 05x guest-invite-redemption seed — 3 atomic commits + production deploy of hosting + functions:consumeGuestInvite + functions:inviteGuest (2026-04-24)
 **UI hint**: yes (this IS the UI phase)
 
-### Phase 10: Year-in-Review
+### Phase 10: Year-in-Review — **DEFERRED** (paused 2026-04-25, revisit post-launch)
+> User judgment 2026-04-25: "Makes more sense once the app has had some success." YIR depends on accumulated watch history per family + audience to recap *for*; both are thin pre-launch. UI surfaces (`#settings-yir-section` + `#yir-modal-bg` etc.) are already hidden in production via `state.family.yirReady` gate from Plan 11-02 — no code changes needed to "hide" YIR; flag stays false. Partial implementation in `js/app.js` (`openYearInReview` / `renderYearInReview` / `shareYearInReview`) is unreachable through UI, kept dormant for the eventual return. CONTEXT.md preserved at `.planning/phases/10-year-in-review/10-CONTEXT.md` as the working document for revisit.
+
 **Goal**: At year-end (or on-demand), each member and the family as a whole can see a recap of their viewing year — titles, runtime, genre and mood distribution, favorites, shared-watch patterns, intent-flow "most-anticipated," and veto/watchparty highlights — packaged in a shareable surface that lands on the final Phase 9 brand.
 **Depends on**: Phase 3 (mood-tag distribution), Phase 4 (veto history), Phase 7 (watchparty activity), Phase 8 (intent flows for "most-anticipated"), Phase 9 (final brand tokens for shareables).
 **Requirements**: YEAR-01, YEAR-02, YEAR-03, YEAR-04, YEAR-05 (IDs unchanged; YEAR-04 expanded in /gsd-discuss-phase 10 to include intent-flow stats)
