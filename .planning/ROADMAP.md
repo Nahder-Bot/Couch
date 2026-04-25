@@ -250,7 +250,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 10. Year-in-Review | 0/3 | Not started | - |
 | 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
 | 12. Pre-launch polish | 3/3 | **SHIPPED** 2026-04-25 — POL-01 + POL-02 + POL-03/04 all deployed; 8/8 smoke tests pass | 12-03 deployed 2026-04-25 |
-| 13. Compliance & Ops Sprint | 5/5 | **CODE-COMPLETE** 2026-04-25 — All 5 plans across 3 waves merged. Code-side: ✓ COMP-13-01 account deletion ✓ OPS-13-02 BUILD_DATE auto-stamp ✓ OPS-13-04 CSP Report-Only ✓ OPS-13-05 Sentry ✓ OPS-13-06 GitHub branch protection ruleset spec ✓ OPS-13-07 Firestore export setup script. HUMAN-VERIFY queue (3 items): GitHub ruleset web-UI config (13-03), Sentry account + DSN substitution + functions/firestore.indexes deploy (13-01/13-02), gcloud setup script execution (13-04) | code 2026-04-25 |
+| 13. Compliance & Ops Sprint | 5/5 | **PARTIALLY-DEPLOYED** 2026-04-25 — Code-side complete; 2/4 HUMAN-VERIFY items closed via browser session (OPS-13-06 branch protection live on /settings/branches; OPS-13-05 Sentry account+DSN substituted+couchtonight.app deployed at couch-v33.3-sentry-dsn). Repo flipped private→public to enable branch-protection enforcement on free tier (RUNBOOK §L amended dc354f2). REMAINING (CLI-only): firebase deploy 4 functions + firestore:indexes from queuenight repo (COMP-13-01); gcloud auth + scripts/firestore-export-setup.sh (OPS-13-07). | code 2026-04-25 |
 
 ---
 *Roadmap created: 2026-04-19*
