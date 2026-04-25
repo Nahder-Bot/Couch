@@ -156,17 +156,44 @@ Not a launch blocker; most users never open devtools.
 
 ### TD-4. CSP / security-header coverage
 
-**Severity:** low · **Effort:** 30-60 min · **Risk:** low (could break embedded fonts / TMDB images if mis-configured)
+**Severity:** low · **Effort:** 30-60 min for the enforcement flip · **Risk:** medium (could break flows we haven't audited if CSP is enforced before fixing inline-script reliance)
 
-Live response headers include `Strict-Transport-Security` ✓ but not:
-- `Content-Security-Policy` — defense-in-depth against XSS. Couch is XSS-disciplined (no `innerHTML` from user content; everything goes through `escapeHtml`), so the actual XSS surface is small. CSP would still tighten the failure radius.
-- `X-Frame-Options: DENY` (or `frame-ancestors 'none'` in CSP) — clickjacking protection.
-- `X-Content-Type-Options: nosniff` — cheap, prevents MIME sniffing.
-- `Referrer-Policy: strict-origin-when-cross-origin` — prevents leaking deep-link tokens (e.g., `/rsvp/<token>`) to outbound third parties.
+**Status (post-Phase-13):** Partial close — CSP shipped in Report-Only mode; enforcement deferred.
 
-**Suggested order to ship**
-1. **Quick wins (no testing needed):** `X-Content-Type-Options: nosniff` + `Referrer-Policy: strict-origin-when-cross-origin` + `X-Frame-Options: DENY` — three lines in `firebase.json` headers, no behavioral change.
-2. **CSP (needs testing):** allowlist for Trakt OAuth, TMDB image CDN, Google Fonts, Firebase SDK, service worker. Plan a test pass in a separate session.
+**What shipped:**
+- Phase 12: XCTO + Referrer-Policy + X-Frame-Options (3 quick-win headers).
+- Phase 13 / OPS-13-04: Content-Security-Policy-Report-Only header on `**/*` covering Firebase SDK + TMDB + Trakt + Google Fonts + Sentry CDN + Cloud Functions endpoint. Browser logs violations to console for solo-dev introspection. No report-uri sink (deferred per RESEARCH.md Open Question #5).
+- Phase 13 / OPS-13-04: Strict-Transport-Security inherited from Firebase Hosting default (was already live).
+- Phase 13 / OPS-13-04: `worker-src 'self' blob:` allows blob-URL workers (review fix LOW — common miss).
+
+**Codex audit-flow checklist (review fix LOW — exercise these during the 2-week observation window):**
+
+The following flows are the most likely to surface CSP violations that the initial directive list missed. Check the browser console after each:
+
+1. **Trakt OAuth round-trip** — open Account → Trakt sync → start OAuth → complete in popup → return to Couch. Watch for `frame-src` or `connect-src` violations on the Trakt callback.
+2. **Photo upload to couch-albums** — start a watchparty session → upload a photo. Watch for `connect-src` violations against `firebasestorage.googleapis.com` or any redirect chains.
+3. **Watchparty scheduling** — schedule a watchparty (intent → CF write → push). Watch for `connect-src` violations against the cloudfunctions.net endpoint or push-notification SDK.
+4. **RSVP submit** — submit an RSVP from the rsvp.html surface. Watch for `connect-src` violations on the rsvp callable CF.
+5. **Install flow** — install Couch as a PWA from a fresh browser. Watch for `manifest-src`, `worker-src` (sw.js registration), and `script-src` violations during the install handshake.
+6. **Sentry error transmission** — induce a JS error. Watch for `connect-src` violations on `*.ingest.us.sentry.io` envelope endpoints (Sentry occasionally adds new ingest hostnames; Report-Only is the early-warning).
+7. **TMDB poster load + CDN redirects** — browse the catalog. Watch for `img-src` violations on `image.tmdb.org` redirect chains.
+8. **YouTube trailer embed (if used)** — Couch v1 doesn't embed YouTube trailers; if a future change does, audit `frame-src` for `https://www.youtube.com` and `https://www.youtube-nocookie.com`.
+
+After 2 weeks, summarize the violation set in 13-05-SUMMARY.md (or a follow-up RETROSPECTIVE entry) and decide on the enforcement-flip plan based on the actual data.
+
+**What still needs work (the enforcement flip):**
+1. **Drop `'unsafe-inline'` from `script-src`.** Couch has multiple inline `<script>` blocks: Sentry `sentryOnLoad` config (app.html + landing.html), landing.html standalone-redirect IIFE, inline PWA manifest data URL. Options: move each inline script to an external `js/<name>.js` file (cheapest; recommended for Milestone 2), OR add nonce-based whitelisting (requires server-side per-request nonce — not supported by Firebase Hosting).
+2. **Drop `'unsafe-inline'` from `style-src`.** Smaller surface — most Couch styling is in css/app.css. Audit any inline `style=""` attributes.
+3. **Optional: add a report-uri sink** (Cloudflare Worker per RESEARCH.md "Don't Hand-Roll"; ~30 min; only if console review proves insufficient).
+4. **Add Permissions-Policy header** (camera/microphone/geolocation: `()`) — defense-in-depth for the small permission surface Couch uses.
+
+**Path to enforcement:**
+- Watch the browser console for 2 weeks of CSP violation reports — exercise the Codex audit-flow checklist above weekly.
+- Fix the inline-script allowance.
+- Flip the header key from `Content-Security-Policy-Report-Only` to `Content-Security-Policy` in `queuenight/firebase.json`.
+- Deploy + monitor.
+
+**Why we don't enforce on day 1:** Couch has 11+ inline `<script type="module">` blocks in app.html that no one has stress-tested against a strict policy. Trakt OAuth callback handler also has inline messaging. Report-Only mode FLAGS these without breaking — that's the value (RESEARCH.md "Anti-Pattern: Ship CSP enforcement (not Report-Only) on day 1").
 
 ---
 
