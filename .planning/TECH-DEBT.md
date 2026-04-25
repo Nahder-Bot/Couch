@@ -11,6 +11,19 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-7. Firestore index spec in 13-01 was redundant (already-covered by single-field auto-index)
+
+**Severity:** trivial · **Effort:** 0 (already resolved) · **Risk:** none
+
+**Source:** Phase 13 / Plan 13-01 — discovered during HUMAN-VERIFY follow-through 2026-04-25 when `firebase deploy --only firestore:indexes --project queuenight-84044` returned `HTTP 400, this index is not necessary, configure using single field index controls`.
+
+**Resolution applied:** `queuenight/firestore.indexes.json` had its sole composite index entry removed (file is now `{ "indexes": [], "fieldOverrides": [] }`). The `discoverFamilyCodes` collectionGroup fallback (`collectionGroup('members').where('uid', '==', uid)`) works on Firestore's auto-managed single-field index for `uid`; no extra config needed.
+
+**Why this is worth recording**
+Plan 13-01's review fix HIGH-2 specified the composite index as part of the fallback safety net. The reviewer assumed all collection-group queries need an explicit composite index — they don't, when the query is single-field equality. This is a Firestore-quirk worth catching at planning time in future phases that touch Firestore indexes: simple equality-on-single-field queries don't need a composite entry.
+
+**Action item:** none. Record-only.
+
 ### TD-6. Sentry Replay deferred (post-launch +30 days)
 
 **Severity:** low · **Effort:** 30-60 min (re-enable + privacy review writeup) · **Risk:** low (Replay is opt-in; flipping it back on doesn't break anything)
