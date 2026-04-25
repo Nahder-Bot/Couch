@@ -181,7 +181,11 @@ Plans:
   3. `/changelog.html` standalone page exists (mirror of landing.html posture: no app shell, no Firebase SDK), lists last 5-10 releases with one-line user-facing summaries, served via Firebase Hosting rewrite `/changelog` → `/changelog.html`.
   4. Halloween Crawl `tmdbId 9532` swapped for the real Hocus Pocus ID; full audit pass on all 8 packs verifying first ID's title matches the comment label; mismatches fixed.
   5. sw.js CACHE bumped (likely v32-pre-launch-polish) so installed PWAs invalidate.
-**Plans**: 3 plans (12-01 notif prefs UI / 12-02 about+changelog / 12-03 pack curation). Independent — could run parallel; sequential is fine.
+**Plans**: 3 plans
+Plans:
+- [ ] 12-01-PLAN.md — Per-event notification preferences UI in #notif-card: 6 toggles + quiet hours + BRAND-aligned switch primitive + sw.js CACHE v32-pre-launch-polish bump (POL-01)
+- [ ] 12-02-PLAN.md — ABOUT sub-section in ADMIN cluster: version + mailto feedback + /changelog.html standalone page + Firebase Hosting rewrite + TMDB attribution on landing.html footer (POL-02 / D-19 bundled)
+- [ ] 12-03-PLAN.md — Couch Nights TMDB id curation pass: audit all 8 packs against TMDB API, swap Halloween Crawl 9532 → 10661 Hocus Pocus, drift-prevention header (POL-03, POL-04 stretch)
 **UI hint**: yes (Account tab notif card expansion + new ABOUT sub-section)
 
 ### Phase 11: Feature refresh & streamline
