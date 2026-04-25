@@ -434,7 +434,7 @@ git checkout -b probe/branch-protection-test
 date >> .planning/RUNBOOK.md
 git add .planning/RUNBOOK.md
 git commit -m "test: branch protection probe -- DO NOT MERGE"
-git push origin "probe/branch-protection-test:main"   # expected: GH013 reject
+git push origin "probe/branch-protection-test:main"   # expected: GH006 reject ("Protected branch update failed", citing PR-required + syntax-check status check)
 git checkout main
 git branch -D probe/branch-protection-test
 ```

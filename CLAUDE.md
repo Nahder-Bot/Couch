@@ -24,7 +24,7 @@
   - `js/utils.js` — `escapeHtml`, `haptic`, `flashToast`, poster helpers
   - `js/app.js` — all feature logic (~10200 lines); imports from the above
 - **CSS:** `css/app.css` (~2360 lines; warm-dark design system, 47-token semantic alias layer from 09-02, Phase 9/DESIGN-03 utility classes ~line 2210, desktop `@media (min-width:900px)` block ~line 2330) + `css/landing.css` (~86 lines; standalone for the marketing page).
-- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v19-phase9-rename`.
+- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v33.3-sentry-dsn` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
 - **Backend:** Firebase Firestore (project `queuenight-84044`) for real-time family sync; Cloud Functions in sibling `queuenight/functions/` for push notifications (watchparty + intent + veto) and Trakt OAuth token exchange.
 - **Third-party data:** TMDB REST v3 for metadata/providers; Trakt API for watch-history sync.
 - **Delivery:** Firebase Hosting (deploy via sibling `queuenight/public/` mirror). PWA manifest inline as data URL in app.html. iOS/Android icon set wired.
@@ -60,8 +60,8 @@
 - ✓ Read `.planning/PROJECT.md` and `.planning/ROADMAP.md` before proposing work
 - ✓ Write atomic Firestore updates; respect existing per-family nesting
 - ✓ Test on mobile Safari (PWA + iOS home-screen use is the primary surface)
-- ✓ Deploy by mirroring to `queuenight/public/` then `firebase deploy --only hosting`. Full file set: `app.html`, `landing.html`, `404.html`, `robots.txt`, `sitemap.xml`, `sw.js`, `css/`, `js/`. Cloud Functions deploy separately: `firebase deploy --only functions` from the sibling repo.
-- ✓ When you ship a user-visible change that affects the app shell, bump `CACHE` in `sw.js` (current: `couch-v19-phase9-rename` → next: `couch-v20-{short-tag}`) so installed PWAs invalidate their cache on next online activation. Skipping this step is why iOS cache-bust procedure was previously needed for UATs.
+- ✓ Deploy via `bash scripts/deploy.sh [<short-tag>]` from couch repo root (Phase 13 / OPS-13-02). Script handles BUILD_DATE auto-stamp + optional `sw.js` CACHE bump + Sentry DSN guard + mirror to `queuenight/public/` + `firebase deploy --only hosting`. Cloud Functions deploy separately: `firebase deploy --only functions` from the sibling `queuenight/` repo. See RUNBOOK §H for the canonical deploy walkthrough.
+- ✓ When you ship a user-visible change that affects the app shell, bump `CACHE` in `sw.js` (auto-bumped if you pass a short-tag arg to `deploy.sh`, e.g. `bash scripts/deploy.sh 33.4-fix`). Skipping this step is why iOS cache-bust procedure was previously needed for UATs.
 - ✗ Don't introduce a bundler or build step — no webpack/vite/rollup
 - ✗ Don't move TMDB key / Firebase config server-side
 - ✗ Don't start monetization / billing / plan-tier work (explicitly Out of Scope)
