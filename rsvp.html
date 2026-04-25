@@ -60,7 +60,7 @@
           '<div class="rsvp-event-meta">' + (esc(invite.startTime) || 'Details inside the invite link.') + '</div>' +
           (invite.hostName ? '<div class="rsvp-event-host"><em>' + esc(invite.hostName) + ' invited you</em></div>' : '') +
         '</article>' +
-        '<input class="rsvp-name-input" id="rsvp-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40">' +
+        '<input class="rsvp-name-input" id="rsvp-name" type="text" aria-label="Your name" placeholder="Your name" autocomplete="name" maxlength="40">' +
         '<div id="rsvp-error" style="display:none;" class="rsvp-error"></div>' +
         '<div class="rsvp-actions">' +
           '<button class="rsvp-btn rsvp-yes" data-resp="yes" onclick="submitRsvp(this)">Going</button>' +

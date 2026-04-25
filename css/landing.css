@@ -68,6 +68,10 @@ section p { color: var(--ink-warm); max-width: 640px; }
 
 .landing-footer { padding: 48px 0 0; color: var(--ink-dim); font-size: 13px; text-align: center; border-top: 1px solid var(--border); }
 .landing-footer a { color: var(--ink-warm); margin: 0 8px; }
+.landing-legal { color: var(--ink-dim); font-size: 13px; margin: 8px 0 0; }
+.landing-legal a { color: var(--ink-warm); margin: 0 6px; border-bottom: 1px solid var(--border); }
+.landing-legal a:hover { color: var(--ink); border-bottom-color: var(--accent); }
+.landing-legal .sep { color: var(--ink-faint); user-select: none; }
 .landing-tmdb-attr { font-family: 'Instrument Serif', serif; font-style: italic; color: var(--ink-dim); font-size: 13px; margin: 8px 0 0; }
 .landing-tmdb-attr a { color: var(--ink-warm); margin: 0; border-bottom: 1px solid var(--border); }
 .landing-tmdb-attr a:hover { color: var(--ink); border-bottom-color: var(--accent); }
