@@ -288,6 +288,58 @@ If `deploy.sh` aborts on a dirty tree but you NEED to deploy a hot-fix, run with
 
 If `deploy.sh` aborts on Sentry DSN placeholders, substitute the real DSN values in `app.html` + `landing.html`, commit, and re-run. The placeholders are intentionally allowed in version control (Plan 13-02 acceptance criteria) — the deploy guard is the production-boundary catch.
 
+## §I — Restore from Firestore export (OPS-13-07)
+
+**Find the latest export:**
+```bash
+gsutil ls gs://queuenight-84044-backups/
+```
+
+**Restore semantics (review fix LOW — be precise here, this is incident-response material):**
+
+`gcloud firestore import` performs an UPSERT against the target Firestore database:
+
+- Documents in the export with IDs that EXIST in the live DB → OVERWRITTEN with the export's content.
+- Documents in the export with IDs that DO NOT EXIST in the live DB → CREATED.
+- Documents in the live DB that do NOT exist in the export (e.g., created AFTER the export timestamp) → **LEFT UNTOUCHED** (NOT deleted).
+
+This means a naive `gcloud firestore import` does NOT roll the database back to the export's state — it overlays the export on top of whatever's there now. Plan accordingly:
+
+| Goal | Recipe |
+|---|---|
+| "Recover a lost document — I know its ID, I want the export's version" | Run `gcloud firestore import --collection-ids=<single>` against the relevant collection. The export's version is restored. |
+| "Recover a single corrupted collection — replace it with the export's state" | Drop the live collection first (`firebase firestore:delete <collection> --recursive`), THEN run `gcloud firestore import --collection-ids=<collection>`. |
+| "Full point-in-time rollback — make the DB match the export exactly" | Either (a) target a NEW Firestore DB and switch traffic, OR (b) drop ALL live collections then full-import. Option (a) is safer for incident response because it preserves the corrupted state for forensics. |
+| "Recover from accidental delete of a single doc" | Use `gcloud firestore import --collection-ids=<collection>` and accept that other documents in the collection get re-overwritten. If that's not acceptable, use the GCP Firestore restore-to-new-DB path (option (a) above). |
+
+**Default restore command (UPSERT semantics — review fix LOW):**
+```bash
+# UPSERT-RESTORE: overlays the export onto the live DB.
+# Documents created after the export timestamp are NOT removed.
+gcloud firestore import gs://queuenight-84044-backups/<YYYY-MM-DDTHH:MM:SS_NNNNN>/
+```
+
+**Replace-restore (single collection):**
+```bash
+# 1. Drop the live collection (DESTRUCTIVE — preview first)
+firebase firestore:delete <collection> --recursive --project queuenight-84044
+# 2. Import only that collection from the export
+gcloud firestore import gs://queuenight-84044-backups/<TIMESTAMP>/ --collection-ids=<collection>
+```
+
+**Replace-restore (full DB — safest path = restore-to-new-DB):**
+```bash
+# Create a new Firestore DB in the same project, restore into it, then flip traffic.
+# Preserves the corrupted state for forensics.
+gcloud firestore databases create --database=<new-db-id> --location=us-central1
+gcloud firestore import gs://queuenight-84044-backups/<TIMESTAMP>/ --database=<new-db-id>
+# Then update the Firebase Hosting / app config to point at the new DB.
+```
+
+**Cost note (Pitfall 8):** Each restore reads the export bucket then rewrites Firestore. At Couch v1 scale (a handful of families) the cost is trivial (~$0.01); at growth scale a restore could be a few dollars. Replace-restore via new-DB doubles short-term storage cost until the old DB is dropped.
+
+**NEVER run a restore on production without an outage incident declared.** The restore semantics above mean even a "safe" UPSERT can re-introduce stale data on top of recent legitimate writes.
+
 ## §J — Cloud Scheduler job inventory
 
 Phase 13 expanded the Cloud Scheduler job count. Confirm the inventory periodically:
@@ -303,6 +355,44 @@ gcloud scheduler jobs list --location=us-central1 --project=queuenight-84044
 - `daily-firestore-export` (Phase 13 / Plan 13-04 -- created by gcloud, not Firebase)
 
 **Free-tier note:** Cloud Scheduler free tier covers 3 jobs/month. With Phase 13 we go to 4 jobs total -- ~$0.10/month over free tier (negligible). Verify billing in GCP Console -> Billing -> Reports if a future cost spike appears.
+
+## §K — Firestore export setup (one-time, OPS-13-07)
+
+**Idempotent setup (committed in repo for reproducibility on a fresh project):**
+
+```bash
+cd C:/Users/nahde/claude-projects/couch
+./scripts/firestore-export-setup.sh
+```
+
+What it does (verbatim from script — read it before running for the first time):
+
+1. Creates Cloud Storage bucket `gs://queuenight-84044-backups` in `us-central1` with uniform-bucket-level-access enabled (T-8 mitigation against world-readable misconfigurations).
+2. Sets a 30-day lifecycle delete rule (cost containment per RESEARCH.md Pitfall 8).
+3. Grants the App Engine default SA (`queuenight-84044@appspot.gserviceaccount.com`):
+   - Project IAM role: `roles/datastore.importExportAdmin`
+   - Bucket IAM: `roles/storage.objectAdmin` on the backups bucket
+4. Creates a Cloud Scheduler HTTP job `daily-firestore-export` at `0 3 * * *` America/Los_Angeles (daily 3am Pacific) hitting:
+   - `https://firestore.googleapis.com/v1/projects/queuenight-84044/databases/(default):exportDocuments`
+   - OAuth scope: `https://www.googleapis.com/auth/datastore` (NOT the default cloud-platform — Pitfall 6)
+   - Body: `{"outputUriPrefix":"gs://queuenight-84044-backups"}`
+
+**Manual smoke-test after setup:**
+
+```bash
+gcloud scheduler jobs run daily-firestore-export --location=us-central1
+# Wait ~3-5 min, then:
+gsutil ls gs://queuenight-84044-backups/
+# Expect a directory like: gs://queuenight-84044-backups/2026-04-25T10:00:00_NNNNN/
+```
+
+**If the smoke-test fails with 401 PERMISSION_DENIED:** the OAuth scope is wrong. Re-run firestore-export-setup.sh; the update branch corrects in-place.
+
+**Verifying the daily run:**
+
+```bash
+gcloud scheduler jobs describe daily-firestore-export --location=us-central1 --format="value(state,lastAttemptTime,status)"
+```
 
 ## §L — GitHub branch protection (OPS-13-06)
 
