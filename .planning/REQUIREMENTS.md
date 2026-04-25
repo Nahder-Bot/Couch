@@ -216,12 +216,16 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | REFR-11 | Phase 11 Plan 02 | Complete 2026-04-24 |
 | REFR-12 | Phase 11 Plan 02 | Complete 2026-04-24 |
 | REFR-13 | Phase 11 Plan 07 | Complete (code) 2026-04-24 |
+| POL-01 | Phase 12 | Pending |
+| POL-02 | Phase 12 | Pending |
+| POL-03 | Phase 12 | Pending |
+| POL-04 | Phase 12 | Pending (stretch) |
 
 **Coverage:**
-- v1 requirements: 65 total (21 complete across Phases 3+4+7+9; 44 pending across Phases 5/6/7/8/9/10/11)
-- Mapped to phases: 65 ✓
+- v1 requirements: 69 total (33 complete across Phases 3+4+7+9+11; 36 pending across Phases 5/6/8/12 + deferred Phase 10)
+- Mapped to phases: 69 ✓
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-19*
-*Last updated: 2026-04-24 — added Phase 11 (Feature Refresh & Streamline) with 13 REFR-* items scoped via /gsd-discuss-phase 11 (6 decisions locked 2026-04-23). Prior update 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10.*
+*Last updated: 2026-04-25 — added Phase 12 (Pre-launch polish) with 4 POL-* items repurposing the original parking-lot Phase 12 slot (parking-lot docket archived to seeds/phase-12-original-docket-archive-2026-04-23.md). Prior update 2026-04-24 — added Phase 11 (Feature Refresh & Streamline) with 13 REFR-* items scoped via /gsd-discuss-phase 11 (6 decisions locked 2026-04-23). Prior update 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10.*
