@@ -25,7 +25,8 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 - [x] **Phase 8: Watch-Intent Flows** — Two parallel branches: "who's watching tonight at X time" (time-bound RSVP) and "who wants to watch this title" (content-bound interest poll) ✓ 2026-04-22 (UAT autonomous via browser-Claude; 1 seed for CF timezone echo)
 - [ ] **Phase 9: Redesign / Brand / Marketing Surface** — Full visual identity (logo, icon, palette, typography), UI refresh against a polished design system, plus landing page + app-store-style marketing surface
 - [⏸] **Phase 10: Year-in-Review** — DEFERRED 2026-04-25 (revisit post-launch — needs accumulated watch history + audience to feel substantive). End-of-year recap aggregating mood, veto, watchparty, and intent-flow activity (was Phase 6 pre-restructure)
-- [x] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs [CODE-COMPLETE 2026-04-24; deploy batch 11-04 through 11-07 pending Blaze billing + Firebase Storage enablement]
+- [x] **Phase 11: Feature refresh & streamline** — Post-Phase-9 declutter + moat-expansion pass: UX tightening, Family+Account tab restructures, discovery row expansion, watchparty lifecycle (web RSVP + lobby + catch-me-up + post-session loop), dedicated Sports Game Mode, Couch Nights themed packs ✓ 2026-04-24 (all 8 plans deployed; sw.js v31 serving; Storage in us-east; UAT 12/25 pass + 13 environmental-deferred)
+- [ ] **Phase 12: Pre-launch polish** — Per-event notif prefs UI (closes Phase 6 UAT loop) + about/version/feedback/changelog footer + Couch Nights pack ID curation pass. Tight ~1-day patch ahead of any larger phase.
 
 ## Phase Details
 
@@ -169,6 +170,19 @@ Plans:
   5. The recap can be shared off-app — at minimum one of: export image, copy link, or save-to-device — rendered against Phase 9's finalized brand without breaking the warm/cinematic design language.
 **Plans**: 3 plans (TBD — finalized at plan-phase). Also: the YIR marketing screenshot from Phase 9 plan 09-06 was deferred to Phase 10 (Major-6 checker closure) — rerun the marketing-screenshot-plan.md pipeline once YIR UI surfaces ship.
 **UI hint**: yes
+
+### Phase 12: Pre-launch polish
+**Goal**: Three small, independent fixes that close gaps surfaced during Phase 11 UAT and Phase 6 push closure: (1) per-event notification preferences UI in Account → YOUR COUCH → Notifications so users can exercise the prefs that Phase 6 already enforces server-side; (2) About / version / feedback / changelog footer in ADMIN cluster (cheap, high-trust); (3) Couch Nights pack ID curation pass (Plan 11-07 had `tmdbId 9532` for "Hocus Pocus" but it actually resolves to "Final Destination" — verify all 8 packs).
+**Depends on**: Phase 6 (notif pref server-side enforcement) + Phase 11 (Account tab cluster structure + Couch Nights pack data).
+**Requirements**: POL-01 (per-event notif prefs UI), POL-02 (about/version/feedback), POL-03 (Halloween Crawl curation), POL-04 (other-7-packs curation, stretch).
+**Success Criteria** (what must be TRUE):
+  1. Notif card in Account → YOUR COUCH expands to show 6 per-event toggles (watchpartyScheduled, watchpartyStartingNow, intentRsvpRequested, inviteReceived, vetoCapReached, tonightPickChosen) + quiet hours start/end pickers; toggle changes write to `users/{uid}.notificationPrefs` immediately with optimistic UI.
+  2. About sub-section ships at the bottom of ADMIN & MAINTENANCE cluster: version line ("Couch v{N} — deployed {YYYY-MM-DD}"), mailto feedback link, "What's new" link to `/changelog.html`.
+  3. `/changelog.html` standalone page exists (mirror of landing.html posture: no app shell, no Firebase SDK), lists last 5-10 releases with one-line user-facing summaries, served via Firebase Hosting rewrite `/changelog` → `/changelog.html`.
+  4. Halloween Crawl `tmdbId 9532` swapped for the real Hocus Pocus ID; full audit pass on all 8 packs verifying first ID's title matches the comment label; mismatches fixed.
+  5. sw.js CACHE bumped (likely v32-pre-launch-polish) so installed PWAs invalidate.
+**Plans**: 3 plans (12-01 notif prefs UI / 12-02 about+changelog / 12-03 pack curation). Independent — could run parallel; sequential is fine.
+**UI hint**: yes (Account tab notif card expansion + new ABOUT sub-section)
 
 ### Phase 11: Feature refresh & streamline
 **Goal**: Take Couch from "functional PWA with post-Phase-9 brand refresh" to "decision ritual product that nobody else ships." Two parallel tracks: (1) declutter + streamline the in-app surfaces the user flagged as too busy / too prominent / too dated, plus a coherent Family + Account tab restructure, and (2) feature-expand the moat — what competitive research identified as Couch's unmet differentiation: Web RSVP route + Web Share API nurture, pre-session lobby, late-joiner catch-me-up recap, post-session loop, dedicated Sports Game Mode, themed "Couch Nights" packs.

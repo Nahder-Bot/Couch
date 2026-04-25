@@ -108,6 +108,15 @@ Scoped via /gsd-discuss-phase 11 (2026-04-23); 6 user decisions locked; RESEARCH
 - [x] **REFR-12**: Account tab restructured per `11-APPENDIX-TABS-AUDIT.md` — current 9 flat sections → 3 cognitive clusters (You / Couch-wide / Admin & maintenance). NEW sections (per-event notif prefs detail, data export/delete, theme prefs, about/version+feedback) deferred to Phase 12. [Plan 11-02, complete 2026-04-24]
 - [x] **REFR-13**: "Couch Nights" themed ballot packs — 8 curated packs (Studio Ghibli Sunday, Cozy Rainy Night, Halloween Crawl, Date Night Classics, Kids' Room Classics, A24 Night, Oscars Short List, Dad's Action Pantheon) with hero poster + BRAND-voice description + mood token + 10-12 curated TMDB IDs. Add-tab tile row + pack-detail sheet + "Start this pack" seeds ballot + launches Vote mode. [Plan 11-07, complete 2026-04-24]
 
+### Pre-launch polish (Phase 12)
+
+Tight ~1-day patch closing UAT-surfaced gaps from Phase 11 + Phase 6.
+
+- [ ] **POL-01**: Per-event notification preferences UI in Account → YOUR COUCH → Notifications. Master toggle expand/collapse + 6 per-event toggles (watchpartyScheduled, watchpartyStartingNow, intentRsvpRequested, inviteReceived, vetoCapReached, tonightPickChosen) + quiet hours start/end pickers. Writes to `users/{uid}.notificationPrefs` immediately with optimistic UI. Closes Phase 6 PUSH-02 + PUSH-04 runtime UAT loop (server-side enforcement already shipped in functions/index.js).
+- [ ] **POL-02**: About / version / feedback / changelog footer in Account ADMIN cluster. Version line ("Couch v{N} — deployed {YYYY-MM-DD}"), mailto feedback link, "What's new" link to `/changelog.html` (NEW standalone page following landing.html posture). Hosting rewrite `/changelog` → `/changelog.html`.
+- [ ] **POL-03**: Halloween Crawl pack ID curation — Plan 11-07 used `tmdbId 9532` for "Hocus Pocus" but TMDB resolves it to "Final Destination". Replace with the real Hocus Pocus ID; pass-through verify the other 9 IDs in the pack against their comment labels.
+- [ ] **POL-04** (stretch): Other-7-packs curation pass — verify each remaining pack's tmdbIds match their comment labels via TMDB API. Apply fixes where mismatched. Optional: refactor to drop comment labels in favor of a build-time test that asserts title matches, eliminating drift permanently.
+
 ## v2 Requirements
 
 Deferred to post-v1. Tracked but not in current roadmap.
