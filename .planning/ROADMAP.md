@@ -210,6 +210,27 @@ Plans:
 - [x] 11-07-PLAN.md — Couch Nights themed ballot packs (REFR-13) [complete 2026-04-24; 8 packs with curated TMDB IDs + pack-detail sheet + seed-ballot Vote-mode launcher; deploy deferred with 11-04+11-05+11-06 batch]
 **UI hint**: yes (heavy UI touches; UI-SPEC.md to be generated via /gsd-ui-phase 11 before planning)
 
+### Phase 13: Compliance & Ops Sprint
+**Goal**: Operational hygiene + compliance hardening sprint after v1 ships. Five items: self-serve account deletion (closes the manual privacy.html promise), Sentry error reporting (so prod errors are visible without user complaint), BUILD_DATE auto-stamp + GitHub branch protection (small ops + future-proofing), scheduled daily Firestore export (~30-day rollback window for accidental data loss), and Content-Security-Policy in Report-Only mode (defense-in-depth + 2-week observation window before enforcement). Not a feature phase — no new product surfaces.
+**Depends on**: Phase 5 (auth — required for COMP-01 to bind soft-delete to a uid), Phase 11 (storage rules + couch-albums path schema — required for the deletion reaper's storage sweep), Phase 12 (BUILD_DATE constant + ABOUT version line consumes the auto-stamp), and operationally inherits from all prior phases.
+**Requirements**: COMP-13-01 (self-serve account deletion), OPS-13-02 (BUILD_DATE auto-stamp), OPS-13-04 (CSP report-only), OPS-13-05 (Sentry), OPS-13-06 (GitHub branch protection), OPS-13-07 (scheduled Firestore export). Deferred to Phase 14: OPS-13-01 (firebase-functions SDK 4→7 — TD-1 stays open). Deferred to a later milestone: OPS-13-03 (Variant-B storage rules — TD-2 gated on Phase 5 member-uid migration).
+**Success Criteria** (what must be TRUE):
+  1. A signed-in user can delete their account from Account → ADMIN; soft-delete enters a 14-day grace window during which they can cancel; after 14 days the scheduled reaper hard-deletes Firestore + Storage + Auth and writes an audit doc.
+  2. Uncaught JS errors and unhandled promise rejections from app.html + landing.html are reported to Sentry with PII (email, family codes, tokens) scrubbed by `beforeSend`.
+  3. Direct push to main on github.com/<owner>/couch is rejected by the `protect-main` ruleset; PRs require the `syntax-check` CI job to pass; force-push and deletion are blocked.
+  4. `scripts/deploy.sh` runs end-to-end: tests + node --check + BUILD_DATE auto-stamp + optional sw.js CACHE bump + mirror + firebase deploy + smoke test.
+  5. A Cloud Scheduler job `daily-firestore-export` exports Firestore daily to `gs://queuenight-84044-backups/` (us-central1) with a 30-day lifecycle delete rule + uniform-bucket-level-access.
+  6. couchtonight.app/* responses include `Content-Security-Policy-Report-Only` header allow-listing all third-party origins (Firebase + TMDB + Trakt + Google Fonts + Sentry + Cloud Functions); existing X-Content-Type-Options + Referrer-Policy + X-Frame-Options preserved verbatim.
+**Plans**: 5 plans across 3 waves
+Plans:
+- [ ] 13-01-PLAN.md — COMP-01 self-serve account deletion: 4 new CFs (requestAccountDeletion + cancelAccountDeletion + checkAccountDeleteEligibility + accountDeletionReaper) in queuenight/functions/src/ + Account → ADMIN delete button + typed-DELETE modal + ownership-blocker modal + sign-in soft-delete detour + sw.js CACHE bump (COMP-13-01) [Wave 1]
+- [ ] 13-02-PLAN.md — OPS-05 Sentry integration: CDN loader + sentryOnLoad config in app.html + landing.html with PII-scrubbing beforeSend + Firestore noise-filtering beforeBreadcrumb + sw.js bump (OPS-13-05) [Wave 2 — depends on 13-01 for sw.js + app.html merge order]
+- [ ] 13-03-PLAN.md — OPS-02 BUILD_DATE auto-stamp + OPS-06 GitHub branch protection bundle: scripts/deploy.sh + npm run deploy/stamp shortcuts + RUNBOOK §H §J §L + protect-main ruleset checkpoint (OPS-13-02, OPS-13-06) [Wave 1 — parallel with 13-01; no file overlap]
+- [ ] 13-04-PLAN.md — OPS-07 scheduled Firestore export: scripts/firestore-export-setup.sh idempotent gcloud setup + RUNBOOK §I §K (restore drill + setup runbook) + manual smoke-test checkpoint (OPS-13-07) [Wave 3 — depends on 13-03 for RUNBOOK merge order]
+- [ ] 13-05-PLAN.md — OPS-04 CSP report-only header: additive 4th header in queuenight/firebase.json + sw.js bump + TECH-DEBT.md TD-4 status update (OPS-13-04) [Wave 3 — depends on 13-01+13-02 for sw.js merge order]
+**UI hint**: minimal — only COMP-01 ships a user-visible button + 3 modals; everything else is ops/infra/headers. `--skip-ui` was passed at planning time per orchestrator context.
+
+
 ## Progress
 
 **Execution Order:**
@@ -228,6 +249,8 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
 | 10. Year-in-Review | 0/3 | Not started | - |
 | 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
+| 12. Pre-launch polish | 3/3 | **SHIPPED** 2026-04-25 — POL-01 + POL-02 + POL-03/04 all deployed; 8/8 smoke tests pass | 12-03 deployed 2026-04-25 |
+| 13. Compliance & Ops Sprint | 0/5 | **PLANNED** 2026-04-25 — 5 plans across 3 waves; W1: 13-01 (COMP-01 account deletion) + 13-03 (deploy.sh + branch protection); W2: 13-02 (Sentry — depends on 13-01 for sw.js + app.html merge order); W3: 13-04 (Firestore export — depends on 13-03 for RUNBOOK merge order) + 13-05 (CSP report-only — depends on 13-01+13-02 for sw.js merge order). See plans for full breakdown | - |
 
 ---
 *Roadmap created: 2026-04-19*
@@ -235,4 +258,5 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 *Gap-closure plans added: 2026-04-21 (07-05..07-08 closing UAT Issues #1-#4)*
 *Phase 9 plan split: 2026-04-21 (checker revision 1 split 09-07 into 09-07a + 09-07b for context + blast-radius reasons)*
 *Phase 11 added: 2026-04-24 (post-Phase-9 polish + moat expansion; 8 plans / 13 REFR-* requirements; scoped via /gsd-discuss-phase 11 with 6 decisions locked)*
+*Phase 13 added: 2026-04-25 (post-launch hardening sprint; 5 plans / 6 OPS-13-* + COMP-13-* requirements; planned via /gsd-plan-phase 13 with research + patterns + 6 locked decisions)*
 *v1 milestone: Commercial Release (Phases 3-11)*
