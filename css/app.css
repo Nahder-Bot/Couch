@@ -2866,3 +2866,109 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   transition:transform var(--duration-fast) var(--easing-standard),opacity var(--duration-fast) var(--easing-standard)}
 .start-pack-cta:hover{transform:translateY(-1px)}
 .start-pack-cta:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+
+/* ===========================================================================
+   Phase 12 / POL-01 — Notification preferences UI primitives.
+   Master-gated per-event toggles + quiet hours. iOS-style switch built from
+   checkbox + sibling track/thumb so it stays accessible. All values via
+   BRAND tokens (Phase 9). Plan 12-01 / D-05.
+   =========================================================================== */
+
+.notif-status-on{font-weight:600;color:var(--good)}
+.notif-status-sub{color:var(--ink-warm);font-size:var(--t-meta);display:block;margin-top:2px}
+
+.notif-prefs-list{
+  display:flex;flex-direction:column;gap:var(--space-stack-sm,12px);
+  margin-top:var(--space-stack-md,20px);
+  padding-top:var(--space-stack-sm,12px);
+  border-top:1px solid var(--border)
+}
+
+.notif-pref-row{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-inline-md,12px);
+  padding:var(--space-stack-sm,12px) 0;
+  cursor:pointer
+}
+.notif-pref-row + .notif-pref-row{border-top:1px solid var(--border)}
+.notif-pref-row .notif-pref-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.notif-pref-row .notif-pref-label{
+  font-family:var(--font-sans);
+  font-size:var(--t-body,15px);
+  color:var(--ink);
+  font-weight:500
+}
+.notif-pref-row .notif-pref-hint{
+  font-family:var(--font-serif);
+  font-style:italic;
+  font-size:var(--t-meta,13px);
+  color:var(--ink-warm);
+  line-height:1.4
+}
+
+/* iOS-style switch — checkbox is visually hidden but stays accessible.
+   Track + thumb visualize state via .is-on class on the parent .notif-toggle-switch. */
+.notif-toggle-switch{
+  position:relative;display:inline-flex;flex-shrink:0;
+  width:42px;height:24px
+}
+.notif-toggle-switch input[type="checkbox"]{
+  position:absolute;inset:0;opacity:0;width:100%;height:100%;
+  margin:0;cursor:pointer;z-index:2
+}
+.notif-toggle-switch .notif-toggle-track{
+  position:absolute;inset:0;border-radius:var(--r-pill);
+  background:var(--surface-3,var(--surface-2));
+  border:1px solid var(--border);
+  transition:background var(--duration-base,220ms) var(--easing-standard,ease),
+             border-color var(--duration-base,220ms) var(--easing-standard,ease)
+}
+.notif-toggle-switch .notif-toggle-thumb{
+  position:absolute;top:2px;left:2px;width:18px;height:18px;
+  border-radius:var(--r-pill);background:var(--ink);
+  box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  transition:transform var(--duration-base,220ms) var(--easing-standard,ease),
+             background var(--duration-base,220ms) var(--easing-standard,ease)
+}
+.notif-toggle-switch.is-on .notif-toggle-track{
+  background:var(--accent);
+  border-color:var(--accent)
+}
+.notif-toggle-switch.is-on .notif-toggle-thumb{
+  transform:translateX(18px);
+  background:var(--bg)
+}
+.notif-toggle-switch input[type="checkbox"]:focus-visible + .notif-toggle-track{
+  outline:2px solid var(--accent);outline-offset:2px
+}
+
+.notif-quiet-block{margin-top:var(--space-stack-sm,12px)}
+.notif-quiet-block .notif-pref-row--quiet{border-top:1px solid var(--border)}
+.notif-quiet-times{
+  display:flex;align-items:center;gap:var(--space-inline-md,10px);
+  flex-wrap:wrap;
+  padding:var(--space-stack-sm,10px) 0 var(--space-stack-sm,10px) 0;
+  max-height:0;overflow:hidden;
+  transition:max-height var(--duration-base,220ms) var(--easing-standard,ease),
+             padding var(--duration-base,220ms) var(--easing-standard,ease)
+}
+.notif-quiet-times[data-state="open"]{max-height:200px;padding-top:var(--space-stack-sm,12px)}
+.notif-quiet-prep{font-size:var(--t-meta,13px);color:var(--ink-warm)}
+.notif-time-input{
+  padding:6px 10px;
+  background:var(--surface-2);
+  color:var(--ink);
+  border:1px solid var(--border);
+  border-radius:var(--r-sm,8px);
+  font-family:var(--font-sans);
+  font-size:var(--t-meta,13px)
+}
+.notif-time-input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.notif-quiet-tz{font-size:var(--t-micro,11px);color:var(--ink-dim);margin-left:auto}
+
+/* prefers-reduced-motion compliance — let Phase 9 audit's @media block clamp these,
+   but be explicit for the most visible animations on this surface. */
+@media (prefers-reduced-motion: reduce){
+  .notif-toggle-switch .notif-toggle-track,
+  .notif-toggle-switch .notif-toggle-thumb,
+  .notif-quiet-times{transition:none}
+}

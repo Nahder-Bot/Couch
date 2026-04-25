@@ -121,6 +121,39 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' }
 });
 
+// Phase 12 / POL-01 — UI key → server key alias map.
+// The 6 user-facing toggles per CONTEXT.md D-02 use friendlier names than the
+// Phase-6 server keys. Alias here so server enforcement (functions/index.js
+// sendToMembers eventType) stays unchanged. Plan 12-01 / D-02.
+const NOTIF_UI_TO_SERVER_KEY = Object.freeze({
+  watchpartyScheduled:    'watchpartyScheduled',
+  watchpartyStartingNow:  'watchpartyStarting',
+  intentRsvpRequested:    'intentProposed',
+  inviteReceived:         'inviteReceived',
+  vetoCapReached:         'vetoCapReached',
+  tonightPickChosen:      'tonightPickChosen'
+});
+
+// BRAND-voice copy per CONTEXT.md D-06. Sentence-case labels;
+// descriptions in italic serif at render time via .notif-pref-hint.
+const NOTIF_UI_LABELS = Object.freeze({
+  watchpartyScheduled:    { label: 'New watchparty scheduled',  hint: 'A push when someone in the family schedules a watchparty.' },
+  watchpartyStartingNow:  { label: 'Watchparty starting',       hint: 'A push when someone in the family hits play.' },
+  intentRsvpRequested:    { label: 'Tonight RSVP request',      hint: 'When someone proposes a watch tonight at a time.' },
+  inviteReceived:         { label: 'Family invite',             hint: 'When someone invites you to a couch.' },
+  vetoCapReached:         { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row. Owner-leaning, default off.' },
+  tonightPickChosen:      { label: "Tonight's pick chosen",     hint: 'When the spinner lands on a movie.' }
+});
+
+const NOTIF_UI_DEFAULTS = Object.freeze({
+  watchpartyScheduled:   true,
+  watchpartyStartingNow: true,
+  intentRsvpRequested:   true,
+  inviteReceived:        true,
+  vetoCapReached:        false,
+  tonightPickChosen:     true
+});
+
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -212,6 +245,27 @@ async function updateNotificationPref(eventType, value) {
     console.warn('[QN push] updateNotificationPref failed:', e.message);
   }
 }
+
+// Phase 12 / POL-01 — UI-key wrapper around updateNotificationPref.
+// Maps the 6 user-facing keys (D-02) to the server key (functions/index.js NOTIFICATION_DEFAULTS),
+// writes the pref, and shows a subtle confirmation toast. Optimistic — local state already
+// mutated inside updateNotificationPref before the await.
+async function savePerEventToggle(uiKey, value) {
+  const serverKey = NOTIF_UI_TO_SERVER_KEY[uiKey];
+  if (!serverKey) {
+    qnLog('[QN push] savePerEventToggle unknown uiKey:', uiKey);
+    return;
+  }
+  try {
+    await updateNotificationPref(serverKey, !!value);
+    try { haptic('light'); } catch(e) {}
+    try { flashToast('Saved', { kind: 'good' }); } catch(e) {}
+  } catch(e) {
+    console.warn('[QN push] savePerEventToggle failed:', e.message);
+    try { flashToast('Could not save', { kind: 'warn' }); } catch(_) {}
+  }
+}
+window.savePerEventToggle = savePerEventToggle;
 
 // Quiet-hours writer (PUSH-04). Accepts a partial patch (enabled / start / end / tz)
 // and merges it into users/{uid}.notificationPrefs.quietHours. Timezone auto-detects
@@ -919,7 +973,7 @@ window.updateNotifCard = async function() {
   if (p === 'granted') {
     const subscribed = await isThisDeviceSubscribed();
     if (subscribed) {
-      status.innerHTML = "<strong style='color:var(--good);'>✓ This device is on</strong><br>Pick which events ping you. Turn off anything that feels noisy.";
+      status.innerHTML = "<strong class='notif-status-on'>This device is on.</strong> <span class='notif-status-sub'>Pick which events ping you. Turn off anything that feels noisy.</span>";
     } else {
       status.innerHTML = "<strong style='color:var(--warn,#ffb66d);'>Permission granted but not subscribed</strong><br>Tap Resubscribe below to fix.";
     }
@@ -969,73 +1023,104 @@ function renderNotificationPrefsRows(card, subscribed) {
   if (!rows) {
     rows = document.createElement('div');
     rows.id = 'notif-prefs-rows';
-    rows.className = 'notif-prefs';
-    rows.style.cssText = 'margin-top:12px;display:flex;flex-direction:column;gap:8px;';
+    rows.className = 'notif-prefs-list';
     card.appendChild(rows);
   }
   rows.style.display = '';
-  const prefs = getNotificationPrefs();
-  const eventTypes = Object.keys(DEFAULT_NOTIFICATION_PREFS);
-  const qh = prefs.quietHours || {};
+
+  // Read merged prefs once; spread server defaults then overwrite with stored values
+  // (existing getNotificationPrefs returns server-key view).
+  const stored = getNotificationPrefs();
+  // Translate to UI-key view via NOTIF_UI_TO_SERVER_KEY (Phase 12 / POL-01 D-02 reconciliation).
+  const uiKeys = Object.keys(NOTIF_UI_LABELS);
+  const uiPrefs = {};
+  uiKeys.forEach(k => {
+    const sk = NOTIF_UI_TO_SERVER_KEY[k];
+    // If stored has the server key set, honor it. Else fall back to UI default.
+    uiPrefs[k] = (stored[sk] !== undefined) ? !!stored[sk] : !!NOTIF_UI_DEFAULTS[k];
+  });
+
+  const qh = stored.quietHours || {};
   const qhEnabled = !!qh.enabled;
   const qhStart = qh.start || '22:00';
   const qhEnd = qh.end || '08:00';
   const detectedTz = (Intl && Intl.DateTimeFormat)
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone
-    : '';
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
   const qhTz = qh.tz || detectedTz || '';
-  rows.innerHTML = eventTypes.map(ev => {
-    const meta = NOTIFICATION_EVENT_LABELS[ev] || { label: ev, hint: '' };
-    const on = !!prefs[ev];
+
+  const eventRowsHtml = uiKeys.map(uiKey => {
+    const meta = NOTIF_UI_LABELS[uiKey];
+    const on = !!uiPrefs[uiKey];
     return `
-      <label class="notif-pref-row" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,0.06);cursor:pointer;">
-        <input type="checkbox" data-event="${escapeHtml(ev)}" ${on ? 'checked' : ''} style="margin-top:3px;flex-shrink:0;">
-        <span style="display:flex;flex-direction:column;gap:2px;">
-          <span style="font-weight:500;">${escapeHtml(meta.label)}</span>
-          <span class="muted" style="font-size:0.85em;">${escapeHtml(meta.hint)}</span>
+      <label class="notif-pref-row">
+        <span class="notif-pref-text">
+          <span class="notif-pref-label">${escapeHtml(meta.label)}</span>
+          <span class="notif-pref-hint">${escapeHtml(meta.hint)}</span>
+        </span>
+        <span class="notif-toggle-switch ${on ? 'is-on' : ''}">
+          <input type="checkbox" data-pref="${escapeHtml(uiKey)}" ${on ? 'checked' : ''}>
+          <span class="notif-toggle-track"><span class="notif-toggle-thumb"></span></span>
+        </span>
+      </label>`;
+  }).join('');
+
+  const quietBlockHtml = `
+    <div class="notif-quiet-block">
+      <label class="notif-pref-row notif-pref-row--quiet">
+        <span class="notif-pref-text">
+          <span class="notif-pref-label">Quiet hours</span>
+          <span class="notif-pref-hint">Silence pushes during your set window. Watchparties you RSVP'd to still come through.</span>
+        </span>
+        <span class="notif-toggle-switch ${qhEnabled ? 'is-on' : ''}">
+          <input type="checkbox" id="notif-quiet-enabled" ${qhEnabled ? 'checked' : ''}>
+          <span class="notif-toggle-track"><span class="notif-toggle-thumb"></span></span>
         </span>
       </label>
-    `;
-  }).join('') + `
-    <div class="notif-quiet-row" style="padding-top:10px;margin-top:4px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:8px;">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-        <input type="checkbox" id="notif-quiet-enabled" ${qhEnabled ? 'checked' : ''} style="margin-top:3px;flex-shrink:0;">
-        <span style="display:flex;flex-direction:column;gap:2px;">
-          <span style="font-weight:500;">Quiet hours</span>
-          <span class="muted" style="font-size:0.85em;">Silence pushes during your set window. Watchparties you RSVP'd to still come through.</span>
-        </span>
-      </label>
-      <div class="notif-quiet-times" style="display:${qhEnabled ? 'flex' : 'none'};gap:10px;align-items:center;flex-wrap:wrap;padding-left:26px;font-size:0.9em;">
-        <span>From</span>
-        <input type="time" id="notif-quiet-start" value="${escapeHtml(qhStart)}" style="padding:4px 6px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.15);border-radius:6px;">
-        <span>to</span>
-        <input type="time" id="notif-quiet-end" value="${escapeHtml(qhEnd)}" style="padding:4px 6px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.15);border-radius:6px;">
-        <span class="muted" style="font-size:0.85em;">${qhTz ? `Timezone: ${escapeHtml(qhTz)}` : ''}</span>
+      <div class="notif-quiet-times" data-state="${qhEnabled ? 'open' : 'closed'}">
+        <span class="notif-quiet-prep">From</span>
+        <input type="time" id="notif-quiet-start" value="${escapeHtml(qhStart)}" class="notif-time-input">
+        <span class="notif-quiet-prep">to</span>
+        <input type="time" id="notif-quiet-end" value="${escapeHtml(qhEnd)}" class="notif-time-input">
+        ${qhTz ? `<span class="notif-quiet-tz">Timezone: ${escapeHtml(qhTz)}</span>` : ''}
       </div>
-    </div>
-  `;
-  // Wire event-type checkboxes
-  rows.querySelectorAll('input[type="checkbox"][data-event]').forEach(cb => {
+    </div>`;
+
+  rows.innerHTML = eventRowsHtml + quietBlockHtml;
+
+  // Wire per-event toggles via UI key → savePerEventToggle (Phase 12 / POL-01 Task 1)
+  rows.querySelectorAll('input[type="checkbox"][data-pref]').forEach(cb => {
     cb.addEventListener('change', () => {
-      updateNotificationPref(cb.getAttribute('data-event'), cb.checked);
+      const sw = cb.closest('.notif-toggle-switch');
+      if (sw) sw.classList.toggle('is-on', cb.checked);
+      savePerEventToggle(cb.getAttribute('data-pref'), cb.checked);
     });
   });
-  // Wire quiet-hours controls
+
+  // Wire quiet hours
   const qhEnabledCb = rows.querySelector('#notif-quiet-enabled');
   const qhStartInput = rows.querySelector('#notif-quiet-start');
   const qhEndInput = rows.querySelector('#notif-quiet-end');
   const qhTimes = rows.querySelector('.notif-quiet-times');
   if (qhEnabledCb) {
     qhEnabledCb.addEventListener('change', () => {
-      if (qhTimes) qhTimes.style.display = qhEnabledCb.checked ? 'flex' : 'none';
+      const sw = qhEnabledCb.closest('.notif-toggle-switch');
+      if (sw) sw.classList.toggle('is-on', qhEnabledCb.checked);
+      if (qhTimes) qhTimes.setAttribute('data-state', qhEnabledCb.checked ? 'open' : 'closed');
       updateQuietHours({ enabled: qhEnabledCb.checked });
+      try { flashToast('Saved', { kind: 'good' }); } catch(e) {}
     });
   }
   if (qhStartInput) {
-    qhStartInput.addEventListener('change', () => updateQuietHours({ start: qhStartInput.value }));
+    qhStartInput.addEventListener('change', () => {
+      updateQuietHours({ start: qhStartInput.value });
+      try { flashToast('Saved', { kind: 'good' }); } catch(e) {}
+    });
   }
   if (qhEndInput) {
-    qhEndInput.addEventListener('change', () => updateQuietHours({ end: qhEndInput.value }));
+    qhEndInput.addEventListener('change', () => {
+      updateQuietHours({ end: qhEndInput.value });
+      try { flashToast('Saved', { kind: 'good' }); } catch(e) {}
+    });
   }
 }
 
