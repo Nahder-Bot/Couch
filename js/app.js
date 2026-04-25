@@ -1028,19 +1028,24 @@ function renderNotificationPrefsRows(card, subscribed) {
   }
   rows.style.display = '';
 
-  // Read merged prefs once; spread server defaults then overwrite with stored values
-  // (existing getNotificationPrefs returns server-key view).
-  const stored = getNotificationPrefs();
+  // Read RAW stored prefs (NOT getNotificationPrefs — that merges with the server-side
+  // DEFAULT_NOTIFICATION_PREFS which would shadow our UI defaults for keys where the two differ,
+  // e.g. tonightPickChosen is server-default false but UI-default true per D-02). Per D-08,
+  // a user with an already-populated notificationPrefs map keeps their stored values;
+  // missing keys fall through to NOTIF_UI_DEFAULTS for net-new users.
+  const rawStored = (state.notificationPrefs && typeof state.notificationPrefs === 'object')
+    ? state.notificationPrefs
+    : {};
   // Translate to UI-key view via NOTIF_UI_TO_SERVER_KEY (Phase 12 / POL-01 D-02 reconciliation).
   const uiKeys = Object.keys(NOTIF_UI_LABELS);
   const uiPrefs = {};
   uiKeys.forEach(k => {
     const sk = NOTIF_UI_TO_SERVER_KEY[k];
-    // If stored has the server key set, honor it. Else fall back to UI default.
-    uiPrefs[k] = (stored[sk] !== undefined) ? !!stored[sk] : !!NOTIF_UI_DEFAULTS[k];
+    // If user stored the server key explicitly, honor it. Else fall back to UI default.
+    uiPrefs[k] = (rawStored[sk] !== undefined) ? !!rawStored[sk] : !!NOTIF_UI_DEFAULTS[k];
   });
 
-  const qh = stored.quietHours || {};
+  const qh = rawStored.quietHours || {};
   const qhEnabled = !!qh.enabled;
   const qhStart = qh.start || '22:00';
   const qhEnd = qh.end || '08:00';
