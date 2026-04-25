@@ -1,10 +1,12 @@
-# Phase 13/14/15 — Decision ritual rebuild (LOCKED scope, awaiting `/gsd-discuss-phase 13`)
+# Decision ritual rebuild — locked scope (3 phases: Decision Ritual / Tracking / Calendar)
 
 **Captured:** 2026-04-24 (Phase 11 UAT pause)
 **Source:** Multi-round conversational scoping with Nahder during Phase 11 post-deploy UAT
 **Why this exists:** scope was thoroughly locked but formal phase startup deferred so Phase 11 UAT can finish first
 
-## Phase 13 — Decision ritual core
+> **⚠️ Phase-number history (2026-04-25):** This scope was originally tagged Phase 13/14/15 per the 2026-04-25 roadmap audit. The Phase 13 slot was subsequently reassigned to "Compliance & Ops Sprint" (account deletion + Sentry + branch protection + CSP + Firestore export, shipped 2026-04-25). **This scope is now planned as Phase 14 (Decision Ritual Core) + Phase 15 (Tracking Layer) + Phase 16 (Calendar Layer).** The phase numbers below are stale; the SCOPE inside is canonical. See ROADMAP.md "Phase-slot history" for the audit trail.
+
+## Phase 14 — Decision ritual core (formerly tagged Phase 13)
 
 **Goal:** Replace the vote-prominent Tonight tile with a couch-centered, conversation-first ritual. Two parallel flows (group-rank-pick when together, solo-nominate when apart) backed by a unified `watchpartyIntent` primitive.
 
@@ -62,7 +64,7 @@ watchpartyIntents/{intentId}
 
 Single onSchedule CF (`watchpartyIntentTick`) handles expiry sweeps + conversion checks.
 
-### Phase 13 plan list (TBD — finalize at /gsd-plan-phase 13)
+### Plan list (TBD — finalize at /gsd-plan-phase 14)
 
 Suggested sub-phases the planner may recommend splitting into:
 
@@ -77,7 +79,7 @@ Suggested sub-phases the planner may recommend splitting into:
 
 REFR-* style requirement IDs to mint: probably DECI-01 through DECI-13 or similar. Lock at /gsd-discuss-phase 13.
 
-## Phase 14 — Tracking layer
+## Phase 15 — Tracking layer (formerly tagged Phase 14)
 
 **Goal:** Per-watching-group progress (not just per-individual) + new-season notifs + live-release scheduling. Couch's differentiation vs Trakt — tracks GROUPS, not just members.
 
@@ -85,7 +87,7 @@ REFR-* style requirement IDs to mint: probably DECI-01 through DECI-13 or simila
 - Push when a tracked show has a new season air date approaching (TMDB season air dates + existing FCM stack)
 - "Severance S2E3 airs Friday 9pm — schedule a watchparty?" — auto-prompt 24h before live release; one-tap creates a Flow B nomination
 
-## Phase 15 — Calendar layer
+## Phase 16 — Calendar layer (formerly tagged Phase 15)
 
 **Goal:** Recurring + multi-future watchparty scheduling. "Wife and daughter watch American Idol every Monday."
 
