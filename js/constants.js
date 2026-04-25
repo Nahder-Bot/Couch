@@ -671,6 +671,10 @@ export const DISCOVERY_CATALOG = [
 // .planning/phases/11-feature-refresh-and-streamline/11-UI-SPEC.md §Copywriting
 // Contract REFR-13 for copy verbatim, §Interaction States REFR-13 for tile + sheet
 // visuals, and 11-07-PLAN.md for TMDB ID curation notes.
+// ⚠ Curation contract: each tmdbId in tmdbIds MUST resolve to the title in
+// the immediately-preceding comment line. Drift causes silent ballot bugs
+// (Phase 12 / POL-03). If you change a pack id, update the comment label.
+// Audit lives at .planning/phases/12-pre-launch-polish/audit-report.txt.
 export const COUCH_NIGHTS_PACKS = [
   {
     id: 'studio-ghibli-sunday',
@@ -682,7 +686,7 @@ export const COUCH_NIGHTS_PACKS = [
     tmdbIds: [
       // Spirited Away, My Neighbor Totoro, Princess Mononoke, Kiki's Delivery Service,
       // Castle in the Sky, Howl's Moving Castle, Ponyo, Porco Rosso, The Wind Rises, Nausicaä
-      129, 8392, 128, 16859, 10515, 4935, 12429, 11544, 149870, 81
+      129, 8392, 128, 16859, 10515, 4935, 12429, 11621, 149870, 81
     ]
   },
   {
@@ -695,7 +699,7 @@ export const COUCH_NIGHTS_PACKS = [
     tmdbIds: [
       // Amelie, The Secret Life of Walter Mitty, Chef, Julie & Julia, Little Women,
       // You've Got Mail, Paddington, Paddington 2, About Time, The Holiday, Notting Hill
-      194, 116745, 194662, 31011, 331482, 11005, 228326, 346648, 122906, 6963, 509
+      194, 116745, 212778, 24803, 331482, 9489, 116149, 346648, 122906, 1581, 509
     ]
   },
   {
@@ -703,15 +707,14 @@ export const COUCH_NIGHTS_PACKS = [
     title: 'Halloween Crawl',
     description: 'Spooky, not slashy — and slashy too.',
     mood: 'spooky',
-    // Hero = TMDB id 9532 poster (the first id in the pack) — verified live 2026-04-25
-    // NOTE: id 9532 actually resolves to "Final Destination" on TMDB, not "Hocus Pocus" as
-    // the comment suggests. The hero matches the pack vibe (spooky), but the comment IDs
-    // need a curation pass — captured in 11-UAT.md as part of UI-03 follow-up.
+    // Hero = curated Halloween-vibe poster (preserved from commit e91adbd per Phase 12 / POL-03 D-16).
+    // Comment IDs corrected in Phase 12 / POL-03 — see drift-prevention header above
+    // and audit log at .planning/phases/12-pre-launch-polish/audit-report.txt.
     heroImageUrl: 'https://image.tmdb.org/t/p/w780/nr4MXTXK2in9gxYhFMQGni66KRJ.jpg',
     tmdbIds: [
       // Hocus Pocus, Beetlejuice, The Nightmare Before Christmas, Coraline, ParaNorman,
       // It Follows, Get Out, The Cabin in the Woods, Ready or Not, Midsommar
-      9532, 4011, 9479, 14164, 82702, 270303, 419430, 22970, 536554, 530385
+      10439, 4011, 9479, 14836, 77174, 270303, 419430, 22970, 567609, 530385
     ]
   },
   {
@@ -724,7 +727,7 @@ export const COUCH_NIGHTS_PACKS = [
     tmdbIds: [
       // Before Sunrise, Before Sunset, Before Midnight, When Harry Met Sally, La La Land,
       // The Big Sick, 500 Days of Summer, Crazy Stupid Love, Silver Linings Playbook, Past Lives
-      76, 80, 152601, 639, 313369, 398818, 19913, 50646, 82690, 666277
+      76, 80, 132344, 639, 313369, 416477, 19913, 50646, 82693, 666277
     ]
   },
   {
@@ -750,7 +753,7 @@ export const COUCH_NIGHTS_PACKS = [
     tmdbIds: [
       // Everything Everywhere All at Once, The Green Knight, Moonlight, Lady Bird, Hereditary,
       // Uncut Gems, The Lighthouse, Ex Machina, The Whale, Past Lives, Minari, Talk to Me
-      545611, 550988, 376867, 391713, 493922, 473033, 503919, 264660, 785084, 666277, 615643, 1008042
+      545611, 559907, 376867, 391713, 493922, 473033, 503919, 264660, 785084, 666277, 615643, 1008042
     ]
   },
   {

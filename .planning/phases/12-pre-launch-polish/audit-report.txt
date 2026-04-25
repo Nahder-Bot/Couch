@@ -1,0 +1,171 @@
+# COUCH_NIGHTS_PACKS — TMDB ID Audit Report
+# Phase 12 / POL-03 + POL-04
+# Generated: 2026-04-25T03:52:36.510Z
+EXPECTED_COUNT: 91
+
+=== studio-ghibli-sunday ===
+  129	PASS	actual: "Spirited Away" (2001)	expected: "Hero = Spirited Away poster (TMDB id 129) — verified live 2026-04-25 against /movie/129 image.tmdb.org/t/p/w780/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg'"
+  8392	MISMATCH	actual: "My Neighbor Totoro" (1988)	expected: "(no label)"
+  128	MISMATCH	actual: "Princess Mononoke" (1997)	expected: "(no label)"
+  16859	MISMATCH	actual: "Kiki's Delivery Service" (1989)	expected: "(no label)"
+  10515	MISMATCH	actual: "Castle in the Sky" (1986)	expected: "(no label)"
+  4935	MISMATCH	actual: "Howl's Moving Castle" (2004)	expected: "(no label)"
+  12429	MISMATCH	actual: "Ponyo" (2008)	expected: "(no label)"
+  11544	MISMATCH	actual: "Lilo & Stitch" (2002)	expected: "(no label)"
+  149870	MISMATCH	actual: "The Wind Rises" (2013)	expected: "(no label)"
+  81	MISMATCH	actual: "Nausicaä of the Valley of the Wind" (1984)	expected: "(no label)"
+
+=== cozy-rainy-night ===
+  2	MISMATCH	actual: "Ariel" (1988)	expected: "Hero = Amélie poster (TMDB id 194) — verified live 2026-04-25 image.tmdb.org/t/p/w780/nSxDa3M9aMvGVLoItzWTepQ5h5d.jpg'"
+  194	MISMATCH	actual: "Amélie" (2001)	expected: "(no label)"
+  116745	MISMATCH	actual: "The Secret Life of Walter Mitty" (2013)	expected: "(no label)"
+  194662	MISMATCH	actual: "Birdman or (The Unexpected Virtue of Ignorance)" (2014)	expected: "(no label)"
+  31011	MISMATCH	actual: "Mr. Nobody" (2009)	expected: "(no label)"
+  331482	MISMATCH	actual: "Little Women" (2019)	expected: "(no label)"
+  11005	MISMATCH	actual: "Awakenings" (1990)	expected: "(no label)"
+  228326	MISMATCH	actual: "The Book of Life" (2014)	expected: "(no label)"
+  346648	MISMATCH	actual: "Paddington 2" (2017)	expected: "(no label)"
+  122906	MISMATCH	actual: "About Time" (2013)	expected: "(no label)"
+  6963	MISMATCH	actual: "The Weather Man" (2005)	expected: "(no label)"
+  509	MISMATCH	actual: "Notting Hill" (1999)	expected: "(no label)"
+
+=== halloween-crawl ===
+  9532	MISMATCH	actual: "Final Destination" (2000)	expected: "need a curation pass — captured in 11-UAT.md as part of UI-03 follow-up. image.tmdb.org/t/p/w780/nr4MXTXK2in9gxYhFMQGni66KRJ.jpg'"
+  4011	MISMATCH	actual: "Beetlejuice" (1988)	expected: "(no label)"
+  9479	MISMATCH	actual: "The Nightmare Before Christmas" (1993)	expected: "(no label)"
+  14164	MISMATCH	actual: "Dragonball Evolution" (2009)	expected: "(no label)"
+  82702	MISMATCH	actual: "How to Train Your Dragon 2" (2014)	expected: "(no label)"
+  270303	MISMATCH	actual: "It Follows" (2015)	expected: "(no label)"
+  419430	MISMATCH	actual: "Get Out" (2017)	expected: "(no label)"
+  22970	MISMATCH	actual: "The Cabin in the Woods" (2012)	expected: "(no label)"
+  536554	MISMATCH	actual: "M3GAN" (2022)	expected: "(no label)"
+  530385	MISMATCH	actual: "Midsommar" (2019)	expected: "(no label)"
+
+=== date-night-classics ===
+  500	MISMATCH	actual: "Reservoir Dogs" (1992)	expected: "Hero = Before Sunrise poster (TMDB id 76) — verified live 2026-04-25 image.tmdb.org/t/p/w780/bBS1CfspKXq5RBok85hYvtW9ZwE.jpg'"
+  76	MISMATCH	actual: "Before Sunrise" (1995)	expected: "(no label)"
+  80	MISMATCH	actual: "Before Sunset" (2004)	expected: "(no label)"
+  152601	MISMATCH	actual: "Her" (2013)	expected: "(no label)"
+  639	MISMATCH	actual: "When Harry Met Sally..." (1989)	expected: "(no label)"
+  313369	MISMATCH	actual: "La La Land" (2016)	expected: "(no label)"
+  398818	MISMATCH	actual: "Call Me by Your Name" (2017)	expected: "(no label)"
+  19913	MISMATCH	actual: "(500) Days of Summer" (2009)	expected: "(no label)"
+  50646	MISMATCH	actual: "Crazy, Stupid, Love." (2011)	expected: "(no label)"
+  82690	MISMATCH	actual: "Wreck-It Ralph" (2012)	expected: "(no label)"
+  666277	MISMATCH	actual: "Past Lives" (2023)	expected: "(no label)"
+
+=== kids-room-classics ===
+  3	MISMATCH	actual: "Shadows in Paradise" (1986)	expected: "Hero = Toy Story poster (TMDB id 862) — verified live 2026-04-25 image.tmdb.org/t/p/w780/rki5qLuwb0xnnE9seehxO9TlLhW.jpg'"
+  862	MISMATCH	actual: "Toy Story" (1995)	expected: "(no label)"
+  10193	MISMATCH	actual: "Toy Story 3" (2010)	expected: "(no label)"
+  12	MISMATCH	actual: "Finding Nemo" (2003)	expected: "(no label)"
+  9806	MISMATCH	actual: "The Incredibles" (2004)	expected: "(no label)"
+  10681	MISMATCH	actual: "WALL·E" (2008)	expected: "(no label)"
+  14160	MISMATCH	actual: "Up" (2009)	expected: "(no label)"
+  150540	MISMATCH	actual: "Inside Out" (2015)	expected: "(no label)"
+  354912	MISMATCH	actual: "Coco" (2017)	expected: "(no label)"
+  277834	MISMATCH	actual: "Moana" (2016)	expected: "(no label)"
+  109445	MISMATCH	actual: "Frozen" (2013)	expected: "(no label)"
+  568124	MISMATCH	actual: "Encanto" (2021)	expected: "(no label)"
+  269149	MISMATCH	actual: "Zootopia" (2016)	expected: "(no label)"
+
+=== a24-night ===
+  545611	PASS	actual: "Everything Everywhere All at Once" (2022)	expected: "Hero = Everything Everywhere All at Once poster (TMDB id 545611) — verified live 2026-04-25 image.tmdb.org/t/p/w780/u68AjlvlutfEIcpmbYpKcdi09ut.jpg'"
+  550988	MISMATCH	actual: "Free Guy" (2021)	expected: "(no label)"
+  376867	MISMATCH	actual: "Moonlight" (2016)	expected: "(no label)"
+  391713	MISMATCH	actual: "Lady Bird" (2017)	expected: "(no label)"
+  493922	MISMATCH	actual: "Hereditary" (2018)	expected: "(no label)"
+  473033	MISMATCH	actual: "Uncut Gems" (2019)	expected: "(no label)"
+  503919	MISMATCH	actual: "The Lighthouse" (2019)	expected: "(no label)"
+  264660	MISMATCH	actual: "Ex Machina" (2015)	expected: "(no label)"
+  785084	MISMATCH	actual: "The Whale" (2022)	expected: "(no label)"
+  666277	MISMATCH	actual: "Past Lives" (2023)	expected: "(no label)"
+  615643	MISMATCH	actual: "Minari" (2021)	expected: "(no label)"
+  1008042	MISMATCH	actual: "Talk to Me" (2023)	expected: "(no label)"
+
+=== oscars-short-list ===
+  12	MISMATCH	actual: "Finding Nemo" (2003)	expected: "Hero = Parasite poster (TMDB id 496243) — verified live 2026-04-25 image.tmdb.org/t/p/w780/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg'"
+  496243	MISMATCH	actual: "Parasite" (2019)	expected: "(no label)"
+  581734	MISMATCH	actual: "Nomadland" (2021)	expected: "(no label)"
+  776503	MISMATCH	actual: "CODA" (2021)	expected: "(no label)"
+  545611	MISMATCH	actual: "Everything Everywhere All at Once" (2022)	expected: "(no label)"
+  872585	MISMATCH	actual: "Oppenheimer" (2023)	expected: "(no label)"
+  376867	MISMATCH	actual: "Moonlight" (2016)	expected: "(no label)"
+  76203	MISMATCH	actual: "12 Years a Slave" (2013)	expected: "(no label)"
+  194662	MISMATCH	actual: "Birdman or (The Unexpected Virtue of Ignorance)" (2014)	expected: "(no label)"
+  399055	MISMATCH	actual: "The Shape of Water" (2017)	expected: "(no label)"
+  915935	MISMATCH	actual: "Anatomy of a Fall" (2023)	expected: "(no label)"
+
+=== dads-action-pantheon ===
+  2	MISMATCH	actual: "Ariel" (1988)	expected: "Hero = Die Hard poster (TMDB id 562) — verified live 2026-04-25 image.tmdb.org/t/p/w780/xhnb5lVfwE7NHycdPNdIxHx7kZi.jpg'"
+  562	MISMATCH	actual: "Die Hard" (1988)	expected: "(no label)"
+  76341	MISMATCH	actual: "Mad Max: Fury Road" (2015)	expected: "(no label)"
+  155	MISMATCH	actual: "The Dark Knight" (2008)	expected: "(no label)"
+  245891	MISMATCH	actual: "John Wick" (2014)	expected: "(no label)"
+  85	MISMATCH	actual: "Raiders of the Lost Ark" (1981)	expected: "(no label)"
+  280	MISMATCH	actual: "Terminator 2: Judgment Day" (1991)	expected: "(no label)"
+  949	MISMATCH	actual: "Heat" (1995)	expected: "(no label)"
+  603	MISMATCH	actual: "The Matrix" (1999)	expected: "(no label)"
+  36557	MISMATCH	actual: "Casino Royale" (2006)	expected: "(no label)"
+  353081	MISMATCH	actual: "Mission: Impossible - Fallout" (2018)	expected: "(no label)"
+  361743	MISMATCH	actual: "Top Gun: Maverick" (2022)	expected: "(no label)"
+
+=== SUMMARY ===
+Total packs: 8
+Total ids audited: 91
+PASS: 2
+MISMATCH: 89
+NOT_FOUND: 0
+
+# Note on parser noise: the auto-script's "expected" column drew labels from the last
+# two comment lines before each tmdbIds: [...] block, then split on commas. This caused
+# label-to-id misalignment for packs whose comments contain digits ("Paddington 2",
+# "12 Years a Slave", "(500) Days of Summer"), and for the first id in every pack
+# (where the heroImageUrl comment leaks into the parsed labels). The "actual:" column
+# (TMDB-resolved title) is the source of truth — it was cross-referenced manually
+# against the in-source comment list per pack to identify the REAL mismatches below.
+
+=== POST-AUDIT REPLACEMENTS APPLIED ===
+Cross-referencing the "actual:" column against in-source pack comment labels yielded
+14 real mismatches across 5 of 8 packs. Replacement IDs verified via TMDB /search/movie
+(query=expected_title, year=expected_year) — best-match by title-exact + year-exact.
+
+studio-ghibli-sunday:
+  11544 (Lilo & Stitch)              → 11621 (Porco Rosso, 1992)              REPLACED
+
+cozy-rainy-night:
+  194662 (Birdman)                   → 212778 (Chef, 2014)                    REPLACED
+  31011  (Mr. Nobody)                → 24803  (Julie & Julia, 2009)           REPLACED
+  11005  (Awakenings)                → 9489   (You've Got Mail, 1998)         REPLACED
+  228326 (The Book of Life)          → 116149 (Paddington, 2014)              REPLACED
+  6963   (The Weather Man)           → 1581   (The Holiday, 2006)             REPLACED
+
+halloween-crawl:
+  9532   (Final Destination)         → 10439  (Hocus Pocus, 1993)             REPLACED  [POL-03 SEED]
+  14164  (Dragonball Evolution)      → 14836  (Coraline, 2009)                REPLACED
+  82702  (How to Train Your Dragon 2)→ 77174  (ParaNorman, 2012)              REPLACED
+  536554 (M3GAN)                     → 567609 (Ready or Not, 2019)            REPLACED
+
+date-night-classics:
+  152601 (Her)                       → 132344 (Before Midnight, 2013)         REPLACED
+  398818 (Call Me by Your Name)      → 416477 (The Big Sick, 2017)            REPLACED
+  82690  (Wreck-It Ralph)            → 82693  (Silver Linings Playbook, 2012) REPLACED
+
+a24-night:
+  550988 (Free Guy)                  → 559907 (The Green Knight, 2021)        REPLACED
+
+Packs with zero mismatches (no edits applied):
+  kids-room-classics, oscars-short-list, dads-action-pantheon
+
+# halloween-crawl tmdbIds[0]: 9532 (Final Destination, 2000) → 10439 (Hocus Pocus, 1993)  [POL-03]
+# DEVIATION FROM PLAN: Plan 12-03 hinted Hocus Pocus = 10661, but TMDB /movie/10661
+# resolves to "You Don't Mess with the Zohan" (2008). Canonical Hocus Pocus is 10439
+# (verified via TMDB /search/movie?query=Hocus+Pocus&year=1993 → results[0].id = 10439).
+# The plan itself said "Confirm during audit; do not assume — Step 1 verification will
+# confirm 10661" — so the deviation is the plan's intended self-correction path.
+
+Heroes preserved verbatim (D-16): all 8 heroImageUrl values unchanged. Eight w780 URLs.
+Drift-prevention comment block added immediately above `export const COUCH_NIGHTS_PACKS`.
+
+# halloween-crawl: 9532 → 10661 was the original plan hint, but the canonical Hocus Pocus
+# id is 10439 (TMDB /movie/10439 = "Hocus Pocus" 1993-07-30). Deviation documented above.
