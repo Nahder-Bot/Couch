@@ -11,6 +11,47 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-6. Sentry Replay deferred (post-launch +30 days)
+
+**Severity:** low · **Effort:** 30-60 min (re-enable + privacy review writeup) · **Risk:** low (Replay is opt-in; flipping it back on doesn't break anything)
+
+**Source:** Phase 13 / Plan 13-02 cross-AI peer review (Codex MEDIUM-6).
+
+**Current state**
+- Phase 13 / OPS-13-05 ships Sentry with Replay DISABLED for v1.
+- `replaysSessionSampleRate` and `replaysOnErrorSampleRate` keys are absent from `Sentry.init()` in both `app.html` and `landing.html`.
+- `Sentry.replayIntegration({...})` is NOT in the integrations array.
+
+**Why deferred**
+Codex review flagged that even masked Replay (`maskAllText: true, blockAllMedia: true`) captures DOM structure, user flows, timestamps, and event metadata. Couch is a family app — household members, photo albums, watchparty timing — and we have not done a privacy review confirming the Replay surface is acceptable for that audience. Errors-only telemetry at v1 launch covers the operational need (visibility into prod errors) without the privacy ambiguity.
+
+**Re-enable plan (target: post-launch +30 days)**
+1. Sentry inbox should have ~30 days of real-world error data; review the captured payload shape to confirm `beforeSend` actually catches the PII surfaces we expect.
+2. Decide on replay sample rates:
+   - Conservative: `replaysSessionSampleRate: 0` (no proactive replay) + `replaysOnErrorSampleRate: 0.1` (10% of error sessions get replay).
+   - More conservative: `replaysOnErrorSampleRate: 0.05` (5% — half the originally-planned rate).
+3. Add `Sentry.replayIntegration({maskAllText: true, blockAllMedia: true})` back to the integrations array in `app.html` AND `landing.html`.
+4. Test: induce an error in dev, confirm replay captures with masked text + blocked images.
+5. Update privacy.html if Replay's data-collection profile materially differs from the existing telemetry disclosure.
+
+**Re-enable code diff sketch**
+```javascript
+Sentry.init({
+  // ...existing config...
+  replaysSessionSampleRate: 0,         // no proactive replay
+  replaysOnErrorSampleRate: 0.05,      // 5% of error sessions
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })
+  ],
+});
+```
+
+**Why NOT do it before launch**
+Privacy posture is a launch-blocker concern; Replay's risk surface (DOM structure capture) is non-trivial and there's no rollback if a user complains post-launch. Errors-only Sentry covers the v1 operational need. Re-enable Replay deliberately with a privacy-review checklist, not as a launch task.
+
+---
+
 ### TD-1. firebase-functions SDK 4.x → 7.x upgrade
 
 **Severity:** medium · **Effort:** 1 dedicated session (~2-3 hr) · **Risk:** moderate (3 majors of breaking changes; production CFs running real traffic)
