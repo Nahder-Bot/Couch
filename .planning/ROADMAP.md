@@ -223,9 +223,9 @@ Plans:
   6. couchtonight.app/* responses include `Content-Security-Policy-Report-Only` header allow-listing all third-party origins (Firebase + TMDB + Trakt + Google Fonts + Sentry + Cloud Functions); existing X-Content-Type-Options + Referrer-Policy + X-Frame-Options preserved verbatim.
 **Plans**: 5 plans across 3 waves
 Plans:
-- [ ] 13-01-PLAN.md — COMP-01 self-serve account deletion: 4 new CFs (requestAccountDeletion + cancelAccountDeletion + checkAccountDeleteEligibility + accountDeletionReaper) in queuenight/functions/src/ + Account → ADMIN delete button + typed-DELETE modal + ownership-blocker modal + sign-in soft-delete detour + sw.js CACHE bump (COMP-13-01) [Wave 1]
+- [x] 13-01-PLAN.md — COMP-01 self-serve account deletion: 4 new CFs (requestAccountDeletion + cancelAccountDeletion + checkAccountDeleteEligibility + accountDeletionReaper) in queuenight/functions/src/ + Account → ADMIN delete button + typed-DELETE modal + ownership-blocker modal + sign-in soft-delete detour + sw.js CACHE bump (COMP-13-01) [Wave 1] — code-complete 2026-04-25 (ccd3eec/4fc49ee/6665648)
 - [ ] 13-02-PLAN.md — OPS-05 Sentry integration: CDN loader + sentryOnLoad config in app.html + landing.html with PII-scrubbing beforeSend + Firestore noise-filtering beforeBreadcrumb + sw.js bump (OPS-13-05) [Wave 2 — depends on 13-01 for sw.js + app.html merge order]
-- [ ] 13-03-PLAN.md — OPS-02 BUILD_DATE auto-stamp + OPS-06 GitHub branch protection bundle: scripts/deploy.sh + npm run deploy/stamp shortcuts + RUNBOOK §H §J §L + protect-main ruleset checkpoint (OPS-13-02, OPS-13-06) [Wave 1 — parallel with 13-01; no file overlap]
+- [x] 13-03-PLAN.md — OPS-02 BUILD_DATE auto-stamp + OPS-06 GitHub branch protection bundle: scripts/deploy.sh + npm run deploy/stamp shortcuts + RUNBOOK §H §J §L + protect-main ruleset checkpoint (OPS-13-02, OPS-13-06) [Wave 1 — parallel with 13-01; no file overlap] — code-complete 2026-04-25 (7df42a2/45a9da7/cc8b784); HUMAN-VERIFY: GitHub ruleset config + optional QUEUENIGHT_PATH env
 - [ ] 13-04-PLAN.md — OPS-07 scheduled Firestore export: scripts/firestore-export-setup.sh idempotent gcloud setup + RUNBOOK §I §K (restore drill + setup runbook) + manual smoke-test checkpoint (OPS-13-07) [Wave 3 — depends on 13-03 for RUNBOOK merge order]
 - [ ] 13-05-PLAN.md — OPS-04 CSP report-only header: additive 4th header in queuenight/firebase.json + sw.js bump + TECH-DEBT.md TD-4 status update (OPS-13-04) [Wave 3 — depends on 13-01+13-02 for sw.js merge order]
 **UI hint**: minimal — only COMP-01 ships a user-visible button + 3 modals; everything else is ops/infra/headers. `--skip-ui` was passed at planning time per orchestrator context.
@@ -250,7 +250,7 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 10. Year-in-Review | 0/3 | Not started | - |
 | 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
 | 12. Pre-launch polish | 3/3 | **SHIPPED** 2026-04-25 — POL-01 + POL-02 + POL-03/04 all deployed; 8/8 smoke tests pass | 12-03 deployed 2026-04-25 |
-| 13. Compliance & Ops Sprint | 0/5 | **PLANNED** 2026-04-25 — 5 plans across 3 waves; W1: 13-01 (COMP-01 account deletion) + 13-03 (deploy.sh + branch protection); W2: 13-02 (Sentry — depends on 13-01 for sw.js + app.html merge order); W3: 13-04 (Firestore export — depends on 13-03 for RUNBOOK merge order) + 13-05 (CSP report-only — depends on 13-01+13-02 for sw.js merge order). See plans for full breakdown | - |
+| 13. Compliance & Ops Sprint | 2/5 | **EXECUTING** 2026-04-25 — Wave 1 code-complete (13-01 + 13-03 merged on main, post-merge node --check + bash -n green); Wave 2 + 3 pending. HUMAN-VERIFY queue: GitHub ruleset config (13-03) | - |
 
 ---
 *Roadmap created: 2026-04-19*
