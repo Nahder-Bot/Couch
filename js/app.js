@@ -2068,6 +2068,32 @@ async function onAuthStateChangedCouch(user) {
   }
 
   // User is signed in
+
+  // Phase 13 / COMP-13-01 — Pitfall 2 defense: detect soft-deleted accounts
+  // at sign-in. If users/{uid}.deletionRequestedAt is set + hardDeleteAt > now,
+  // route to the deletion-pending banner instead of the normal app shell.
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userDocRef);
+    const userData = userSnap.exists() ? userSnap.data() : null;
+    if (userData && userData.deletionRequestedAt && typeof userData.hardDeleteAt === 'number' && userData.hardDeleteAt > Date.now()) {
+      // Soft-deleted; show the deletion-pending banner.
+      const dateEl = document.getElementById('deletion-pending-date');
+      if (dateEl) {
+        try {
+          dateEl.textContent = new Date(userData.hardDeleteAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        } catch (_) { dateEl.textContent = new Date(userData.hardDeleteAt).toISOString().slice(0, 10); }
+      }
+      const bg = document.getElementById('deletion-pending-bg');
+      if (bg) bg.classList.add('on');
+      // Halt the normal auth flow — user must explicitly choose Cancel deletion or Let it delete.
+      return;
+    }
+  } catch (e) {
+    console.warn('[soft-delete-detour] failed; proceeding with normal sign-in', e && e.message);
+    // Fall through — don't block sign-in on a Firestore read failure.
+  }
+
   const groupsReady = startUserGroupsSubscription(user.uid);
   startSettingsSubscription();
   startNotificationPrefsSubscription(user.uid);
@@ -2685,6 +2711,124 @@ window.performLeaveFamily = async function() {
   } finally {
     window._leaveFamilyConfirmed = false;
   }
+};
+
+// =====================================================
+// Phase 13 / COMP-13-01 — Self-serve account deletion
+// Modal driver + httpsCallable wiring. Source pattern:
+// - confirmLeaveFamily / performLeaveFamily (this file:~2688-2714)
+// - transferOwnershipTo httpsCallable error-mapping (this file:~3093-3116)
+// CFs: requestAccountDeletion, cancelAccountDeletion, checkAccountDeleteEligibility, accountDeletionReaper
+// Review fix MEDIUM-10: fallback contact email is privacy@couchtonight.app (matches privacy.html).
+// =====================================================
+
+window.openDeleteAccountConfirm = async function() {
+  // Pre-flight: check ownership eligibility before showing typed-DELETE modal.
+  // Pitfall 1 / T-1 defense — owner-of-family must transfer first.
+  try {
+    const fn = httpsCallable(functions, 'checkAccountDeleteEligibility');
+    const r = await fn();
+    const eligible = r && r.data && r.data.eligible;
+    const owned = (r && r.data && r.data.ownedFamilies) || [];
+    if (!eligible) {
+      // Render the blocker modal with the family list
+      const list = document.getElementById('delete-account-blocker-list');
+      if (list) {
+        list.innerHTML = '';
+        for (const fam of owned) {
+          const li = document.createElement('li');
+          li.textContent = (fam && fam.name) ? fam.name : (fam && fam.familyCode) || '(unnamed)';
+          list.appendChild(li);
+        }
+      }
+      const bg = document.getElementById('delete-account-blocker-bg');
+      if (bg) bg.classList.add('on');
+      return;
+    }
+  } catch (e) {
+    console.error('[delete-account-eligibility]', e);
+    flashToast("Couldn't check eligibility. Try again.", { kind: 'warn' });
+    return;
+  }
+  // Eligible — show typed-DELETE confirmation modal
+  const input = document.getElementById('delete-account-confirm-input');
+  if (input) input.value = '';
+  const err = document.getElementById('delete-account-error');
+  if (err) err.textContent = '';
+  const bg = document.getElementById('delete-account-modal-bg');
+  if (bg) bg.classList.add('on');
+};
+
+window.closeDeleteAccountModal = function() {
+  const bg = document.getElementById('delete-account-modal-bg');
+  if (bg) bg.classList.remove('on');
+};
+
+window.closeDeleteAccountBlocker = function() {
+  const bg = document.getElementById('delete-account-blocker-bg');
+  if (bg) bg.classList.remove('on');
+};
+
+window.performDeleteAccount = async function() {
+  const input = document.getElementById('delete-account-confirm-input');
+  const errEl = document.getElementById('delete-account-error');
+  const typed = input ? input.value : '';
+  if (typed !== 'DELETE') {
+    if (errEl) errEl.textContent = 'Type DELETE in capitals to confirm.';
+    return;
+  }
+  if (errEl) errEl.textContent = '';
+  // Close modal optimistically — match performLeaveFamily pattern (modal off before async work)
+  const bg = document.getElementById('delete-account-modal-bg');
+  if (bg) bg.classList.remove('on');
+  try {
+    const fn = httpsCallable(functions, 'requestAccountDeletion');
+    const r = await fn({ confirm: 'DELETE' });
+    if (r && r.data && r.data.success) {
+      flashToast('Deletion scheduled. Signing out…', { kind: 'success' });
+      try { haptic('success'); } catch(_) {}
+      setTimeout(() => { try { window.signOut(); } catch(_) {} }, 2000);
+    } else {
+      flashToast("Couldn't schedule deletion. Try again.", { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[delete-account]', e);
+    const code = e && e.code;
+    // Review fix MEDIUM-10: fallback contact = privacy@couchtonight.app (matches privacy.html promise).
+    const msg = (code === 'failed-precondition' || code === 'functions/failed-precondition')
+      ? (e.message || 'Transfer family ownership first.')
+      : (code === 'unauthenticated' || code === 'functions/unauthenticated')
+        ? 'Sign in to delete your account.'
+        : "Couldn't schedule deletion. Try again or email privacy@couchtonight.app.";
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.cancelMyDeletion = async function() {
+  // Called from the deletion-pending banner shown at sign-in
+  try {
+    const fn = httpsCallable(functions, 'cancelAccountDeletion');
+    const r = await fn();
+    if (r && r.data && r.data.ok) {
+      flashToast('Deletion cancelled. Welcome back.', { kind: 'success' });
+      try { haptic('success'); } catch(_) {}
+      const bg = document.getElementById('deletion-pending-bg');
+      if (bg) bg.classList.remove('on');
+      setTimeout(() => { try { window.location.reload(); } catch(_) {} }, 800);
+    } else {
+      flashToast("Couldn't cancel deletion. Try again.", { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[cancel-deletion]', e);
+    flashToast("Couldn't cancel deletion. Try again.", { kind: 'warn' });
+  }
+};
+
+window.continueWithDeletion = async function() {
+  // User chose to let the deletion proceed; sign them out without cancelling.
+  const bg = document.getElementById('deletion-pending-bg');
+  if (bg) bg.classList.remove('on');
+  try { await window.signOut(); } catch (e) { console.error('[continue-deletion-signout]', e); }
 };
 
 window.leaveFamily = async function() {
