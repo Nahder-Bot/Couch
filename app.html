@@ -52,6 +52,77 @@
 <link rel="apple-touch-icon" sizes="128x128" href="/mark-128.png">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,800&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/app.css">
+
+<!-- Phase 13 / OPS-13-05 — Sentry loader (CDN, zero-bundler).
+     Source: docs.sentry.io/platforms/javascript/install/loader/
+     Explicit-fields PII strip in beforeSend per RESEARCH.md Pattern 4 + review fix MEDIUM-9.
+     Session Replay DISABLED for v1 (review fix MEDIUM-6); re-enable post-launch +30 days
+     after privacy review — tracked in TECH-DEBT.md "Sentry Replay deferred".
+     CSP-compatible: js.sentry-cdn.com is allow-listed in queuenight/firebase.json (Plan 13-05).
+     DSN is public-by-design (rate-limited per project per docs.sentry.io). -->
+<script>
+  window.sentryOnLoad = function () {
+    Sentry.init({
+      dsn: 'https://f90a302fd66e098b71400bed3efb40ab@o4511281867587584.ingest.us.sentry.io/4511281871454208',
+      environment: (location.hostname === 'couchtonight.app') ? 'production' : 'dev',
+      tracesSampleRate: 0.1,
+      // Review fix MEDIUM-6: Replay disabled for v1 (all replay keys absent).
+      // See TECH-DEBT.md "Sentry Replay deferred" for re-enable plan.
+      integrations: [
+        Sentry.browserTracingIntegration()
+      ],
+      // T-6 mitigation: explicit-fields PII scrub before any network call to Sentry ingest.
+      // Review fix MEDIUM-9: this is NOT all-PII-strip; stack frames, headers, tags not
+      // touched here may still carry identifiers — review inbox periodically.
+      beforeSend: function (event, hint) {
+        // 1. Strip user.id (uid), user.email, user.username, ip_address (never off-platform)
+        if (event.user) {
+          delete event.user.id;
+          delete event.user.email;
+          delete event.user.username;
+          delete event.user.ip_address;
+        }
+        // 2. Strip family codes (6 lowercase hex chars) from messages + exception values
+        var FAMILY_RE = /\b[a-f0-9]{6}\b/gi;
+        if (event.message) event.message = String(event.message).replace(FAMILY_RE, '<FAMILY>');
+        if (event.exception && event.exception.values) {
+          for (var i = 0; i < event.exception.values.length; i++) {
+            var ex = event.exception.values[i];
+            if (ex && ex.value) ex.value = String(ex.value).replace(FAMILY_RE, '<FAMILY>');
+          }
+        }
+        // 3. Strip tokens from request URLs (?invite= ?claim= /rsvp/<token>)
+        if (event.request && event.request.url) {
+          event.request.url = String(event.request.url)
+            .replace(/[?&](invite|claim)=[^&]+/g, function (_, k) { return '?' + k + '=<REDACTED>'; })
+            .replace(/\/rsvp\/[^/?]+/g, '/rsvp/<TOKEN>');
+        }
+        // 4. Strip same patterns from breadcrumb URLs
+        if (event.breadcrumbs && event.breadcrumbs.length) {
+          for (var b = 0; b < event.breadcrumbs.length; b++) {
+            var bc = event.breadcrumbs[b];
+            if (bc && bc.data && bc.data.url) {
+              bc.data.url = String(bc.data.url)
+                .replace(/[?&](invite|claim)=[^&]+/g, function (_, k) { return '?' + k + '=<REDACTED>'; })
+                .replace(/\/rsvp\/[^/?]+/g, '/rsvp/<TOKEN>');
+            }
+          }
+        }
+        return event;
+      },
+      // Pitfall 5 defense: drop Firestore transport noise from breadcrumbs.
+      beforeBreadcrumb: function (breadcrumb, hint) {
+        if (!breadcrumb) return breadcrumb;
+        var msg = breadcrumb.message || (breadcrumb.data && breadcrumb.data.message) || '';
+        if (/WebChannelConnection|FirebaseError|firestore\.googleapis/.test(String(msg))) {
+          return null;
+        }
+        return breadcrumb;
+      }
+    });
+  };
+</script>
+<script src="https://js.sentry-cdn.com/f90a302fd66e098b71400bed3efb40ab.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -708,6 +779,8 @@
         <button class="pill" onclick="signOut()">Sign out</button>
         <!-- Phase 11 / REFR-12: two-tap destructive — opens confirmation modal instead of native confirm() -->
         <button class="pill" id="leave-family-btn" onclick="confirmLeaveFamily()">Leave family</button>
+        <!-- Phase 13 / COMP-13-01: Self-serve account deletion. Two-tap destructive per UI-SPEC. -->
+        <button class="pill destructive-confirm" id="delete-account-btn" onclick="openDeleteAccountConfirm()">Delete account</button>
       </div>
 
       <!-- Phase 12 / POL-02 — ABOUT sub-section (version + feedback + changelog + TMDB attribution).
@@ -736,6 +809,45 @@
       <div class="modal-actions-row">
         <button class="pill" onclick="closeLeaveFamilyConfirm()">Cancel</button>
         <button class="pill leave-family-confirm" onclick="performLeaveFamily()">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13 / COMP-13-01: Delete-account typed-DELETE confirmation modal -->
+  <div class="modal-bg" id="delete-account-modal-bg" onclick="if(event.target.id==='delete-account-modal-bg')closeDeleteAccountModal()">
+    <div class="modal modal--w-440">
+      <h3>Delete your Couch account?</h3>
+      <p class="meta">This permanently deletes your account, your votes, your reactions, your watchparty history, and any photos you uploaded. <strong>You have 14 days to undo this. After that, it cannot be reversed.</strong> Other members' data is unaffected.</p>
+      <p class="meta">Type <strong>DELETE</strong> in capitals to confirm:</p>
+      <input id="delete-account-confirm-input" type="text" autocomplete="off" autocapitalize="characters" />
+      <p id="delete-account-error" class="meta error"></p>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="closeDeleteAccountModal()">Cancel</button>
+        <button class="pill destructive-confirm" onclick="performDeleteAccount()">Delete my account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13 / COMP-13-01: Owner-of-family blocker modal (Pitfall 1 surface) -->
+  <div class="modal-bg" id="delete-account-blocker-bg" onclick="if(event.target.id==='delete-account-blocker-bg')closeDeleteAccountBlocker()">
+    <div class="modal modal--w-440">
+      <h3>Transfer ownership first</h3>
+      <p class="meta">You own one or more families. Before you can delete your account, transfer ownership of each so the family can keep going without you.</p>
+      <ul id="delete-account-blocker-list" class="meta"></ul>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="closeDeleteAccountBlocker()">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13 / COMP-13-01: Sign-in deletion-pending banner (rendered above app shell when soft-delete active) -->
+  <div class="modal-bg" id="deletion-pending-bg" onclick="/* no-op — must explicitly choose */">
+    <div class="modal modal--w-440">
+      <h3>Your account is scheduled for deletion</h3>
+      <p class="meta">Hard-delete on <strong id="deletion-pending-date">—</strong>. Sign in here just to cancel deletion, or let it complete.</p>
+      <div class="modal-actions-row">
+        <button class="pill" onclick="continueWithDeletion()">Let it delete</button>
+        <button class="pill destructive-confirm" onclick="cancelMyDeletion()">Cancel deletion</button>
       </div>
     </div>
   </div>

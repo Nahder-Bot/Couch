@@ -117,6 +117,20 @@ Tight ~1-day patch closing UAT-surfaced gaps from Phase 11 + Phase 6.
 - [ ] **POL-03**: Halloween Crawl pack ID curation — Plan 11-07 used `tmdbId 9532` for "Hocus Pocus" but TMDB resolves it to "Final Destination". Replace with the real Hocus Pocus ID; pass-through verify the other 9 IDs in the pack against their comment labels.
 - [ ] **POL-04** (stretch): Other-7-packs curation pass — verify each remaining pack's tmdbIds match their comment labels via TMDB API. Apply fixes where mismatched. Optional: refactor to drop comment labels in favor of a build-time test that asserts title matches, eliminating drift permanently.
 
+### Compliance & Ops Sprint (Phase 13)
+
+Solo-actionable post-v1 hardening sprint locked via /gsd-discuss-phase 13 + /gsd-plan-phase 13 (6 decisions locked 2026-04-25). Not a feature phase — operational hygiene + compliance hardening only.
+
+- [ ] **COMP-13-01**: Self-serve account deletion. A signed-in user can delete their account from Account → ADMIN; soft-delete enters a 14-day grace window during which they can sign back in to cancel; after 14 days a scheduled reaper hard-deletes Firestore (members + votes + queues + watchparty participations + intent rsvps + couch-album doc refs) + Storage (couch-albums photos owned by the uid) + Firebase Auth user record + writes an audit doc. Closes the manual privacy.html "email privacy@couchtonight.app" promise within the 30-day CCPA/GDPR window. Trigger: HTTPS callable + Cloud Scheduler reaper (NOT auth.user().onDelete — firebase-functions v2 has no auth triggers).
+- [ ] **OPS-13-02**: BUILD_DATE auto-stamp on deploy. `scripts/deploy.sh` invokes `scripts/stamp-build-date.cjs` automatically before `firebase deploy`, eliminating the "I forgot to bump the date" failure mode that bit Phase 12. Wired via `npm run deploy` + `npm run stamp` shortcuts; documented in RUNBOOK §H. Pitfall 7 dirty-tree guard with `--allow-dirty` escape hatch.
+- [ ] **OPS-13-04**: Content-Security-Policy in Report-Only mode. Additive 4th security header in queuenight/firebase.json allow-listing all third-party origins (Firebase + TMDB + Trakt + Google Fonts + Sentry + Cloud Functions). Ships in `Content-Security-Policy-Report-Only` mode for v1 — 2-week observation window — before flipping to enforcement in a later sprint. Existing X-Content-Type-Options + Referrer-Policy + X-Frame-Options preserved verbatim. Updates TECH-DEBT.md TD-4 status.
+- [ ] **OPS-13-05**: Sentry error reporting integration. CDN loader script (zero-bundler, public-by-design DSN) added to app.html + landing.html `<head>` with PII-scrubbing `beforeSend` (strips event.user.id (uid) + event.user.email + event.user.username + event.user.ip_address + family-code regex `/\b[a-f0-9]{6}\b/gi` + invite/claim/rsvp tokens in URLs) and Firestore-noise-filtering `beforeBreadcrumb` (Pitfall 5 defense). Vendor: Sentry, NOT Crashlytics — Firebase Crashlytics has no web SDK as of 2026 (firebase-js-sdk#710). Free tier (5K errors/month) sufficient for v1.
+- [ ] **OPS-13-06**: GitHub branch protection ruleset. `protect-main` Ruleset on github.com/<owner>/couch with empty bypass list: Restrict deletions + Block force pushes + Require linear history + Require PR (0 reviewers, solo-dev gate) + Require `syntax-check` CI status check from `.github/workflows/ci.yml` + Require conversation resolution. Direct push to main rejected with GH013. Configured via web UI (CONTEXT.md addendum #2 locks the path).
+- [ ] **OPS-13-07**: Scheduled Firestore export + restore drill. Cloud Scheduler HTTP job `daily-firestore-export` hits `firestore.googleapis.com/v1/.../databases/(default):exportDocuments` directly (no Pub/Sub + Cloud Function detour). Exports daily to `gs://queuenight-84044-backups/` (us-central1, matches Firestore region) with 30-day lifecycle delete rule + uniform-bucket-level-access. Idempotent setup script `scripts/firestore-export-setup.sh`. Restore drill documented in RUNBOOK §I + setup runbook in §K.
+
+**Deferred to Phase 14:** OPS-13-01 (firebase-functions SDK 4.9.0 → 7.x — TECH-DEBT TD-1; sufficiently risky to deserve its own session).
+**Deferred to a later milestone:** OPS-13-03 (Variant-B storage rules tightening — TECH-DEBT TD-2; gated on independent Phase 5 member-uid migration decision).
+
 ## v2 Requirements
 
 Deferred to post-v1. Tracked but not in current roadmap.
@@ -220,12 +234,18 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | POL-02 | Phase 12 | Pending |
 | POL-03 | Phase 12 | Pending |
 | POL-04 | Phase 12 | Pending (stretch) |
+| COMP-13-01 | Phase 13 Plan 01 | Pending |
+| OPS-13-02 | Phase 13 Plan 03 | Pending |
+| OPS-13-04 | Phase 13 Plan 05 | Pending |
+| OPS-13-05 | Phase 13 Plan 02 | Pending |
+| OPS-13-06 | Phase 13 Plan 03 | Pending (checkpoint) |
+| OPS-13-07 | Phase 13 Plan 04 | Pending (checkpoint) |
 
 **Coverage:**
-- v1 requirements: 69 total (33 complete across Phases 3+4+7+9+11; 36 pending across Phases 5/6/8/12 + deferred Phase 10)
-- Mapped to phases: 69 ✓
+- v1 requirements: 75 total (33 complete across Phases 3+4+7+9+11; 42 pending across Phases 5/6/8/12/13 + deferred Phase 10)
+- Mapped to phases: 75 ✓
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-19*
-*Last updated: 2026-04-25 — added Phase 12 (Pre-launch polish) with 4 POL-* items repurposing the original parking-lot Phase 12 slot (parking-lot docket archived to seeds/phase-12-original-docket-archive-2026-04-23.md). Prior update 2026-04-24 — added Phase 11 (Feature Refresh & Streamline) with 13 REFR-* items scoped via /gsd-discuss-phase 11 (6 decisions locked 2026-04-23). Prior update 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10.*
+*Last updated: 2026-04-25 — added Phase 13 (Compliance & Ops Sprint) with 6 COMP-13-* + OPS-13-* items locked via /gsd-discuss-phase 13 + /gsd-plan-phase 13. Prior update 2026-04-25 — added Phase 12 (Pre-launch polish) with 4 POL-* items repurposing the original parking-lot Phase 12 slot (parking-lot docket archived to seeds/phase-12-original-docket-archive-2026-04-23.md). Prior update 2026-04-24 — added Phase 11 (Feature Refresh & Streamline) with 13 REFR-* items scoped via /gsd-discuss-phase 11 (6 decisions locked 2026-04-23). Prior update 2026-04-20 — roadmap restructure added Auth (5), Push (6), Intent (8), Redesign (9) and pushed Year-in-Review to Phase 10.*

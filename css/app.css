@@ -2650,10 +2650,36 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .owner-subcluster{margin-bottom:var(--s5)}
 .owner-subcluster:last-child{margin-bottom:0}
 
-/* Leave-family destructive button — uses --bad token for the red "Leave" CTA. */
+/* Destructive-action confirm button — uses --bad token. Phase 11 introduced for
+   leave-family; Phase 13 generalized to destructive-confirm for delete-account.
+   Backwards-compat alias kept. */
+.destructive-confirm,
 .leave-family-confirm{background:var(--bad);color:var(--bg);border-color:transparent;
   font-weight:700}
+.destructive-confirm:hover,
 .leave-family-confirm:hover{opacity:0.92}
+
+/* Phase 13 / COMP-13-01 — delete-account modal-specific styling */
+#delete-account-confirm-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono, 'Courier New', monospace);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+#delete-account-confirm-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+#delete-account-error:empty { display: none; }
+#delete-account-error { color: var(--bad); margin-top: 6px; }
+#delete-account-blocker-list { padding-left: 1.2em; margin: 8px 0; }
+#delete-account-blocker-list li { margin-bottom: 4px; }
 
 /* ===== Phase 11 / REFR-04 second half (Plan 11-03b) — Browse-all + pinning ===== */
 /* Semantic tokens only; 44px touch targets preserved per BRAND.md §7 floor. */
