@@ -10102,9 +10102,11 @@ function renderAddRow(rowId, items) {
   el.innerHTML = items.map(x => {
     const inLib = state.titles.find(t => t.id === x.id);
     const safeName = escapeHtml(x.name);
-    return `<div class="discover-card" onclick="addFromAddTab('${rowId}','${x.id}')">
+    // Phase 11 quick fix — tile click now opens preview modal instead of silent add.
+    // The +/✓ badge is a separate button (event.stopPropagation) for one-tap quick-add.
+    return `<div class="discover-card" onclick="previewDiscoveryTile('${rowId}','${x.id}')">
       <div class="discover-poster ${inLib?'added':''}" style="background-image:url('${x.poster}')">
-        <div class="add-badge">${inLib?'✓':'+'}</div>
+        <button class="add-badge" onclick="event.stopPropagation();addFromAddTab('${rowId}','${x.id}')" aria-label="${inLib?'Already in library':'Add to library'}">${inLib?'✓':'+'}</button>
       </div>
       <div class="discover-name">${safeName}</div>
       <div class="discover-meta">${x.year||''} · ${x.kind}</div>
@@ -10635,6 +10637,82 @@ window.addFromAddTab = async function(rowId, titleId) {
     // Re-render the row to flip the + to ✓
     renderAddRow(rowId, pools.find(p => p.find(x => x.id === titleId)) || []);
   } catch(e) { alert('Could not add: ' + e.message); }
+};
+
+// Phase 11 quick fix — preview a discovery tile WITHOUT adding it. Tile click goes here;
+// + badge calls addFromAddTab directly via event.stopPropagation. Reuses the existing
+// detail-modal-bg container with a custom preview shell (no Firestore writes; lazy
+// fetches TMDB extras for overview/trailer/runtime). "Add to library" inside the
+// preview chains to addFromAddTab + reopens the full detail modal with vote actions.
+window.previewDiscoveryTile = async function(rowId, titleId) {
+  // Already in library — open the existing detail modal directly.
+  if (state.titles.find(t => t.id === titleId)) {
+    openDetailModal(titleId);
+    return;
+  }
+  const pools = [
+    addTabCache.trending && addTabCache.trending.items,
+    addTabCache.streaming && addTabCache.streaming.items,
+    addTabCache.gems && addTabCache.gems.items,
+    ...Object.values(addTabCache.mood).map(c => c && c.items),
+    ...Object.values(addTabCache._discovery || {}).map(c => c && c.items)
+  ].filter(Boolean);
+  let item = null;
+  for (const pool of pools) {
+    item = pool.find(x => x.id === titleId);
+    if (item) break;
+  }
+  if (!item) { flashToast('Title not found in cache'); return; }
+  const bg = document.getElementById('detail-modal-bg');
+  const content = document.getElementById('detail-modal-content');
+  content.innerHTML = renderDiscoveryPreviewShell(item, rowId, true);
+  bg.classList.add('on');
+  bg.onclick = (e) => { if (e.target === bg) closeDetailModal(); };
+  try {
+    const extras = await fetchTmdbExtras(item.mediaType, item.tmdbId);
+    const merged = { ...item, ...extras };
+    content.innerHTML = renderDiscoveryPreviewShell(merged, rowId, false);
+  } catch (e) {
+    console.error('preview extras fetch failed', e);
+  }
+};
+
+function renderDiscoveryPreviewShell(t, rowId, loading) {
+  const safeName = escapeHtml(t.name);
+  const metaParts = [t.year, t.kind, t.runtime ? `${t.runtime} min` : null].filter(Boolean).map(escapeHtml);
+  const metaHtml = metaParts.map((p,i) => i === 0 ? p : `<span class="dot">·</span> ${p}`).join(' ');
+  const overviewBlock = loading
+    ? '<div class="detail-section"><div class="sk sk-line" style="width:90%;margin-bottom:8px"></div><div class="sk sk-line" style="width:75%;margin-bottom:8px"></div><div class="sk sk-line" style="width:60%"></div></div>'
+    : (t.overview ? `<div class="detail-section"><h4>About</h4><p class="detail-overview">${escapeHtml(t.overview)}</p></div>` : '');
+  const trailerHtml = (!loading && t.trailerKey)
+    ? `<div class="detail-section"><h4>Trailer</h4><iframe class="trailer-frame" src="https://www.youtube.com/embed/${encodeURIComponent(t.trailerKey)}" allowfullscreen></iframe></div>`
+    : '';
+  const safeRow = escapeHtml(rowId);
+  const safeId = escapeHtml(t.id);
+  return `<div class="detail-backdrop" style="background-image:url('${t.backdrop || t.poster || ''}')">
+    <button class="detail-close" aria-label="Close" onclick="closeDetailModal()">✕</button>
+  </div>
+  <div class="detail-body">
+    <h2 class="detail-title">${safeName}</h2>
+    <div class="detail-meta">${metaHtml}</div>
+    ${overviewBlock}
+    ${trailerHtml}
+    <div class="detail-preview-actions">
+      <button class="pill discover-preview-add" onclick="addFromPreview('${safeRow}','${safeId}')">+ Add to library</button>
+      <button class="pill discover-preview-cancel" onclick="closeDetailModal()">Not now</button>
+    </div>
+  </div>`;
+}
+
+window.addFromPreview = async function(rowId, titleId) {
+  await window.addFromAddTab(rowId, titleId);
+  closeDetailModal();
+  // Brief delay for Firestore write to land in state.titles via subscribeFamily.
+  setTimeout(() => {
+    if (state.titles.find(t => t.id === titleId)) {
+      openDetailModal(titleId);
+    }
+  }, 300);
 };
 
 // Kick off all rows when Add screen is first shown
