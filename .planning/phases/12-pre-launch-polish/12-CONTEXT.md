@@ -62,6 +62,23 @@ Out of scope: anything else from the former Phase 12 docket (audited separately 
 - **D-17:** Same pass on the other 7 packs — verify the 9-12 IDs in each match their comment labels. Likely some are correct already, some have mismatches.
 - **D-18:** Long-term durability suggestion: refactor `COUCH_NIGHTS_PACKS` to drop comment labels (they go stale) and instead use a frozen test that fetches each ID at build time (or in a unit test) and asserts title match. Defer to Phase 13 or skip if curation passes.
 
+### POL-05 (bundled with POL-02): TMDB attribution
+
+- **D-19:** TMDB API ToS requires "Powered by TMDB" attribution somewhere visible. Add to the new ABOUT sub-section in Account tab footer (per POL-02). One line: italic *"Powered by The Movie Database (TMDB)"* with link to themoviedb.org. Same line on landing.html footer (currently absent — landing has © Couch only).
+- **D-20:** Risk note: not adding this is a passive ToS violation; unlikely to bite immediately but stronger position for future commercial work and compliance audits.
+
+### POL-06 (stretch): Cache-Control tighten for HTML rewrite paths
+
+- **D-21:** Today's hotfix added `Cache-Control: no-cache, no-store, must-revalidate` to `/sw.js` (firebase.json `headers` block). HTML files at rewrite paths (`/app`, `/rsvp/**`, `/`) still serve `max-age=3600` because Firebase Hosting matches header rules against the *source URL pattern*, not the rewrite *destination*. The `**/*.@(html)` pattern doesn't catch source paths without `.html` in them.
+- **D-22:** Fix candidate: add explicit header rules per rewrite source path:
+  ```json
+  { "source": "/app", "headers": [{"key": "Cache-Control", "value": "max-age=0, must-revalidate"}] },
+  { "source": "/app/**", "headers": [{"key": "Cache-Control", "value": "max-age=0, must-revalidate"}] },
+  { "source": "/rsvp/**", "headers": [{"key": "Cache-Control", "value": "max-age=0, must-revalidate"}] },
+  { "source": "/", "headers": [{"key": "Cache-Control", "value": "max-age=0, must-revalidate"}] }
+  ```
+- **D-23:** Tradeoff: pages refresh faster on deploy (good) but cost slightly more bandwidth (negligible at couch-scale). Defer if scope tight; do if scope allows.
+
 ### Claude's Discretion
 
 - Specific copy strings for the 6 toggle descriptions (D-06 lists 1 example)
