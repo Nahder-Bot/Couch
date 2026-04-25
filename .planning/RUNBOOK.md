@@ -222,3 +222,129 @@ You don't have a public status page. For now:
 - Reach out personally to the family members affected
 - Post a brief explanation in the family's group chat
 - Don't need a formal status comms channel until v1 actually has external users
+
+## §H — Deploy via scripts/deploy.sh (canonical path post-Phase-13)
+
+Phase 13 / OPS-13-02 introduces `scripts/deploy.sh` as the canonical deploy entry point.
+
+**One-time setup (review fix HIGH-4):**
+
+deploy.sh resolves the queuenight sibling repo via `$QUEUENIGHT_PATH` (default: `../../queuenight` relative to the couch repo root). If your queuenight clone lives elsewhere, set this once per dev machine in your shell profile:
+
+```bash
+# In ~/.bashrc, ~/.zshrc, or git-bash profile:
+export QUEUENIGHT_PATH="/c/path/to/queuenight"
+```
+
+If unset and `../../queuenight` doesn't resolve, deploy.sh fails loudly with a clear error.
+
+**Standard deploy (no CACHE bump):**
+```bash
+cd C:/Users/nahde/claude-projects/couch
+./scripts/deploy.sh
+```
+
+**Deploy + bump sw.js CACHE (use when shipping a user-visible app-shell change):**
+```bash
+cd C:/Users/nahde/claude-projects/couch
+./scripts/deploy.sh 33.2-some-tag
+# This sets sw.js CACHE = 'couch-v33.2-some-tag' + mirrors + deploys
+```
+
+**What it does (in order):**
+1. Resolves `$QUEUENIGHT_PATH` (or default `../../queuenight`) and aborts if the path doesn't exist (review fix HIGH-4).
+2. Aborts if working tree is dirty (Pitfall 7 defense). Skip with `--allow-dirty` as first arg.
+3. Runs `tests/` if present.
+4. `node --check` on every shipping JS file.
+5. Optionally bumps sw.js CACHE in source if a tag is provided.
+6. Mirrors `app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt css/ js/` to `${QUEUENIGHT_PATH}/public/`.
+7. Auto-stamps BUILD_DATE in the deploy mirror's `js/constants.js` ONLY (review fix MEDIUM-8 — source tree stays clean).
+8. Aborts if `app.html` or `landing.html` in the mirror still contain a Sentry DSN placeholder (review fix MEDIUM-5 — production guard for Plan 13-02 placeholder leakage).
+9. Runs `firebase deploy --only hosting --project queuenight-84044`.
+10. Curl-based smoke tests against couchtonight.app.
+
+**Cloud Functions deploy** is separate (NOT covered by deploy.sh -- too risky to bundle):
+```bash
+cd "$QUEUENIGHT_PATH"
+firebase deploy --only functions:<name>,functions:<name2> --project queuenight-84044
+```
+
+**Storage rules deploy** is also separate:
+```bash
+cd "$QUEUENIGHT_PATH"
+firebase deploy --only storage --project queuenight-84044
+```
+
+**Firestore rules deploy:**
+```bash
+cd "$QUEUENIGHT_PATH"
+firebase deploy --only firestore:rules --project queuenight-84044
+```
+
+If `deploy.sh` aborts on a dirty tree but you NEED to deploy a hot-fix, run with `--allow-dirty`:
+```bash
+./scripts/deploy.sh --allow-dirty 33.3-hotfix
+```
+
+If `deploy.sh` aborts on Sentry DSN placeholders, substitute the real DSN values in `app.html` + `landing.html`, commit, and re-run. The placeholders are intentionally allowed in version control (Plan 13-02 acceptance criteria) — the deploy guard is the production-boundary catch.
+
+## §J — Cloud Scheduler job inventory
+
+Phase 13 expanded the Cloud Scheduler job count. Confirm the inventory periodically:
+
+```bash
+gcloud scheduler jobs list --location=us-central1 --project=queuenight-84044
+```
+
+**Expected jobs (post-Phase-13):**
+- `firebase-schedule-watchpartyTick-us-central1` (Phase 7 / 11)
+- `firebase-schedule-rsvpReminderTick-us-central1` (Phase 11)
+- `firebase-schedule-accountDeletionReaper-us-central1` (Phase 13 / Plan 13-01)
+- `daily-firestore-export` (Phase 13 / Plan 13-04 -- created by gcloud, not Firebase)
+
+**Free-tier note:** Cloud Scheduler free tier covers 3 jobs/month. With Phase 13 we go to 4 jobs total -- ~$0.10/month over free tier (negligible). Verify billing in GCP Console -> Billing -> Reports if a future cost spike appears.
+
+## §L — GitHub branch protection (OPS-13-06)
+
+Phase 13 / OPS-13-06 enabled a branch ruleset on `main`.
+
+**Path:** `github.com/<owner>/couch` -> Settings -> Rules -> Rulesets -> `protect-main`.
+
+**Active rules:**
+- Restrict deletions
+- Block force pushes
+- Require linear history
+- Require a pull request before merging (0 reviewers -- solo-dev gate)
+- Require status checks to pass: `syntax-check` (from `.github/workflows/ci.yml`)
+- Require conversation resolution before merging
+
+**To make a normal change:**
+```bash
+git checkout -b fix/some-thing
+# ...edit...
+git commit -am "fix: some thing"
+git push -u origin fix/some-thing
+gh pr create --title "..." --body "..."
+# CI runs syntax-check
+gh pr merge --merge   # or --squash; linear-history is required
+```
+
+**Verifying the ruleset (review fix MEDIUM-7 -- throwaway-branch probe, no `git reset --hard`):**
+
+```bash
+git checkout main
+git fetch origin main
+git checkout -b probe/branch-protection-test
+date >> .planning/RUNBOOK.md
+git add .planning/RUNBOOK.md
+git commit -m "test: branch protection probe -- DO NOT MERGE"
+git push origin "probe/branch-protection-test:main"   # expected: GH013 reject
+git checkout main
+git branch -D probe/branch-protection-test
+```
+
+`main` is never modified locally; the ruleset rejects the push remotely. No destructive `git reset --hard HEAD~1` against `main` is needed.
+
+**Emergency override (very rare):** If you absolutely need to bypass -- e.g., main is broken and CI is also broken -- temporarily edit the ruleset in GitHub Settings, push, then re-enable. Document in RETROSPECTIVE.md.
+
+**Solo-dev safety:** the bypass list is intentionally empty so direct pushes from any local machine (including the user's own) are rejected. This catches "wait, I meant to do that on a branch" mistakes.
