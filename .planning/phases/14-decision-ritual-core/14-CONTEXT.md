@@ -34,12 +34,15 @@ These flowed from the multi-round scoping conversation 2026-04-24 (see `seeds/de
   - "Show T3" only takes effect when no other level says hide.
   - Privacy-leaning posture, matches Phase 13 compliance philosophy.
 
-### D-03 — Per-member personal queue (NEW PRIMITIVE)
+### D-03 — Per-member personal queue (POLISH; primitive already shipped — see DR-2 below)
 
-- Each family member has their own ordered queue.
-- Drag-to-reorder UI lives in Library tab (or new "My queue" surface — planner decides).
-- Adding from Add tab pushes to bottom of personal queue + family library.
-- **Yes votes are unified with queue:** voting Yes on a title auto-adds it to the bottom of your personal queue. You can drag-reorder afterward. (Resolves discuss-Q2.)
+> **DR-2 reconciled (2026-04-25):** Researcher found the queue primitive is ALREADY in production. `queues[memberId]` map exists on title docs. Yes-vote → queue auto-add at `js/app.js:5422-5445`. Drag-reorder at `js/app.js:4650-4657`. `reindexMyQueue()` exists. D-03 is reframed from "build new primitive" → "polish + tier-sort + discoverability" against the existing infrastructure.
+
+- Each family member has their own ordered queue (already shipped via `t.queues[memberId]` map).
+- Drag-to-reorder UI ALREADY exists at `js/app.js:4650-4657` — Phase 14 surfaces it more prominently in Library tab; planner verifies + polishes, does not rebuild.
+- Adding from Add tab pushes to bottom of personal queue + family library — Phase 14 verifies this behavior end-to-end (researcher couldn't confirm Add-tab insertion path).
+- **Yes votes are unified with queue (already shipped):** voting Yes auto-adds to bottom; drag-reorder afterward. (Resolves discuss-Q2.)
+- **What's actually new in Phase 14:** tier-1 sort by avg-queue-rank (D-02 needs this; doesn't exist yet) + queue discoverability surfacing (queue is hidden from users today).
 
 ### D-04 — Tile redesign
 
@@ -103,32 +106,44 @@ These flowed from the multi-round scoping conversation 2026-04-24 (see `seeds/de
 5. **All-No edge case:** auto-cancel + notify nominator immediately.
 6. **Hard expire:** T+4hr past proposed start time.
 
-### D-09 — Unified data primitive: watchpartyIntents
+### D-09 — Unified data primitive: EXTEND existing `families/{code}/intents/` (DR-1 reconciled)
+
+> **DR-1 reconciled (2026-04-25):** Researcher found Phase 8 already shipped `families/{code}/intents/` with overlapping semantics (`tonight_at_time` + `watch_this_title` flow types), full CFs (`onIntentCreated`, `onIntentUpdate`, expiry sweep at `queuenight/functions/index.js:494-512`), Firestore rules block (`firestore.rules:338-364`), and client UI (`createIntent` at `js/app.js:1400`). D-09 is reframed from "create parallel `watchpartyIntents` collection" → "extend existing `intents` collection with a third `flow` value."
+
+**Schema additions to existing `families/{familyCode}/intents/{intentId}` collection:**
 
 ```
-watchpartyIntents/{intentId}
-  flow: 'rank-pick' | 'nominate'
-  creatorId: uid
-  titleId: string
-  proposedStartAt?: timestamp     // Flow B only
-  expectedCouchMemberIds: string[] // Flow A pre-selected couch
-  rsvps: {
+families/{familyCode}/intents/{intentId}
+  flow: 'tonight_at_time' | 'watch_this_title' | 'rank-pick' | 'nominate'
+  // Existing fields (Phase 8) preserved verbatim for tonight_at_time + watch_this_title
+  // New fields below ONLY populated when flow == 'rank-pick' or 'nominate':
+
+  creatorId: uid                       // unified naming with Phase 8
+  titleId: string                      // already in Phase 8 schema
+  proposedStartAt?: timestamp          // 'nominate' (Flow B) only
+  expectedCouchMemberIds?: string[]    // 'rank-pick' (Flow A) pre-selected couch
+  rsvps: {                             // already in Phase 8 schema; extend the state enum
     [memberId]: {
-      state: 'in' | 'reject' | 'drop' | 'maybe'
-      counterTime?: timestamp
-      counterTitleId?: string     // Flow A counter-nomination
+      state: 'in' | 'reject' | 'drop' | 'maybe'  // 'reject' + 'drop' new for Flow A/B
+      counterTime?: timestamp           // Flow B counter
+      counterTitleId?: string           // Flow A counter-nomination
       note?: string
       at: timestamp
     }
   }
-  status: 'open' | 'converted' | 'cancelled' | 'expired'
-  convertedToWpId?: string
-  createdAt: timestamp
-  expiresAt: timestamp
-  counterChainDepth: number       // 0 = original; cap at 3 per D-07
+  status: 'open' | 'converted' | 'cancelled' | 'expired'  // 'converted' new
+  convertedToWpId?: string              // new
+  counterChainDepth?: number            // new; 0 = original, cap at 3 per D-07
+  // createdAt + expiresAt already in Phase 8 schema
 ```
 
-Single onSchedule CF (`watchpartyIntentTick`) handles expiry sweeps + conversion checks. Cadence: every 5 min (matches existing `watchpartyTick` pattern).
+**CF additions:**
+- Extend the existing intent expiry branch in `watchpartyTick` (lines 494-512) to handle the 4 flow types. Conversion logic for `rank-pick` and `nominate` (intent → watchparty at quorum / T-15min) goes in the same branch.
+- No new onSchedule function. No new CFs. Reuses `watchpartyTick`'s 5-min cadence.
+
+**Firestore rules:** extend the existing `intents` block at `firestore.rules:338-364` to validate the new fields (state enum widening, counterChainDepth cap, etc.). No new rules block.
+
+**Client UI:** reuse `createIntent` at `js/app.js:1400` for the entry-point pattern; Phase 14 plans add new flow-specific call sites that call into the same primitive.
 
 ### D-10 — Onboarding for new primitives: hybrid
 
@@ -184,19 +199,27 @@ Single onSchedule CF (`watchpartyIntentTick`) handles expiry sweeps + conversion
 - `flowBConvert` — auto-convert imminent in 15 min
 - `intentExpiring` — hard-expire warning at T-30min
 
+> **DR-3 reconciled (2026-04-25):** Researcher confirmed there is NO `NOTIFICATION_PREFS_ALLOWLIST` constant. The 7 new categories above must be added in **three** places (not two):
+>
+> 1. **Server defaults** — `NOTIFICATION_DEFAULTS` at `queuenight/functions/index.js:74` (controls server-side push enforcement gate per Phase 6).
+> 2. **Client defaults** — `DEFAULT_NOTIFICATION_PREFS` at `js/app.js:100` (controls what pre-existing users see when they first open notif card; matches the `NOTIF_UI_DEFAULTS` pattern from Phase 12 POL-01).
+> 3. **Client labels + UI key map** — `NOTIF_UI_LABELS` and `NOTIF_UI_TO_SERVER_KEY` in `js/constants.js` (BRAND-voice user-facing copy + UI-key-to-server-key allowlist mapping; both extended together per Phase 12 POL-01 pattern).
+>
+> Anti-pattern #8 below also corrected to reflect this 3-place reality.
+
 ## Suggested plan structure
 
 The seed file proposed 8 plans. After resolving the 8 gray areas, this remains a good split. Final plan list will be locked at `/gsd-plan-phase 14`.
 
 1. **14-01 Already-watched filter** (D-01) — 4 sources + per-title rewatch override + invitation bypass
-2. **14-02 Per-member queue primitive** (D-03) — Firestore field + drag-reorder UI in Library tab + Yes-vote unification
-3. **14-03 Tiered candidate filter** (D-02) — 3-tier rendering + most-restrictive toggle hierarchy
+2. **14-02 Queue tier-sort + discoverability** (D-03 reframed per DR-2) — tier-1 sort by avg-queue-rank (new) + queue surfacing in Library tab (polish) + Add-tab insertion verification (audit). NOT a new primitive — `queues[memberId]` already shipped.
+3. **14-03 Tiered candidate filter** (D-02) — 3-tier rendering + most-restrictive toggle hierarchy. Consumes 14-02's tier-1 sort.
 4. **14-04 Couch visualization** (D-06) — SVG sofa + adaptive seat count + overflow cushion + sketched first via `/gsd-sketch`
-5. **14-05 Tile redesign** (D-04) — face content + action sheet + vote demotion + detail-view surfacing
-6. **14-06 watchpartyIntent primitive + CF** (D-09) — Firestore schema + watchpartyIntentTick onSchedule CF + expiry/conversion logic
+5. **14-05 Tile redesign** (D-04) — face content + action sheet wiring (existing `openActionSheet` at `js/app.js:11853` reused) + vote demotion + detail-view surfacing. Includes carry-over UAT bug fix (`.detail-close` `position: fixed`).
+6. **14-06 Extend `intents` collection + CF** (D-09 reframed per DR-1) — schema additions + `firestore.rules:338-364` widening + extend the existing intent expiry branch in `watchpartyTick` (`functions/index.js:494-512`) to handle 4 flow types. NOT a new collection or new CF — extends Phase 8's primitive.
 7. **14-07 Flow A — group rank-pick** (D-07) — picker UI + roster proxy-confirm + reject→#2 + counter-nomination chain (3-level cap)
 8. **14-08 Flow B — solo-nominate** (D-08) — nominate UI + counter-time + nominator-decides + auto-convert at T-15
-9. *(probable add)* **14-09 Onboarding tooltips + empty states + push integration** (D-10, D-11, D-12) — touches the seven new push categories, the five empty-state designs, and the three onboarding tooltip moments. Could split or absorb into the relevant flow plans; planner decides.
+9. *(probable add)* **14-09 Onboarding tooltips + empty states + push integration** (D-10, D-11, D-12) — touches the seven new push categories (added in THREE places per DR-3), the five empty-state designs, and the three onboarding tooltip moments. Could split or absorb into the relevant flow plans; planner decides.
 
 Requirement IDs to mint at plan-phase: `DECI-01` through `DECI-13` (range — actual count locked at /gsd-plan-phase 14).
 
@@ -218,8 +241,9 @@ Things to NOT do during research and planning:
 4. **Don't move TMDB key / Firebase config server-side** — public-by-design per CLAUDE.md.
 5. **Don't auto-add Yes votes to queue without making this discoverable** — D-03 unifies queue+vote, but users need to see this happening (toast confirmation, inline animation) so it doesn't feel like surprise behavior.
 6. **Don't ship Couch SVG without `/gsd-sketch` first** — D-06 explicitly defers visual exploration to sketch phase; planner should NOT lock visuals before sketches are reviewed.
-7. **Don't conflate the existing `watchparty` primitive with the new `watchpartyIntent` primitive** — they're separate Firestore collections. Intent → Watchparty is a one-way conversion (D-07.7 / D-08.4). Once converted, intent doc stays as historical record (status='converted') with `convertedToWpId` pointer.
-8. **Don't forget Phase 6's notifPrefs allowlist** — D-12's seven new push categories MUST be added to the server-side `NOTIFICATION_PREFS_ALLOWLIST` AND the client-side UI list (matches Phase 12 POL-01 pattern). Skipping the allowlist means new pushes silently no-op.
+7. **Don't conflate `watchparty` (collection) with `intent` (collection)** — DR-1 reconciliation extends the EXISTING `families/{code}/intents/` collection with two new `flow` values (`rank-pick`, `nominate`). `watchparty` and `intents` remain separate Firestore collections. Intent → Watchparty is a one-way conversion (D-07.7 / D-08.4). Once converted, intent doc stays as historical record (status='converted') with `convertedToWpId` pointer.
+8. **Don't forget Phase 6's notifPrefs gates — there are THREE places to update** (DR-3 reconciliation): server `NOTIFICATION_DEFAULTS` (`functions/index.js:74`), client `DEFAULT_NOTIFICATION_PREFS` (`js/app.js:100`), client labels + key-map `NOTIF_UI_LABELS` + `NOTIF_UI_TO_SERVER_KEY` (`js/constants.js`). Skipping any of the three means new pushes silently no-op or render without copy.
+9. **Don't rebuild the queue primitive — it's already shipped** (DR-2 reconciliation). `queues[memberId]` map, Yes-add at `js/app.js:5422`, drag-reorder at `js/app.js:4650`, `reindexMyQueue()` all exist. Phase 14's queue plan is polish + tier-sort + discoverability, NOT new primitive build.
 
 ## Research targets (for /gsd-phase-researcher)
 
