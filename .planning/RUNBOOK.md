@@ -396,17 +396,23 @@ gcloud scheduler jobs describe daily-firestore-export --location=us-central1 --f
 
 ## §L — GitHub branch protection (OPS-13-06)
 
-Phase 13 / OPS-13-06 enabled a branch ruleset on `main`.
+Phase 13 / OPS-13-06 enabled branch protection on `main`.
 
-**Path:** `github.com/<owner>/couch` -> Settings -> Rules -> Rulesets -> `protect-main`.
+**Product used: legacy Classic Branch Protection (NOT Rulesets).**
+Rulesets and legacy Branch Protection both have the same enforcement constraint on a free GitHub plan: rules only enforce on **public** repositories or on **paid Team/Enterprise** organizations. The original plan assumed Rulesets on a private repo would enforce -- it does not. Resolution: the repo was made public (its content is already public via the deployed PWA at couchtonight.app, and TMDB/Firebase keys are public-by-design per CLAUDE.md), and the legacy Classic Branch Protection product was used because Rulesets is the user-friendlier wizard but the legacy product is feature-equivalent for the §L set.
 
-**Active rules:**
-- Restrict deletions
-- Block force pushes
-- Require linear history
-- Require a pull request before merging (0 reviewers -- solo-dev gate)
+GitHub's UI shows a deprecation banner suggesting migration to Rulesets ("Level up your branch protections with Repository Rules"). Migration is a future cleanup -- not urgent because the underlying enforcement is identical.
+
+**Path:** `github.com/Nahder-Bot/Couch` -> Settings -> Branches (NOT Settings -> Rules -> Rulesets).
+
+**Active rules (configured 2026-04-25):**
+- Require a pull request before merging (0 approvals required -- solo-dev gate)
 - Require status checks to pass: `syntax-check` (from `.github/workflows/ci.yml`)
 - Require conversation resolution before merging
+- Require linear history
+- Do not allow bypassing the above settings (applies to administrators including the repo owner -- "Solo-dev safety" property)
+- Allow force pushes: NOT enabled (force push blocked for everyone)
+- Allow deletions: NOT enabled (branch deletion blocked for everyone)
 
 **To make a normal change:**
 ```bash
