@@ -135,6 +135,15 @@ service cloud.firestore {
       // may change in the same write — the diff check scopes the mutation to ownerUid only.
       // Second caller after ownership is set will get permission-denied, which the client
       // UI handles gracefully (CTA hides via onSnapshot; toast flashes "just claimed").
+      //
+      // Phase 14 / DECI-14-06 (D-06): additive third branch for couchSeating writes from
+      // js/app.js persistCouchSeating(). Shape: families/{code}.couchSeating = { [memberId]:
+      // index } (per-member-keyed map of cushion positions). Carries writeAttribution()
+      // spread (actingUid + memberId + memberName, optionally managedMemberId) — the
+      // affectedKeys() allowlist below names couchSeating + the four attribution fields.
+      // The attributedWrite() helper is reused for actor-uid enforcement (T-14.04-01
+      // Tampering mitigation: a member cannot plant a fake claim by another member because
+      // request.resource.data.actingUid must equal request.auth.uid).
       allow update: if (
           isMemberOfFamily(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker'])
@@ -145,6 +154,11 @@ service cloud.firestore {
           && !('ownerUid' in resource.data)
           && request.resource.data.ownerUid == uid()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])
+        ) || (
+          // D-06: couchSeating write from persistCouchSeating() — attribution-required.
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
         );
 
       allow delete: if false;

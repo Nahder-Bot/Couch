@@ -311,6 +311,80 @@ async function run() {
     });
   });
 
+  // Phase 14 / DECI-14-06 (D-06) — couchSeating write branch.
+  // Three tests cover: (a) happy path with attribution, (b) missing actingUid blocked,
+  // (c) extra fields outside the allowlist blocked.
+  await describe('Family doc — couchSeating update (D-06)', async () => {
+    await it('#19 authed member writes couchSeating + attribution → ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1').set(
+          {
+            couchSeating: { 'm_UID_MEMBER': 0, 'm_UID_OWNER': 1 },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#20 couchSeating write with NEITHER actingUid NOR memberId → DENIED', async () => {
+      // Both attribution paths must fail:
+      //   - validAttribution() needs actingUid == request.auth.uid (absent here).
+      //   - legacyGraceWrite() needs memberId is string (also absent here).
+      // Note: a memberId-only legacy write WOULD succeed during grace by design
+      // (firestore.rules:70-74 legacyGraceWrite()) — that's the documented dual-write
+      // ramp covering pre-auth clients. Here we omit both to verify the floor.
+      //
+      // Test isolation: test #19 above stamped attribution fields on fam1, so
+      // request.resource.data.memberId would be inherited unless we explicitly
+      // clear them. We do that via withSecurityRulesDisabled before the assertion.
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await ctx.firestore().doc('families/fam1').set({
+          ownerUid: UID_OWNER,
+          createdAt: Date.now(),
+          // No actingUid / memberId / memberName / couchSeating — fresh slate for #20.
+        });
+      });
+      await assertFails(
+        member.doc('families/fam1').set(
+          { couchSeating: { 'm_UID_MEMBER': 0 } },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#21 couchSeating + a non-allowlisted field (mode) → DENIED', async () => {
+      await assertFails(
+        member.doc('families/fam1').set(
+          {
+            couchSeating: { 'm_UID_MEMBER': 0 },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+            mode: 'crew',  // ← NOT in allowlist; should fail
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await it('#22 stranger writes couchSeating with their actingUid → DENIED', async () => {
+      await assertFails(
+        stranger.doc('families/fam1').set(
+          {
+            couchSeating: { 'm_UID_STRANGER': 0 },
+            actingUid: UID_STRANGER,
+            memberId: 'm_UID_STRANGER',
+            memberName: 'Stranger',
+          },
+          { merge: true }
+        )
+      );
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);
