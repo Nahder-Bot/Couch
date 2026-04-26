@@ -311,6 +311,10 @@
       <p>This account is pending claim. Ask the group owner for a claim link to keep voting.</p>
       <button class="link-btn" onclick="dismissClaimPrompt()">Dismiss</button>
     </div>
+    <!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by renderCouchViz() in js/app.js
+         (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
+         above the picker card, so "who's on the couch" is the first thing the user sees. -->
+    <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
     <div class="picker-card" id="picker-card" style="display:none;" onclick="openPickerSheet()">
       <div class="picker-left">
         <div class="picker-eyebrow" id="picker-eyebrow">Tonight's pick goes to</div>
