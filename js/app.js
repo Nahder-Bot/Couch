@@ -12872,6 +12872,48 @@ async function persistCouchSeating() {
   }
 }
 
+// === D-04 openTileActionSheet — DECI-14-04 ===
+// Primary tile-tap entry (replaces openDetailModal as the body-tap target).
+// Narrower than openActionSheet's full ⋯ menu — surfaces the 4 D-04 buckets:
+//   Watch tonight / Schedule for later / Ask family / Vote (de-emphasized).
+// Plus a divider + "Show details" (delegates to openDetailModal) + "More options"
+// (delegates to the full openActionSheet so power-user functionality stays reachable).
+// Mirrors the Flow B "Watch with the couch?" nominate entry from openActionSheet
+// (14-08 / DECI-14-08) so Flow B is reachable from the primary tap entry, not just ⋯.
+// Surfaces the D-01 / DECI-14-01 "Rewatch this one" override on watched tiles.
+// SIBLING-not-replacement of openActionSheet (per 14-CONTEXT Anti-pattern #2: don't
+// rebuild primitives — share the same #action-sheet-bg DOM container).
+window.openTileActionSheet = function(titleId, e) {
+  if (e) e.stopPropagation();
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const content = document.getElementById('action-sheet-content');
+  if (!content) return;
+  const items = [];
+  if (!t.watched && state.me) {
+    // 1. Watch tonight — start a watchparty immediately (highest-commitment, top of list).
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openWatchpartyStart('${titleId}')"><span class="icon">🎬</span>Watch tonight</button>`);
+    // 2. Schedule for later — defer to a specific time.
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openScheduleModal('${titleId}')"><span class="icon">📅</span>Schedule for later</button>`);
+    // 3. Ask family — D-08 (DECI-14-08) Flow B solo-nominate, mirrored from openActionSheet.
+    //    Sibling-not-replacement of "Ask the family" (legacy openProposeIntent). Per 14-08-SUMMARY,
+    //    Flow B is the new D-09 nominate primitive — use openFlowBNominate, not the legacy entry.
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openFlowBNominate('${titleId}')"><span class="icon">📣</span>Ask family</button>`);
+    // 4. Vote — de-emphasized but kept for completeness (D-04 says "Vote remains, just demoted").
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openVoteModal('${titleId}')"><span class="icon">🗳</span>Vote</button>`);
+  }
+  // Per-title rewatch override (D-01 / DECI-14-01) — surfaces only on watched tiles for the current user.
+  if (state.me && t.watched) {
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();setRewatchAllowed('${titleId}','${state.me.id}')"><span class="icon">🔁</span>Rewatch this one</button>`);
+  }
+  // Secondary divider — Show details + More options (full action sheet).
+  items.push(`<div class="action-sheet-divider"></div>`);
+  items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openDetailModal('${titleId}')"><span class="icon">ℹ</span>Show details</button>`);
+  items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openActionSheet('${titleId}',event)"><span class="icon">⋯</span>More options</button>`);
+  content.innerHTML = `<div class="action-sheet-title">${escapeHtml(t.name)}</div>${items.join('')}`;
+  document.getElementById('action-sheet-bg').classList.add('on');
+};
+
 window.openActionSheet = function(titleId, e) {
   if (e) e.stopPropagation();
   const t = state.titles.find(x => x.id === titleId);
