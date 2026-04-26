@@ -13129,15 +13129,35 @@ window.toggleCouchMember = async function(memberId) {
   await persistCouchInTonight();
 };
 
-// V5 — long-press → send push. Stub-only in Task 3 commit; real wiring (Path C —
-// Sentry breadcrumb) lands in Task 5 separately to keep the UI swap atomic.
+// V5 — long-press → send push. Path C (toast + Sentry breadcrumb).
+// Path A (notifyMember helper) was investigated and rejected — no generic
+// notifyMember / sendPushTo / pingMember helper exists in the codebase
+// (verified via grep). Path B (createIntent({flow:'couch-ping'})) was
+// rejected because it would require cross-repo CF additions: a new event
+// type 'couchPing' added to NOTIFICATION_DEFAULTS + NOTIFICATION_EVENT_LABELS
+// per 14-09's DR-3 pattern, plus a fan-out branch in onIntentCreated (CF) and
+// a client subscription handler — that surface deserves its own plan.
+//
+// Path C ships the visible UX win (long-press progress → toast confirmation)
+// without the CF wiring. Sentry breadcrumb captures attempted fires for
+// product analytics so we can size demand before the follow-up CF plan.
 window.sendCouchPing = function(memberId) {
   if (!state.me || !memberId) return;
-  // Task 5 wires the actual CF call; for now show the toast so the gesture has feedback.
   const m = (state.members || []).find(x => x.id === memberId);
   const name = m ? m.name : 'them';
+  // 14-10 Task 5 / Path C — Sentry breadcrumb captures attempted pings
+  // for product analytics. Real push fan-out deferred to a follow-up plan.
+  try {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      Sentry.addBreadcrumb({
+        category: 'couch-ping',
+        message: `would-fire ${memberId}`,
+        level: 'info',
+        data: { from: state.me.id, to: memberId }
+      });
+    }
+  } catch (e) { /* never let analytics block UX */ }
   flashToast(`Push sent to ${name}`, { kind: 'info' });
-  // 14-10 Task 5 — replace the toast-only stub with the real call.
 };
 
 // V5 — bulk action: mark every roster member in.
