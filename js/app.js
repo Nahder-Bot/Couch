@@ -7003,6 +7003,108 @@ function getGroupNext3() {
   return ranked;
 }
 
+// === D-02 tier aggregators — DECI-14-02 ===
+// D-02 (DECI-14-02) — Tier 1: titles where EVERY couch member has the title in their queue.
+// Sort: ascending mean of member-queue ranks; tie-break descending t.rating.
+// Excludes titles where isWatchedByCouch returns true (consumes 14-01 helper).
+function getTierOneRanked(couchMemberIds) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const out = [];
+  state.titles.forEach(t => {
+    if (t.watched) return;
+    if (!t.queues) return;
+    if (isWatchedByCouch(t, couchMemberIds)) return;
+    // Intersection requirement: ALL couch members must have a rank for this title.
+    const ranks = couchMemberIds.map(mid => t.queues[mid]);
+    if (ranks.some(r => r == null)) return;
+    const meanRank = ranks.reduce((a,b) => a + b, 0) / ranks.length;
+    out.push({ title: t, meanRank, ratingTie: parseFloat(t.rating) || 0 });
+  });
+  out.sort((a,b) => (a.meanRank - b.meanRank) || (b.ratingTie - a.ratingTie));
+  return out;
+}
+
+// D-02 — Tier 2: titles where ≥1 couch member queues it BUT NOT every couch member.
+// Strict complement of T1 within the "any couch presence" set. Sort: descending count of couch
+// members queueing it (more couch interest first), then ascending mean of present members' ranks,
+// then descending rating.
+function getTierTwoRanked(couchMemberIds) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const out = [];
+  state.titles.forEach(t => {
+    if (t.watched) return;
+    if (!t.queues) return;
+    if (isWatchedByCouch(t, couchMemberIds)) return;
+    const presentRanks = couchMemberIds
+      .map(mid => t.queues[mid])
+      .filter(r => r != null);
+    // Must have ≥1 couch presence AND NOT all (else it's T1).
+    if (presentRanks.length === 0) return;
+    if (presentRanks.length === couchMemberIds.length) return;
+    const meanPresentRank = presentRanks.reduce((a,b) => a + b, 0) / presentRanks.length;
+    out.push({
+      title: t,
+      couchPresenceCount: presentRanks.length,
+      meanPresentRank,
+      ratingTie: parseFloat(t.rating) || 0
+    });
+  });
+  out.sort((a,b) =>
+    (b.couchPresenceCount - a.couchPresenceCount) ||
+    (a.meanPresentRank - b.meanPresentRank) ||
+    (b.ratingTie - a.ratingTie)
+  );
+  return out;
+}
+
+// D-02 — Tier 3: titles where ZERO couch members queue it BUT ≥1 off-couch member does.
+// "Watching her movie without her." Hidden behind expand by default; visibility resolved by
+// resolveT3Visibility() (account/family/group most-restrictive-wins).
+function getTierThreeRanked(couchMemberIds) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const couchSet = new Set(couchMemberIds);
+  const out = [];
+  state.titles.forEach(t => {
+    if (t.watched) return;
+    if (!t.queues) return;
+    if (isWatchedByCouch(t, couchMemberIds)) return;
+    const queueingMids = Object.keys(t.queues);
+    if (!queueingMids.length) return;
+    // Zero couch overlap, ≥1 off-couch presence.
+    const offCouchPresent = queueingMids.filter(mid => !couchSet.has(mid));
+    const couchPresent = queueingMids.filter(mid => couchSet.has(mid));
+    if (couchPresent.length > 0) return;
+    if (offCouchPresent.length === 0) return;
+    const meanOffCouchRank = offCouchPresent
+      .map(mid => t.queues[mid])
+      .reduce((a,b) => a + b, 0) / offCouchPresent.length;
+    out.push({
+      title: t,
+      offCouchMemberIds: offCouchPresent,
+      meanOffCouchRank,
+      ratingTie: parseFloat(t.rating) || 0
+    });
+  });
+  out.sort((a,b) => (a.meanOffCouchRank - b.meanOffCouchRank) || (b.ratingTie - a.ratingTie));
+  return out;
+}
+
+// D-02 — T3 visibility resolver: most-restrictive-wins across 3 levels.
+// account-level: state.me.preferences?.showT3
+// family-level:  state.family?.preferences?.showT3
+// group-level:   state.group?.preferences?.showT3
+// Semantics: ANY level === false → hide; true at all checked levels OR undefined → show.
+// Default (no preferences set anywhere): SHOW (T3 expand toggle reveals; this resolver only
+// gates the EXISTENCE of the expand toggle UI on an explicit hide).
+function resolveT3Visibility() {
+  const accountPref = state.me && state.me.preferences ? state.me.preferences.showT3 : undefined;
+  const familyPref  = state.family && state.family.preferences ? state.family.preferences.showT3 : undefined;
+  const groupPref   = state.group && state.group.preferences ? state.group.preferences.showT3 : undefined;
+  // Most-restrictive-wins: any explicit false hides T3.
+  if (accountPref === false || familyPref === false || groupPref === false) return false;
+  return true;
+}
+
 function renderNext3() {
   const section = document.getElementById('next3-section');
   const list = document.getElementById('next3-list');
