@@ -4457,7 +4457,7 @@ async function registerServiceWorker() {
 function applyModeLabels() {
   const m = currentMode();
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-  set('who-title-label', {family:"Who's on the couch", crew:"Who's on the couch", duo:"Who's on the couch"}[m]);
+  // 14-10: who-title-label set removed — element deleted with .who-card in app.html.
   set('next3-sub', groupForLabel());
   set('stats-heading', {family:"Who's watched what", crew:"Who's watched what", duo:"How we've watched"}[m]);
   set('members-heading', {family:'Family', crew:'Crew', duo:'Us'}[m]);
@@ -4732,40 +4732,9 @@ function renderTonight() {
   renderNext3();
   renderMoodFilter();
   updateFiltersBar();
-  const whoEl = document.getElementById('who-list');
-  if (!whoEl) return;
-  // D-03 + D-04: sub-profiles and active guests render alongside authed members.
-  // Sub-profile taps set state.actingAs (per-action); regular chips keep toggleMember.
-  const nowTs = Date.now();
-  const tonightMembers = (state.members || []).filter(m =>
-    !m.archived &&
-    (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
-  );
-  // Phase 11 / REFR-03 — empty-state: show branded fallback + invite CTA when no one on couch.
-  if (!tonightMembers.length) {
-    whoEl.innerHTML = `<div class="who-empty">
-      <div class="who-empty-title">Nothing but us.</div>
-      <div class="who-empty-body"><em>Pull up a seat &mdash; invite someone to the couch.</em></div>
-      <button class="who-empty-share" onclick="openInviteShare()">Share an invite</button>
-    </div>`;
-    return;
-  }
-  whoEl.innerHTML = tonightMembers.map(m => {
-    const isSub = !!m.managedBy && !m.uid;
-    const isGuest = !!m.temporary;
-    const badges = [];
-    if (isSub) badges.push('<span class="chip-badge badge-kid">kid</span>');
-    if (isGuest) badges.push('<span class="chip-badge badge-guest">guest</span>');
-    const badgeHtml = badges.length ? ` ${badges.join(' ')}` : '';
-    if (isSub) {
-      // Act-as tap — per D-04, does NOT toggle selection; it arms the next write.
-      const safeName = (m.name || '').replace(/'/g,"\\'");
-      return `<div class="who-chip sub-profile" role="button" tabindex="0" data-sub-id="${m.id}" aria-label="Act as ${escapeHtml(m.name)}" onclick="tapActAsSubProfile('${m.id}','${safeName}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tapActAsSubProfile('${m.id}','${safeName}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
-    }
-    const selected = state.selectedMembers.includes(m.id);
-    const isMe = state.me && m.id === state.me.id;
-    return `<div class="who-chip ${selected?'on':''} ${isMe?'me':''}" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHtml(m.name)}" onclick="toggleMember('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMember('${m.id}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
-  }).join('');
+  // 14-10 (sketch 003 V5): who-list emitter removed — #who-list element deleted
+  // with .who-card in app.html. The V5 roster in #couch-viz-container above is
+  // the single 'who's on the couch' surface on the Tonight tab.
   const el = document.getElementById('matches-list');
   const countEl = document.getElementById('matches-count');
   const actionsEl = document.getElementById('t-section-actions');
@@ -14026,8 +13995,9 @@ window.removeTitle = async function(id) {
   }
 })();
 
-// Sticky "who's watching" mini bar: appears when the user scrolls past the who-card on Tonight.
+// Sticky "who's watching" mini bar: appears when the user scrolls past the V5 roster on Tonight.
 // Not shown on other screens. Keeps the user aware of who's selected without scrolling back up.
+// 14-10: rewired from .who-card → #couch-viz-container (V5 redesign — same conceptual surface).
 (function() {
   const mini = document.getElementById('who-mini');
   const miniAvatars = document.getElementById('who-mini-avatars');
@@ -14035,7 +14005,7 @@ window.removeTitle = async function(id) {
   let lastShown = false;
   function update() {
     const onTonight = document.getElementById('screen-tonight')?.classList.contains('active');
-    const whoCard = document.querySelector('#screen-tonight .who-card');
+    const whoCard = document.querySelector('#screen-tonight #couch-viz-container');
     if (!onTonight || !whoCard) {
       if (lastShown) { mini.style.display = 'none'; lastShown = false; }
       return;
