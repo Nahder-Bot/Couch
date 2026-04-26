@@ -336,30 +336,47 @@ service cloud.firestore {
 
 
       // ========================================================
-      // Intents — Phase 8 Watch-Intent Flows
+      // Intents — Phase 8 Watch-Intent Flows + Phase 14 Decision Ritual (D-09 / DR-1)
       // ========================================================
-      // Two flow types share this subcollection: tonight_at_time, watch_this_title.
+      // Four flow types share this subcollection (DR-1: extend, do not fork):
+      //   - tonight_at_time, watch_this_title  (Phase 8 legacy, preserved verbatim)
+      //   - rank-pick (Flow A — group rank-pick), nominate (Flow B — solo nominate)
       // Writes fall into disjoint update branches to keep attacker surface narrow while
       // allowing every family member to RSVP on their own behalf and any member to
       // detect & write the open→matched transition (client-side threshold detection
       // per 08-CONTEXT D-07, idempotent under races via status recheck).
+      // Phase 14 additions: counterChainDepth bound + counter-chain bump branch (D-07.6 cap=3),
+      // convert branch widened to allow open → converted (Flow A direct convert).
 
       match /intents/{intentId} {
         allow read: if isMemberOfFamily(familyCode);
 
         // Create: family member creates their own intent. Must stamp createdBy + status=open.
+        // Type enum widened from 2 → 4 values per D-09 / DR-1.
+        // counterChainDepth (when present) bounded to 0..3 per D-07.6 cap.
         allow create: if attributedWrite(familyCode)
           && request.resource.data.status == 'open'
-          && (request.resource.data.type == 'tonight_at_time' || request.resource.data.type == 'watch_this_title');
+          && (request.resource.data.type == 'tonight_at_time'
+              || request.resource.data.type == 'watch_this_title'
+              || request.resource.data.type == 'rank-pick'
+              || request.resource.data.type == 'nominate')
+          && (!('counterChainDepth' in request.resource.data)
+              || (request.resource.data.counterChainDepth >= 0
+                  && request.resource.data.counterChainDepth <= 3));
 
-        // Update — three disjoint branches:
+        // Update — five disjoint branches (4 legacy preserved + 1 new for counter-chain):
         //   (1) RSVP: any family member writes/clears their own rsvps slot + writeAttribution fields
         //   (2) Cancel: creator transitions status → 'cancelled'
         //   (3) Match-transition: any family member transitions status open → 'matched'
         //                         (client-side match detection writes this idempotently)
-        //   (4) Convert: creator transitions status matched → 'converted' after launching a watchparty/schedule
+        //   (4) Convert: creator transitions status open OR matched → 'converted' (Flow A
+        //                converts directly from open at quorum; Flow B/Phase 8 via matched).
+        //   (5) Counter-chain bump: any family member submits a counter (atomic with their RSVP),
+        //                          incrementing counterChainDepth by exactly 1, capped at 3.
         allow update: if attributedWrite(familyCode) && (
-          // (1) RSVP branch — only rsvps map + attribution keys touched
+          // (1) RSVP branch — only rsvps map + attribution keys touched.
+          //     Rules don't validate the inner rsvps[mid] shape; flow-specific shape
+          //     (state vs value) is enforced client-side via createIntent / setIntentRsvp helpers.
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['rsvps', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
 
@@ -379,13 +396,26 @@ service cloud.firestore {
                  .hasOnly(['status', 'matchedAt', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
           )
 
-          // (4) Convert transition — creator only, matched → converted
+          // (4) Convert transition — creator only. EXTENDED in Phase 14: allow
+          //     open → converted (Flow A direct) in addition to matched → converted (Phase 8).
+          //     convertedToWpId added to allowed key set alongside legacy convertedTo.
           || (
-            resource.data.status == 'matched'
+            (resource.data.status == 'matched' || resource.data.status == 'open')
             && request.resource.data.status == 'converted'
             && resource.data.createdByUid == uid()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'convertedTo', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+                 .hasOnly(['status', 'convertedTo', 'convertedToWpId', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          )
+
+          // (5) NEW (Phase 14 / D-07.6) — Counter-chain bump. Any family member can submit
+          //     a counter, atomically updating their rsvps slot AND incrementing
+          //     counterChainDepth by exactly 1. Cap at 3. Status must remain 'open'.
+          || (
+            resource.data.status == 'open'
+            && (resource.data.counterChainDepth == null || resource.data.counterChainDepth < 3)
+            && request.resource.data.counterChainDepth == (resource.data.counterChainDepth == null ? 1 : resource.data.counterChainDepth + 1)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['rsvps', 'counterChainDepth', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
           )
         );
 
