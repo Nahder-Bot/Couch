@@ -13049,6 +13049,7 @@ function renderCouchViz() {
     pill.addEventListener('mouseup', cancelPress);
     pill.addEventListener('mouseleave', cancelPress);
     pill.addEventListener('touchend', cancelPress);
+    pill.addEventListener('touchcancel', cancelPress);
     pill.addEventListener('click', handleClick);
     pill.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCouchMember(mid); }
@@ -14011,12 +14012,12 @@ window.removeTitle = async function(id) {
       return;
     }
     const rect = whoCard.getBoundingClientRect();
-    const shouldShow = rect.bottom < 0 && state.selectedMembers && state.selectedMembers.length > 0;
+    const shouldShow = rect.bottom < 0 && state.couchMemberIds && state.couchMemberIds.length > 0;
     if (shouldShow === lastShown) return;
     lastShown = shouldShow;
     if (shouldShow) {
       // Render avatars
-      const selected = state.selectedMembers.map(id => state.members.find(m => m.id === id)).filter(Boolean).slice(0, 5);
+      const selected = state.couchMemberIds.map(id => state.members.find(m => m.id === id)).filter(Boolean).slice(0, 5);
       miniAvatars.innerHTML = selected.map(m => `<div class="who-mini-av" style="background:${m.color}" title="${escapeHtml(m.name)}">${avatarContent(m)}</div>`).join('');
       mini.style.display = 'flex';
     } else {
