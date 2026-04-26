@@ -29,3 +29,10 @@ Sketches explore the central object on the Tonight tab — the visualization tha
 | # | Name | Design Question | Winner | Tags |
 |---|------|----------------|--------|------|
 | 001 | couch-shape | What visual best represents 'who's on the couch tonight' for up to 10 members in Couch's warm-dark brand? | **P** (Hero icon + avatar grid) | phase-14, d-06, hero-icon, avatar-grid |
+| 002 | couch-wordmark | How should the existing C-icon combine with a wordmark to form a complete brand lockup? | ⏸ **Superseded by Fiverr brand design** (Standard $85, ETA 2026-04-28) | brand, wordmark, lockup, superseded |
+
+## Pending External Deliverables
+
+| Item | Source | ETA | Status | Action when delivered |
+|------|--------|-----|--------|------------------------|
+| Brand identity (icon + wordmark + lockup + source files) | Fiverr Standard ($85) | 2026-04-28 | In flight | Replace `app-icon.png` in sketch 001 + production `mark-*.png` set in `queuenight/public/`; capture wordmark spec into project brand docs |

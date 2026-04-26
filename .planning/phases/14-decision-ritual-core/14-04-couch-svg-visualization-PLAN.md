@@ -13,25 +13,26 @@ autonomous: false
 requirements_addressed: [DECI-14-06]
 must_haves:
   truths:
-    - "renderCouchSvg(seatCount) returns inline-SVG markup string with N cushions where N = clamp(seatCount, 2, 8); when seatCount > 7, the 8th cushion is the +N-more overflow cushion (NOT an individual seat)."
-    - "Each cushion <g> element has tabindex='0', role='button', and an inline onclick='claimCushion(idx)' OR onclick='openCouchOverflowSheet()' (overflow case) — no addEventListener post-render (S4 inline-handler pattern)."
-    - "claimCushion(idx) writes state.couchMemberIds (adds state.me.id at slot idx if empty; toggles off if already claimed by state.me); persists to family doc field families/{code}.couchSeating: { [memberId]: true }."
-    - "openCouchOverflowSheet() reuses the existing #action-sheet-bg primitive at js/app.js:11853 — does NOT create a new sheet DOM."
-    - "SVG uses viewBox='0 0 800 280' with preserveAspectRatio='xMidYMid meet'; cushion <g> hit areas are ≥44×44pt at iPhone-SE viewport width (375px); avatars composited as DOM <img> overlay positioned over SVG (NOT in-SVG <image href>) per RESEARCH §4 iOS caching guidance."
+    - "renderCouchViz() injects two elements into #couch-viz-container: a hero <img src='/mark-512.png'> and a CSS-grid avatar layer with cushionCount cells (filled = .seat-avatar with member color + initial; empty = .seat-empty with ＋ glyph + pulse animation)."
+    - "claimCushion(idx) writes state.couchMemberIds (adds state.me.id at slot idx if empty; toggles off if already claimed by state.me); persists to family doc field families/{code}.couchSeating: { [memberId]: index }."
+    - "openCouchOverflowSheet() opens a member-picker via existing #action-sheet-bg primitive at js/app.js:11853 — used only when claimCushion fails (e.g., shared-device 'sit on behalf of' use case). Adaptive grid up to 10 spots means overflow is rare; primarily a fallback affordance."
+    - "Hero icon element uses <img src='/mark-512.png' alt='Couch'> — no SVG generation. Production swap = update mark-512.png in queuenight/public/; Tonight tab inherits automatically."
+    - "Avatar grid wraps to 5×2 on phone, 10×1 on wider viewports via CSS grid auto-fill. Each grid cell ≥44×44pt at iPhone-SE width (375px / 5 cols ≈ 75px-wide cells)."
     - "Couch viz is rendered into a new container element on the Tonight tab (id='couch-viz-container'); render is gated by app.html surfacing the container."
     - "couchSeating Firestore writes carry writeAttribution() — required by attributedWrite() rules helper."
+    - "Capacity is 1-10 native (D-06's 2-8 cap loosened per sketch 001 outcome — grid handles arbitrary count cleanly)."
   artifacts:
     - path: "js/app.js"
-      provides: "renderCouchSvg + claimCushion + openCouchOverflowSheet + Tonight-tab render hook"
-      contains: "function renderCouchSvg("
-      min_lines_added: 120
+      provides: "renderCouchViz + renderCouchAvatarGrid + claimCushion + openCouchOverflowSheet + persistCouchSeating + Tonight-tab render hook + family-doc snapshot hydration"
+      contains: "function renderCouchViz("
+      min_lines_added: 110
     - path: "js/state.js"
-      provides: "state.couchMemberIds slot declaration (writer)"
+      provides: "state.couchMemberIds slot declaration"
       contains: "couchMemberIds"
     - path: "css/app.css"
-      provides: "couch-svg + cushion + couch-avatar-overlay rules"
-      contains: ".couch-svg"
-      min_lines_added: 60
+      provides: "couch-viz-container + hero-icon + avatar-grid + seat-avatar + seat-empty rules"
+      contains: ".couch-viz-container"
+      min_lines_added: 70
     - path: "app.html"
       provides: "<div id='couch-viz-container'> on Tonight tab"
       contains: "couch-viz-container"
@@ -47,19 +48,23 @@ must_haves:
 ---
 
 <objective>
-Build the SVG sofa visualization per D-06. Procedural inline SVG renderer with adaptive seat count (2-8), per-cushion event binding for "claim seat" / "+N overflow", iOS-Safari-safe rendering (viewBox scaling, ≥44pt targets, no SVG filters, DOM-overlay avatars). Visual treatment was deferred to /gsd-sketch — this plan ships the SHAPE; the styling is open to refinement once /gsd-sketch round runs.
+Build the Tonight tab's "Who's on the couch tonight?" centerpiece per D-06 (DECI-14-06), using the **hero-icon + avatar-grid pattern** locked by sketch 001 (.planning/sketches/001-couch-shape/, winner Variant P).
 
-Purpose: The Couch viz is the centerpiece of Phase 14's redesign — it's the affordance that makes "who's on the couch tonight" tangible instead of a checkbox list. It also writes state.couchMemberIds, which 14-01 (already-watched filter), 14-03 (tier aggregators), and 14-07 (Flow A picker) all consume. Without this plan, the entire decision ritual has no input source for "couch composition."
+**Approach (NEW per sketch 001 outcome — supersedes original D-06 plan to procedurally render an inline SVG sofa):** Use the existing app icon (`/mark-512.png` in production, the C-sectional couch image) as a brand hero element at the top, with a CSS-grid avatar layer below showing "On the couch tonight · {N} of {couchSize} here" + filled/empty seat cells. Members claim seats by tapping empty cells; persistence + state shape unchanged from the original plan.
 
-Output: New `renderCouchSvg(seatCount)` + `claimCushion(idx)` + `openCouchOverflowSheet()` in js/app.js, the persistence writer for `families/{code}.couchSeating`, the CSS for cushion styling + avatar overlay, the Tonight-tab container in app.html, and a sketch-driven visual checkpoint.
+Purpose: The Couch viz is the centerpiece of Phase 14's redesign — it's the affordance that makes "who's on the couch tonight" tangible instead of a checkbox list. It writes state.couchMemberIds, which 14-01 (already-watched filter), 14-03 (tier aggregators), and 14-07 (Flow A picker) all consume. Without this plan, the entire decision ritual has no input source for "couch composition."
+
+Output: New `renderCouchViz()` + `renderCouchAvatarGrid()` + `claimCushion(idx)` + `openCouchOverflowSheet()` + `persistCouchSeating()` in js/app.js; the persistence writer for `families/{code}.couchSeating`; the CSS for hero-icon + grid styling; the Tonight-tab container in app.html.
 </objective>
 
 <execution_context>
-Phase 14 — Decision Ritual Core. Wave 2 (independent of 14-01..14-03 in code dependency, but lives in Wave 2 to keep Wave 1 lightweight). 14-07 (Flow A) hard-depends on this plan for state.couchMemberIds.
+Phase 14 — Decision Ritual Core. Wave 1 (independent of 14-01/14-02/14-06). 14-07 (Flow A) hard-depends on this plan for state.couchMemberIds.
 
-**Two-repo discipline:** Couch-side only. couchSeating is a NEW field on the family doc — firestore.rules MAY need a tiny widening if the family-doc update rule is allowlist-restricted (Task 4 audits and updates if needed).
+**Two-repo discipline:** Couch-side only. couchSeating is a NEW field on the family doc — firestore.rules MAY need a tiny widening (Task 4 audits and updates if needed).
 
-**Sketch-driven design:** D-06 explicitly defers visual treatment to /gsd-sketch (Anti-pattern #6). This plan implements the structural shape (cushion count, hit-target sizing, event binding, persistence) with placeholder geometry. Task 5 is a checkpoint where the user confirms the visual shape is acceptable OR provides /gsd-sketch outputs to refine.
+**Sketch-driven design:** The original D-06 plan deferred to /gsd-sketch for visual treatment. **That sketch round (001) ran 2026-04-25 and concluded** that the right architecture is hero-icon + avatar-grid (NOT a procedural SVG sofa). This plan implements the locked direction. No further sketch checkpoint needed.
+
+**Brand asset:** Currently uses the existing `mark-512.png` in `queuenight/public/`. A Fiverr-commissioned brand refresh (Standard, ETA 2026-04-28) may deliver a new icon. Because this plan references the file by path (`/mark-512.png`), the new icon will swap in transparently when production deploys with the updated PNG — zero code change required.
 </execution_context>
 
 <context>
@@ -68,18 +73,19 @@ Phase 14 — Decision Ritual Core. Wave 2 (independent of 14-01..14-03 in code d
 @.planning/phases/14-decision-ritual-core/14-CONTEXT.md
 @.planning/phases/14-decision-ritual-core/14-RESEARCH.md
 @.planning/phases/14-decision-ritual-core/14-PATTERNS.md
+@.planning/sketches/001-couch-shape/README.md
+@.planning/sketches/001-couch-shape/index.html
 @CLAUDE.md
 
 <interfaces>
-**Existing inline DOM onclick pattern** at js/app.js:4469 + js/app.js:4482 — Couch's pervasive idiom. New SVG cushions follow the same shape:
+**Existing inline DOM onclick pattern** at js/app.js:4469 + js/app.js:4482 — Couch's pervasive idiom. New avatar grid cells follow the same shape:
 ```js
-return `<div class="tc..." role="button" tabindex="0"
-  aria-label="${escapeHtml(t.name)}..."
-  onclick="openDetailModal('${t.id}')"
-  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('${t.id}');}">
+return `<div class="seat-cell" role="button" tabindex="0"
+  onclick="claimCushion(${idx})"
+  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${idx});}">
 ```
 
-**Existing action-sheet primitive** at js/app.js:11853 (`window.openActionSheet`) — reuse #action-sheet-bg + #action-sheet-content for the +N overflow sheet. Setting `content.innerHTML` then toggling `#action-sheet-bg.classList.add('on')` is the open contract.
+**Existing action-sheet primitive** at js/app.js:11853 (`window.openActionSheet`) — reuse #action-sheet-bg + #action-sheet-content for the overflow / "claim on behalf of" sheet.
 
 **Existing applyVote attribution write pattern** at js/app.js:12325ff (per-member-keyed map writes on family-scoped docs):
 ```js
@@ -89,13 +95,11 @@ await updateDoc(doc(membersRef(), state.me.id), {
 });
 ```
 
-**Family doc reference** — `state.familyCode` provides the family code; `doc(db, 'families', state.familyCode)` resolves the family doc reference. Existing writes to family-doc fields likely already exist (search `doc(db, 'families', state.familyCode)` to find).
+**Family doc reference** — `state.familyCode` provides the family code; `doc(db, 'families', state.familyCode)` resolves the family doc reference.
 
-**RESEARCH §4 iOS PWA gotchas** (re-stated for in-task use):
-- Touch target ≥44×44pt at iPhone-SE width (375px). 8 cushions in 800-unit viewBox → each cushion ~95 units wide → at 375px viewport that's ~44.5px. Just enough; do NOT shrink further.
-- Use `viewBox="0 0 800 280"` + `preserveAspectRatio="xMidYMid meet"` for predictable cross-device scaling.
-- Avatars composited as absolute-positioned DOM `<img>` over SVG (NOT in-SVG `<image href>` — iOS Safari has cross-origin caching quirks).
-- NO `filter:url(#...)` SVG filter primitives (broken in iOS PWA WebKit before iOS 17). Use CSS box-shadow / filter for any glow.
+**Existing app icon path** — `app.html` already references `/mark-512.png` (and other sizes) for favicons + PWA manifest. The Tonight tab hero re-uses the same asset path.
+
+**Sketch 001 reference** — `.planning/sketches/001-couch-shape/index.html` Variant P is the canonical visual reference. The HTML/CSS in that sketch is production-aligned (uses Fraunces + Inter, brand color palette, `--color-bg`/`--color-text`/etc. tokens). Executor should pattern-match the sketch's avatar grid styling.
 </interfaces>
 </context>
 
@@ -128,110 +132,102 @@ await updateDoc(doc(membersRef(), state.me.id), {
 </task>
 
 <task type="auto" tdd="false">
-  <name>Task 2: Add renderCouchSvg + claimCushion + openCouchOverflowSheet to js/app.js</name>
+  <name>Task 2: Add renderCouchViz + renderCouchAvatarGrid + claimCushion + handlers to js/app.js</name>
   <files>js/app.js</files>
   <read_first>
     - js/app.js lines 4460-4490 (analog: card(t) inline-onclick render pattern)
-    - js/app.js lines 11853-11900 (analog: openActionSheet primitive — reused for overflow)
+    - js/app.js lines 11853-11900 (analog: openActionSheet primitive — reused for overflow sheet)
     - js/app.js lines 11920-11940 (analog: existing avatar markup patterns; Grep `who-avatar` and `memberColor(`)
     - js/app.js lines 12325-12390 (analog: per-member-keyed map write pattern with writeAttribution)
-    - .planning/phases/14-decision-ritual-core/14-PATTERNS.md §6 (concrete renderCouchSvg skeleton — copy + extend)
+    - .planning/sketches/001-couch-shape/index.html (canonical visual + behavior reference — Variant P; copy CSS class structure verbatim where possible)
+    - .planning/sketches/001-couch-shape/README.md (winner-direction spec + icon-swap convention)
   </read_first>
   <action>
-1. Locate a good insertion point. The renderer + handlers are best co-located near the other tonight-tab render code. Grep for `renderTonight` or pick a location ~50 lines above `openActionSheet` at js/app.js:11853 (so all action-sheet code stays grouped). Capture insertion line in SUMMARY.
+1. Locate a good insertion point. The renderer + handlers are best co-located near other tonight-tab render code. Grep for `renderTonight` or pick a location ~50 lines above `openActionSheet` at js/app.js:11853 (so all action-sheet code stays grouped). Capture insertion line in SUMMARY.
 
-2. Insert this block verbatim (visual geometry is placeholder-friendly; values TBD by sketch checkpoint Task 5):
+2. Insert this block verbatim:
 
 ```js
-// === D-06 Couch SVG visualization — DECI-14-06 ===
-// Procedural inline SVG; adaptive seat count 2-8; +N overflow cushion when family > 7.
-// Visual geometry placeholder until /gsd-sketch sign-off (Task 5 checkpoint in 14-04 plan).
-// iOS PWA budget: viewBox scaling, ≥44pt cushion hit targets at 375px viewport, no SVG filters.
+// === D-06 Couch viz — DECI-14-06 (sketch 001 winner: hero-icon + avatar-grid) ===
+// Hero element: <img src='/mark-512.png'> (the existing C-sectional app icon — same asset
+// used by favicons + PWA manifest). When the icon is updated in queuenight/public/, this
+// hero auto-inherits with zero code change.
+//
+// Functional layer: CSS-grid avatar cells. Filled = colored circle with initial; empty =
+// dashed amber circle with ＋ glyph + pulse animation. Capacity 1-10 native.
+//
+// State writes: families/{code}.couchSeating = { [memberId]: index }.
 
-function renderCouchSvg(seatCount) {
-  // Clamp seat count: min 2 (couch is plural by definition), max 8 (UX cap per D-06).
+const COUCH_HERO_SRC = '/mark-512.png'; // single source of truth — bump if filename changes
+const COUCH_MAX_SLOTS = 10;             // grid wraps to 5×2 on phone, 10×1 on wide viewports
+
+function renderCouchViz() {
+  const container = document.getElementById('couch-viz-container');
+  if (!container) return;
+
   const totalMembers = (state.members || []).length;
-  const requested = Math.max(2, Math.min(8, seatCount || Math.max(2, totalMembers)));
-  // If we have >7 members and only 8 cushion slots, last cushion becomes +N overflow.
-  const hasOverflow = totalMembers > 7;
-  const cushionCount = hasOverflow ? 8 : Math.max(2, Math.min(8, totalMembers || requested));
-  const overflowN = hasOverflow ? (totalMembers - 7) : 0;
+  // Couch size = max(2, totalMembers, current claimed count) — at least 2 because couch is plural.
+  // Cap at COUCH_MAX_SLOTS.
+  const claimedCount = (state.couchMemberIds || []).filter(Boolean).length;
+  const couchSize = Math.min(COUCH_MAX_SLOTS, Math.max(2, totalMembers, claimedCount));
 
-  // viewBox geometry — 800 units wide / 280 units tall. Each cushion gets ~(800 / cushionCount) units.
-  // Placeholder geometry: rounded rect for each cushion. Real shape comes from /gsd-sketch round.
-  const viewW = 800;
-  const viewH = 280;
-  const padding = 20;
-  const cushionW = (viewW - padding * 2) / cushionCount;
-  const cushionH = 160;
-  const cushionY = 80;
-
-  const cushions = [];
-  for (let i = 0; i < cushionCount; i++) {
-    const isOverflow = (hasOverflow && i === cushionCount - 1);
-    const x = padding + i * cushionW;
-    const seatedMid = state.couchMemberIds[i] || null;
-    const isClaimedByMe = seatedMid && state.me && seatedMid === state.me.id;
-    const handler = isOverflow ? 'openCouchOverflowSheet()' : `claimCushion(${i})`;
-    const labelText = isOverflow
-      ? `+${overflowN} more`
-      : (seatedMid ? '' : 'Add to couch');
-    const cls = ['cushion'];
-    if (isOverflow) cls.push('overflow');
-    if (seatedMid) cls.push('claimed');
-    if (isClaimedByMe) cls.push('claimed-by-me');
-    cushions.push(`<g class="${cls.join(' ')}" data-cushion-idx="${i}" tabindex="0" role="button"
-      aria-label="${isOverflow ? `${overflowN} more couch members` : (seatedMid ? `Seat claimed` : 'Empty seat — tap to seat yourself')}"
-      onclick="${handler}"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${handler};}">
-      <rect x="${x + 4}" y="${cushionY}" width="${cushionW - 8}" height="${cushionH}" rx="18" ry="18"
-        class="cushion-rect" />
-      ${labelText ? `<text x="${x + cushionW/2}" y="${cushionY + cushionH/2 + 5}" text-anchor="middle" class="cushion-label">${labelText}</text>` : ''}
-    </g>`);
-  }
-
-  // SVG returns the structure; avatar DOM overlay is rendered separately by the caller (DOM-on-top
-  // approach per RESEARCH §4 — avoids iOS in-SVG <image href> caching quirks).
-  return `<svg class="couch-svg" viewBox="0 0 ${viewW} ${viewH}" preserveAspectRatio="xMidYMid meet"
-    aria-label="Couch with ${cushionCount} seats">
-    ${cushions.join('')}
-  </svg>`;
+  container.innerHTML = `
+    <img class="couch-hero" src="${COUCH_HERO_SRC}" alt="Couch" />
+    <h3 class="couch-headline">On the couch tonight</h3>
+    <p class="couch-sub">${claimedCount > 0 ? `${claimedCount} of ${couchSize} here` : 'Tap a seat to claim it'}</p>
+    ${renderCouchAvatarGrid(couchSize)}
+  `;
 }
 
-// D-06 — Avatar DOM overlay (rendered as absolutely-positioned <img> elements over the SVG).
-// Called by the caller after innerHTML-injecting the SVG. Returns markup string for a sibling div.
-function renderCouchAvatarOverlay(seatCount) {
-  const cushionCount = Math.max(2, Math.min(8, ((state.members || []).length > 7 ? 8 : ((state.members || []).length || seatCount))));
-  const seats = [];
-  for (let i = 0; i < cushionCount; i++) {
-    const mid = state.couchMemberIds[i];
-    if (!mid) continue;
-    const m = (state.members || []).find(x => x.id === mid);
-    if (!m) continue;
-    const initial = escapeHtml((m.name || '?')[0].toUpperCase());
-    seats.push(
-      `<div class="couch-avatar-slot" data-slot="${i}" style="--slot-idx: ${i}; --slot-total: ${cushionCount}">
-        <div class="couch-avatar" style="background:${memberColor(m.id)}" title="${escapeHtml(m.name || 'Member')}">${initial}</div>
-      </div>`
-    );
+function renderCouchAvatarGrid(couchSize) {
+  const cells = [];
+  for (let i = 0; i < couchSize; i++) {
+    const mid = (state.couchMemberIds || [])[i] || null;
+    if (mid) {
+      const m = (state.members || []).find(x => x.id === mid);
+      const initial = m ? escapeHtml((m.name || '?')[0].toUpperCase()) : '?';
+      const name = m ? escapeHtml(m.name || 'Member') : 'Unknown';
+      const color = m ? memberColor(m.id) : '#7a705f';
+      const isMe = state.me && mid === state.me.id;
+      cells.push(`
+        <div class="seat-cell ${isMe ? 'me' : ''}" data-cushion-idx="${i}" role="button" tabindex="0"
+          aria-label="${name} on the couch — tap to vacate"
+          onclick="claimCushion(${i})"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
+          <div class="seat-avatar" style="background:${color}">${initial}</div>
+          <div class="seat-name">${name}</div>
+        </div>
+      `);
+    } else {
+      cells.push(`
+        <div class="seat-cell empty" data-cushion-idx="${i}" role="button" tabindex="0"
+          aria-label="Empty seat — tap to claim"
+          onclick="claimCushion(${i})"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
+          <div class="seat-empty">＋</div>
+          <div class="seat-name" aria-hidden="true">·</div>
+        </div>
+      `);
+    }
   }
-  return `<div class="couch-avatar-overlay" aria-hidden="true">${seats.join('')}</div>`;
+  return `<div class="couch-avatar-grid" role="group" aria-label="Couch seats">${cells.join('')}</div>`;
 }
 
 // D-06 — claim a cushion seat. Adds state.me.id to state.couchMemberIds at index idx
 // (if empty); toggles off if already claimed by state.me. Persists to family doc.
 window.claimCushion = async function(idx) {
   if (!state.me) { flashToast('Sign in to seat yourself', { kind: 'warn' }); return; }
+  // Ensure array length covers idx.
+  while (state.couchMemberIds.length <= idx) state.couchMemberIds.push(null);
   const current = state.couchMemberIds[idx] || null;
   // Toggle off if I'm sitting there.
   if (current === state.me.id) {
     state.couchMemberIds[idx] = null;
-    // Compact: drop trailing nulls (keep order for non-tail slots).
     while (state.couchMemberIds.length && state.couchMemberIds[state.couchMemberIds.length - 1] == null) {
       state.couchMemberIds.pop();
     }
     await persistCouchSeating();
-    rerenderCouchViz();
+    renderCouchViz();
     return;
   }
   if (current) {
@@ -243,17 +239,17 @@ window.claimCushion = async function(idx) {
   if (existingIdx >= 0) state.couchMemberIds[existingIdx] = null;
   state.couchMemberIds[idx] = state.me.id;
   await persistCouchSeating();
-  rerenderCouchViz();
+  renderCouchViz();
 };
 
-// D-06 — overflow sheet for families > 7 members. Reuses #action-sheet-bg primitive.
+// D-06 — overflow / "sit on behalf of" sheet. Opens member picker via #action-sheet-bg.
+// Used when grid is full OR for shared-device "claim a seat for another member" cases.
 window.openCouchOverflowSheet = function() {
   const content = document.getElementById('action-sheet-content');
   if (!content) return;
-  const seated = new Set(state.couchMemberIds.filter(Boolean));
+  const seated = new Set((state.couchMemberIds || []).filter(Boolean));
   const items = (state.members || [])
     .filter(m => !seated.has(m.id))
-    .slice(7) // members 8+
     .map(m =>
       `<button class="action-sheet-item" onclick="closeActionSheet();claimCushionByMember('${m.id}')">
         <div class="who-avatar" style="background:${memberColor(m.id)};display:inline-block;margin-right:8px">${escapeHtml((m.name||'?')[0])}</div>
@@ -265,12 +261,10 @@ window.openCouchOverflowSheet = function() {
 };
 
 // D-06 — claim a cushion on behalf of a specific member (used by overflow sheet).
-// Same persistence path as claimCushion.
 window.claimCushionByMember = async function(memberId) {
   if (!memberId) return;
-  // Find the first empty slot in 0..7 range.
   let firstEmpty = -1;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < COUCH_MAX_SLOTS; i++) {
     if (!state.couchMemberIds[i]) { firstEmpty = i; break; }
   }
   if (firstEmpty < 0) {
@@ -279,7 +273,7 @@ window.claimCushionByMember = async function(memberId) {
   }
   state.couchMemberIds[firstEmpty] = memberId;
   await persistCouchSeating();
-  rerenderCouchViz();
+  renderCouchViz();
 };
 
 // D-06 — persist couchSeating map to family doc.
@@ -287,7 +281,7 @@ window.claimCushionByMember = async function(memberId) {
 async function persistCouchSeating() {
   if (!state.familyCode) return;
   const map = {};
-  state.couchMemberIds.forEach((mid, i) => { if (mid) map[mid] = i; });
+  (state.couchMemberIds || []).forEach((mid, i) => { if (mid) map[mid] = i; });
   try {
     await updateDoc(doc(db, 'families', state.familyCode), {
       couchSeating: map,
@@ -298,17 +292,9 @@ async function persistCouchSeating() {
     flashToast('Could not save couch — try again', { kind: 'warn' });
   }
 }
-
-// D-06 — render+rerender hook. Called from Tonight tab render path AND after every claimCushion mutation.
-function rerenderCouchViz() {
-  const container = document.getElementById('couch-viz-container');
-  if (!container) return;
-  const seatCount = Math.max(2, Math.min(8, (state.members || []).length || 4));
-  container.innerHTML = renderCouchSvg(seatCount) + renderCouchAvatarOverlay(seatCount);
-}
 ```
 
-3. Wire `rerenderCouchViz()` into the existing Tonight tab render path. Grep for `function renderTonight` or `tab === 'tonight'` to locate. Add `rerenderCouchViz();` call AFTER the existing innerHTML-set so the container is in DOM by the time the call fires.
+3. Wire `renderCouchViz()` into the existing Tonight tab render path. Grep for `function renderTonight` or `tab === 'tonight'` to locate. Add `renderCouchViz();` call AFTER the existing innerHTML-set so the container is in DOM by the time the call fires.
 
 4. Hydrate `state.couchMemberIds` from family doc on family load. Grep for the existing onSnapshot listener for the family doc (probably near `state.unsubFamily` or similar). Inside the snapshot handler, after `state.family = snap.data()`, add:
 
@@ -318,18 +304,18 @@ const seating = (snap.data() && snap.data().couchSeating) || {};
 const couchArr = [];
 Object.entries(seating).forEach(([mid, idx]) => { couchArr[idx] = mid; });
 state.couchMemberIds = couchArr;
-if (typeof rerenderCouchViz === 'function') rerenderCouchViz();
+if (typeof renderCouchViz === 'function') renderCouchViz();
 ```
 
 5. Confirm `db`, `doc`, `updateDoc`, `writeAttribution`, `flashToast`, `escapeHtml`, `memberColor` are all already imported in js/app.js. If not, add to the existing import statement (do NOT introduce a build step).
   </action>
   <verify>
-    <automated>node --check js/app.js && grep -cE "function (renderCouchSvg|renderCouchAvatarOverlay|rerenderCouchViz|persistCouchSeating)\\(|window\\.claimCushion =|window\\.openCouchOverflowSheet =|window\\.claimCushionByMember =" js/app.js</automated>
-    Expect: `node --check` exits 0; grep returns `7` (4 named functions + 3 window assignments).
+    <automated>node --check js/app.js && grep -cE "function (renderCouchViz|renderCouchAvatarGrid|persistCouchSeating)\\(|window\\.claimCushion =|window\\.openCouchOverflowSheet =|window\\.claimCushionByMember =" js/app.js</automated>
+    Expect: `node --check` exits 0; grep returns `6` (3 named functions + 3 window assignments).
   </verify>
   <done>
-    - All 7 functions/handlers present in js/app.js exactly once each.
-    - rerenderCouchViz called from at least 1 site (Tonight render path) and from claimCushion / claimCushionByMember after mutations.
+    - All 6 functions/handlers present in js/app.js exactly once each.
+    - renderCouchViz called from at least 1 site (Tonight render path) and from claimCushion / claimCushionByMember after mutations.
     - Family doc onSnapshot hydrates state.couchMemberIds.
     - persistCouchSeating writes carry writeAttribution().
     - `node --check js/app.js` exits 0.
@@ -341,132 +327,172 @@ if (typeof rerenderCouchViz === 'function') rerenderCouchViz();
   <files>app.html, css/app.css</files>
   <read_first>
     - app.html (full file — ~990 lines per CLAUDE.md, safe to read in full)
-    - css/app.css lines 1-60 (token primitives — colors / radius / shadow tokens) and grep for `.tc-want-pill` analog if present
-    - .planning/BRAND.md (color tokens for warm-dark palette)
+    - css/app.css lines 1-60 (token primitives — colors / radius / shadow tokens)
+    - .planning/sketches/001-couch-shape/index.html lines 60-180 (canonical CSS for hero-icon-wrap + avatar-grid + seat-cell + seat-empty — copy as starting point and adapt to production token names)
   </read_first>
   <action>
 1. **app.html** — locate the Tonight tab section (grep for `id="tab-tonight"` or `data-tab="tonight"` or `<section.*tonight`). Insert a new container element near the top of the Tonight tab content, ABOVE existing surfaces (the couch viz is the new centerpiece):
 
 ```html
-<!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by rerenderCouchViz() in js/app.js. -->
+<!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by renderCouchViz() in js/app.js. -->
 <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
 ```
 
-2. **css/app.css** — append a new section near the bottom (or near other Tonight-tab classes if a section exists). Use the token system from BRAND.md (warm-dark palette); placeholder values shown:
+2. **css/app.css** — append a new section near the bottom (or near other Tonight-tab classes if a section exists). Pattern-match the sketch 001 CSS at .planning/sketches/001-couch-shape/index.html lines 60-180 — same class names, adapt color refs to existing CSS variables in css/app.css:
 
 ```css
-/* === D-06 Couch viz — DECI-14-06 === */
-/* Visual geometry placeholder pending /gsd-sketch round (Task 5 checkpoint). */
+/* === D-06 Couch viz — DECI-14-06 (hero-icon + avatar-grid pattern, sketch 001 winner P) === */
 
 .couch-viz-container {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
-  max-width: 720px;
+  max-width: 480px;
   margin: var(--s4) auto;
-  padding: var(--s2) 0;
-  /* Reserve aspect ratio matching SVG viewBox 800x280. */
-  aspect-ratio: 800 / 280;
+  padding: var(--s2);
 }
 
-.couch-svg {
+.couch-hero {
   display: block;
   width: 100%;
-  height: 100%;
-  /* No SVG filter primitives — iOS PWA WebKit < iOS 17 breaks them. Use CSS instead. */
+  max-width: 280px;
+  aspect-ratio: 1;
+  border-radius: 22px;
+  margin-bottom: var(--s3);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--c-border-soft, #2a241f);
+  /* Subtle warm halo around the hero (firelight) — fades into the dark bg */
+  background:
+    radial-gradient(ellipse at center, rgba(217, 122, 60, 0.10) 0%, transparent 65%);
+  background-size: 140% 140%;
+  background-position: center;
 }
 
-.couch-svg .cushion {
-  cursor: pointer;
-  transition: opacity var(--t-shimmer, 200ms) var(--ease-out, ease-out);
+.couch-headline {
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-size: var(--text-xl, 1.4rem);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--c-text, #f5ede1);
+  margin: 0 0 var(--s1) 0;
+  text-align: center;
 }
 
-.couch-svg .cushion-rect {
-  fill: var(--c-cushion-empty, #2b231e);
-  stroke: var(--c-cushion-stroke, #4a3d33);
-  stroke-width: 2;
-  transition: fill var(--t-shimmer, 200ms) var(--ease-out, ease-out);
+.couch-sub {
+  font-family: var(--font-serif, 'Instrument Serif', Georgia, serif);
+  font-style: italic;
+  color: var(--c-text-muted, #b3a797);
+  font-size: var(--text-base, 1rem);
+  margin: 0 0 var(--s4) 0;
+  text-align: center;
 }
 
-.couch-svg .cushion.claimed .cushion-rect {
-  fill: var(--c-cushion-claimed, #3a2f25);
-}
-
-.couch-svg .cushion.claimed-by-me .cushion-rect {
-  stroke: var(--c-warm-amber, #d4a574);
-  stroke-width: 3;
-}
-
-.couch-svg .cushion.overflow .cushion-rect {
-  fill: var(--c-cushion-overflow, #1f1a16);
-  stroke-dasharray: 6 4;
-}
-
-.couch-svg .cushion-label {
-  font-family: var(--font-body, Inter, sans-serif);
-  font-size: 16px;
-  fill: var(--c-text-dim, #8a7d6e);
-  pointer-events: none;
-}
-
-.couch-svg .cushion:hover .cushion-rect,
-.couch-svg .cushion:focus-visible .cushion-rect {
-  fill: var(--c-cushion-hover, #4a3d33);
-}
-
-/* Avatar overlay — DOM <img>/<div> positioned over SVG via CSS grid (DOM-on-top per iOS guidance). */
-.couch-avatar-overlay {
-  position: absolute;
-  inset: 0;
+.couch-avatar-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  align-items: center;
-  pointer-events: none;
-  padding: 0 calc(20px / 800 * 100%); /* matches SVG padding */
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--s3);
+  width: 100%;
+  max-width: 380px;
 }
 
-.couch-avatar-slot {
+@media (min-width: 768px) {
+  .couch-avatar-grid {
+    /* On wider viewports, lay out the row (up to 10 wide) */
+    grid-template-columns: repeat(10, 1fr);
+    max-width: 720px;
+  }
+}
+
+.seat-cell {
+  position: relative;
+  aspect-ratio: 1;
+  cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  /* Position by --slot-idx (0..7); span 1 column. Couch SVG cushions use 1-of-N width;
-     because grid is fixed at 8, slots beyond cushionCount stay empty (pointer-events:none). */
-  grid-column: calc(var(--slot-idx, 0) + 1);
+  transition: transform 180ms var(--ease-out, ease-out);
 }
+.seat-cell:hover, .seat-cell:focus-visible { transform: scale(1.06); }
+.seat-cell:focus-visible { outline: 2px solid var(--c-warm-amber, #d4a574); outline-offset: 4px; border-radius: 50%; }
 
-.couch-avatar {
-  width: 44px;
-  height: 44px;
+.seat-avatar {
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body, Inter, sans-serif);
-  font-weight: 600;
-  font-size: 18px;
   color: var(--c-text-on-avatar, #fff);
-  pointer-events: auto;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-weight: 500;
+  font-size: clamp(15px, 3.2vw, 22px);
+  border: 2.5px solid var(--c-bg, #14110f);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.55);
+}
+
+.seat-cell.me .seat-avatar {
+  outline: 2px solid var(--c-warm-amber, #d4a574);
+  outline-offset: 2px;
+}
+
+.seat-empty {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px dashed var(--c-warm-amber, #d4a574);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-warm-amber, #d4a574);
+  font-family: var(--font-body, Inter, sans-serif);
+  font-size: clamp(20px, 4vw, 32px);
+  font-weight: 300;
+  background: radial-gradient(circle at center, rgba(217, 122, 60, 0.12), transparent 70%);
+  animation: couch-empty-pulse 2.4s ease-in-out infinite;
+  transition: border-color 180ms var(--ease-out, ease-out);
+}
+.seat-cell:hover .seat-empty,
+.seat-cell:focus-visible .seat-empty {
+  border-style: solid;
+}
+
+.seat-name {
+  margin-top: var(--s1);
+  font-family: var(--font-body, Inter, sans-serif);
+  font-size: 10px;
+  color: var(--c-text-muted, #b3a797);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  /* Truncate to keep grid cells tight */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes couch-empty-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 60, 0); }
+  50%      { box-shadow: 0 0 18px 0 rgba(217, 122, 60, 0.35); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .couch-svg .cushion,
-  .couch-svg .cushion-rect {
-    transition: none;
-  }
+  .seat-empty { animation: none; }
+  .seat-cell, .seat-cell:hover, .seat-cell:focus-visible { transition: none; transform: none; }
 }
 ```
 
-3. If any of the CSS variable names (`--c-cushion-empty`, `--c-warm-amber`, etc.) don't exist in the existing token layer, either (a) add fallback hardcoded values matching BRAND.md palette OR (b) wire up to existing tokens with the closest semantic match. Defer the precise color refinement to Task 5 (sketch checkpoint).
+3. If any of the CSS variable names (`--c-warm-amber`, `--c-text-on-avatar`, etc.) don't exist in the existing token layer, either (a) add them to the token block at the top of css/app.css using BRAND.md values OR (b) inline hardcoded fallbacks (already provided in the snippet above as the second arg of `var()`).
   </action>
   <verify>
-    <automated>grep -c "couch-viz-container" app.html && grep -c "\\.couch-svg" css/app.css</automated>
-    Expect: app.html has ≥1 mention of `couch-viz-container`; css/app.css has ≥1 `.couch-svg` rule.
+    <automated>grep -c "couch-viz-container" app.html && grep -c "\.couch-viz-container" css/app.css && grep -c "\.couch-hero" css/app.css && grep -c "\.couch-avatar-grid" css/app.css && grep -c "\.seat-cell" css/app.css && grep -c "\.seat-empty" css/app.css</automated>
+    Expect: each grep returns ≥1.
   </verify>
   <done>
     - app.html contains `<div id="couch-viz-container">` exactly once on the Tonight tab.
-    - css/app.css contains `.couch-svg`, `.cushion`, `.cushion-rect`, `.couch-avatar-overlay`, `.couch-avatar` rules.
-    - prefers-reduced-motion block hardens the transitions.
-    - All CSS uses tokens (or documented hardcoded fallbacks) — no inline styles in app.html.
+    - css/app.css contains `.couch-viz-container`, `.couch-hero`, `.couch-headline`, `.couch-sub`, `.couch-avatar-grid`, `.seat-cell`, `.seat-avatar`, `.seat-empty`, `.seat-name` rules.
+    - prefers-reduced-motion block disables pulse + hover transitions.
+    - All CSS uses tokens (or hardcoded fallbacks) — no inline styles in app.html.
   </done>
 </task>
 
@@ -498,28 +524,29 @@ if (typeof rerenderCouchViz === 'function') rerenderCouchViz();
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
-  <name>Task 5: HUMAN-VERIFY — Couch SVG visual treatment + /gsd-sketch sign-off</name>
+  <name>Task 5: HUMAN-VERIFY — Couch viz works on Tonight tab + iOS PWA</name>
   <what-built>
-    Tasks 1-4 ship the structural Couch viz: SVG renderer, claim/overflow handlers, avatar overlay, persistence, rules widening. Visual treatment is placeholder geometry (rounded rects + token-based colors) per D-06's explicit defer-to-sketch directive (Anti-pattern #6). Task 5 closes the loop.
+    Tasks 1-4 ship the Tonight-tab Couch viz: hero icon (existing app icon at /mark-512.png) + headline + sub-count + 5×2 (mobile) / 10×1 (desktop) avatar grid + claim/overflow handlers + persistence + rules widening. No procedural SVG — sketch 001 outcome locked the hero+grid pattern.
   </what-built>
   <how-to-verify>
     1. Deploy current main to staging (`bash scripts/deploy.sh 14-04-couch-preview`) OR run locally.
     2. Open the Tonight tab. Confirm:
        - Couch viz renders above existing surfaces.
-       - Cushion count matches family member count (clamped 2-8).
-       - Tapping an empty cushion claims it for state.me; the cushion stroke turns warm-amber (claimed-by-me).
-       - Tapping a claimed-by-me cushion vacates it (toggles off).
-       - With ≥8 family members, the 8th cushion shows "+N more" and tapping opens the overflow sheet.
+       - Hero icon (the current C-sectional couch image) appears at top with subtle warm halo + drop shadow.
+       - Headline "On the couch tonight" + sub-count "{N} of {couchSize} here" present.
+       - Avatar grid below shows cells matching couchSize (max(2, totalMembers, claimedCount), capped at 10).
+       - Tapping an empty cell claims it for state.me; cell flips to filled (member-color circle + initial); the "me" cell has a warm-amber outline.
+       - Tapping my own claimed cell vacates it.
+       - Tapping someone else's claimed cell shows toast "That seat is already claimed".
        - Refresh — couch state persists (couchSeating doc field round-trips).
-       - On iPhone Safari (browser + installed PWA): cushion hit targets feel ≥44pt; tap latency is acceptable.
-    3. Run `/gsd-sketch` for couch SVG variants per D-06 sketch target #1 (3 mockups at 3/5/8 seats; material exploration; avatar treatment). Compare sketch outputs to the placeholder geometry shipped in Task 1-3.
-    4. Decide: PASS (placeholder geometry is acceptable for v34 ship; sketch refinements deferred), OR REFINE (specify which sketch variant to apply + which CSS/SVG values to swap).
+       - On iPhone Safari (browser + installed PWA): cell tap targets feel ≥44pt; tap latency is acceptable; pulse animation on empty cells doesn't drain battery.
+       - prefers-reduced-motion: User Settings → Accessibility → Reduce Motion ON → empty-cell pulse stops, hover scale stops.
+    3. Visual sanity check: hero icon does NOT look pixelated at the rendered size; the icon's existing dark-warm surroundings blend cleanly with the page bg (no harsh edges where the icon ends).
   </how-to-verify>
   <resume-signal>
     Reply with one of:
-    - "approved" — placeholder geometry ships as-is for v34. SUMMARY records the decision; sketch refinements tracked as a Phase-15 polish item.
-    - "refine: <details>" — specify visual changes to apply. The plan executor edits Task 2's renderCouchSvg geometry + Task 3's CSS to match. Re-run Task 5 once changes are in.
-    - "skip-sketch" — defer /gsd-sketch round; ship placeholder geometry now. Note in SUMMARY as deferred design decision.
+    - "approved" — viz ships as-is for v34. SUMMARY records the rendering insertion sites.
+    - "refine: <details>" — specify visual changes to apply (e.g., bigger hero, smaller grid cells, different halo). The plan executor edits Task 2 markup or Task 3 CSS to match. Re-run Task 5 once changes are in.
   </resume-signal>
 </task>
 
@@ -531,43 +558,52 @@ if (typeof rerenderCouchViz === 'function') rerenderCouchViz();
 | Boundary | Description |
 |----------|-------------|
 | client → family doc | New couchSeating field widens the family-doc update surface; firestore.rules must permit |
-| inline SVG event binding | onclick handlers are window-scoped; XSS surface IFF a member name reaches the SVG without escaping (mitigated by escapeHtml on labels) |
+| inline DOM event binding | onclick handlers are window-scoped; XSS surface IFF a member name reaches the grid markup without escaping (mitigated by escapeHtml on all member-name interpolations) |
 
 ## STRIDE Threat Register
 
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
-| T-14.04-01 | Tampering | A member writes couchSeating to plant a fake "claim" by another member | mitigate | writeAttribution() spread enforces actor-uid; Phase 5 attribution rules already check `request.auth.uid == request.resource.data.actingUid` (or the equivalent legacy member-id check). Server-side validation lives in attributedWrite() helper; this plan inherits it. |
+| T-14.04-01 | Tampering | A member writes couchSeating to plant a fake "claim" by another member | mitigate | writeAttribution() spread enforces actor-uid; Phase 5 attribution rules already check `request.auth.uid == request.resource.data.actingUid` (or equivalent legacy member-id check). Server-side validation lives in attributedWrite() helper; this plan inherits it. |
 | T-14.04-02 | Information Disclosure | couchSeating exposes co-presence ("Mom and Dad are on the couch right now") | accept | Family-scoped read; only family members can read the family doc. Co-presence within a family is the intended UX, not a leak. |
-| T-14.04-03 | Cross-Site Scripting | Member name rendered into SVG label without escape | mitigate | escapeHtml() applied to all member-name interpolations in renderCouchSvg + renderCouchAvatarOverlay (acceptance criterion). |
+| T-14.04-03 | Cross-Site Scripting | Member name rendered into grid markup without escape | mitigate | escapeHtml() applied to all member-name interpolations in renderCouchAvatarGrid + openCouchOverflowSheet (acceptance criterion). |
 </threat_model>
 
 <verification>
 - `node --check js/app.js` → exit 0.
 - `node --check js/state.js` → exit 0.
-- `grep -c "function renderCouchSvg(" js/app.js` → 1.
+- `grep -c "function renderCouchViz(" js/app.js` → 1.
+- `grep -c "function renderCouchAvatarGrid(" js/app.js` → 1.
 - `grep -c "window.claimCushion = " js/app.js` → 1.
 - `grep -c "window.openCouchOverflowSheet = " js/app.js` → 1.
+- `grep -c "function persistCouchSeating(" js/app.js` → 1.
 - `grep -c "couch-viz-container" app.html` → ≥1.
-- `grep -c "\\.couch-svg" css/app.css` → ≥1.
+- `grep -c "\.couch-viz-container" css/app.css` → ≥1.
+- `grep -c "\.couch-hero" css/app.css` → ≥1.
+- `grep -c "\.seat-cell" css/app.css` → ≥1.
 - `grep -c "couchSeating" firestore.rules` → ≥1.
 - `grep -c "writeAttribution()" js/app.js` near persistCouchSeating → ≥1.
-- Task 5 checkpoint resolved with one of {approved, refine: ..., skip-sketch}.
+- `grep -c "/mark-512.png" js/app.js` → ≥1 (COUCH_HERO_SRC constant references the existing favicon path).
+- `grep -c "renderCouchViz" js/app.js` → ≥3 (declaration + Tonight render hook + family snapshot hydration).
+- Task 5 checkpoint resolved with one of {approved, refine: ...}.
 </verification>
 
 <success_criteria>
-1. Couch viz renders on Tonight tab with 2-8 cushions adapting to family size.
-2. Tapping an empty cushion seats state.me; tapping a claimed-by-me cushion vacates; +N overflow sheet works.
+1. Couch viz renders on Tonight tab with hero icon + headline + sub-count + adaptive avatar grid (1-10 spots).
+2. Tapping an empty cell seats state.me; tapping a claimed-by-me cell vacates; "claim on behalf of" via overflow sheet works.
 3. couchSeating persists to family doc with proper attribution.
 4. state.couchMemberIds is hydrated on family-doc snapshot — downstream consumers (14-01 isWatchedByCouch, 14-03 tier aggregators, 14-07 Flow A) see live data.
-5. Visual geometry either ships as placeholder (Task 5 approved) OR is refined per /gsd-sketch sign-off.
+5. Hero icon swap is one-step (replace `mark-512.png` in queuenight/public/) with zero code change required.
+6. prefers-reduced-motion respected (no empty-cell pulse, no hover scale).
 </success_criteria>
 
 <output>
 After completion, create `.planning/phases/14-decision-ritual-core/14-04-SUMMARY.md` documenting:
-- Insertion file:line for renderCouchSvg + claim handlers.
+- Insertion file:line for renderCouchViz + claim handlers.
 - Tonight-tab render hook integration site.
 - Family-doc snapshot hydration site.
 - firestore.rules case applied (A or B).
-- Task 5 checkpoint resolution + any sketch-driven refinements applied.
+- Task 5 checkpoint resolution.
+- **Approach note:** Original plan called for procedural inline-SVG `renderCouchSvg()`. Sketch 001 (.planning/sketches/001-couch-shape/) concluded that hero-icon + avatar-grid is the right architecture. This plan implements that direction; the original SVG renderer was never built.
 </output>
+    <automated>grep -c "couch-viz-container" app.html && grep -c "\\.couch-viz-container" css/app.css && grep -c "\\.couch-hero" css/app.css && grep -c "\\.couch-avatar-grid" css/app.css && grep -c "\\.seat-cell" css/app.css && grep -c "\\.seat-empty" css/app.css
