@@ -29,6 +29,7 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 - ✓ **PWA install support (manifest, iOS/Android icons, theme color)** — existing
 - ✓ **Firestore real-time sync across devices in a family** — existing
 - ✓ **Phase 3 — Mood tags:** inline mood editing in detail view; active-mood row outside collapsible panel; moodsUserEdited guard; MOOD-01 through MOOD-07 — Validated in Phase 3: 2026-04-20
+- ✓ **Phase 14 — Decision Ritual Core:** already-watched filter (DECI-14-01), tier aggregators T1/T2/T3 (DECI-14-02), queue polish + Add-tab insertion (DECI-14-03), tile redesign + detail-modal extensions (DECI-14-04/05), V5 couch-viz roster-control (DECI-14-06; sketch 003 V5 — Roster IS the control), Flow A group rank-pick (DECI-14-07), Flow B solo-nominate + counter-time + auto-convert (DECI-14-08), intents collection + 4 push CFs (DECI-14-09), onboarding tooltips + 5 empty states + 7 push categories (DECI-14-10..13). Shipped v34.1-roster-control 2026-04-26 — Validated in Phase 14: 2026-04-26.
 
 ### Active
 
