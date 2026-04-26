@@ -3,9 +3,11 @@ phase: 14-decision-ritual-core
 plan: 10
 plan-name: Couch viz redesign — Sketch 003 V5 (Roster IS the control), gap closure on 14-UAT.md tests 1/3/5/24
 requirements_addressed: [DECI-14-06]
-status: code-complete
-ship_state: CODE-COMPLETE — Tasks 1-8 shipped across 8 atomic couch commits + 1 cross-repo queuenight rules edit (uncommitted on this machine, same pattern as 14-06/14-09 deviation). Task 9 HUMAN-VERIFY UAT bundled with the existing v34 deploy gate.
+status: shipped
+ship_state: SHIPPED — Tasks 1-8 across 8 atomic couch commits + queuenight firestore.rules 4th UPDATE branch (committed and deployed 2026-04-26 from queuenight session per approved-deploy signal). Task 9 HUMAN-VERIFY closed via 4-step UAT pass on production.
 completed: 2026-04-26
+deployed: 2026-04-26 (v34.1-roster-control)
+human_verify: approved-deploy 2026-04-26
 followup_tag: "Cross-repo deploy ritual (queuenight CFs + firestore:rules + couch hosting via scripts/deploy.sh 34.1-roster-control); cold-start V5 visual UAT; multi-device proxy UAT; downstream contract regression UAT"
 gap_closure: true
 gap_source: 14-UAT.md (Tests 1, 3, 5, 24 — composite design rethink)
@@ -551,13 +553,13 @@ work.
 
 | Type | Item | Where |
 |------|------|-------|
-| Two-repo discipline | queuenight commit pending — `C:/Users/nahde/queuenight/firestore.rules` 14-10 4th UPDATE branch added in-place but uncommitted on this machine. User must `cd ~/queuenight && git add firestore.rules && git commit -m "feat(14-10): allow proxy writes to couchInTonight (sketch 003 V5)"` from a queuenight-equipped session before deploy. | This SUMMARY deviation 1 |
+| Two-repo discipline | ✓ queuenight firestore.rules committed + deployed 2026-04-26 (per approved-deploy signal). 14-10 4th UPDATE branch (couchInTonight + couchSeating dual-write allowlist) live on queuenight-84044. | This SUMMARY deviation 1 |
 | Polish backlog | Couch-ping push channel wiring — sendCouchPing currently shows toast + Sentry breadcrumb only. Real push fan-out requires queuenight/functions/index.js new event type 'couchPing' added to NOTIFICATION_DEFAULTS + NOTIFICATION_EVENT_LABELS (+ Phase 12 friendly-UI parity per 14-09 DR-3 override), fan-out branch in onIntentCreated, client subscription handler. Defer to follow-up plan. Sentry breadcrumb under category='couch-ping' captures attempted fires for product analytics in the meantime. | This SUMMARY known stubs |
-| Polish backlog | Drop legacy couchSeating dual-write — persistCouchInTonight writes BOTH shapes for one PWA cache cycle. After ~1-2 weeks of v34.1 deployed, drop the couchSeating write in persistCouchInTonight AND the legacy 3rd UPDATE branch in queuenight/firestore.rules AND the couchSeating entry from the 4th UPDATE branch's hasOnly allowlist. | This SUMMARY migration window note |
-| HUMAN-VERIFY | V5 roster cold-start visual UAT (10 sub-checks per Task 9 plan body). | This SUMMARY Task 9 section |
-| HUMAN-VERIFY | Multi-device proxy UAT (4 sub-checks per Task 9). | This SUMMARY Task 9 section |
-| HUMAN-VERIFY | Downstream contract regression UAT (5 sub-checks per Task 9). | This SUMMARY Task 9 section |
-| Deploy gate | v34/v34.1 cross-repo deploy ritual (3-step queuenight CFs + queuenight firestore:rules + couch hosting) per STATE.md Open follow-ups. Single deploy ships v34.0 + v34.1 surfaces together since neither has been deployed yet. | STATE.md Deploy gate entry |
+| Polish backlog | Drop legacy couchSeating dual-write — persistCouchInTonight writes BOTH shapes for one PWA cache cycle. After ~1-2 weeks of v34.1 deployed (cycle started 2026-04-26 deploy), drop the couchSeating write in persistCouchInTonight AND the legacy 3rd UPDATE branch in queuenight/firestore.rules AND the couchSeating entry from the 4th UPDATE branch's hasOnly allowlist. | This SUMMARY migration window note |
+| HUMAN-VERIFY | ✓ V5 roster cold-start visual UAT — PASSED 2026-04-26 (10 sub-checks per Task 9 plan body). | This SUMMARY Task 9 section |
+| HUMAN-VERIFY | ✓ Multi-device proxy UAT — PASSED 2026-04-26 (4 sub-checks per Task 9). | This SUMMARY Task 9 section |
+| HUMAN-VERIFY | ✓ Downstream contract regression UAT — PASSED 2026-04-26 (5 sub-checks per Task 9). | This SUMMARY Task 9 section |
+| Deploy gate | ✓ v34/v34.1 cross-repo deploy ritual COMPLETED 2026-04-26 — queuenight CFs + queuenight firestore:rules (with 14-10 4th UPDATE branch) + couch hosting at v34.1-roster-control all live on production. | STATE.md Deploy gate entry |
 
 ## Self-Check
 
