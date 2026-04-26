@@ -3584,3 +3584,51 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   margin-top: var(--s3, 12px);
 }
 /* === Phase 14 / Plan 14-07 — END Flow A CSS === */
+
+/* === Phase 14 / Plan 14-09 — D-10 coach-tip (DECI-14-10) === */
+.coach-tip {
+  position: fixed;
+  max-width: 240px;
+  padding: var(--s2, 8px) var(--s3, 12px);
+  background: var(--c-bg-deep, #14110f);
+  color: var(--c-text-strong, #e8dcc4);
+  border: 1px solid var(--c-warm-amber, #d4a574);
+  border-radius: var(--r-md, 8px);
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--t-shimmer, 200ms) var(--ease-out, ease-out),
+              transform var(--t-shimmer, 200ms) var(--ease-out, ease-out);
+  z-index: 200;
+  pointer-events: none;
+}
+.coach-tip.on {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-tip { transition: none; transform: none; }
+}
+
+/* === Phase 14 / Plan 14-09 — D-11 empty-state CTA layout === */
+.queue-empty-cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+  margin-top: var(--s3, 12px);
+  align-items: stretch;
+}
+
+/* === Phase 14 / Plan 14-09 — D-11 (c) cushion-glow affordance === */
+.couch-avatar-grid .seat-cell.empty.cushion-glow .seat-empty {
+  animation: cushion-glow-pulse var(--t-pulse, 1500ms) ease-in-out infinite;
+}
+@keyframes cushion-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0); color: var(--ink-warm, #c9bca8); }
+  50%      { box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.35); color: var(--c-warm-amber, #d4a574); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .couch-avatar-grid .seat-cell.empty.cushion-glow .seat-empty { animation: none; }
+}
+/* === Phase 14 / Plan 14-09 — END === */

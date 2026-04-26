@@ -2,7 +2,7 @@ import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc,
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
-import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
+import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
 import {
   bootstrapAuth, watchAuth,
   signInWithGoogle, signInWithApple,
