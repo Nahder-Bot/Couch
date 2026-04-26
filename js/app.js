@@ -4745,6 +4745,24 @@ function renderTonight() {
   const actionsEl = document.getElementById('t-section-actions');
 
   // Empty states — consistent shape
+  // Plan 14-09 / D-11 (a) — brand-new family, nothing watched.
+  // Triggers when family doc is set up (state.familyCode) but no titles yet exist.
+  // CTAs: Add tab + Trakt connect (history import). showScreen('add') is the
+  // canonical tab nav. Trakt connect entry: trakt.connect() (window.trakt at line 865).
+  if ((state.titles || []).length === 0 && state.familyCode) {
+    el.innerHTML = `<div class="queue-empty">
+      <span class="emoji">🛋️</span>
+      <strong>Your couch is fresh</strong>
+      Nothing in queue yet. What should be the first?
+      <div class="queue-empty-cta">
+        <button class="tc-primary" type="button" onclick="showScreen('add')">Add a title</button>
+        <button class="tc-secondary" type="button" onclick="trakt.connect()">Connect Trakt to import history</button>
+      </div>
+    </div>`;
+    countEl.textContent = '';
+    if (actionsEl) actionsEl.innerHTML = '';
+    return;
+  }
   if (state.members.length === 0) {
     el.innerHTML = `<div class="empty"><strong>No group yet</strong>Share your code so others can join.</div>`;
     countEl.textContent = '';
@@ -5215,9 +5233,20 @@ function renderFullQueue(el, presetList) {
   const myQueue = presetList || getMyQueueTitles().filter(t => !isHiddenByScope(t));
   if (!myQueue.length) {
     const hasSearch = !!(state.librarySearchQuery || '').trim();
-    el.innerHTML = hasSearch
-      ? `<div class="queue-empty"><span class="emoji">🔍</span><strong>Nothing matches</strong>Try a different search.</div>`
-      : `<div class="queue-empty"><span class="emoji">🛋️</span><strong>The couch is empty</strong>Vote yes on titles to fill it up. Drag to reorder what's next.</div>`;
+    if (hasSearch) {
+      el.innerHTML = `<div class="queue-empty"><span class="emoji">🔍</span><strong>Nothing matches</strong>Try a different search.</div>`;
+      return;
+    }
+    // Plan 14-09 / D-11 (b) — empty personal queue. Verbatim copy per CONTEXT.md
+    // D-11 table. Canonical Vote-mode entry: openSwipeMode (per 12-02 SUMMARY).
+    el.innerHTML = `<div class="queue-empty">
+      <span class="emoji">🛋️</span>
+      <strong>Your queue is empty</strong>
+      Vote on a few titles to fill it up.
+      <div class="queue-empty-cta">
+        <button class="tc-primary" type="button" onclick="openSwipeMode()">Open Vote mode</button>
+      </div>
+    </div>`;
     return;
   }
   // Compute group rankings for display: score every title by family weighted queues
@@ -7700,13 +7729,17 @@ function getGroupNext3() {
 // D-02 (DECI-14-02) — Tier 1: titles where EVERY couch member has the title in their queue.
 // Sort: ascending mean of member-queue ranks; tie-break descending t.rating.
 // Excludes titles where isWatchedByCouch returns true (consumes 14-01 helper).
-function getTierOneRanked(couchMemberIds) {
+function getTierOneRanked(couchMemberIds, opts) {
   if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  // Plan 14-09 / D-11 (d) — opts.includeWatched bypasses the watched filters so
+  // the "Show rewatch options" CTA in the all-watched empty state can resurface
+  // titles the couch has already seen. Default behavior unchanged.
+  const includeWatched = !!(opts && opts.includeWatched);
   const out = [];
   state.titles.forEach(t => {
-    if (t.watched) return;
+    if (!includeWatched && t.watched) return;
     if (!t.queues) return;
-    if (isWatchedByCouch(t, couchMemberIds)) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
     // Intersection requirement: ALL couch members must have a rank for this title.
     const ranks = couchMemberIds.map(mid => t.queues[mid]);
     if (ranks.some(r => r == null)) return;
@@ -7721,13 +7754,14 @@ function getTierOneRanked(couchMemberIds) {
 // Strict complement of T1 within the "any couch presence" set. Sort: descending count of couch
 // members queueing it (more couch interest first), then ascending mean of present members' ranks,
 // then descending rating.
-function getTierTwoRanked(couchMemberIds) {
+function getTierTwoRanked(couchMemberIds, opts) {
   if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const includeWatched = !!(opts && opts.includeWatched); // Plan 14-09 D-11 (d)
   const out = [];
   state.titles.forEach(t => {
-    if (t.watched) return;
+    if (!includeWatched && t.watched) return;
     if (!t.queues) return;
-    if (isWatchedByCouch(t, couchMemberIds)) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
     const presentRanks = couchMemberIds
       .map(mid => t.queues[mid])
       .filter(r => r != null);
@@ -7753,14 +7787,15 @@ function getTierTwoRanked(couchMemberIds) {
 // D-02 — Tier 3: titles where ZERO couch members queue it BUT ≥1 off-couch member does.
 // "Watching her movie without her." Hidden behind expand by default; visibility resolved by
 // resolveT3Visibility() (account/family/group most-restrictive-wins).
-function getTierThreeRanked(couchMemberIds) {
+function getTierThreeRanked(couchMemberIds, opts) {
   if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const includeWatched = !!(opts && opts.includeWatched); // Plan 14-09 D-11 (d)
   const couchSet = new Set(couchMemberIds);
   const out = [];
   state.titles.forEach(t => {
-    if (t.watched) return;
+    if (!includeWatched && t.watched) return;
     if (!t.queues) return;
-    if (isWatchedByCouch(t, couchMemberIds)) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
     const queueingMids = Object.keys(t.queues);
     if (!queueingMids.length) return;
     // Zero couch overlap, ≥1 off-couch presence.
@@ -13935,7 +13970,21 @@ function renderFlowAEntry() {
   if (!container) return;
   const couchSize = (state.couchMemberIds || []).filter(Boolean).length;
   if (couchSize < 1) {
-    container.innerHTML = ''; // no couch claimed yet — couch viz drives that affordance
+    // Plan 14-09 / D-11 (c) — Flow A entry with no couch yet. Surfaces the
+    // "Who's on the couch tonight?" empty-state copy + glowing cushions affordance.
+    // Verbatim copy per CONTEXT.md D-11 table. The "Find a seat" CTA scrolls the
+    // couch viz into view; cushion-glow class pulses every empty cushion to draw
+    // attention. Glow respects prefers-reduced-motion (CSS @media guard).
+    container.innerHTML = `<div class="flow-a-no-couch queue-empty">
+      <span class="emoji">🛋️</span>
+      <strong>Who's on the couch tonight?</strong>
+      Tap to seat yourself + invite family.
+      <div class="queue-empty-cta">
+        <button class="tc-primary" type="button" onclick="document.getElementById('couch-viz-container')?.scrollIntoView({behavior:'smooth',block:'center'})">Find a seat</button>
+      </div>
+    </div>`;
+    // Add glow class to all empty cushions in the live couch viz (sibling DOM).
+    document.querySelectorAll('.couch-avatar-grid .seat-cell.empty').forEach(g => g.classList.add('cushion-glow'));
     return;
   }
   // Check whether an open Flow A intent already exists for this family.
@@ -13982,9 +14031,13 @@ function renderFlowAPickerScreen() {
   const rejected = state.flowARejectedTitles || new Set();
   const filterRejected = entry => !rejected.has(entry.title.id);
 
-  const t1 = getTierOneRanked(couch).filter(filterRejected);
-  const t2 = getTierTwoRanked(couch).filter(filterRejected);
-  const t3 = getTierThreeRanked(couch).filter(filterRejected);
+  // Plan 14-09 / D-11 (d) — when the user taps "Show rewatch options" from the
+  // all-watched empty state, state.flowARevealRewatch flips to true so tier
+  // aggregators include already-watched titles. Resets on close.
+  const aggOpts = state.flowARevealRewatch ? { includeWatched: true } : undefined;
+  const t1 = getTierOneRanked(couch, aggOpts).filter(filterRejected);
+  const t2 = getTierTwoRanked(couch, aggOpts).filter(filterRejected);
+  const t3 = getTierThreeRanked(couch, aggOpts).filter(filterRejected);
   const showT3 = resolveT3Visibility();
   // Counter-nomination sub-flow re-uses this picker; show contextual heading.
   const isCounter = !!state.flowACounterFor;
@@ -14029,11 +14082,17 @@ function renderFlowAPickerScreen() {
     </div>
   </section>` : '';
 
+  // Plan 14-09 / D-11 (d) — all-watched. CONTEXT.md D-11 copy + 2 CTAs:
+  // "Show rewatch options" reveals T3 (off-couch picks); "Discover more" → Add tab.
   const emptyState = (!t1.length && !t2.length && !(showT3 && t3.length))
     ? `<div class="queue-empty">
         <span class="emoji">🛋️</span>
-        <strong>No candidates left</strong>
-        Everyone on the couch has watched everything in queue. Add titles or expand rewatch options.
+        <strong>You've seen everything in queue</strong>
+        Revisit a favorite or expand discovery?
+        <div class="queue-empty-cta">
+          <button class="tc-primary" type="button" onclick="onFlowAShowRewatchOptions()">Show rewatch options</button>
+          <button class="tc-secondary" type="button" onclick="closeFlowAPicker();showScreen('add')">Discover more</button>
+        </div>
       </div>`
     : '';
 
@@ -14071,6 +14130,17 @@ window.onFlowAToggleT3 = function(btn) {
 window.closeFlowAPicker = function() {
   const modal = document.getElementById('flow-a-picker-modal');
   if (modal) modal.classList.remove('on');
+  // Plan 14-09 / D-11 (d) — reset rewatch-reveal flag on close so a fresh open
+  // starts back in the default (exclude-watched) view.
+  state.flowARevealRewatch = false;
+};
+
+// Plan 14-09 / D-11 (d) — handler for "Show rewatch options" CTA in the
+// all-watched empty state. Flips state.flowARevealRewatch and re-renders the
+// picker so the tier aggregators surface already-watched titles for rewatch.
+window.onFlowAShowRewatchOptions = function() {
+  state.flowARevealRewatch = true;
+  renderFlowAPickerScreen();
 };
 
 window.onFlowAPickerSelect = function(titleId) {
@@ -14241,6 +14311,11 @@ function renderFlowAResponseScreen() {
   if (isPicker) {
     const canConvert = ins >= 1; // quorum: picker + ≥1 in
     const showCounterCap = counterDepth >= 3;
+    // Plan 14-09 / D-11 (e) — reject-majority retry exhausted (counter chain at cap
+    // OR retry path used). Per CONTEXT.md D-11 table: "No alternative pick. Try
+    // again or anyone nominate?" with Cancel + Open Flow B CTAs. Open Flow B
+    // hands off the same titleId so the user can solo-nominate from there.
+    const showRejectExhausted = rejectMajority && counterDepth >= 3 && !isClosed;
     modal.innerHTML = `<div class="modal-content flow-a-response-content">
       <header class="flow-a-response-h">
         <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
@@ -14254,12 +14329,20 @@ function renderFlowAResponseScreen() {
           <p>Pick another title (1 retry then expire).</p>
           <button class="tc-primary" type="button" onclick="onFlowARetryPick()">Pick #2</button>
         </div>` : ''}
-        ${showCounterCap ? `<div class="flow-a-counter-cap">
+        ${showRejectExhausted ? `<div class="queue-empty">
+          <span class="emoji">🎲</span>
+          <strong>No alternative pick</strong>
+          Try again or anyone nominate?
+          <div class="queue-empty-cta">
+            <button class="tc-secondary" type="button" onclick="onFlowACancel()">Cancel for tonight</button>
+            <button class="tc-primary" type="button" onclick="closeFlowAPicker();openFlowBNominate('${intent.titleId}')">Open Flow B</button>
+          </div>
+        </div>` : (showCounterCap ? `<div class="flow-a-counter-cap">
           <strong>${counterDepth} options on the table.</strong>
           <p>No more counters. Pick one or end nomination.</p>
-        </div>` : ''}
+        </div>` : '')}
         ${canConvert && !isClosed ? `<button class="tc-primary" type="button" onclick="onFlowAConvert()">Start watchparty (${ins} in)</button>` : ''}
-        ${!isClosed ? `<button class="tc-secondary" type="button" onclick="onFlowACancel()">End nomination</button>` : ''}
+        ${!isClosed && !showRejectExhausted ? `<button class="tc-secondary" type="button" onclick="onFlowACancel()">End nomination</button>` : ''}
       </div>
     </div>`;
     return;
