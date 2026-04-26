@@ -271,6 +271,15 @@ service cloud.firestore {
       // ========================================================
       // Titles (catalog) + their comment subcollection
       // ========================================================
+      // Phase 14 / DECI-14-01 (D-01): the new t.rewatchAllowedBy map
+      // (shape: { [memberId]: timestamp }) is permitted by the existing
+      // permissive update rule below — there is no affectedKeys()
+      // allowlist on title updates, so any new top-level field added by
+      // an attributed family-member write is accepted. Mirrors the
+      // existing t.queues / t.votes / t.ratings / t.progress / t.diary
+      // per-member-keyed maps. Re-evaluate this comment if title updates
+      // ever get tightened to a hasOnly([...]) allowlist; rewatchAllowedBy
+      // would need to be added to that list at the same time.
 
       match /titles/{titleId} {
         allow read: if isMemberOfFamily(familyCode);
