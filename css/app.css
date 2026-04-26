@@ -3146,6 +3146,8 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 
 .couch-hero {
+  /* Legacy 14-04 — kept in case other surfaces reference .couch-hero alone.
+     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo. */
   display: block;
   width: 100%;
   max-width: 280px;
@@ -3158,6 +3160,19 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
     radial-gradient(ellipse at center, rgba(217, 122, 60, 0.10) 0%, transparent 65%);
   background-size: 140% 140%;
   background-position: center;
+}
+
+/* V5 hero — smaller (84px), drop-shadow only (no halo bg, no rounded surface).
+   Used by the new roster-pill viz; overrides .couch-hero size when both classes apply. */
+.couch-hero-v5 {
+  width: 84px;
+  height: 84px;
+  max-width: 84px;
+  aspect-ratio: 1;
+  margin-bottom: var(--s3);
+  border-radius: 22px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  background: none;
 }
 
 .couch-headline {
@@ -3179,98 +3194,193 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   text-align: center;
 }
 
-.couch-avatar-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--s3);
-  width: 100%;
-  max-width: 380px;
+/* === V5 (sketch 003) — Roster IS the control === */
+/* Roster wrap-flex container. Centered, max-width tightens horizontal sprawl on desktop. */
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 28px auto 22px;
+  max-width: 580px;
 }
 
-@media (min-width: 768px) {
-  .couch-avatar-grid {
-    /* On wider viewports, lay out the row (up to 10 wide) */
-    grid-template-columns: repeat(10, 1fr);
-    max-width: 720px;
-  }
-}
-
-.seat-cell {
-  position: relative;
-  aspect-ratio: 1;
+/* Pill base — avatar + name + optional YOU tag + ping-hint underline. */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px 8px 8px;
+  border-radius: var(--r-pill, 999px);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: transform 180ms var(--ease-out, ease-out);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 220ms cubic-bezier(0.2, 0.8, 0.4, 1);
+  position: relative;
+  border: 1.5px solid transparent;
+  /* iOS PWA: pill height ≈ 32+16 = 48px ≥44pt minimum tap target. */
 }
-.seat-cell:hover, .seat-cell:focus-visible { transform: scale(1.06); }
-.seat-cell:focus-visible { outline: 2px solid var(--c-warm-amber, #d4a574); outline-offset: 4px; border-radius: 50%; }
-
-.seat-avatar {
-  width: 100%;
-  aspect-ratio: 1;
+.pill:hover { transform: translateY(-2px); }
+.pill:focus-visible { outline: 2px solid var(--c-warm-amber, #d4a574); outline-offset: 3px; }
+.pill .av {
+  width: 32px; height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--c-text-on-avatar, #fff);
-  font-family: var(--font-display, 'Fraunces', Georgia, serif);
-  font-weight: 500;
-  font-size: clamp(15px, 3.2vw, 22px);
-  border: 2.5px solid var(--c-bg, #14110f);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.55);
-}
-
-.seat-cell.me .seat-avatar {
-  outline: 2px solid var(--c-warm-amber, #d4a574);
-  outline-offset: 2px;
-}
-
-.seat-empty {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 2px dashed var(--c-warm-amber, #d4a574);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--c-warm-amber, #d4a574);
   font-family: var(--font-body, Inter, sans-serif);
-  font-size: clamp(20px, 4vw, 32px);
-  font-weight: 300;
-  background: radial-gradient(circle at center, rgba(217, 122, 60, 0.12), transparent 70%);
-  animation: couch-empty-pulse 2.4s ease-in-out infinite;
-  transition: border-color 180ms var(--ease-out, ease-out);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 220ms;
 }
-.seat-cell:hover .seat-empty,
-.seat-cell:focus-visible .seat-empty {
+.pill .label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 180ms;
+  color: var(--c-text, #f5ede1);
+}
+.pill .you-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-warm-amber, #d4a574);
+  letter-spacing: 1px;
+  margin-left: 4px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(217, 122, 60, 0.12);
+}
+
+/* OUT state: dashed border, transparent bg, ghost initial in --c-text-dim. */
+.pill.out {
+  background: transparent;
+  border-color: var(--c-border-soft, #2a241f);
+  border-style: dashed;
+}
+.pill.out .av {
+  background: transparent;
+  border: 1.5px dashed var(--c-text-dim, #6e6356);
+  color: var(--c-text-dim, #6e6356);
+}
+.pill.out .label { color: var(--c-text-muted, #b3a797); }
+.pill.out:hover {
+  border-color: var(--c-warm-amber, #d4a574);
+  background: rgba(217, 122, 60, 0.04);
+}
+.pill.out:hover .av {
+  border-color: var(--c-warm-amber, #d4a574);
+  color: var(--c-warm-amber, #d4a574);
+}
+
+/* IN state: filled bg, surface elevation, member-color avatar. */
+.pill.in {
+  background: var(--surface, #1f1a16);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.pill.in .av {
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.pill.in .label { color: var(--c-text, #f5ede1); }
+
+/* ME outline (always visible regardless of in/out state). */
+.pill.me {
+  border-color: var(--c-warm-amber, #d4a574);
   border-style: solid;
 }
+.pill.me.in {
+  background: linear-gradient(135deg, rgba(217, 122, 60, 0.18) 0%, var(--surface, #1f1a16) 100%);
+}
 
-.seat-name {
-  margin-top: var(--s1);
-  font-family: var(--font-body, Inter, sans-serif);
-  font-size: 10px;
+/* Long-press progress underline — animates 0% → 100% width over 700ms while pressed. */
+.pill .ping-hint {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 2px;
+  background: var(--c-warm-amber, #d4a574);
+  border-radius: 2px;
+  width: 0;
+  transition: width 100ms linear;
+}
+.pill.pinging .ping-hint {
+  width: calc(100% - 16px);
+  transition: width 700ms linear;
+}
+
+/* Tally bar: Fraunces num + Instrument Serif italic "of N watching". */
+.couch-viz-container .tally {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.couch-viz-container .tally .num {
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-weight: 600;
+  font-size: 1.6rem;
+  color: var(--c-warm-amber, #d4a574);
+  letter-spacing: -0.02em;
+}
+.couch-viz-container .tally .of {
+  font-family: var(--font-serif, 'Instrument Serif', Georgia, serif);
+  font-style: italic;
   color: var(--c-text-muted, #b3a797);
+  font-size: 1.05rem;
+}
+
+/* Action row: 3 text-link buttons — visibility-gated by JS. */
+.couch-viz-container .pill-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.couch-viz-container .pill-actions .action-link {
+  background: transparent;
+  border: 0;
+  color: var(--c-text-dim, #6e6356);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: color 120ms, background 120ms;
+}
+.couch-viz-container .pill-actions .action-link:hover {
+  color: var(--c-warm-amber, #d4a574);
+  background: rgba(217, 122, 60, 0.06);
+}
+
+/* Hint line below the action row. */
+.couch-viz-container .pill-hint {
   text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  /* Truncate to keep grid cells tight */
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 12px;
+  color: var(--c-text-dim, #6e6356);
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-style: italic;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.5;
 }
 
-@keyframes couch-empty-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 60, 0); }
-  50%      { box-shadow: 0 0 18px 0 rgba(217, 122, 60, 0.35); }
-}
-
+/* prefers-reduced-motion: kill long-press progress animation + hover transform. */
 @media (prefers-reduced-motion: reduce) {
-  .seat-empty { animation: none; }
-  .seat-cell, .seat-cell:hover, .seat-cell:focus-visible { transition: none; transform: none; }
+  .pill, .pill:hover { transition: none; transform: none; }
+  .pill .ping-hint, .pill.pinging .ping-hint { transition: none; }
+}
+
+/* Phone-tighter: smaller pill on narrow viewports (matches sketch line 288-296). */
+@media (max-width: 480px) {
+  .pill { padding: 6px 12px 6px 6px; }
+  .pill .av { width: 28px; height: 28px; font-size: 12px; }
+  .pill .label { font-size: 13px; }
+  .roster { gap: 8px; }
 }
 
 /* === D-04 (DECI-14-04) — Tile redesign: X-want-it pill + Trailer btn === */
@@ -3621,14 +3731,8 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 
 /* === Phase 14 / Plan 14-09 — D-11 (c) cushion-glow affordance === */
-.couch-avatar-grid .seat-cell.empty.cushion-glow .seat-empty {
-  animation: cushion-glow-pulse var(--t-pulse, 1500ms) ease-in-out infinite;
-}
-@keyframes cushion-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0); color: var(--ink-warm, #c9bca8); }
-  50%      { box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.35); color: var(--c-warm-amber, #d4a574); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .couch-avatar-grid .seat-cell.empty.cushion-glow .seat-empty { animation: none; }
-}
+/* OBSOLETED by 14-10 V5 redesign: previously targeted the legacy cushion grid's
+   empty cushions, which the V5 roster has replaced. The renderFlowAEntry empty
+   state no longer needs to add the cushion-glow class because the dashed-pill
+   roster IS the empty state in V5. Whole block (selectors + keyframes) deleted. */
 /* === Phase 14 / Plan 14-09 — END === */
