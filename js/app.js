@@ -4738,7 +4738,8 @@ function renderTonight() {
     return;
   }
   if (state.selectedMembers.length === 0) {
-    el.innerHTML = `<div class="empty"><strong>Pick who's watching</strong>Tap anyone above to see matches.</div>`;
+    // D-11 (CONTEXT.md) — empty states should have action-leading CTAs, not dead ends.
+    el.innerHTML = `<div class="empty"><strong>Pick who's watching</strong>Tap anyone above, or <button class="link-like" onclick="openInviteShare()">invite someone</button> to join the couch.</div>`;
     countEl.textContent = '';
     if (actionsEl) actionsEl.innerHTML = '';
     return;

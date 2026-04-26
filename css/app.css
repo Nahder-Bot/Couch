@@ -2184,6 +2184,13 @@ h3{font-size:var(--t-h3)}
 .activity-title-link{color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-color:transparent;transition:text-decoration-color var(--t-quick)}
 .activity-title-link:hover{text-decoration-color:var(--accent)}
 
+/* Inline link-style button — used in empty-state CTAs (D-11) per polish audit.
+   Reuse-friendly: any inline action that should read as a sentence link, not a chip. */
+.link-like{background:transparent;border:none;padding:0;color:var(--accent);
+  cursor:pointer;text-decoration:underline;text-decoration-color:transparent;
+  font:inherit;transition:text-decoration-color var(--t-quick)}
+.link-like:hover,.link-like:focus-visible{text-decoration-color:var(--accent)}
+
 /* Full queue view */
 .full-queue-row{display:flex;gap:12px;background:var(--surface);border-radius:12px;padding:10px;margin-bottom:6px;border:1px solid var(--border);align-items:center;touch-action:pan-y;user-select:none;position:relative}
 .full-queue-row.dragging{opacity:0.4;background:var(--bg-2)}
