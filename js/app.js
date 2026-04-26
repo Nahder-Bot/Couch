@@ -14117,24 +14117,16 @@ function renderFlowAEntry() {
   const container = document.getElementById('flow-a-entry-container');
   if (!container) return;
   const couchSize = (state.couchMemberIds || []).filter(Boolean).length;
-  if (couchSize < 1) {
-    // Plan 14-09 / D-11 (c) — Flow A entry with no couch yet. Surfaces the
-    // "Who's on the couch tonight?" empty-state copy + glowing cushions affordance.
-    // Verbatim copy per CONTEXT.md D-11 table. The "Find a seat" CTA scrolls the
-    // couch viz into view; cushion-glow class pulses every empty cushion to draw
-    // attention. Glow respects prefers-reduced-motion (CSS @media guard).
-    container.innerHTML = `<div class="flow-a-no-couch queue-empty">
-      <span class="emoji">🛋️</span>
-      <strong>Who's on the couch tonight?</strong>
-      Tap to seat yourself + invite family.
-      <div class="queue-empty-cta">
-        <button class="tc-primary" type="button" onclick="document.getElementById('couch-viz-container')?.scrollIntoView({behavior:'smooth',block:'center'})">Find a seat</button>
-      </div>
-    </div>`;
-    // Add glow class to all empty cushions in the live couch viz (sibling DOM).
-    document.querySelectorAll('.couch-avatar-grid .seat-cell.empty').forEach(g => g.classList.add('cushion-glow'));
-    return;
-  }
+  if (couchSize < 1) { container.innerHTML = ''; return; }
+  // 14-10 (sketch 003 V5): the legacy 14-09 D-11 (c) empty-state-c card
+  // ("Who's on the couch tonight? + Find a seat") was redundant under V5
+  // because the dashed-pill roster IS the empty state — showing both
+  // re-created the 'two stacked surfaces' problem Bug A fixed. Branch
+  // simplified to a single line that clears stale content from this
+  // sibling container; the V5 roster in #couch-viz-container handles
+  // user attention directly via the dashed family pills.
+  // The corresponding cushion-glow CSS in css/app.css is also obsolete
+  // (its target selectors were deleted with the cushion grid in Task 4).
   // Check whether an open Flow A intent already exists for this family.
   const openFlowA = (state.intents || []).find(i =>
     (i.flow === 'rank-pick' || i.type === 'rank-pick') && i.status === 'open'
