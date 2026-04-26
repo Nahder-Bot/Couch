@@ -24,7 +24,7 @@
   - `js/utils.js` — `escapeHtml`, `haptic`, `flashToast`, poster helpers
   - `js/app.js` — all feature logic (~10200 lines); imports from the above
 - **CSS:** `css/app.css` (~2360 lines; warm-dark design system, 47-token semantic alias layer from 09-02, Phase 9/DESIGN-03 utility classes ~line 2210, desktop `@media (min-width:900px)` block ~line 2330) + `css/landing.css` (~86 lines; standalone for the marketing page).
-- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v33.3-sentry-dsn` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
+- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v34.1-roster-control` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
 - **Backend:** Firebase Firestore (project `queuenight-84044`) for real-time family sync; Cloud Functions in sibling `queuenight/functions/` for push notifications (watchparty + intent + veto) and Trakt OAuth token exchange.
 - **Third-party data:** TMDB REST v3 for metadata/providers; Trakt API for watch-history sync.
 - **Delivery:** Firebase Hosting (deploy via sibling `queuenight/public/` mirror). PWA manifest inline as data URL in app.html. iOS/Android icon set wired.
