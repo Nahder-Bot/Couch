@@ -12457,6 +12457,12 @@ async function applyVote(titleId, memberId, vote) {
     // no / seen / null: remove from queue
     if (wasInQueue) delete queues[memberId];
   }
+  // D-03 (DECI-14-03 / Anti-pattern #5) — surface the silent queue mutation to the actor.
+  // Guard: only toast when the local user is the actor; onSnapshot-driven updates from other
+  // members' votes would otherwise spam the local UI with toasts about their queue changes.
+  if (newVote === 'yes' && !wasInQueue && memberId === (state.me && state.me.id)) {
+    flashToast(`Added "${t.name}" to your queue`, { kind: 'info' });
+  }
   try {
     await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), votes, queues });
     // Reindex that member's queue after a removal so ranks stay contiguous
