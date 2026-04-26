@@ -4933,7 +4933,28 @@ function card(t) {
   if (t.year) metaParts.push(escapeHtml(t.year));
   if (t.runtime) metaParts.push(`${t.runtime}m`);
   if (t.watched && avg > 0) metaParts.push(`<span class="tc-stars">★ ${formatScore(avg)}</span>`);
-  else if (!t.watched && yesCount > 0) metaParts.push(`${yesCount} 👍`);
+  // === D-04 (DECI-14-04) — "X want it" pill replaces the bare yes-count pill ===
+  // Counts members with this title in their queues map (per DR-2: queues == Yes votes today;
+  // future-proof against decoupling by reading queues directly). Renders 3 micro-avatars +
+  // overflow chip + "N want it" label. Falls back gracefully when t.queues is missing.
+  else if (!t.watched && t.queues) {
+    const queuers = (state.members || []).filter(m => t.queues[m.id] != null);
+    if (queuers.length > 0) {
+      const visible = queuers.slice(0, 3);
+      const overflow = queuers.length - visible.length;
+      const avatars = visible.map(m =>
+        `<span class="tc-want-avatar" title="${escapeHtml(m.name || 'Member')}" style="background:${memberColor(m.id)}">${escapeHtml((m.name || '?').charAt(0).toUpperCase())}</span>`
+      ).join('');
+      const overflowChip = overflow > 0 ? `<span class="tc-want-overflow">+${overflow}</span>` : '';
+      const wantWord = queuers.length === 1 ? 'wants' : 'want';
+      metaParts.push(
+        `<span class="tc-want-pill" aria-label="${queuers.length} ${queuers.length === 1 ? 'person' : 'people'} ${wantWord} this">` +
+          `<span class="tc-want-avatars">${avatars}${overflowChip}</span>` +
+          `<span class="tc-want-label">${queuers.length} ${wantWord} it</span>` +
+        `</span>`
+      );
+    }
+  }
   // TV progress pill — shown for TV titles with per-member progress tracked
   const progPill = progressPill(t);
   if (progPill) metaParts.push(progPill);
@@ -5039,17 +5060,27 @@ function card(t) {
   }
 
   // Primary action
+  // === D-04 (DECI-14-04) — Vote button removed from tile face ===
+  // The Vote button (Vote-mode bulk affordance) moves to the Add tab "Catch up on votes" CTA
+  // (per D-05). Per-title voting is reachable via the new openTileActionSheet primary entry.
+  // Watched-state Rate and pending/declined empty branches preserved.
   let primaryBtn;
   if (t.watched) {
     primaryBtn = `<button class="tc-primary watched" onclick="event.stopPropagation();openRateModal('${t.id}')">★ Rate</button>`;
-  } else if (isPending || isDeclined) {
-    // No voting on pending/declined titles; the approval buttons live in the note above (for parents)
-    primaryBtn = '';
   } else {
-    primaryBtn = `<button class="tc-primary" onclick="event.stopPropagation();openVoteModal('${t.id}')">Vote</button>`;
+    // Unwatched (including pending/declined): no on-tile primary; primary action is body-tap → openTileActionSheet.
+    primaryBtn = '';
   }
 
-  return `<div class="tc${blockedClass}${vetoedClass}${approvalClass}" role="button" tabindex="0" aria-label="${escapeHtml(t.name)}${t.year?', '+escapeHtml(t.year):''}" onclick="openDetailModal('${t.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('${t.id}');}">
+  // === D-04 (DECI-14-04) — ▶ Trailer button on tile face ===
+  // Surfaces formerly-buried trailer affordance from the ⋯ action sheet.
+  // Uses event.stopPropagation() so the body-tap (openTileActionSheet) doesn't also fire.
+  // Reuses the existing trailer launch pattern from openActionSheet (YouTube external link).
+  const trailerBtnHtml = (t.trailerKey && !t.watched)
+    ? `<a class="tc-trailer-btn" href="https://www.youtube.com/watch?v=${encodeURIComponent(t.trailerKey)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" aria-label="Watch trailer for ${escapeHtml(t.name)}">▶ Trailer</a>`
+    : '';
+
+  return `<div class="tc${blockedClass}${vetoedClass}${approvalClass}" role="button" tabindex="0" aria-label="${escapeHtml(t.name)}${t.year?', '+escapeHtml(t.year):''}" onclick="openTileActionSheet('${t.id}',event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTileActionSheet('${t.id}',event);}">
     <div class="tc-poster" style="${posterStyle(t)}" aria-hidden="true">${posterFallbackLetter(t)}</div>
     <div class="tc-body">
       <div class="tc-name">${badgesHtml}${ratingPill} ${escapeHtml(t.name)}</div>
@@ -5062,6 +5093,7 @@ function card(t) {
       ${voteChips && !isPending && !isDeclined ? `<div class="tc-vote-strip">${voteChips}</div>` : ''}
       <div class="tc-footer">
         ${primaryBtn}
+        ${trailerBtnHtml}
         <button class="tc-more" aria-label="More options" onclick="openActionSheet('${t.id}',event)" title="More">⋯</button>
       </div>
     </div>
