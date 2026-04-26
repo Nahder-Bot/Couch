@@ -3401,3 +3401,186 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .add-catchup-cta .tc-primary {
   /* Inherits .tc-primary brand-grad styling from line 1403; no override needed. */
 }
+
+/* ========================================================================== */
+/* === Phase 14 / Plan 14-07 — D-07 Flow A: rank-pick + push-confirm UI ===== */
+/* ========================================================================== */
+/* Entry CTA, picker (3-tier ranked list), roster (proxy-confirm), and        */
+/* response (live tally + counter sub-flow + convert) screens. Reuses the     */
+/* existing .modal-bg + .modal-content shell (declared at css/app.css:478).   */
+/* All custom-property names use the existing token aliases with hardcoded    */
+/* fallbacks so production-palette omissions still render correctly (same     */
+/* defensive pattern as 14-04 and 14-08).                                     */
+/* ========================================================================== */
+
+/* === D-07 Flow A entry CTA — DECI-14-07 === */
+.flow-a-entry-container {
+  /* Container exists in app.html under #couch-viz-container. Empty by default;
+     renderFlowAEntry() conditionally fills it. No layout when empty. */
+}
+.flow-a-entry, .flow-a-active {
+  background: var(--surface-2, #1f1a16);
+  padding: var(--s3, 12px);
+  border-radius: var(--r-lg, 12px);
+  margin: var(--s4, 16px) 0;
+  border: 1px solid var(--c-warm-amber, #d4a574);
+}
+.flow-a-entry-h, .flow-a-active-h {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: 22px;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-entry-body, .flow-a-active-body {
+  color: var(--ink-dim, #c4b89e);
+  margin: var(--s2, 8px) 0 var(--s3, 12px);
+}
+
+/* === D-07 Flow A picker UI === */
+.flow-a-picker-modal { display: none; }
+.flow-a-picker-modal.on { display: flex; }
+.flow-a-picker-content {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-picker-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-picker-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s3, 12px); }
+.flow-a-section { margin-bottom: var(--s4, 16px); }
+.flow-a-section-h {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: 18px;
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  padding: var(--s2, 8px);
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  transition: background-color 200ms ease-out;
+}
+.flow-a-row:hover, .flow-a-row:focus-visible {
+  background: var(--surface-2, #1f1a16);
+  outline: none;
+}
+.flow-a-row-poster {
+  width: 60px; height: 90px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-3, #2a221c);
+  border-radius: var(--r-sm, 4px);
+  flex-shrink: 0;
+}
+.flow-a-row-meta { flex: 1; min-width: 0; }
+.flow-a-row-name { font-weight: 600; color: var(--ink, #e8dcc4); }
+.flow-a-row-tier { font-size: 13px; color: var(--ink-dim, #8a7d6e); margin-top: 2px; }
+.flow-a-t3-toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--ink-dim, #8a7d6e);
+  color: var(--ink-dim, #8a7d6e);
+  padding: var(--s2, 8px) var(--s3, 12px);
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.flow-a-t3-warn {
+  font-size: 12px;
+  color: var(--ink-dim, #8a7d6e);
+  font-style: italic;
+  margin: var(--s2, 8px) 0;
+}
+
+/* === D-07 Flow A roster — proxy-confirm === */
+.flow-a-roster-content {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-roster-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-roster-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s3, 12px); }
+.flow-a-roster-list { display: flex; flex-direction: column; gap: var(--s2, 8px); margin: var(--s3, 12px) 0; }
+.flow-a-roster-member {
+  appearance: none;
+  background: var(--surface-2, #1f1a16);
+  border: 1px solid transparent;
+  padding: var(--s3, 12px);
+  border-radius: var(--r-md, 8px);
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-roster-member.confirmed {
+  border-color: var(--c-warm-amber, #d4a574);
+}
+.flow-a-roster-member:disabled { opacity: 0.7; cursor: default; }
+.flow-a-roster-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.flow-a-roster-name { flex: 1; color: var(--ink, #e8dcc4); }
+.flow-a-roster-status { font-size: 12px; color: var(--ink-dim, #8a7d6e); }
+.flow-a-roster-footer {
+  display: flex;
+  gap: var(--s2, 8px);
+  justify-content: space-between;
+  margin-top: var(--s4, 16px);
+}
+
+/* === D-07 Flow A response screen === */
+.flow-a-response-content {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-response-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-response-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s2, 8px); }
+.flow-a-status-closed {
+  color: var(--c-warm-amber, #d4a574);
+  font-style: italic;
+}
+.flow-a-rejected-cta, .flow-a-counter-cap, .flow-a-already {
+  padding: var(--s3, 12px);
+  background: var(--surface-2, #1f1a16);
+  border-radius: var(--r-md, 8px);
+  margin: var(--s2, 8px) 0;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-rejected-cta { border: 1px solid var(--c-warning, #d97757); }
+.flow-a-rejected-cta strong { color: var(--c-warning, #d97757); display: block; margin-bottom: var(--s2, 8px); }
+.flow-a-counter-cap { border: 1px solid var(--ink-dim, #8a7d6e); }
+.flow-a-counter-cap strong { display: block; margin-bottom: var(--s2, 8px); }
+.flow-a-response-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+  margin-top: var(--s3, 12px);
+}
+/* === Phase 14 / Plan 14-07 — END Flow A CSS === */

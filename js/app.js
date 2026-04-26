@@ -4134,6 +4134,11 @@ function startSync() {
     // so counter-row tallies, all-No banners, and converted/cancelled status flips
     // appear in real time without requiring a local action.
     if (typeof maybeRerenderFlowBStatus === 'function') maybeRerenderFlowBStatus();
+    // 14-07 — same idea for Flow A: keep the live tally on the response screen fresh,
+    // and flip the Tonight-tab entry CTA between "Open picker" and "Picking happening"
+    // the moment a rank-pick intent opens or closes elsewhere on the couch.
+    if (typeof maybeRerenderFlowAResponse === 'function') maybeRerenderFlowAResponse();
+    if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   }, e => { qnLog('[intents] snapshot error', e.message); });
   // Subscribe to watchparties collection
   state.unsubWatchparties = onSnapshot(watchpartiesRef(), s => {
@@ -4860,6 +4865,9 @@ function renderTonight() {
   // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
   // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
   if (typeof renderCouchViz === 'function') renderCouchViz();
+  // D-07 (DECI-14-07) — Flow A entry CTA. Lives directly under couch viz; gated on
+  // state.couchMemberIds ≥ 1. Safe to call on every renderTonight pass (innerHTML overwrite).
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
 }
 
 // Combined filters-bar toggle + active state
@@ -13844,5 +13852,546 @@ window.removeTitle = async function(id) {
     }).observe(bg, { attributes: true, attributeFilter: ['class'] });
   });
 })();
+
+// ====================================================================================
+// === Phase 14 / Plan 14-07 — D-07 Flow A: group rank-pick + push-confirm ===========
+// ====================================================================================
+// Flow A is the "we're together on the couch RIGHT NOW, who's picking?" decision flow.
+// Architecture: one entry CTA on the Tonight tab → picker UI (3-tier ranked list) →
+// roster screen (proxy-confirm in-person members) → createIntent({flow:'rank-pick'}) →
+// per-recipient response screen (In/Reject/Drop + counter-nom) → reject-majority retry →
+// counter-chain capped at 3 → quorum convert to watchparty.
+//
+// Cross-plan dependencies (all already shipped upstream):
+//   - 14-01 isWatchedByCouch — already-watched filter (consumed indirectly via tier aggregators)
+//   - 14-03 getTierOneRanked / getTierTwoRanked / getTierThreeRanked — picker rows
+//   - 14-03 resolveT3Visibility() — gates the T3 expand affordance entirely
+//   - 14-04 state.couchMemberIds — populated by claimCushion; gates entry CTA visibility
+//   - 14-06 createIntent({flow:'rank-pick', expectedCouchMemberIds, ...}) — Firestore primitive
+//   - 14-06 onIntentCreated CF — handles flowAPick fan-out push to unconfirmed couch members
+//   - 14-06 onIntentUpdate CF — handles counter-chain server-side bumps
+//   - 14-08 maybeOpenIntentFromDeepLink — already typeof-guards openFlowAResponseScreen call
+//
+// All functions cross-reference (entry → picker → roster → response → counter sub-flow
+// reuses picker → convert), so this lands as one coherent block and one atomic commit
+// per the same precedent set by 14-08 Flow B (commit af168f1).
+// ====================================================================================
+
+// === D-07 Flow A entry CTA (Tonight tab) — DECI-14-07 ===
+// Renders into #flow-a-entry-container (added in app.html under couch-viz). Hidden until
+// state.couchMemberIds has ≥1 entry. Flips to "Picking happening" reactively when an open
+// rank-pick intent exists (via state.unsubIntents tick).
+function renderFlowAEntry() {
+  const container = document.getElementById('flow-a-entry-container');
+  if (!container) return;
+  const couchSize = (state.couchMemberIds || []).filter(Boolean).length;
+  if (couchSize < 1) {
+    container.innerHTML = ''; // no couch claimed yet — couch viz drives that affordance
+    return;
+  }
+  // Check whether an open Flow A intent already exists for this family.
+  const openFlowA = (state.intents || []).find(i =>
+    (i.flow === 'rank-pick' || i.type === 'rank-pick') && i.status === 'open'
+  );
+  if (openFlowA) {
+    container.innerHTML = `<div class="flow-a-active">
+      <div class="flow-a-active-h">Picking happening</div>
+      <p class="flow-a-active-body">A pick is in progress. Watching for responses…</p>
+      <button class="tc-primary" type="button" onclick="openFlowAResponseScreen('${openFlowA.id}')">Open</button>
+    </div>`;
+    return;
+  }
+  container.innerHTML = `<div class="flow-a-entry">
+    <div class="flow-a-entry-h">Pick a movie for the couch</div>
+    <p class="flow-a-entry-body">${couchSize} ${couchSize === 1 ? 'person is' : 'people are'} on the couch. Pick from your shared queue.</p>
+    <button class="tc-primary" type="button" onclick="openFlowAPicker()">Open picker</button>
+  </div>`;
+}
+
+window.openFlowAPicker = function() {
+  if (!state.me) { flashToast('Sign in to pick', { kind: 'warn' }); return; }
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  if (!couch.length) { flashToast('Claim a seat on the couch first', { kind: 'warn' }); return; }
+  renderFlowAPickerScreen();
+};
+
+// === D-07 Flow A picker UI — DECI-14-07 ===
+// Lazy-creates a single #flow-a-picker-modal container which is reused across picker /
+// roster / response screens (each render replaces innerHTML). This keeps DOM count low
+// and avoids competing focus traps when the user toggles between screens.
+function renderFlowAPickerScreen() {
+  let modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-a-picker-modal';
+    modal.className = 'modal-bg flow-a-picker-modal';
+    document.body.appendChild(modal);
+  }
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  // Rejected-titles set (from reject-majority retry path, see onFlowARetryPick) excludes
+  // already-tried titles from the next picker render. Defensive: may be undefined first time.
+  const rejected = state.flowARejectedTitles || new Set();
+  const filterRejected = entry => !rejected.has(entry.title.id);
+
+  const t1 = getTierOneRanked(couch).filter(filterRejected);
+  const t2 = getTierTwoRanked(couch).filter(filterRejected);
+  const t3 = getTierThreeRanked(couch).filter(filterRejected);
+  const showT3 = resolveT3Visibility();
+  // Counter-nomination sub-flow re-uses this picker; show contextual heading.
+  const isCounter = !!state.flowACounterFor;
+
+  const renderRow = (entry, tier) => {
+    const t = entry.title;
+    // T1: meanRank (computed below); T2: meanPresentRank + couchPresenceCount; T3: meanOffCouchRank.
+    let metaBits = `Tier ${tier}`;
+    if (tier === 1 && entry.meanRank != null) metaBits += ` · mean rank ${entry.meanRank.toFixed(1)}`;
+    else if (tier === 2) {
+      if (entry.meanPresentRank != null) metaBits += ` · mean rank ${entry.meanPresentRank.toFixed(1)}`;
+      if (entry.couchPresenceCount != null) metaBits += ` · ${entry.couchPresenceCount} couch member${entry.couchPresenceCount === 1 ? '' : 's'}`;
+    } else if (tier === 3 && entry.meanOffCouchRank != null) {
+      metaBits += ` · mean rank ${entry.meanOffCouchRank.toFixed(1)} (off-couch)`;
+    }
+    return `<div class="flow-a-row" role="button" tabindex="0"
+      onclick="onFlowAPickerSelect('${t.id}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();onFlowAPickerSelect('${t.id}');}">
+      <div class="flow-a-row-poster" style="background-image:url('${escapeHtml(t.poster || '')}')"></div>
+      <div class="flow-a-row-meta">
+        <div class="flow-a-row-name">${escapeHtml(t.name || '')}</div>
+        <div class="flow-a-row-tier">${metaBits}</div>
+      </div>
+    </div>`;
+  };
+
+  const t1Html = t1.length ? `<section class="flow-a-section">
+    <h3 class="flow-a-section-h">Tier 1 — everyone wants this</h3>
+    ${t1.slice(0, 10).map(e => renderRow(e, 1)).join('')}
+  </section>` : '';
+
+  const t2Html = t2.length ? `<section class="flow-a-section">
+    <h3 class="flow-a-section-h">Tier 2 — some couch interest</h3>
+    ${t2.slice(0, 10).map(e => renderRow(e, 2)).join('')}
+  </section>` : '';
+
+  const t3Html = (showT3 && t3.length) ? `<section class="flow-a-section flow-a-section-t3" data-expanded="false">
+    <button class="flow-a-t3-toggle" type="button" onclick="onFlowAToggleT3(this)">Show off-couch picks (${t3.length})</button>
+    <div class="flow-a-t3-body" hidden>
+      <p class="flow-a-t3-warn">Watching titles only off-couch members want.</p>
+      ${t3.slice(0, 10).map(e => renderRow(e, 3)).join('')}
+    </div>
+  </section>` : '';
+
+  const emptyState = (!t1.length && !t2.length && !(showT3 && t3.length))
+    ? `<div class="queue-empty">
+        <span class="emoji">🛋️</span>
+        <strong>No candidates left</strong>
+        Everyone on the couch has watched everything in queue. Add titles or expand rewatch options.
+      </div>`
+    : '';
+
+  const subhead = isCounter
+    ? `Pick a different title to counter-nominate.`
+    : `Tap a title to send it to the couch.`;
+
+  modal.innerHTML = `<div class="modal-content flow-a-picker-content">
+    <header class="flow-a-picker-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close picker">✕</button>
+      <h2>${isCounter ? 'Counter-nominate' : 'Pick a movie'}</h2>
+      <p>${subhead}</p>
+    </header>
+    <div class="flow-a-picker-body">
+      ${t1Html}
+      ${t2Html}
+      ${t3Html}
+      ${emptyState}
+    </div>
+  </div>`;
+  modal.classList.add('on');
+}
+
+window.onFlowAToggleT3 = function(btn) {
+  const section = btn.closest('.flow-a-section-t3');
+  if (!section) return;
+  const body = section.querySelector('.flow-a-t3-body');
+  if (!body) return;
+  const expanded = section.dataset.expanded === 'true';
+  section.dataset.expanded = expanded ? 'false' : 'true';
+  body.hidden = expanded;
+  btn.textContent = expanded ? `Show off-couch picks` : `Hide off-couch picks`;
+};
+
+window.closeFlowAPicker = function() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (modal) modal.classList.remove('on');
+};
+
+window.onFlowAPickerSelect = function(titleId) {
+  // Counter-nomination sub-flow short-circuit: when state.flowACounterFor is set,
+  // route the picked title into submitCounterNom instead of advancing to the roster screen.
+  if (state.flowACounterFor) {
+    submitCounterNom(titleId);
+    return;
+  }
+  // Stash the picked title and advance to the roster screen (proxy-confirm step).
+  state.flowAPickerTitleId = titleId;
+  renderFlowARosterScreen();
+};
+
+// === D-07 Flow A roster screen — proxy-confirm + send-picks — DECI-14-07 ===
+// Renders all couch members as tappable rows. Picker (state.me) is auto-confirmed and
+// disabled. Tapping a non-self member toggles state.flowAProxyConfirmed (a Set of memberIds).
+// Send Picks calls createIntent({flow:'rank-pick', ...}) then pre-seeds proxy-confirmed
+// rsvps so 14-06's onIntentCreated CF skips them in the push fan-out.
+function renderFlowARosterScreen() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) return;
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  const t = state.titles.find(x => x.id === state.flowAPickerTitleId);
+  if (!t) { closeFlowAPicker(); flashToast('Title no longer available', { kind: 'warn' }); return; }
+
+  if (!state.flowAProxyConfirmed) state.flowAProxyConfirmed = new Set();
+
+  const couchMembers = couch.map(mid => (state.members || []).find(m => m.id === mid)).filter(Boolean);
+
+  const memberRows = couchMembers.map(m => {
+    const isMe = state.me && m.id === state.me.id;
+    const confirmed = isMe || state.flowAProxyConfirmed.has(m.id);
+    return `<button class="flow-a-roster-member ${confirmed ? 'confirmed' : ''}" type="button"
+      onclick="onFlowAToggleConfirm('${m.id}')"
+      ${isMe ? 'disabled aria-label="You — auto-in"' : ''}>
+      <div class="flow-a-roster-avatar" style="background:${memberColor(m.id)}">${escapeHtml((m.name||'?')[0].toUpperCase())}</div>
+      <span class="flow-a-roster-name">${escapeHtml(m.name || 'Member')}${isMe ? ' (you)' : ''}</span>
+      <span class="flow-a-roster-status">${confirmed ? '✓ in' : 'tap to mark in-person'}</span>
+    </button>`;
+  }).join('');
+
+  const unconfirmedCount = couchMembers.filter(m => {
+    const isMe = state.me && m.id === state.me.id;
+    return !isMe && !state.flowAProxyConfirmed.has(m.id);
+  }).length;
+
+  modal.innerHTML = `<div class="modal-content flow-a-roster-content">
+    <header class="flow-a-roster-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t.name)}</h2>
+      <p>Mark members already in-person; the rest get a push.</p>
+    </header>
+    <div class="flow-a-roster-list">${memberRows}</div>
+    <footer class="flow-a-roster-footer">
+      <button class="tc-secondary" type="button" onclick="renderFlowAPickerScreen()">Back</button>
+      <button class="tc-primary" type="button" onclick="onFlowASendPicks()">
+        Send picks${unconfirmedCount > 0 ? ` (${unconfirmedCount} push${unconfirmedCount === 1 ? '' : 'es'})` : ''}
+      </button>
+    </footer>
+  </div>`;
+}
+
+window.onFlowAToggleConfirm = function(memberId) {
+  if (!state.flowAProxyConfirmed) state.flowAProxyConfirmed = new Set();
+  if (state.me && memberId === state.me.id) return; // self always confirmed
+  if (state.flowAProxyConfirmed.has(memberId)) {
+    state.flowAProxyConfirmed.delete(memberId);
+  } else {
+    state.flowAProxyConfirmed.add(memberId);
+  }
+  renderFlowARosterScreen();
+};
+
+window.onFlowASendPicks = async function() {
+  const titleId = state.flowAPickerTitleId;
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  if (!titleId || !couch.length) return;
+
+  // expectedCouchMemberIds = the FULL couch (CF intersects this with subscribers).
+  // Proxy-confirmed members get rsvps[mid] pre-seeded with state:'in' so the CF push
+  // fan-out (delivered by 14-06's onIntentCreated) sees they're already in and skips them.
+  const expected = couch.slice();
+
+  let intentId;
+  try {
+    intentId = await createIntent({
+      flow: 'rank-pick',
+      titleId,
+      expectedCouchMemberIds: expected
+    });
+  } catch (e) {
+    console.error('[flowA] createIntent failed', e);
+    flashToast('Could not send picks — try again', { kind: 'warn' });
+    return;
+  }
+  if (!intentId) {
+    flashToast('Could not send picks — try again', { kind: 'warn' });
+    return;
+  }
+
+  // Pre-seed proxy-confirmed members' rsvps. intentRef(id) returns the doc ref directly
+  // (see js/app.js:1388), so no doc(intentRef(...)) wrapping is needed (would error).
+  for (const mid of state.flowAProxyConfirmed) {
+    try {
+      await updateDoc(intentRef(intentId), {
+        [`rsvps.${mid}`]: {
+          state: 'in',
+          proxyConfirmedBy: state.me.id,
+          at: Date.now(),
+          actingUid: (state.auth && state.auth.uid) || null,
+          memberName: ((state.members || []).find(m => m.id === mid) || {}).name || null
+        },
+        ...writeAttribution()
+      });
+    } catch (e) {
+      console.warn('[flowA] proxy-confirm seed failed for', mid, e);
+    }
+  }
+
+  // Reset proxy state.
+  state.flowAProxyConfirmed = new Set();
+  state.flowAPickerTitleId = null;
+
+  flashToast('Picks sent. Watching for responses…', { kind: 'success' });
+  closeFlowAPicker();
+  // Open response screen so the picker can watch live progress.
+  setTimeout(() => openFlowAResponseScreen(intentId), 100);
+};
+
+// === D-07 Flow A response screen — picker view + recipient view — DECI-14-07 ===
+// Reused container (#flow-a-picker-modal). Picker view shows live tally + reject-majority CTA
+// + counter-cap banner + convert button. Recipient view shows In/Reject+counter/Reject/Drop
+// buttons. Live re-renders via maybeRerenderFlowAResponse hooked into state.unsubIntents tick.
+window.openFlowAResponseScreen = function(intentId) {
+  let modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-a-picker-modal';
+    modal.className = 'modal-bg flow-a-picker-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowAOpenIntentId = intentId;
+  renderFlowAResponseScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowAResponseScreen() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) return;
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowAPicker(); return; }
+  const t = state.titles.find(x => x.id === intent.titleId);
+  const isPicker = state.me && intent.createdBy === state.me.id;
+  const myRsvp = state.me ? (intent.rsvps || {})[state.me.id] : null;
+
+  // Tallies — count over expectedCouchMemberIds so the denominator is stable even if
+  // membership changes mid-flow.
+  const expected = intent.expectedCouchMemberIds || [];
+  const ins     = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'in').length;
+  const rejects = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'reject').length;
+  const drops   = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'drop').length;
+  const rejectMajority = rejects > expected.length / 2;
+  const counterDepth = intent.counterChainDepth || 0;
+  const isClosed = intent.status && intent.status !== 'open';
+
+  if (isPicker) {
+    const canConvert = ins >= 1; // quorum: picker + ≥1 in
+    const showCounterCap = counterDepth >= 3;
+    modal.innerHTML = `<div class="modal-content flow-a-response-content">
+      <header class="flow-a-response-h">
+        <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+        <h2>${escapeHtml(t ? t.name : 'Pick')}</h2>
+        <p>Live tally — ${ins} in · ${rejects} reject · ${drops} drop · counter chain ${counterDepth}/3</p>
+        ${isClosed ? `<p class="flow-a-status-closed">Status: ${escapeHtml(intent.status)}</p>` : ''}
+      </header>
+      <div class="flow-a-response-body">
+        ${rejectMajority && counterDepth < 3 && !isClosed ? `<div class="flow-a-rejected-cta">
+          <strong>Reject majority hit.</strong>
+          <p>Pick another title (1 retry then expire).</p>
+          <button class="tc-primary" type="button" onclick="onFlowARetryPick()">Pick #2</button>
+        </div>` : ''}
+        ${showCounterCap ? `<div class="flow-a-counter-cap">
+          <strong>${counterDepth} options on the table.</strong>
+          <p>No more counters. Pick one or end nomination.</p>
+        </div>` : ''}
+        ${canConvert && !isClosed ? `<button class="tc-primary" type="button" onclick="onFlowAConvert()">Start watchparty (${ins} in)</button>` : ''}
+        ${!isClosed ? `<button class="tc-secondary" type="button" onclick="onFlowACancel()">End nomination</button>` : ''}
+      </div>
+    </div>`;
+    return;
+  }
+
+  // RECIPIENT VIEW
+  const responded = !!myRsvp;
+  const myState = responded ? (myRsvp.state || myRsvp.value) : null;
+  modal.innerHTML = `<div class="modal-content flow-a-response-content">
+    <header class="flow-a-response-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t ? t.name : 'Pick')}</h2>
+      <p>${escapeHtml(intent.createdByName || 'Picker')} picked this for the couch.</p>
+      ${isClosed ? `<p class="flow-a-status-closed">Status: ${escapeHtml(intent.status)}</p>` : ''}
+    </header>
+    <div class="flow-a-response-body">
+      ${responded ? `<div class="flow-a-already">You said: ${escapeHtml(myState || '')}</div>` : ''}
+      ${!isClosed ? `
+        <button class="tc-primary" type="button" onclick="onFlowARespond('in')">In</button>
+        <button class="tc-secondary" type="button" onclick="onFlowAOpenCounterSubflow()">Reject + counter</button>
+        <button class="tc-secondary" type="button" onclick="onFlowARespond('reject')">Reject</button>
+        <button class="tc-secondary" type="button" onclick="onFlowARespond('drop')">Drop</button>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
+// Re-render the response screen on every intents snapshot tick (live tally updates).
+// Wired into the state.unsubIntents handler above.
+function maybeRerenderFlowAResponse() {
+  if (state.flowAOpenIntentId) renderFlowAResponseScreen();
+}
+
+window.onFlowARespond = async function(stateValue) {
+  const intentId = state.flowAOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: stateValue,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast(`Recorded: ${stateValue}`, { kind: 'success' });
+  } catch (e) {
+    console.error('[flowA] respond failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowAOpenCounterSubflow = function() {
+  // Counter-nomination: open the same picker UI but route selection to submitCounterNom.
+  // Server-side cap (rules from 14-06): counterChainDepth ≤ 3. Client mirrors for UX.
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counterDepth = intent.counterChainDepth || 0;
+  if (counterDepth >= 3) {
+    flashToast('Counter chain full — pick from current options', { kind: 'warn' });
+    return;
+  }
+  state.flowACounterFor = intentId;
+  state.flowAPickerTitleId = null;
+  renderFlowAPickerScreen(); // onFlowAPickerSelect short-circuits to submitCounterNom when flowACounterFor set
+};
+
+async function submitCounterNom(titleId) {
+  const intentId = state.flowACounterFor;
+  if (!intentId || !state.me) return;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const newDepth = (intent.counterChainDepth || 0) + 1;
+  if (newDepth > 3) { flashToast('Counter chain cap reached', { kind: 'warn' }); return; }
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'reject',
+        counterTitleId: titleId,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      counterChainDepth: newDepth,
+      ...writeAttribution()
+    });
+    flashToast('Counter-nomination sent', { kind: 'success' });
+    state.flowACounterFor = null;
+    closeFlowAPicker();
+    setTimeout(() => openFlowAResponseScreen(intentId), 100);
+  } catch (e) {
+    console.error('[flowA] counter-nom failed', e);
+    flashToast('Could not send counter-nomination', { kind: 'warn' });
+  }
+}
+
+// === D-07 Flow A convert + cancel + retry handlers — DECI-14-07 ===
+window.onFlowAConvert = async function() {
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent || !state.me) return;
+  // UI-side quorum check; server-rule (14-06 Task 2) enforces createdByUid match for the
+  // status:'converted' write so non-pickers can't bypass this.
+  const ins = (intent.expectedCouchMemberIds || []).filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'in').length;
+  if (ins < 1) { flashToast('Need ≥1 confirmed in', { kind: 'warn' }); return; }
+  try {
+    const wpRef = await addDoc(watchpartiesRef(), {
+      status: 'scheduled',
+      hostId: state.me.id,
+      hostUid: (state.auth && state.auth.uid) || null,
+      hostName: state.me.name || null,
+      titleId: intent.titleId,
+      // 5min runway lets the lobby flow (Phase 11-05) take over and gather final RSVPs.
+      startAt: Date.now() + 5 * 60 * 1000,
+      createdAt: Date.now(),
+      convertedFromIntentId: intent.id,
+      ...writeAttribution()
+    });
+    await updateDoc(intentRef(intentId), {
+      status: 'converted',
+      convertedToWpId: wpRef.id,
+      convertedTo: wpRef.id, // back-compat alias for any Phase 8 consumers
+      ...writeAttribution()
+    });
+    flashToast('Converted to watchparty — heading there', { kind: 'success' });
+    state.flowAOpenIntentId = null;
+    closeFlowAPicker();
+    if (typeof openWatchpartyLive === 'function') openWatchpartyLive(wpRef.id);
+  } catch (e) {
+    console.error('[flowA] convert failed', e);
+    flashToast('Convert failed — try again', { kind: 'warn' });
+  }
+};
+
+window.onFlowACancel = async function() {
+  const intentId = state.flowAOpenIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      ...writeAttribution()
+    });
+    state.flowAOpenIntentId = null;
+    closeFlowAPicker();
+    flashToast('Nomination ended', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowA] cancel failed', e);
+    flashToast('Could not end nomination', { kind: 'warn' });
+  }
+};
+
+// Reject-majority retry: per D-07 "1 retry, then expire". We cancel the current intent,
+// stash its titleId in state.flowARejectedTitles (excluded from the next picker render),
+// and re-open the picker so the picker can choose a different title. The new intent has
+// no special "retry" flag — if it ALSO gets reject-majority'd, no third Pick CTA surfaces
+// and the intent expires naturally at the rank-pick 11pm EOD cutoff (see createIntent
+// in js/app.js:1419-1421).
+window.onFlowARetryPick = function() {
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  if (!state.flowARejectedTitles) state.flowARejectedTitles = new Set();
+  state.flowARejectedTitles.add(intent.titleId);
+  // Cancel the rejected intent so the entry CTA flips back to "Open picker".
+  try {
+    updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      cancelReason: 'reject-majority-retry',
+      ...writeAttribution()
+    }).catch(e => console.warn('[flowA] retry-cancel failed', e));
+  } catch (e) { console.warn('[flowA] retry-cancel sync failed', e); }
+  state.flowACounterFor = null;
+  state.flowAOpenIntentId = null;
+  closeFlowAPicker();
+  setTimeout(() => openFlowAPicker(), 100);
+};
+
+// === Phase 14 / Plan 14-07 — END Flow A block ===
 
 boot();
