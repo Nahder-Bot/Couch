@@ -3,12 +3,12 @@ status: testing
 phase: 14-decision-ritual-core
 source: 14-01-SUMMARY.md, 14-02-SUMMARY.md, 14-03-SUMMARY.md, 14-04-SUMMARY.md, 14-05-SUMMARY.md, 14-06-SUMMARY.md, 14-07-SUMMARY.md, 14-08-SUMMARY.md, 14-09-SUMMARY.md
 started: 2026-04-26T00:00:00Z
-updated: 2026-04-26T17:05:00Z
+updated: 2026-04-26T20:29:07Z
 ---
 
 ## Current Test
 
-[paused — design-direction call needed on couch viz before continuing. Tests 2/3/5/24 all touch the same surface; user wants a streamlined "Apple-style" rethink rather than fixing-in-place.]
+[V5 roster-control deployed 2026-04-26 (couch-v34.1-roster-control on couchtonight.app + queuenight firestore:rules 4th UPDATE branch live). 4-step UAT passed (cold-start V5 visual + multi-device proxy + downstream contract regression). Tests 1, 3, 5, 24 flipped to pass; all 3 gaps resolved. Resume point: **Test 6 (Already-claimed cushion toast)** — note that Test 6 was authored against the legacy 14-04 cushion grid; under V5, the equivalent is "tap a pill that's already IN flips it OUT (vacate semantics)" rather than a denial toast, since proxy-fill is now a feature not a bug. Adapt the test wording or supersede with a V5-flavored variant when running.]
 
 ## Tests
 
@@ -24,8 +24,8 @@ note: "Hero + Fraunces headline + italic '1 of 7 here' sub-count all rendered co
 
 ### 3. Couch viz avatar grid layout (14-04)
 expected: Avatar grid below the headline shows cells matching couchSize = max(2, totalMembers, claimedCount), capped at 10. On phone width it wraps 5×2; on desktop ≥768px it lays out 10×1. Each empty cell is a dashed amber circle with a ＋ glyph.
-result: issue
-reported: "Buttons go too far the right. 7 blank spots to open which just clutters it. Should rethink how this works so it's streamlined — like Apple did it."
+result: pass
+note: "V5 redesign deployed 2026-04-26 (sketch 003 V5 — Roster IS the control) replaces the cushion grid with a wrap-flex roster of pills, one per eligible roster member. Eliminates the '7 blank spots' sprawl on desktop because OUT pills are sized to their content, not pre-rendered to fill a fixed grid. See .planning/phases/14-decision-ritual-core/14-10-SUMMARY.md (Task 3, commit 9569c33; Task 4 CSS commit 0f45602). The original test wording above is now historic — the V5 surface contract is documented in the SUMMARY."
 severity: major
 
 ### 4. Claim a cushion (14-04)
@@ -35,10 +35,9 @@ note: "First claim worked — purple N circle + 'NAHDER' label rendered with amb
 
 ### 5. Vacate own cushion (14-04)
 expected: Tap your own claimed cell — it flips back to dashed empty; sub-count decrements.
-result: issue
-reported: "I can only click once."
+result: pass
+note: "V5 redesign deployed 2026-04-26 makes vacate the same gesture as claim — tap your own pill flips its state (in→out or out→in). No hidden affordance because the gesture vocabulary is now uniform across self-claim, proxy-fill, and vacate. Verified by user under 4-step UAT. See .planning/phases/14-decision-ritual-core/14-10-SUMMARY.md (Task 3 toggleCouchMember handler, commit 9569c33)."
 severity: major
-note: "User reports vacate path not discoverable / not working from claimed-state UI."
 
 ### 6. Already-claimed cushion toast (14-04)
 expected: Tap a cell already claimed by someone else — toast appears: "That seat is already claimed". Cell is unchanged.
@@ -114,10 +113,9 @@ result: [pending]
 
 ### 24. Empty state (c) — Flow A no couch + cushion-glow (14-09)
 expected: With 0 cushions claimed on the couch viz, Flow A entry shows: "Who's on the couch tonight? / Tap to seat yourself + invite family." with a "Find a seat" CTA. Empty couch cushions in the viz pulse warm-amber via cushion-glow animation (animation respects prefers-reduced-motion).
-result: issue
-reported: "Find-a-seat empty-state card still showing despite 1 seat claimed."
+result: pass
+note: "V5 redesign deployed 2026-04-26 — the dashed-pill roster IS the empty state (Bug B fix collapsed the redundant Find-a-seat CTA card; Bug A removed legacy who-card double-render). With 0 pills claimed, the roster shows N dashed-OUT pills + tally bar 'Tap who's watching' sub-line — far more informative than a generic CTA. Family-doc onSnapshot now also drives renderFlowAEntry so empty-state branches react to claim/vacate. cushion-glow pulse keyframe was deleted (no longer applicable to V5 surface). See .planning/phases/14-decision-ritual-core/14-10-SUMMARY.md (Bug A commit 603ac28; Bug B commit 860dfea; Task 1 onSnapshot wiring commit efd2739)."
 severity: major
-note: "Gate is wrong — `renderFlowAEntry` re-renders on intents-snapshot but NOT on family-doc snapshot, so the DOM never updates after claim. Diagnosed root cause in Gaps Issue #1 / Bug B."
 
 ### 25. Flow A entry CTA appears under Couch viz (14-07)
 expected: With at least one cushion claimed, Tonight tab shows a CTA card directly below the Couch viz: "Pick a movie for the couch" with member-count line and an "Open picker" button.
@@ -226,8 +224,8 @@ result: [pending]
 ## Summary
 
 total: 50
-passed: 3
-issues: 3
+passed: 6
+issues: 0
 pending: 44
 skipped: 0
 blocked: 0
@@ -235,7 +233,8 @@ blocked: 0
 ## Gaps
 
 - truth: "Couch viz hero is the single source of truth for who's on the couch — legacy who-card pill rail must not double up below it."
-  status: failed
+  status: resolved
+  resolved_by: "14-10 Task 6a (commit 603ac28) — Bug A removed legacy .who-card block from app.html line 334-337, dropped orphan applyModeLabels who-title-label set, deleted renderTonight who-list emitter, rewired sticky who-mini IIFE from .who-card → #couch-viz-container so the sticky mini bar still works."
   reason: "User reported: 'Still has the who is on the couch below it' — the new viz and the old chip rail both render on Tonight."
   severity: major
   test: 1
@@ -248,7 +247,8 @@ blocked: 0
   missing: []
 
 - truth: "After a member claims a seat, the 'Find a seat' empty-state CTA should disappear immediately — not wait for an unrelated snapshot."
-  status: failed
+  status: resolved
+  resolved_by: "14-10 Task 6b (commit 860dfea) collapsed the renderFlowAEntry empty-state-c branch from a 14-line CTA card + cushion-glow forEach to a single-line clearout (V5 dashed-pill roster IS the empty state) + 14-10 Task 1 (commit efd2739) added renderFlowAEntry call inside family-doc onSnapshot block so empty-state branches react immediately to claim/vacate. Also: V5 redesign Task 3 (commit 9569c33) replaced the entire cushion-grid surface so the legacy CTA card has no remaining attach point."
   reason: "User claimed seat (purple N rendered, sub-count flipped to '1 of 7 here'), but the 🛋 + 'Who's on the couch tonight?' + 'Find a seat' card stayed on screen."
   severity: major
   test: 24
@@ -261,7 +261,8 @@ blocked: 0
   missing: []
 
 - truth: "The couch viz should feel streamlined — not a row of empty placeholders to scan past on a desktop viewport."
-  status: failed
+  status: resolved
+  resolved_by: "14-10 Task 3 (commit 9569c33) + Task 4 (commit 0f45602) — V5 roster pills replace cushion grid; design-direction decision = sketch 003 V5 winner (Roster IS the control). renderCouchAvatarGrid + claimCushion + persistCouchSeating + COUCH_MAX_SLOTS all deleted; replaced with renderCouchViz emitting .roster wrap-flex of .pill elements (one per eligible roster member) + tally bar + 3 visibility-gated bulk-action links. .pill.in/.pill.out/.pill.me CSS gives unified gesture vocabulary across self-claim, proxy-fill, and vacate (tap own pill flips state — no hidden affordance). Long-press 700ms triggers sendCouchPing. cushion-glow pulse keyframe deleted (no longer applicable to V5 surface)."
   reason: "User reported: '7 blank spots to open which just clutters it. Should rethink how this works so it's streamlined — like Apple did it.' Also: 'I can only click once' (no obvious vacate / re-claim affordance from the claimed-state UI)."
   severity: major
   test: 3
@@ -276,14 +277,11 @@ blocked: 0
     2. Filled-only + invite: render only claimed seats as full circles, then ONE dashed '+' cell labeled 'Invite' that opens the share-link modal. Add a separate 'I'm out tonight' chip on your own claimed seat for vacate.
     3. Single-CTA Apple-style: hero icon + headline + one prominent pill button that flips between 'Find a seat' / 'Leave couch' depending on your own state. Roster shown as a thin underline of mini-avatars. Tap the button — no per-cushion grid at all.
     4. Hybrid: phone keeps the current 5-col grid (it works at narrow width). Desktop falls back to Option 3 single-CTA at ≥768px."
-  missing:
-    - Decision on which streamlined approach to take (Option 1/2/3/4 or alternative)
-    - Vacate-seat affordance (long-press? second tap? explicit 'Leave couch' button?)
-    - Whether to keep the cushion-glow pulse animation in the new design
+  missing: []
 
 ## Pending design call
 
-User flagged the couch viz as "sloppy" and requested a streamlined Apple-style rethink. Three of the bugs above (`who-card` regression, `renderFlowAEntry` gate, vacate UX) are clean code fixes. The fourth (cell count + desktop layout) is a design direction call that needs to land BEFORE we plan the fix for it — the answer changes whether we delete or just tighten `renderCouchAvatarGrid`. UAT pause is at Test 5; tests 6-50 will land cleaner against the redesigned surface.
+**RESOLVED 2026-04-26:** sketch 003 V5 (Roster IS the control) won. See 14-10 SUMMARY for the V5 surface contract. Tests 6-23 + 25-50 still pending against the new surface; resume there.
 
 ## Session-wide blocker
 
@@ -293,5 +291,7 @@ User flagged the couch viz as "sloppy" and requested a streamlined Apple-style r
 - `~/queuenight/firestore.rules` has 5 `couchSeating` references (14-04 rules in place)
 - `~/queuenight/functions/index.js` has 11 Flow A/B push-type references (14-06 + 14-09 D-12 CFs in place)
 - `~/queuenight/public/sw.js` mirror file matches couch repo sw.js (deploy.sh ran)
+
+**v34.1 deploy 2026-04-26:** couchtonight.app/sw.js now serves CACHE = `couch-v34.1-roster-control`; queuenight firestore:rules deployed with 4th UPDATE branch for couchInTonight (per 14-10). Cross-repo deploy ritual completed end-to-end via the `approved-deploy` resume signal.
 
 The 5 previously-blocked tests (1-5) have been reset to `[pending]` so they re-run against the now-live v34 build. Original blocker text retained in git history (commit `13e08d5`).
