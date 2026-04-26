@@ -13197,7 +13197,16 @@ async function applyVote(titleId, memberId, vote) {
     if (wasInQueue && newVote !== 'yes' && memberId === state.me?.id) {
       await reindexMyQueue();
     }
-  } catch(e) { console.error('applyVote failed', e); }
+  } catch(e) {
+    console.error('applyVote failed', e);
+    // Surface the failure to the actor — silent failures on votes are confusing
+    // (toast for queue-add already fired before this catch; user sees feedback then
+    // their vote silently disappears on next refresh otherwise).
+    if (memberId === (state.me && state.me.id)) {
+      flashToast("Couldn't save your vote — check your connection", { kind: 'warn' });
+      haptic('warn');
+    }
+  }
 }
 
 window.setVote = async function(memberId, vote) {
