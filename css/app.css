@@ -503,7 +503,7 @@ h3{font-size:var(--t-h3)}
   border:1px solid var(--border);border-radius:var(--r-md)}
 .vote-row-full .name{flex:1;font-size:var(--t-body);font-weight:500}
 .vote-btns{display:flex;gap:var(--s1)}
-.vote-btn{width:40px;height:40px;border-radius:var(--r-sm);border:none;
+.vote-btn{width:44px;height:44px;border-radius:var(--r-sm);border:none;
   background:var(--bg);color:var(--ink-dim);font-size:var(--t-body);cursor:pointer;
   transition:all var(--t-quick)}
 .vote-btn:hover{background:var(--bg-deep)}
@@ -1652,7 +1652,7 @@ h3{font-size:var(--t-h3)}
 .who-list{display:flex;gap:var(--s2);overflow-x:auto;scrollbar-width:none;position:relative;z-index:1}
 .who-list::-webkit-scrollbar{display:none}
 .who-chip{display:flex;align-items:center;gap:8px;
-  padding:6px 10px 6px 6px;flex-shrink:0;
+  padding:8px 12px 8px 8px;flex-shrink:0;
   background:var(--surface-2);border:1px solid var(--border-mid);
   border-radius:var(--r-pill);cursor:pointer;
   transition:all var(--t-quick)}
