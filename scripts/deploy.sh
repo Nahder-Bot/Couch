@@ -8,32 +8,48 @@
 #   ./scripts/deploy.sh --allow-dirty <tag>   # skip dirty-tree abort (Pitfall 7 escape hatch)
 #
 # Environment variables (review fix HIGH-4):
-#   QUEUENIGHT_PATH    Path to the queuenight sibling repo. Default: ../../queuenight
-#                      Set this in your shell profile if your queuenight clone lives elsewhere.
-#                      Example (git-bash):  export QUEUENIGHT_PATH="/c/path/to/queuenight"
+#   COUCH_DEPLOY_PATH  Path to the deploy-mirror sibling repo. Default: ../../couch-deploy
+#                      Set this in your shell profile if your deploy mirror lives elsewhere.
+#                      Example (git-bash):  export COUCH_DEPLOY_PATH="/c/path/to/couch-deploy"
+#                      (Legacy QUEUENIGHT_PATH is still accepted with a deprecation warning.)
 #
 # Review fixes applied:
-#   HIGH-4   No hardcoded user-specific path literal -- resolved via $QUEUENIGHT_PATH env var.
+#   HIGH-4   No hardcoded user-specific path literal -- resolved via $COUCH_DEPLOY_PATH env var.
 #   MEDIUM-5 Production deploys abort if app.html/landing.html still contain a literal
 #            Sentry DSN placeholder (catches Plan 13-02 placeholder-leak at deploy boundary).
-#   MEDIUM-8 BUILD_DATE auto-stamp targets the deploy mirror (queuenight/public/js/constants.js)
+#   MEDIUM-8 BUILD_DATE auto-stamp targets the deploy mirror (couch-deploy/public/js/constants.js)
 #            ONLY -- source tree js/constants.js is never mutated by deploy.sh, eliminating
 #            the dirty-tree-after-deploy failure mode.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Review fix HIGH-4: env-var-with-default. Set QUEUENIGHT_PATH in your shell profile
-# if your queuenight clone is not at ../../queuenight relative to this repo.
-QUEUENIGHT_ROOT_RAW="${QUEUENIGHT_PATH:-${REPO_ROOT}/../../queuenight}"
+# Review fix HIGH-4: env-var-with-default. Set COUCH_DEPLOY_PATH in your shell profile
+# if your deploy-mirror clone is not at ../../couch-deploy relative to this repo.
+# Legacy QUEUENIGHT_PATH still accepted with a deprecation warning (rename happened 2026-04-26).
+if [ -n "${QUEUENIGHT_PATH:-}" ] && [ -z "${COUCH_DEPLOY_PATH:-}" ]; then
+  echo "WARN: QUEUENIGHT_PATH is deprecated -- rename to COUCH_DEPLOY_PATH in your shell profile." >&2
+  COUCH_DEPLOY_PATH="${QUEUENIGHT_PATH}"
+fi
+COUCH_DEPLOY_ROOT_RAW="${COUCH_DEPLOY_PATH:-${REPO_ROOT}/../../couch-deploy}"
+# If env-var unset and the new-name path doesn't exist, fall back to the legacy queuenight/
+# path so deploy.sh keeps working before the user renames the directory.
+if [ -z "${COUCH_DEPLOY_PATH:-}" ] && [ ! -d "${COUCH_DEPLOY_ROOT_RAW}" ]; then
+  LEGACY_PATH="${REPO_ROOT}/../../queuenight"
+  if [ -d "${LEGACY_PATH}" ]; then
+    echo "WARN: ${COUCH_DEPLOY_ROOT_RAW} not found; falling back to legacy ${LEGACY_PATH}." >&2
+    echo "      Rename it to couch-deploy when convenient (the rename is purely cosmetic)." >&2
+    COUCH_DEPLOY_ROOT_RAW="${LEGACY_PATH}"
+  fi
+fi
 # Resolve to absolute path; fail loudly if the resolved directory does not exist.
-if [ ! -d "${QUEUENIGHT_ROOT_RAW}" ]; then
-  echo "ERROR: queuenight repo not found at: ${QUEUENIGHT_ROOT_RAW}" >&2
-  echo "       Either set QUEUENIGHT_PATH in your shell or clone queuenight at ../../queuenight" >&2
+if [ ! -d "${COUCH_DEPLOY_ROOT_RAW}" ]; then
+  echo "ERROR: deploy-mirror repo not found at: ${COUCH_DEPLOY_ROOT_RAW}" >&2
+  echo "       Either set COUCH_DEPLOY_PATH in your shell or clone the deploy mirror at ../../couch-deploy" >&2
   echo "       relative to the couch repo root. (Review fix HIGH-4.)" >&2
   exit 1
 fi
-QUEUENIGHT_ROOT="$(cd "${QUEUENIGHT_ROOT_RAW}" && pwd)"
+COUCH_DEPLOY_ROOT="$(cd "${COUCH_DEPLOY_ROOT_RAW}" && pwd)"
 
 cd "$REPO_ROOT"
 
@@ -64,10 +80,10 @@ for f in js/*.js sw.js scripts/stamp-build-date.cjs; do
   node --check "$f" || { echo "ERROR: node --check failed on $f" >&2; exit 1; }
 done
 
-# 3. Verify queuenight mirror exists (deploy target)
-if [ ! -d "${QUEUENIGHT_ROOT}/public" ]; then
-  echo "ERROR: ${QUEUENIGHT_ROOT}/public missing -- is the sibling repo at the right path?" >&2
-  echo "       QUEUENIGHT_PATH=${QUEUENIGHT_PATH:-(unset; using default)}" >&2
+# 3. Verify couch-deploy mirror exists (deploy target)
+if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
+  echo "ERROR: ${COUCH_DEPLOY_ROOT}/public missing -- is the sibling repo at the right path?" >&2
+  echo "       COUCH_DEPLOY_PATH=${COUCH_DEPLOY_PATH:-(unset; using default)}" >&2
   exit 1
 fi
 
@@ -84,17 +100,17 @@ if [ -n "$TAG" ]; then
   fi
 fi
 
-# 5. Mirror to queuenight/public/ (file set per CLAUDE.md + PATTERNS.md)
+# 5. Mirror to couch-deploy/public/ (file set per CLAUDE.md + PATTERNS.md)
 for f in app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt; do
   if [ -f "$f" ]; then
-    cp -v "$f" "${QUEUENIGHT_ROOT}/public/"
+    cp -v "$f" "${COUCH_DEPLOY_ROOT}/public/"
   else
     echo "WARN: $f missing in repo root; skipping" >&2
   fi
 done
-mkdir -p "${QUEUENIGHT_ROOT}/public/css" "${QUEUENIGHT_ROOT}/public/js"
-cp -v css/*.css "${QUEUENIGHT_ROOT}/public/css/"
-cp -v js/*.js "${QUEUENIGHT_ROOT}/public/js/"
+mkdir -p "${COUCH_DEPLOY_ROOT}/public/css" "${COUCH_DEPLOY_ROOT}/public/js"
+cp -v css/*.css "${COUCH_DEPLOY_ROOT}/public/css/"
+cp -v js/*.js "${COUCH_DEPLOY_ROOT}/public/js/"
 
 # 6. Auto-stamp BUILD_DATE -- review fix MEDIUM-8: target the MIRROR copy of
 #    js/constants.js, NOT the source. stamp-build-date.cjs resolves its target
@@ -103,7 +119,7 @@ cp -v js/*.js "${QUEUENIGHT_ROOT}/public/js/"
 #    equivalent in-place sed directly on the mirror's constants.js.
 #    This is functionally identical to what stamp-build-date.cjs does internally:
 #    it finds the BUILD_DATE export line and replaces the date string with today.
-MIRROR_CONSTANTS="${QUEUENIGHT_ROOT}/public/js/constants.js"
+MIRROR_CONSTANTS="${COUCH_DEPLOY_ROOT}/public/js/constants.js"
 TODAY="$(date -u +%Y-%m-%d)"
 if [ ! -f "${MIRROR_CONSTANTS}" ]; then
   echo "ERROR: Mirror constants.js not found at: ${MIRROR_CONSTANTS}" >&2
@@ -123,7 +139,7 @@ fi
 #    but the operator forgot to substitute the real DSN before deploy.
 SENTRY_PLACEHOLDERS_REGEX='<SENTRY_PUBLIC_KEY>|<SENTRY_ORGID>|<SENTRY_PROJECTID>'
 SENTRY_VIOLATIONS=0
-for f in "${QUEUENIGHT_ROOT}/public/app.html" "${QUEUENIGHT_ROOT}/public/landing.html"; do
+for f in "${COUCH_DEPLOY_ROOT}/public/app.html" "${COUCH_DEPLOY_ROOT}/public/landing.html"; do
   if [ -f "$f" ]; then
     if grep -qE "${SENTRY_PLACEHOLDERS_REGEX}" "$f"; then
       echo "ERROR: ${f} still contains a Sentry DSN placeholder." >&2
@@ -138,7 +154,7 @@ if [ "$SENTRY_VIOLATIONS" -gt 0 ]; then
 fi
 
 # 8. Deploy hosting
-cd "${QUEUENIGHT_ROOT}"
+cd "${COUCH_DEPLOY_ROOT}"
 firebase deploy --only hosting --project queuenight-84044
 
 # 9. Smoke tests
