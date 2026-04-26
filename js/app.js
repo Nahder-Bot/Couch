@@ -11927,6 +11927,10 @@ let addTabInitialized = false;
 function initAddTab(force) {
   if (addTabInitialized && !force) return;
   addTabInitialized = true;
+  // === D-05 (DECI-14-05) — Catch-up-on-votes CTA. Surfaces Vote MODE (bulk swipe)
+  // since it was demoted off the tile face in D-04. Runs FIRST so the CTA sits
+  // above the search bar's discovery rows when present. ===
+  renderCatchUpOnVotesCta();
   renderAddMoodChips();
   // Phase 11 / REFR-04 — dynamic rotation replaces the 3 hardcoded loaders.
   // loadTrendingRow / loadStreamingRow / loadGemsRow remain in the module and are
@@ -11938,6 +11942,38 @@ function initAddTab(force) {
   // (COUCH_NIGHTS_PACKS) so no TMDB cost until a pack-detail sheet is opened.
   renderCouchNightsRow();
   renderAddDiscovery();
+}
+
+// === D-05 (DECI-14-05) — Catch-up-on-votes CTA renderer ===
+// Inserts (or removes) a Vote-mode launcher card at the top of #screen-add when
+// the current user has >= 10 unvoted family titles. Uses getNeedsVoteTitles()
+// (D-01 couch-aware) so the count matches what Vote mode will actually present.
+// Idempotent: re-removes itself when count drops below threshold or there's no me.
+// openSwipeMode() is the bulk Vote MODE entry (the planner referenced
+// openVoteModal() but that's the per-title modal; D-05's "swipe through them"
+// language matches openSwipeMode — recorded as a planner clarification in SUMMARY).
+function renderCatchUpOnVotesCta() {
+  const screen = document.getElementById('screen-add');
+  if (!screen) return;
+  const existing = document.getElementById('add-catchup-cta');
+  // Compute unvoted count via the same primitive Vote-mode uses, so the number
+  // shown in the CTA matches what the user will actually swipe through.
+  const unvotedCount = state.me ? getNeedsVoteTitles().length : 0;
+  if (unvotedCount < 10) {
+    if (existing) existing.remove();
+    return;
+  }
+  const html = `<div class="add-catchup-cta" id="add-catchup-cta" role="region" aria-label="Catch up on votes">
+    <div class="add-catchup-h">Catch up on votes</div>
+    <p class="add-catchup-body">${unvotedCount} title${unvotedCount === 1 ? '' : 's'} waiting for your vote. Swipe through them.</p>
+    <button class="tc-primary" type="button" onclick="openSwipeMode()">Open Vote mode</button>
+  </div>`;
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    // Insert as the first child of #screen-add so it sits above the section header.
+    screen.insertAdjacentHTML('afterbegin', html);
+  }
 }
 
 // ===== Phase 11 / REFR-13 — Couch Nights themed ballot packs =====

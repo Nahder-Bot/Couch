@@ -3372,3 +3372,32 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   margin: 0;
   font-size: var(--t-meta);
 }
+
+/* === D-05 (DECI-14-05) — Catch-up-on-votes CTA on Add tab === */
+/* Sits at the very top of #screen-add when unvoted family titles >= 10.
+   Warm-amber outline + serif headline so it reads as a brand moment without
+   competing with the search bar below. Removes itself when count drops. */
+.add-catchup-cta {
+  background: var(--surface-2);
+  padding: var(--s4);
+  border-radius: var(--r-lg, 12px);
+  margin: var(--s3) 0 var(--s4);
+  border: 1px solid var(--accent, #d4a574);
+  box-shadow: var(--shadow-warm);
+}
+.add-catchup-h {
+  font-family: 'Instrument Serif', 'Fraunces', serif;
+  font-style: italic;
+  font-size: var(--t-h2);
+  color: var(--ink);
+  line-height: 1.2;
+}
+.add-catchup-body {
+  color: var(--ink-dim);
+  margin: var(--s2) 0 var(--s3);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+.add-catchup-cta .tc-primary {
+  /* Inherits .tc-primary brand-grad styling from line 1403; no override needed. */
+}
