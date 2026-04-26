@@ -3,9 +3,9 @@ import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, 
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut as firebaseSignOut, updatePassword, EmailAuthProvider, signInWithEmailAndPassword, reauthenticateWithCredential, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 // Phase 11 / REFR-09 — Firebase Storage (first Couch use). Narrow scope per CLAUDE.md:
-// only post-session couch-album photo uploads. Storage rules in sibling queuenight/
-// storage.rules restrict writes to authed users + 5MB + image/* MIME (Variant A — see
-// 11-05-SUMMARY.md for variant-selection rationale).
+// only post-session couch-album photo uploads. Storage rules in the deploy-mirror sibling
+// repo's storage.rules restrict writes to authed users + 5MB + image/* MIME (Variant A —
+// see 11-05-SUMMARY.md for variant-selection rationale).
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 // ====== PASTE YOUR FIREBASE CONFIG BELOW (between the curly braces) ======

@@ -33,10 +33,10 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 
 ### Active
 
-<!-- v1 scope toward commercial release. -->
-- [ ] **Phase 4 — Veto system:** any member can veto a pick, both before and after the spin
-- [ ] **Phase 5 — Watchparty:** synced multi-device playback sessions with reactions
-- [ ] **Phase 6 — Year-in-review:** end-of-year recap of everyone's watched history, stats, favorites
+<!-- Scoped, awaiting kickoff. See ROADMAP.md for the authoritative list. -->
+- [ ] **Phase 15 — Tracking Layer:** per-watching-group progress (not just per-individual; "watched Invincible S4 with wife + stepson, finished episode 8") + new-season air-date push notifs + live-release scheduling. Couch's differentiation vs Trakt: tracks GROUPS, not just members.
+- [ ] **Phase 16 — Calendar Layer:** recurring + multi-future watchparty scheduling ("Wife and daughter watch American Idol every Monday"). New `watchpartySeries` doc primitive + week-view planning surface.
+- [ ] **Phase 17 — App Store Launch Readiness:** native wrapper (Capacitor or PWABuilder) for iOS App Store + Google Play; Apple Sign-In wiring; App Store Connect listings + privacy policy + ToS authoring.
 
 ### Out of Scope
 

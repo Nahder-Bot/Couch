@@ -1,7 +1,7 @@
 export const TMDB_KEY = '2ec1f3699afc80f35392f5a674eb9da3';
 
 // VAPID public key — public-by-design (safe client-side, same posture as TMDB_KEY + Firebase config).
-// Matches queuenight/functions/.env VAPID_PUBLIC. Private key lives server-side only.
+// Matches the deploy-mirror sibling repo's functions/.env VAPID_PUBLIC. Private key lives server-side only.
 // Rotating this requires a client redeploy + CF env update. Subject: mailto:nahderz@gmail.com.
 export const VAPID_PUBLIC_KEY = 'BGwhEJGIKjf4MSd4vyZA6uegbKhiG5kkxoAD2o1WUfxYmcm5cUmSjc0z05d-r7meS1gmKOT0f0Sn4zXQwhriRHg';
 

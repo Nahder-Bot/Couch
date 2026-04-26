@@ -8,11 +8,11 @@
 **What it is:** PWA for families to pick what to watch together. "Who's on the couch tonight?" Deployed at couchtonight.app via Firebase Hosting.
 
 **Full context:** `.planning/PROJECT.md` (read first)
-**Active scope:** `.planning/REQUIREMENTS.md` — 51 v1 requirements across 8 GSD phases
-**Phase structure:** `.planning/ROADMAP.md` — Phase 3-10 (Phases 1-2 shipped pre-GSD; Phases 3, 4, 5, 7, 8 COMPLETE; Phase 6 UAT partial; Phase 9 in progress; Phase 10 pending)
+**Active scope:** `.planning/REQUIREMENTS.md` — v1 requirements across the GSD phases
+**Phase structure:** `.planning/ROADMAP.md` — authoritative source. As of 2026-04-26: Phases 3-14 SHIPPED (current cache: `couch-v34.1.1-touchcancel-fix`). Phases 15-17 (Tracking Layer / Calendar Layer / App Store Launch Readiness) scoped, awaiting kickoff.
 **Current state:** `.planning/STATE.md`
 
-**Post-Phase 9 routing (live at couchtonight.app):** `/` serves `landing.html` (marketing page, zero-JS), `/app` serves `app.html` (PWA app shell). Firebase Hosting rewrites in `queuenight/firebase.json`. Deep links (`?invite=`, `?claim=`) arrive at `/`, landing's inline redirect forwards them to `/app` preserving query string.
+**Routing (live at couchtonight.app):** `/` serves `landing.html` (marketing page, zero-JS), `/app` serves `app.html` (PWA app shell). Firebase Hosting rewrites live in the deploy-mirror sibling repo's `firebase.json`. Deep links (`?invite=`, `?claim=`) arrive at `/`, landing's inline redirect forwards them to `/app` preserving query string.
 
 ## Architecture (locked for v1)
 
