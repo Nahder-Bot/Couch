@@ -6913,7 +6913,35 @@ async function fetchTmdbDetails(mediaType, tmdbId) {
       }));
     }
     if (d.similar && d.similar.results) {
-      out.similar = d.similar.results.slice(0,10).map(s => ({
+      // Filter TMDB's /similar results so live-action titles don't recommend kids' animated
+      // shows and vice versa. The TMDB algo can mix formats (e.g. The Boys returns Tokyo Mew
+      // Mew / TMNT because of incidental "superhero" tag overlap). Genre 16 = Animation.
+      const sourceGenreIds = (d.genres || []).map(g => g.id);
+      const sourceGenreSet = new Set(sourceGenreIds);
+      const sourceIsAnimated = sourceGenreSet.has(16);
+      const sourceIsAdult = !!d.adult;
+
+      const candidates = d.similar.results
+        .filter(s => sourceIsAdult || !s.adult)
+        .filter(s => ((s.genre_ids || []).includes(16)) === sourceIsAnimated);
+
+      // Sort by genre overlap with source; tie-break by TMDB vote_average so popular
+      // matches rise. Without this The Boys often gets generic "trending" returns.
+      candidates.sort((a, b) => {
+        const aOverlap = (a.genre_ids || []).filter(g => sourceGenreSet.has(g)).length;
+        const bOverlap = (b.genre_ids || []).filter(g => sourceGenreSet.has(g)).length;
+        if (bOverlap !== aOverlap) return bOverlap - aOverlap;
+        return (b.vote_average || 0) - (a.vote_average || 0);
+      });
+
+      // Fallback: if strict filtering left us with too few, fall back to the unfiltered
+      // (adult-filtered) list. Avoids empty "similar" when TMDB returns weird results
+      // for niche/foreign-language sources.
+      const finalList = candidates.length >= 3
+        ? candidates.slice(0, 10)
+        : d.similar.results.filter(s => sourceIsAdult || !s.adult).slice(0, 10);
+
+      out.similar = finalList.map(s => ({
         id: 'tmdb_' + s.id,
         tmdbId: s.id,
         mediaType,
