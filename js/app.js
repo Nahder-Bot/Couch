@@ -12981,128 +12981,218 @@ function couchInTonightToMemberIds(cit) {
   return Object.keys(cit).filter(mid => cit[mid] && cit[mid].in === true);
 }
 
-const COUCH_MAX_SLOTS = 10;             // legacy 14-04 — kept for any remaining callers; V5 has no capacity cap
-
+// V5 renderCouchViz — see variant-5-roster-control.html for the design contract.
+// Renders the family roster as a wrap-flex of toggleable pills. Tap = flip in/out.
+// Long-press out-pill (700ms) = send push (sendCouchPing). The "me" pill carries
+// a solid amber outline + YOU tag regardless of in/out state.
 function renderCouchViz() {
   const container = document.getElementById('couch-viz-container');
   if (!container) return;
+  const cit = state.couchInTonight || {};
+  // Eligible roster: same filter renderTonight uses for who-list (excludes archived
+  // + expired guests). Keeps the V5 roster aligned with the rest of the Tonight tab.
+  const nowTs = Date.now();
+  const roster = (state.members || []).filter(m =>
+    !m.archived &&
+    (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+  );
+  const total = roster.length;
+  const inIds = roster.filter(m => cit[m.id] && cit[m.id].in === true).map(m => m.id);
+  const numIn = inIds.length;
+  const numOut = total - numIn;
+  const meId = state.me ? state.me.id : null;
+  const meIsIn = meId && cit[meId] && cit[meId].in === true;
 
-  const totalMembers = (state.members || []).length;
-  // Couch size = max(2, totalMembers, current claimed count) — at least 2 because couch is plural.
-  // Cap at COUCH_MAX_SLOTS.
-  const claimedCount = (state.couchMemberIds || []).filter(Boolean).length;
-  const couchSize = Math.min(COUCH_MAX_SLOTS, Math.max(2, totalMembers, claimedCount));
+  // Sub-line copy (dynamic per V5 spec)
+  let subText;
+  if (numIn === 0) subText = "Tap who's watching";
+  else if (numIn === 1 && meIsIn) subText = "It's just you so far — tap others in";
+  else if (numIn === total && total > 0) subText = "Whole couch is in";
+  else subText = `${numIn} ${numIn === 1 ? 'is' : 'are'} watching`;
 
-  container.innerHTML = `
-    <img class="couch-hero" src="${COUCH_HERO_SRC}" alt="Couch" />
-    <h3 class="couch-headline">On the couch tonight</h3>
-    <p class="couch-sub">${claimedCount > 0 ? `${claimedCount} of ${couchSize} here` : 'Tap a seat to claim it'}</p>
-    ${renderCouchAvatarGrid(couchSize)}
-  `;
-  // Plan 14-09 / D-10 — anchor onboarding tooltip on the first empty cushion (one-shot).
-  // setTimeout lets the DOM settle so getBoundingClientRect returns final coords.
-  const firstCushion = container.querySelector('.seat-cell.empty');
-  if (firstCushion && typeof maybeShowTooltip === 'function') {
-    setTimeout(() => maybeShowTooltip('couchSeating', firstCushion, 'Tap a cushion to seat yourself.', { placement: 'above' }), 200);
+  // Render hero + headline + sub-line (V5 hero is 84px, smaller than 14-04's 280px)
+  // + roster pills + tally + action row + hint line.
+  const html = [];
+  html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
+  html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+  html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+  html.push(`<div class="roster" role="group" aria-label="Family roster — tap to flip in or out">`);
+  roster.forEach(m => {
+    const isIn = cit[m.id] && cit[m.id].in === true;
+    const isMe = meId && m.id === meId;
+    const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+    const name = escapeHtml(m.name || 'Member');
+    const color = memberColor(m.id);
+    const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+    const avStyle = isIn ? `background:${color}` : '';
+    const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
+    const ariaLabel = isIn
+      ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+      : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+    html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
+      <div class="av" style="${avStyle}">${initial}</div>
+      <span class="label">${name}${youTag}</span>
+      <div class="ping-hint" aria-hidden="true"></div>
+    </div>`);
+  });
+  html.push(`</div>`);
+  // Tally: Fraunces num + Instrument Serif italic "of N watching"
+  html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
+  // Action row — visibility-gated by current state
+  html.push(`<div class="pill-actions">`);
+  if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
+  if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
+  if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
+  html.push(`</div>`);
+  html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  container.innerHTML = html.join('');
+
+  // Wire pill interactions (delegated per-pill listeners — variant-5 sketch lines 392-427).
+  container.querySelectorAll('.pill').forEach(pill => {
+    const mid = pill.dataset.mid;
+    const isOut = pill.classList.contains('out');
+    let pressTimer = null;
+    let didLongPress = false;
+    const startPress = () => {
+      didLongPress = false;
+      if (!isOut) return; // long-press only meaningful on out-state pills
+      pill.classList.add('pinging');
+      pressTimer = setTimeout(() => {
+        didLongPress = true;
+        pill.classList.remove('pinging');
+        pill.style.transform = 'scale(1.06)';
+        pill.style.boxShadow = '0 0 0 3px rgba(217, 122, 60, 0.4)';
+        setTimeout(() => { pill.style.transform = ''; pill.style.boxShadow = ''; }, 280);
+        sendCouchPing(mid);
+      }, 700);
+    };
+    const cancelPress = () => {
+      pill.classList.remove('pinging');
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    const handleClick = (e) => {
+      if (didLongPress) { e.preventDefault(); didLongPress = false; return; }
+      cancelPress();
+      toggleCouchMember(mid);
+    };
+    pill.addEventListener('mousedown', startPress);
+    pill.addEventListener('touchstart', startPress, { passive: true });
+    pill.addEventListener('mouseup', cancelPress);
+    pill.addEventListener('mouseleave', cancelPress);
+    pill.addEventListener('touchend', cancelPress);
+    pill.addEventListener('click', handleClick);
+    pill.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCouchMember(mid); }
+    });
+  });
+  // Action row handlers
+  const actMarkAll = container.querySelector('[data-act="mark-all"]');
+  const actClearAll = container.querySelector('[data-act="clear-all"]');
+  const actPushRest = container.querySelector('[data-act="push-rest"]');
+  if (actMarkAll) actMarkAll.onclick = () => couchMarkAllIn();
+  if (actClearAll) actClearAll.onclick = () => couchClearAll();
+  if (actPushRest) actPushRest.onclick = () => couchPushRest();
+
+  // 14-09 / D-10 — anchor onboarding tooltip on the FIRST out-state pill (was .seat-cell.empty
+  // before V5; now anchored to the equivalent V5 affordance). Same maybeShowTooltip key
+  // ('couchSeating') so users who already dismissed the 14-04 version don't see it again.
+  const firstOutPill = container.querySelector('.pill.out');
+  if (firstOutPill && typeof maybeShowTooltip === 'function') {
+    setTimeout(() => maybeShowTooltip('couchSeating', firstOutPill, 'Tap any pill to mark them in. Long-press to send a push.', { placement: 'above' }), 200);
   }
 }
 
-function renderCouchAvatarGrid(couchSize) {
-  const cells = [];
-  for (let i = 0; i < couchSize; i++) {
-    const mid = (state.couchMemberIds || [])[i] || null;
-    if (mid) {
-      const m = (state.members || []).find(x => x.id === mid);
-      const initial = m ? escapeHtml((m.name || '?')[0].toUpperCase()) : '?';
-      const name = m ? escapeHtml(m.name || 'Member') : 'Unknown';
-      const color = m ? memberColor(m.id) : '#7a705f';
-      const isMe = state.me && mid === state.me.id;
-      cells.push(`
-        <div class="seat-cell ${isMe ? 'me' : ''}" data-cushion-idx="${i}" role="button" tabindex="0"
-          aria-label="${name} on the couch — tap to vacate"
-          onclick="claimCushion(${i})"
-          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
-          <div class="seat-avatar" style="background:${color}">${initial}</div>
-          <div class="seat-name">${name}</div>
-        </div>
-      `);
-    } else {
-      cells.push(`
-        <div class="seat-cell empty" data-cushion-idx="${i}" role="button" tabindex="0"
-          aria-label="Empty seat — tap to claim"
-          onclick="claimCushion(${i})"
-          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
-          <div class="seat-empty">＋</div>
-          <div class="seat-name" aria-hidden="true">·</div>
-        </div>
-      `);
-    }
-  }
-  return `<div class="couch-avatar-grid" role="group" aria-label="Couch seats">${cells.join('')}</div>`;
-}
-
-// D-06 — claim a cushion seat. Adds state.me.id to state.couchMemberIds at index idx
-// (if empty); toggles off if already claimed by state.me. Persists to family doc.
-window.claimCushion = async function(idx) {
-  if (!state.me) { flashToast('Sign in to seat yourself', { kind: 'warn' }); return; }
-  // Ensure array length covers idx.
-  while (state.couchMemberIds.length <= idx) state.couchMemberIds.push(null);
-  const current = state.couchMemberIds[idx] || null;
-  // Toggle off if I'm sitting there.
-  if (current === state.me.id) {
-    state.couchMemberIds[idx] = null;
-    while (state.couchMemberIds.length && state.couchMemberIds[state.couchMemberIds.length - 1] == null) {
-      state.couchMemberIds.pop();
-    }
-    await persistCouchInTonight();
-    renderCouchViz();
-    return;
-  }
-  if (current) {
-    flashToast('That seat is already claimed', { kind: 'info' });
-    return;
-  }
-  // Take the slot. If state.me is already at another slot, vacate that one first (no clones).
-  const existingIdx = state.couchMemberIds.findIndex(mid => mid === state.me.id);
-  if (existingIdx >= 0) state.couchMemberIds[existingIdx] = null;
-  state.couchMemberIds[idx] = state.me.id;
-  await persistCouchInTonight();
-  renderCouchViz();
-};
-
-// D-06 — overflow / "sit on behalf of" sheet. Opens member picker via #action-sheet-bg.
-// Used when grid is full OR for shared-device "claim a seat for another member" cases.
-window.openCouchOverflowSheet = function() {
-  const content = document.getElementById('action-sheet-content');
-  if (!content) return;
-  const seated = new Set((state.couchMemberIds || []).filter(Boolean));
-  const items = (state.members || [])
-    .filter(m => !seated.has(m.id))
-    .map(m =>
-      `<button class="action-sheet-item" onclick="closeActionSheet();claimCushionByMember('${m.id}')">
-        <div class="who-avatar" style="background:${memberColor(m.id)};display:inline-block;margin-right:8px">${escapeHtml((m.name||'?')[0])}</div>
-        ${escapeHtml(m.name || 'Member')}
-      </button>`
-    );
-  content.innerHTML = `<div class="action-sheet-title">Add to couch</div>${items.join('') || '<div class="action-sheet-item" style="opacity:0.6">Everyone is on the couch</div>'}`;
-  document.getElementById('action-sheet-bg').classList.add('on');
-};
-
-// D-06 — claim a cushion on behalf of a specific member (used by overflow sheet).
-window.claimCushionByMember = async function(memberId) {
+// V5 — toggle a member's in-state. Works for self AND proxy. Writes audit trail
+// via proxyConfirmedBy when the actor is NOT the target member (server-side rule
+// enforces actingUid==auth.uid via attributedWrite, so the proxy claim can't be
+// forged). Date.now() is fine for ordering — Firestore serverTimestamp() would
+// be one extra import for sub-second precision we don't need.
+window.toggleCouchMember = async function(memberId) {
+  if (!state.me) { flashToast('Sign in to update the couch', { kind: 'warn' }); return; }
   if (!memberId) return;
-  let firstEmpty = -1;
-  for (let i = 0; i < COUCH_MAX_SLOTS; i++) {
-    if (!state.couchMemberIds[i]) { firstEmpty = i; break; }
-  }
-  if (firstEmpty < 0) {
-    flashToast('Couch is full', { kind: 'warn' });
-    return;
-  }
-  state.couchMemberIds[firstEmpty] = memberId;
-  await persistCouchInTonight();
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const cur = cit[memberId];
+  const wasIn = cur && cur.in === true;
+  const next = {
+    in: !wasIn,
+    at: Date.now(),
+  };
+  // Proxy audit: if actor !== target, record who flipped them
+  if (memberId !== state.me.id) next.proxyConfirmedBy = state.me.id;
+  cit[memberId] = next;
+  // Recompute downstream contract
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  // Optimistic re-render — the onSnapshot callback will re-render again on echo
   renderCouchViz();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
 };
+
+// V5 — long-press → send push. Stub-only in Task 3 commit; real wiring (Path C —
+// Sentry breadcrumb) lands in Task 5 separately to keep the UI swap atomic.
+window.sendCouchPing = function(memberId) {
+  if (!state.me || !memberId) return;
+  // Task 5 wires the actual CF call; for now show the toast so the gesture has feedback.
+  const m = (state.members || []).find(x => x.id === memberId);
+  const name = m ? m.name : 'them';
+  flashToast(`Push sent to ${name}`, { kind: 'info' });
+  // 14-10 Task 5 — replace the toast-only stub with the real call.
+};
+
+// V5 — bulk action: mark every roster member in.
+async function couchMarkAllIn() {
+  if (!state.me) return;
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const meId = state.me.id;
+  const roster = (state.members || []).filter(m =>
+    !m.archived && (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+  );
+  roster.forEach(m => {
+    const next = { in: true, at: nowTs };
+    if (m.id !== meId) next.proxyConfirmedBy = meId;
+    cit[m.id] = next;
+  });
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  renderCouchViz();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
+}
+
+// V5 — bulk action: clear couch (everyone out).
+async function couchClearAll() {
+  if (!state.me) return;
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const meId = state.me.id;
+  Object.keys(cit).forEach(mid => {
+    if (cit[mid] && cit[mid].in) {
+      const next = { in: false, at: nowTs };
+      if (mid !== meId) next.proxyConfirmedBy = meId;
+      cit[mid] = next;
+    }
+  });
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  renderCouchViz();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
+}
+
+// V5 — bulk action: send push to every out-state member.
+function couchPushRest() {
+  const cit = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const outMembers = (state.members || []).filter(m =>
+    !m.archived && (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+    && (!cit[m.id] || cit[m.id].in !== true)
+  );
+  if (!outMembers.length) { flashToast('Everyone is already in', { kind: 'info' }); return; }
+  outMembers.forEach(m => sendCouchPing(m.id));
+  flashToast(`Pushes sent to ${outMembers.length}`, { kind: 'info' });
+}
 
 // 14-10 / V5 — persist couchInTonight + couchSeating (dual-write during migration).
 // Writes the new member-keyed shape AND the legacy positional shape so v33/v34.0
