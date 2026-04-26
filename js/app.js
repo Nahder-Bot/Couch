@@ -106,10 +106,28 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   tonightPickChosen: false,
   // Phase 8 Watch-Intent Flows
   intentProposed: true,
-  intentMatched: true
+  intentMatched: true,
+  // === Phase 14 — Decision Ritual Core (D-12 / DR-3 place 2 of 3) ===
+  // Must stay in lockstep with queuenight/functions/index.js NOTIFICATION_DEFAULTS
+  // (server gate) and NOTIFICATION_EVENT_LABELS below (UI copy). All default ON
+  // per RESEARCH §5 — these fire only when the user has actively engaged.
+  flowAPick: true,
+  flowAVoteOnPick: true,
+  flowARejectMajority: true,
+  flowBNominate: true,
+  flowBCounterTime: true,
+  flowBConvert: true,
+  intentExpiring: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
+// === Phase 14 / D-12 / DR-3 place 3 of 3 ===
+// 7 new keys added with BRAND-voice copy per CONTEXT.md D-12 push copy table.
+// NOTE (per Plan 14-09 DR-3 follow-up override, 2026-04-25): the new keys are
+// NOT mirrored into the Phase 12 friendly-UI maps below (NOTIF_UI_TO_SERVER_KEY,
+// NOTIF_UI_LABELS, NOTIF_UI_DEFAULTS) — they surface only in the legacy Settings
+// UI for now to avoid the dual-Settings-screen collision RESEARCH §5 flagged.
+// Friendly-UI parity captured as a follow-up polish item.
 const NOTIFICATION_EVENT_LABELS = Object.freeze({
   watchpartyScheduled: { label: 'New watchparty scheduled', hint: 'When someone sets up a watchparty' },
   watchpartyStarting:  { label: 'Watchparty starting',       hint: 'Right when the movie starts' },
@@ -118,7 +136,15 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   vetoCapReached:      { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row' },
   tonightPickChosen:   { label: 'Tonight’s pick chosen', hint: 'When the spinner lands on a movie' },
   intentProposed:      { label: 'New intent posted',         hint: 'When someone proposes a tonight-watch or asks the family about a title' },
-  intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' }
+  intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' },
+  // Phase 14 — DECI-14-12 (BRAND-voice copy per D-12 / RESEARCH §5)
+  flowAPick:           { label: "Tonight's pick chosen",      hint: "When someone on your couch picks a movie." },
+  flowAVoteOnPick:     { label: "Couch voted on your pick",   hint: "When someone responds to a pick you made." },
+  flowARejectMajority: { label: "Your pick was passed on",    hint: "When the couch asks you to pick again." },
+  flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
+  flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
+  flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
