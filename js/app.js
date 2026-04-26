@@ -4107,6 +4107,15 @@ function startSync() {
     const d = s.data();
     state.group = { ...(state.group||{}), code: state.familyCode, mode: d.mode || 'family', name: d.name || state.familyCode, picker: d.picker || null, passwordProtected: !!d.passwordHash };
     state.ownerUid = d.ownerUid || null;
+    // D-06 (DECI-14-06) — hydrate couch seating from family doc into the indexed-array
+    // state shape. Persisted shape: { [memberId]: index }; in-memory shape: array indexed
+    // by cushion position with null for empty slots. 14-04 owns this slot; 14-01's
+    // isWatchedByCouch + 14-03/14-07 downstream consumers all read state.couchMemberIds.
+    const seating = d.couchSeating || {};
+    const couchArr = [];
+    Object.entries(seating).forEach(([mid, idx]) => { if (typeof idx === 'number' && idx >= 0) couchArr[idx] = mid; });
+    state.couchMemberIds = couchArr;
+    if (typeof renderCouchViz === 'function') renderCouchViz();
     renderPickerCard();
     applyModeLabels();
     try { renderOwnerSettings(); } catch(e) {}
@@ -4848,6 +4857,9 @@ function renderTonight() {
     ? matches.map(t => card(t)).join('')
     : `<div class="empty"><strong>Nothing's matching</strong>${considerable.length ? 'But there are still options below.' : 'Try adjusting filters, or add more titles.'}</div>`;
   el.innerHTML = matchesHtml + considerHtml + vetoedHtml;
+  // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
+  // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
+  if (typeof renderCouchViz === 'function') renderCouchViz();
 }
 
 // Combined filters-bar toggle + active state
@@ -12682,6 +12694,151 @@ window.toggleLike = async function(id, e) {
   else likes[state.me.id] = Date.now();
   try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), likes }); } catch(err){}
 };
+
+// === D-06 Couch viz — DECI-14-06 (sketch 001 winner: hero-icon + avatar-grid) ===
+// Hero element: <img src='/mark-512.png'> (the existing C-sectional app icon — same asset
+// used by favicons + PWA manifest). When the icon is updated in queuenight/public/, this
+// hero auto-inherits with zero code change.
+//
+// Functional layer: CSS-grid avatar cells. Filled = colored circle with initial; empty =
+// dashed amber circle with ＋ glyph + pulse animation. Capacity 1-10 native.
+//
+// State writes: families/{code}.couchSeating = { [memberId]: index }.
+
+const COUCH_HERO_SRC = '/mark-512.png'; // single source of truth — bump if filename changes
+const COUCH_MAX_SLOTS = 10;             // grid wraps to 5×2 on phone, 10×1 on wide viewports
+
+function renderCouchViz() {
+  const container = document.getElementById('couch-viz-container');
+  if (!container) return;
+
+  const totalMembers = (state.members || []).length;
+  // Couch size = max(2, totalMembers, current claimed count) — at least 2 because couch is plural.
+  // Cap at COUCH_MAX_SLOTS.
+  const claimedCount = (state.couchMemberIds || []).filter(Boolean).length;
+  const couchSize = Math.min(COUCH_MAX_SLOTS, Math.max(2, totalMembers, claimedCount));
+
+  container.innerHTML = `
+    <img class="couch-hero" src="${COUCH_HERO_SRC}" alt="Couch" />
+    <h3 class="couch-headline">On the couch tonight</h3>
+    <p class="couch-sub">${claimedCount > 0 ? `${claimedCount} of ${couchSize} here` : 'Tap a seat to claim it'}</p>
+    ${renderCouchAvatarGrid(couchSize)}
+  `;
+}
+
+function renderCouchAvatarGrid(couchSize) {
+  const cells = [];
+  for (let i = 0; i < couchSize; i++) {
+    const mid = (state.couchMemberIds || [])[i] || null;
+    if (mid) {
+      const m = (state.members || []).find(x => x.id === mid);
+      const initial = m ? escapeHtml((m.name || '?')[0].toUpperCase()) : '?';
+      const name = m ? escapeHtml(m.name || 'Member') : 'Unknown';
+      const color = m ? memberColor(m.id) : '#7a705f';
+      const isMe = state.me && mid === state.me.id;
+      cells.push(`
+        <div class="seat-cell ${isMe ? 'me' : ''}" data-cushion-idx="${i}" role="button" tabindex="0"
+          aria-label="${name} on the couch — tap to vacate"
+          onclick="claimCushion(${i})"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
+          <div class="seat-avatar" style="background:${color}">${initial}</div>
+          <div class="seat-name">${name}</div>
+        </div>
+      `);
+    } else {
+      cells.push(`
+        <div class="seat-cell empty" data-cushion-idx="${i}" role="button" tabindex="0"
+          aria-label="Empty seat — tap to claim"
+          onclick="claimCushion(${i})"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();claimCushion(${i});}">
+          <div class="seat-empty">＋</div>
+          <div class="seat-name" aria-hidden="true">·</div>
+        </div>
+      `);
+    }
+  }
+  return `<div class="couch-avatar-grid" role="group" aria-label="Couch seats">${cells.join('')}</div>`;
+}
+
+// D-06 — claim a cushion seat. Adds state.me.id to state.couchMemberIds at index idx
+// (if empty); toggles off if already claimed by state.me. Persists to family doc.
+window.claimCushion = async function(idx) {
+  if (!state.me) { flashToast('Sign in to seat yourself', { kind: 'warn' }); return; }
+  // Ensure array length covers idx.
+  while (state.couchMemberIds.length <= idx) state.couchMemberIds.push(null);
+  const current = state.couchMemberIds[idx] || null;
+  // Toggle off if I'm sitting there.
+  if (current === state.me.id) {
+    state.couchMemberIds[idx] = null;
+    while (state.couchMemberIds.length && state.couchMemberIds[state.couchMemberIds.length - 1] == null) {
+      state.couchMemberIds.pop();
+    }
+    await persistCouchSeating();
+    renderCouchViz();
+    return;
+  }
+  if (current) {
+    flashToast('That seat is already claimed', { kind: 'info' });
+    return;
+  }
+  // Take the slot. If state.me is already at another slot, vacate that one first (no clones).
+  const existingIdx = state.couchMemberIds.findIndex(mid => mid === state.me.id);
+  if (existingIdx >= 0) state.couchMemberIds[existingIdx] = null;
+  state.couchMemberIds[idx] = state.me.id;
+  await persistCouchSeating();
+  renderCouchViz();
+};
+
+// D-06 — overflow / "sit on behalf of" sheet. Opens member picker via #action-sheet-bg.
+// Used when grid is full OR for shared-device "claim a seat for another member" cases.
+window.openCouchOverflowSheet = function() {
+  const content = document.getElementById('action-sheet-content');
+  if (!content) return;
+  const seated = new Set((state.couchMemberIds || []).filter(Boolean));
+  const items = (state.members || [])
+    .filter(m => !seated.has(m.id))
+    .map(m =>
+      `<button class="action-sheet-item" onclick="closeActionSheet();claimCushionByMember('${m.id}')">
+        <div class="who-avatar" style="background:${memberColor(m.id)};display:inline-block;margin-right:8px">${escapeHtml((m.name||'?')[0])}</div>
+        ${escapeHtml(m.name || 'Member')}
+      </button>`
+    );
+  content.innerHTML = `<div class="action-sheet-title">Add to couch</div>${items.join('') || '<div class="action-sheet-item" style="opacity:0.6">Everyone is on the couch</div>'}`;
+  document.getElementById('action-sheet-bg').classList.add('on');
+};
+
+// D-06 — claim a cushion on behalf of a specific member (used by overflow sheet).
+window.claimCushionByMember = async function(memberId) {
+  if (!memberId) return;
+  let firstEmpty = -1;
+  for (let i = 0; i < COUCH_MAX_SLOTS; i++) {
+    if (!state.couchMemberIds[i]) { firstEmpty = i; break; }
+  }
+  if (firstEmpty < 0) {
+    flashToast('Couch is full', { kind: 'warn' });
+    return;
+  }
+  state.couchMemberIds[firstEmpty] = memberId;
+  await persistCouchSeating();
+  renderCouchViz();
+};
+
+// D-06 — persist couchSeating map to family doc.
+// Shape: families/{code}.couchSeating = { [memberId]: index }; null/missing = not seated.
+async function persistCouchSeating() {
+  if (!state.familyCode) return;
+  const map = {};
+  (state.couchMemberIds || []).forEach((mid, i) => { if (mid) map[mid] = i; });
+  try {
+    await updateDoc(doc(db, 'families', state.familyCode), {
+      couchSeating: map,
+      ...writeAttribution()
+    });
+  } catch (e) {
+    console.error('[couch] persist failed', e);
+    flashToast('Could not save couch — try again', { kind: 'warn' });
+  }
+}
 
 window.openActionSheet = function(titleId, e) {
   if (e) e.stopPropagation();
