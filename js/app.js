@@ -4182,8 +4182,14 @@ function renderTonight() {
 
   // Common title-filter predicate — honors scope, providers, moods, vetoes, and age tiers.
   // Doesn't check votes; callers apply vote logic themselves.
+  // D-01 (DECI-14-01): use couch-aware watched filter (Tonight tab is a discovery surface).
+  // Couch identity here is the actively-selected members tonight; falls back to state.couchMemberIds
+  // once 14-04's writer ships, or [state.me.id] as a last resort.
+  const couch = (state.couchMemberIds && state.couchMemberIds.length)
+    ? state.couchMemberIds
+    : (state.selectedMembers.length ? state.selectedMembers : (state.me ? [state.me.id] : []));
   function passesBaseFilter(t) {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
     // Pending/declined titles don't surface on Tonight at all — even parents shouldn't see them
     // as potential matches until they're approved.
@@ -4499,7 +4505,12 @@ function renderLibrary() {
     renderFullQueue(el, myQueue); return;
   }
   let list = state.titles.slice().filter(t => !isHiddenByScope(t));
-  if (state.filter === 'unwatched') list = list.filter(t => !t.watched);
+  // D-01 (DECI-14-01): couch-aware watched filter for Library discovery filters.
+  // 'watched' filter is intentionally NOT couch-filtered (it's the user's archive).
+  // 'myrequests', 'inprogress', 'toprated', 'scheduled', 'recent' are status-driven views
+  // that must surface their full scope regardless of watch state — not couch-filtered.
+  const couchForLib = getCouchOrSelfIds();
+  if (state.filter === 'unwatched') list = list.filter(t => !isWatchedByCouch(t, couchForLib));
   if (state.filter === 'watched') list = list.filter(t => t.watched);
   if (state.filter === 'forme') {
     // Everything the current user can actually watch, unwatched, approved.
@@ -4510,7 +4521,7 @@ function renderLibrary() {
     else {
       const myMax = me.maxTier != null ? me.maxTier : ageToMaxTier(me.age);
       list = list.filter(t => {
-        if (t.watched) return false;
+        if (isWatchedByCouch(t, couchForLib)) return false;
         if (t.approvalStatus === 'pending' || t.approvalStatus === 'declined') return false;
         const tier = tierFor(t.rating);
         if (tier && myMax && tier > myMax) return false;
@@ -5787,8 +5798,10 @@ let swipeStartX = 0, swipeStartY = 0, swipeDX = 0, swipeDY = 0, swipeDragging = 
 
 function getNeedsVoteTitles() {
   if (!state.me) return [];
+  // D-01 (DECI-14-01): swipe candidate pool — use couch-aware watched filter.
+  const couch = getCouchOrSelfIds();
   return state.titles.filter(t => {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
     const v = (t.votes || {})[state.me.id];
     return !v;
@@ -6609,8 +6622,15 @@ let lastSpinId = null;
 
 function getCurrentMatches() {
   if (!state.selectedMembers.length) return [];
+  // D-01 (DECI-14-01): spin candidate pool — use couch-aware watched filter.
+  // Couch identity here is the actively-selected members (the people on the couch tonight),
+  // which is the closest pre-14-04 analog to state.couchMemberIds. Falls back to
+  // [state.me.id] only when no one is selected (early-return above).
+  const couch = (state.couchMemberIds && state.couchMemberIds.length)
+    ? state.couchMemberIds
+    : state.selectedMembers;
   return state.titles.filter(t => {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (!state.selectedMembers.every(mid => (t.votes||{})[mid] === 'yes')) return false;
     if (!titleMatchesProviders(t)) return false;
     const tier = tierFor(t.rating);
@@ -6826,8 +6846,11 @@ window.toggleMyQueue = async function(id) {
 
 function getMyQueueTitles() {
   if (!state.me) return [];
+  // D-01 (DECI-14-01): use couch-aware watched filter on this discovery surface.
+  // Falls back to [state.me.id] when no couch is claimed (single-member discovery).
+  const couch = getCouchOrSelfIds();
   return state.titles
-    .filter(t => !t.watched && t.queues && t.queues[state.me.id] != null)
+    .filter(t => !isWatchedByCouch(t, couch) && t.queues && t.queues[state.me.id] != null)
     .sort((a,b) => a.queues[state.me.id] - b.queues[state.me.id]);
 }
 
@@ -6846,16 +6869,71 @@ async function reindexMyQueue() {
   }
 }
 
+// === D-01 helpers — DECI-14-01 ===
+// D-01 (DECI-14-01) — strict member-aware "already-watched" filter for couch discovery surfaces.
+// Returns true iff ANY couch member has the title flagged via ANY of 4 sources:
+//   1) Trakt sync flipped t.watched = true (global on title doc; see trakt.ingestSyncData ~js/app.js:752)
+//   2) member voted Yes prior — t.votes[memberId] === 'yes'
+//   3) member voted No prior — t.votes[memberId] === 'no'
+//   4) member manually marked watched — same t.watched global flag (Source 1 + 4 collapsed)
+// Per-title rewatch override: same-day t.rewatchAllowedBy[memberId] timestamp opts the title back in.
+// Per D-01 invitation bypass: this filter is applied to MY discovery surfaces ONLY (Browse/Spin/Swipe).
+// CFs (push fan-out) MUST NOT call this — pushes go through regardless of watched status.
+function isWatchedByCouch(t, couchMemberIds) {
+  if (!t || !Array.isArray(couchMemberIds) || !couchMemberIds.length) return false;
+  // Rewatch override — same-day timestamp on any couch member opts the title back in.
+  const dayMs = 24 * 60 * 60 * 1000;
+  const recently = (ts) => ts && (Date.now() - ts) < dayMs;
+  const allow = t.rewatchAllowedBy || {};
+  if (couchMemberIds.some(mid => recently(allow[mid]))) return false;
+  // Source 1 + 4 — global watched flag covers Trakt sync AND manual mark-watched.
+  if (t.watched) return true;
+  // Sources 2 + 3 — any couch member's prior vote (yes OR no) counts as "watched-status known".
+  // Per D-01 literal read: voting No on a title still hides it from rediscovery (intentional opinionation).
+  const votes = t.votes || {};
+  return couchMemberIds.some(mid => votes[mid] === 'yes' || votes[mid] === 'no');
+}
+
+// D-01 — Resolve the active couch's member-id list for filter calls.
+// Falls back to [state.me.id] when state.couchMemberIds is empty (no couch claimed yet —
+// 14-04's writer hasn't fired). Single-member discovery is D-01's documented default.
+function getCouchOrSelfIds() {
+  if (state.couchMemberIds && state.couchMemberIds.length) return state.couchMemberIds;
+  return state.me ? [state.me.id] : [];
+}
+
+// D-01 — Per-title rewatch override writer. Stamps t.rewatchAllowedBy[memberId] = now.
+// Triggered by the "Rewatch this one" action sheet item (added in 14-04 or 14-05).
+async function setRewatchAllowed(titleId, memberId) {
+  if (!titleId || !memberId || !state.familyCode) return;
+  try {
+    const ref = doc(titlesRef(), titleId);
+    await updateDoc(ref, {
+      [`rewatchAllowedBy.${memberId}`]: Date.now(),
+      ...writeAttribution()
+    });
+    flashToast('Rewatch enabled for tonight', { kind: 'info' });
+  } catch (e) {
+    console.error('[rewatch] write failed', e);
+    flashToast('Could not enable rewatch — try again', { kind: 'warn' });
+  }
+}
+window.setRewatchAllowed = setRewatchAllowed;
+
 // === Group "Up next" via weighted aggregation ===
 // Returns the top 5 titles ranked by how many family members queued them (weighted by rank).
 // Name kept as getGroupNext3 for backward compatibility with existing call sites.
 function getGroupNext3() {
   // Score each title by inverse rank from all members who queued it
   // Higher rank position = lower score (rank 1 = 1.0, rank 2 = 0.5, rank 3 = 0.33, etc.)
+  // D-01 (DECI-14-01): use couch-aware watched filter — strip titles any couch member
+  // has already engaged with (Trakt-watched / voted / manually watched), with same-day
+  // rewatch override honored.
+  const couch = getCouchOrSelfIds();
   const scores = new Map();
   const queuedBy = new Map();
   state.titles.forEach(t => {
-    if (t.watched) return;
+    if (isWatchedByCouch(t, couch)) return;
     if (!t.queues) return;
     let total = 0;
     const members = [];
