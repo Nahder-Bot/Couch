@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Couch Viz — Variant 1: Density</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   VARIANT 1: DENSITY / OVERLAPPING MINI-AVATARS
+   ----------------------------------------------------------------------------
+   Problem solved: Eliminates fake placeholder cells. The roster is a single
+   compact stack — no clutter regardless of family size or claim count.
+
+   Dual-mode tradeoff:
+     ✓ Self-claim — Tap your own avatar (highlighted with a "you" ring)
+     ✓ Proxy-fill — Tap any other avatar to flip them in/out
+     ✓ Remote ping — "Send pushes" CTA fires to the un-flipped half
+     ✗ Loses the per-cushion direct-manipulation metaphor (no row of seats)
+     ✗ Less visceral than tapping a specific empty cushion
+
+   Intentionally cut: Per-cushion grid, dashed empty placeholders, fixed couch
+   capacity formula (max(2, members, claimed)). Roster IS the source of truth.
+   ============================================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #14110f;
+  --surface: #1f1a16;
+  --surface-elev: #2a241f;
+  --border-soft: #2a241f;
+  --text: #f5ede1;
+  --text-muted: #b3a797;
+  --text-dim: #6e6356;
+  --warm-amber: #d4a574;
+  --warm-glow: rgba(217, 122, 60, 0.18);
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  padding: 32px 24px 120px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* === State toggle (sketch-only; replaces the live data feed) === */
+.state-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 32px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  padding: 4px;
+  width: fit-content;
+  font-size: 12px;
+}
+.state-toggle button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+}
+.state-toggle button.active {
+  background: var(--surface-elev);
+  color: var(--text);
+}
+
+/* === Hero === */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.hero-icon {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 18px;
+  border-radius: 22px;
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.5));
+  background: radial-gradient(circle at 60% 40%, rgba(217, 122, 60, 0.14), transparent 60%);
+}
+.couch-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.couch-sub {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+/* === Roster stack === */
+.roster-stack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  height: 64px;
+  position: relative;
+}
+.roster-stack .avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface-elev);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  border: 3px solid var(--bg);
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.4, 1), filter 180ms, opacity 180ms;
+  position: relative;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.roster-stack .avatar:not(:first-child) { margin-left: -16px; }
+.roster-stack .avatar:hover {
+  transform: translateY(-4px) scale(1.05);
+  z-index: 10;
+}
+.roster-stack .avatar.out {
+  opacity: 0.32;
+  filter: grayscale(70%);
+}
+.roster-stack .avatar.in {
+  opacity: 1;
+  filter: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+}
+.roster-stack .avatar.me {
+  outline: 2.5px solid var(--warm-amber);
+  outline-offset: 2px;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-elev);
+  color: var(--text);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.roster-stack .avatar:hover .tooltip { opacity: 1; }
+
+.count-line {
+  text-align: center;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+}
+.count-line .num {
+  color: var(--warm-amber);
+  font-style: normal;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* === CTA pill === */
+.cta-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.cta {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 26px;
+  border-radius: var(--r-pill);
+  border: 0;
+  cursor: pointer;
+  transition: transform 120ms, filter 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.cta-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d4a574 100%);
+  color: #1a1410;
+  box-shadow: 0 6px 20px rgba(217, 122, 60, 0.4);
+}
+.cta-primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.cta-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+}
+.cta-ghost:hover { color: var(--text); border-color: var(--warm-amber); }
+
+/* === Hint / explainer === */
+.hint {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  max-width: 360px;
+  margin: 0 auto 24px;
+  line-height: 1.5;
+}
+
+/* === Variant explainer (sketch-only) === */
+.explainer {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  background: rgba(31, 26, 22, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-soft);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 280px;
+  line-height: 1.5;
+  z-index: 100;
+}
+.explainer strong { color: var(--warm-amber); display: block; margin-bottom: 4px; font-family: 'Fraunces', serif; font-size: 13px; }
+
+/* === Sketch toolbar === */
+#sketch-tools {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 9999;
+  font-family: system-ui;
+  font-size: 12px;
+  background: rgba(0,0,0,0.78);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  opacity: 0.45;
+  transition: opacity 200ms;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#sketch-tools:hover { opacity: 1; }
+#sketch-tools button {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#sketch-tools button.active { background: var(--warm-amber); color: #1a1410; }
+
+/* === Mobile responsive === */
+@media (max-width: 480px) {
+  body { padding: 20px 16px 100px; }
+  .couch-headline { font-size: 1.45rem; }
+  .roster-stack .avatar { width: 48px; height: 48px; font-size: 16px; }
+  .roster-stack .avatar:not(:first-child) { margin-left: -14px; }
+  .explainer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="explainer">
+  <strong>Variant 1 — Density</strong>
+  Slack-style overlapping roster. Tap any avatar to toggle "in." No fake empty placeholders. Single CTA below.
+</div>
+
+<div class="state-toggle" role="tablist">
+  <button data-state="empty" class="active">0 in</button>
+  <button data-state="me-only">Me only</button>
+  <button data-state="mixed">4 of 8 in</button>
+</div>
+
+<div class="hero">
+  <svg class="hero-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="floorGlow1" cx="68%" cy="60%" r="40%">
+        <stop offset="0%" stop-color="#f4b860" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="leather1" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#a06a45"/>
+        <stop offset="100%" stop-color="#7a4d2f"/>
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="96" height="96" rx="18" fill="#1a120c"/>
+    <circle cx="68" cy="60" r="32" fill="url(#floorGlow1)"/>
+    <path d="M 25 30 Q 25 22 33 22 L 55 22 Q 60 22 60 28 L 60 38 Q 60 44 65 44 L 70 44 Q 75 44 75 50 L 75 70 Q 75 76 67 76 L 33 76 Q 25 76 25 68 Z" fill="url(#leather1)" stroke="#5d3820" stroke-width="0.6"/>
+    <rect x="78" y="48" width="3" height="12" fill="#d4a574"/>
+    <circle cx="79.5" cy="46" r="4" fill="#f4b860"/>
+  </svg>
+  <h1 class="couch-headline">On the couch tonight</h1>
+  <p class="couch-sub" id="sub-line">Tap a face to claim a seat</p>
+</div>
+
+<div class="roster-stack" id="roster">
+  <!-- avatars injected by JS -->
+</div>
+
+<div class="count-line" id="count-line">
+  <span class="num" id="count-num">0</span> of 8 in
+</div>
+
+<div class="cta-row" id="cta-row">
+  <button class="cta cta-primary" id="cta-primary">Find a seat</button>
+  <button class="cta cta-ghost" id="cta-secondary">Send pushes to the rest</button>
+</div>
+
+<p class="hint">Tap any face to flip them in or out — works for yourself or to mark family in. Long-press an "out" face to send them a push.</p>
+
+<div id="sketch-tools">
+  <span style="opacity:0.6">viewport</span>
+  <button onclick="setViewport(375)">📱</button>
+  <button onclick="setViewport(768)">▭</button>
+  <button onclick="setViewport(1280)" class="active">🖥</button>
+</div>
+
+<script>
+// === Family roster (placeholder data) ===
+const FAMILY = [
+  { id: 'me',     name: 'Nahder',  initial: 'N', color: '#8b5cf6', isMe: true  },
+  { id: 'wife',   name: 'Ashley',  initial: 'A', color: '#ec4899', isMe: false },
+  { id: 'kid1',   name: 'Brody',   initial: 'B', color: '#f59e0b', isMe: false },
+  { id: 'kid2',   name: 'Arianna', initial: 'A', color: '#14b8a6', isMe: false },
+  { id: 'mom',    name: 'Mom',     initial: 'M', color: '#3b82f6', isMe: false },
+  { id: 'dad',    name: 'Dad',     initial: 'D', color: '#22c55e', isMe: false },
+  { id: 'tyler',  name: 'Tyler',   initial: 'T', color: '#ef4444', isMe: false },
+  { id: 'sam',    name: 'Sam',     initial: 'S', color: '#6366f1', isMe: false },
+];
+
+// === In-state per family member ===
+let inState = new Set();
+
+// === Render ===
+function render() {
+  const roster = document.getElementById('roster');
+  roster.innerHTML = '';
+  FAMILY.forEach(m => {
+    const isIn = inState.has(m.id);
+    const a = document.createElement('div');
+    a.className = `avatar ${isIn ? 'in' : 'out'} ${m.isMe ? 'me' : ''}`;
+    a.style.background = isIn ? m.color : 'var(--surface-elev)';
+    a.textContent = m.initial;
+    a.title = `${m.name} — tap to toggle`;
+    a.dataset.id = m.id;
+    a.onclick = () => toggle(m.id);
+    const tt = document.createElement('span');
+    tt.className = 'tooltip';
+    tt.textContent = m.name + (m.isMe ? ' (you)' : '');
+    a.appendChild(tt);
+    roster.appendChild(a);
+  });
+  const num = inState.size;
+  document.getElementById('count-num').textContent = num;
+  const sub = document.getElementById('sub-line');
+  if (num === 0) sub.textContent = 'Tap a face to claim a seat';
+  else if (num === 1 && inState.has('me')) sub.textContent = "You're on the couch — bring family in";
+  else sub.textContent = `${num} of ${FAMILY.length} on the couch`;
+  // Flip primary CTA based on me-state
+  const cta = document.getElementById('cta-primary');
+  cta.textContent = inState.has('me') ? 'Leave couch' : 'Find a seat';
+  // Show/hide secondary based on un-flipped count
+  const sec = document.getElementById('cta-secondary');
+  const out = FAMILY.length - inState.size;
+  sec.style.display = out > 0 ? '' : 'none';
+  sec.textContent = `Send pushes to ${out} other${out === 1 ? '' : 's'}`;
+}
+function toggle(id) {
+  if (inState.has(id)) inState.delete(id);
+  else inState.add(id);
+  render();
+}
+document.getElementById('cta-primary').onclick = () => toggle('me');
+
+// === State toggle (sketch-only) ===
+document.querySelectorAll('.state-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.state-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const state = btn.dataset.state;
+    inState = new Set();
+    if (state === 'me-only') inState.add('me');
+    if (state === 'mixed') ['me', 'wife', 'kid1', 'kid2'].forEach(id => inState.add(id));
+    render();
+  };
+});
+
+// === Viewport tool ===
+function setViewport(w) {
+  const body = document.body;
+  if (w === 1280) body.style.maxWidth = '720px';
+  else { body.style.maxWidth = w + 'px'; }
+  document.querySelectorAll('#sketch-tools button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+render();
+</script>
+</body>
+</html>

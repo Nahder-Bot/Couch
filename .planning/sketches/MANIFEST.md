@@ -30,6 +30,7 @@ Sketches explore the central object on the Tonight tab — the visualization tha
 |---|------|----------------|--------|------|
 | 001 | couch-shape | What visual best represents 'who's on the couch tonight' for up to 10 members in Couch's warm-dark brand? | **P** (Hero icon + avatar grid) | phase-14, d-06, hero-icon, avatar-grid |
 | 002 | couch-wordmark | How should the existing C-icon combine with a wordmark to form a complete brand lockup? | ⏸ **Superseded by Fiverr brand design** (Standard $85, ETA 2026-04-28) | brand, wordmark, lockup, superseded |
+| 003 | couch-viz-redesign | How should the "Who's on the couch tonight?" control work, given it must natively support both proxy-fill AND self-claim/remote-ping? | (pending review — V5 proposed) | phase-14, d-06, redesign, dual-mode, post-uat |
 
 ## Pending External Deliverables
 

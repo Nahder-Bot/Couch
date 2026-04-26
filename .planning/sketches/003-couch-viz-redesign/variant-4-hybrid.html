@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Couch Viz — Variant 4: Hybrid (phone vs desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   VARIANT 4: HYBRID (phone vs desktop)
+   ----------------------------------------------------------------------------
+   Problem solved: The current 14-04 5-col phone grid is actually fine on
+   narrow viewports — the placeholder cluster only feels sloppy at desktop
+   widths. So this variant KEEPS a tightened phone grid (5 col, capped at
+   filled+1 cells) but on desktop ≥768px collapses to Variant 3's single-CTA
+   layout.
+
+   Dual-mode tradeoff:
+     ✓ Self-claim — Phone: tap an empty cell. Desktop: tap the big CTA.
+     ⚠ Proxy-fill — Phone: tap an empty cushion (limited, only filled+1 shown).
+       Desktop: tap micro-avatars in the thin roster underline.
+     ⚠ Different mental model on phone vs desktop = teaching cost.
+
+   Intentionally cut: 7-empty-cell scroll-bar effect on desktop. Pre-rendered
+   placeholders beyond filled+1 on phone.
+
+   Resize the browser window from <480px to >768px to see the layout shift.
+   ============================================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #14110f;
+  --surface: #1f1a16;
+  --surface-elev: #2a241f;
+  --border-soft: #2a241f;
+  --text: #f5ede1;
+  --text-muted: #b3a797;
+  --text-dim: #6e6356;
+  --warm-amber: #d4a574;
+  --r-pill: 999px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  padding: 32px 24px 120px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.state-toggle { display: flex; gap: 4px; margin-bottom: 32px; background: var(--surface); border-radius: var(--r-pill); padding: 4px; width: fit-content; font-size: 12px; }
+.state-toggle button { background: transparent; border: 0; color: var(--text-muted); padding: 6px 14px; border-radius: var(--r-pill); font-family: inherit; font-size: 12px; cursor: pointer; transition: color 120ms, background 120ms; }
+.state-toggle button.active { background: var(--surface-elev); color: var(--text); }
+
+.viewport-banner {
+  background: var(--surface);
+  border: 1px dashed var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+  text-align: center;
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+}
+.viewport-banner .which { color: var(--warm-amber); font-style: normal; font-family: 'Inter'; font-weight: 600; }
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.hero-icon {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 18px;
+  border-radius: 22px;
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.5));
+}
+.couch-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.couch-sub {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+/* === PHONE LAYOUT: tightened 5-col grid, only filled+1 cells === */
+.phone-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  gap: 12px;
+  justify-content: center;
+  margin: 28px auto 18px;
+}
+.cell {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter';
+  font-weight: 600;
+  font-size: 18px;
+  color: white;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 180ms, opacity 180ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.cell:hover { transform: scale(1.08); }
+.cell.empty {
+  background: rgba(217, 122, 60, 0.06);
+  border: 2px dashed var(--warm-amber);
+  color: var(--warm-amber);
+  font-size: 22px;
+  font-weight: 300;
+}
+.cell.empty.glow { animation: pulse-warm 2.4s ease-in-out infinite; }
+@keyframes pulse-warm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 60, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(217, 122, 60, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .cell.empty.glow { animation: none; } }
+.cell.me {
+  outline: 2.5px solid var(--warm-amber);
+  outline-offset: 2px;
+}
+
+/* === DESKTOP LAYOUT: single CTA + thin roster (variant-3 style) === */
+.desktop-cta {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+  padding: 20px 44px;
+  border-radius: var(--r-pill);
+  border: 0;
+  cursor: pointer;
+  transition: transform 180ms, filter 180ms;
+  letter-spacing: -0.01em;
+  margin: 24px auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220px;
+  -webkit-tap-highlight-color: transparent;
+}
+.desktop-cta.find {
+  background: linear-gradient(135deg, #f59e0b 0%, #d4a574 100%);
+  color: #1a1410;
+  box-shadow: 0 12px 32px rgba(217, 122, 60, 0.45);
+}
+.desktop-cta.leave {
+  background: var(--surface-elev);
+  color: var(--text);
+  border: 1px solid var(--warm-amber);
+}
+.desktop-cta:hover { transform: translateY(-2px); filter: brightness(1.06); }
+
+.roster-thin {
+  display: flex; justify-content: center; align-items: center; gap: 6px;
+  margin-bottom: 16px; flex-wrap: wrap; max-width: 480px; margin-left: auto; margin-right: auto;
+}
+.micro {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter'; font-weight: 600; font-size: 12px;
+  color: white; cursor: pointer; position: relative;
+  transition: transform 180ms, opacity 180ms, filter 180ms;
+  border: 2px solid var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+.micro:hover { transform: scale(1.18); z-index: 5; }
+.micro.out { opacity: 0.32; filter: grayscale(70%); }
+.micro.in { opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+.micro.me { outline: 2px solid var(--warm-amber); outline-offset: 1px; }
+
+.tally-line {
+  text-align: center; font-family: 'Instrument Serif', serif; font-style: italic;
+  color: var(--text-muted); font-size: 0.95rem; margin-bottom: 18px;
+}
+.tally-line .num { color: var(--warm-amber); font-style: normal; font-family: 'Inter'; font-weight: 600; }
+
+/* === Show/hide based on viewport === */
+.phone-only { display: block; }
+.desktop-only { display: none; }
+@media (min-width: 768px) {
+  .phone-only { display: none; }
+  .desktop-only { display: block; }
+}
+
+.send-link { text-align: center; margin-bottom: 24px; }
+.send-link button {
+  background: transparent; border: 0;
+  color: var(--text-dim);
+  font-family: inherit; font-size: 13px;
+  cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--border-soft);
+  text-underline-offset: 4px;
+  transition: color 120ms;
+}
+.send-link button:hover { color: var(--warm-amber); }
+
+.explainer {
+  position: fixed; top: 12px; left: 12px;
+  background: rgba(31, 26, 22, 0.92); backdrop-filter: blur(8px);
+  border: 1px solid var(--border-soft); padding: 10px 14px; border-radius: 10px;
+  font-size: 11px; color: var(--text-muted); max-width: 280px; line-height: 1.5; z-index: 100;
+}
+.explainer strong { color: var(--warm-amber); display: block; margin-bottom: 4px; font-family: 'Fraunces', serif; font-size: 13px; }
+
+#sketch-tools {
+  position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+  font-family: system-ui; font-size: 12px;
+  background: rgba(0,0,0,0.78); color: white;
+  padding: 8px 12px; border-radius: 8px;
+  opacity: 0.45; transition: opacity 200ms;
+  display: flex; gap: 8px; align-items: center;
+}
+#sketch-tools:hover { opacity: 1; }
+#sketch-tools button { background: rgba(255,255,255,0.1); color: white; border: 0; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: inherit; }
+#sketch-tools button.active { background: var(--warm-amber); color: #1a1410; }
+
+@media (max-width: 480px) {
+  body { padding: 20px 16px 100px; }
+  .couch-headline { font-size: 1.45rem; }
+  .explainer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="explainer">
+  <strong>Variant 4 — Hybrid</strong>
+  Phone: tightened 5-col grid (filled+1 only). Desktop ≥768px: single-CTA layout. Resize window to see the shift.
+</div>
+
+<div class="state-toggle" role="tablist">
+  <button data-state="empty" class="active">0 in</button>
+  <button data-state="me-only">Me only</button>
+  <button data-state="mixed">4 of 8 in</button>
+</div>
+
+<div class="viewport-banner">
+  Active layout: <span class="which" id="layout-name">desktop (≥768px)</span> — resize window to switch
+</div>
+
+<div class="hero">
+  <svg class="hero-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="floorGlow4" cx="68%" cy="60%" r="40%">
+        <stop offset="0%" stop-color="#f4b860" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="leather4" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#a06a45"/>
+        <stop offset="100%" stop-color="#7a4d2f"/>
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="96" height="96" rx="18" fill="#1a120c"/>
+    <circle cx="68" cy="60" r="32" fill="url(#floorGlow4)"/>
+    <path d="M 25 30 Q 25 22 33 22 L 55 22 Q 60 22 60 28 L 60 38 Q 60 44 65 44 L 70 44 Q 75 44 75 50 L 75 70 Q 75 76 67 76 L 33 76 Q 25 76 25 68 Z" fill="url(#leather4)" stroke="#5d3820" stroke-width="0.6"/>
+    <rect x="78" y="48" width="3" height="12" fill="#d4a574"/>
+    <circle cx="79.5" cy="46" r="4" fill="#f4b860"/>
+  </svg>
+  <h1 class="couch-headline">On the couch tonight</h1>
+  <p class="couch-sub" id="sub-line">Pull up a seat</p>
+</div>
+
+<!-- Phone layout -->
+<div class="phone-only">
+  <div class="phone-grid" id="phone-grid"></div>
+</div>
+
+<!-- Desktop layout -->
+<div class="desktop-only">
+  <button class="desktop-cta find" id="desktop-cta">Find a seat</button>
+  <div class="roster-thin" id="roster-thin"></div>
+</div>
+
+<p class="tally-line"><span class="num" id="count-num">0</span> of 8 watching</p>
+<div class="send-link" id="send-link">
+  <button onclick="alert('Sketch: would open share/push sheet')">Send pushes to the rest</button>
+</div>
+
+<div id="sketch-tools">
+  <span style="opacity:0.6">viewport</span>
+  <button onclick="setViewport(375)">📱</button>
+  <button onclick="setViewport(768)">▭</button>
+  <button onclick="setViewport(1280)" class="active">🖥</button>
+</div>
+
+<script>
+const FAMILY = [
+  { id: 'me',    name: 'Nahder',  initial: 'N', color: '#8b5cf6', isMe: true  },
+  { id: 'wife',  name: 'Ashley',  initial: 'A', color: '#ec4899', isMe: false },
+  { id: 'kid1',  name: 'Brody',   initial: 'B', color: '#f59e0b', isMe: false },
+  { id: 'kid2',  name: 'Arianna', initial: 'A', color: '#14b8a6', isMe: false },
+  { id: 'mom',   name: 'Mom',     initial: 'M', color: '#3b82f6', isMe: false },
+  { id: 'dad',   name: 'Dad',     initial: 'D', color: '#22c55e', isMe: false },
+  { id: 'tyler', name: 'Tyler',   initial: 'T', color: '#ef4444', isMe: false },
+  { id: 'sam',   name: 'Sam',     initial: 'S', color: '#6366f1', isMe: false },
+];
+let inState = new Set();
+
+function render() {
+  const num = inState.size;
+  document.getElementById('count-num').textContent = num;
+
+  const sub = document.getElementById('sub-line');
+  if (num === 0) sub.textContent = 'Pull up a seat';
+  else if (num === 1 && inState.has('me')) sub.textContent = "It's just you so far";
+  else sub.textContent = `${num} ${num === 1 ? 'person' : 'people'} watching tonight`;
+
+  // Phone grid: render filled cells + ONE empty (capped at filled+1, max 5)
+  const grid = document.getElementById('phone-grid');
+  grid.innerHTML = '';
+  const claimed = FAMILY.filter(m => inState.has(m.id));
+  claimed.forEach(m => {
+    const c = document.createElement('div');
+    c.className = `cell filled ${m.isMe ? 'me' : ''}`;
+    c.style.background = m.color;
+    c.textContent = m.initial;
+    c.onclick = () => toggle(m.id);
+    grid.appendChild(c);
+  });
+  if (claimed.length < FAMILY.length) {
+    const e = document.createElement('div');
+    e.className = 'cell empty glow';
+    e.textContent = '+';
+    e.onclick = () => {
+      // Find first un-claimed family member; if me's not in, pick me; else open invite-style action
+      const next = FAMILY.find(m => !inState.has(m.id));
+      if (next) toggle(next.id);
+    };
+    grid.appendChild(e);
+  }
+
+  // Desktop CTA
+  const cta = document.getElementById('desktop-cta');
+  if (inState.has('me')) {
+    cta.className = 'desktop-cta leave';
+    cta.textContent = 'Leave couch';
+  } else {
+    cta.className = 'desktop-cta find';
+    cta.textContent = 'Find a seat';
+  }
+
+  // Desktop thin roster
+  const roster = document.getElementById('roster-thin');
+  roster.innerHTML = '';
+  FAMILY.forEach(m => {
+    const isIn = inState.has(m.id);
+    const a = document.createElement('div');
+    a.className = `micro ${isIn ? 'in' : 'out'} ${m.isMe ? 'me' : ''}`;
+    a.style.background = m.color;
+    a.textContent = m.initial;
+    a.title = m.name + (m.isMe ? ' (you)' : '');
+    a.onclick = () => toggle(m.id);
+    roster.appendChild(a);
+  });
+
+  const out = FAMILY.length - num;
+  document.getElementById('send-link').style.display = out > 0 ? '' : 'none';
+}
+
+function toggle(id) {
+  if (inState.has(id)) inState.delete(id);
+  else inState.add(id);
+  render();
+}
+
+document.getElementById('desktop-cta').onclick = () => toggle('me');
+
+document.querySelectorAll('.state-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.state-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const state = btn.dataset.state;
+    inState = new Set();
+    if (state === 'me-only') inState.add('me');
+    if (state === 'mixed') ['me', 'wife', 'kid1', 'kid2'].forEach(id => inState.add(id));
+    render();
+  };
+});
+
+function updateLayoutBanner() {
+  const w = window.innerWidth;
+  document.getElementById('layout-name').textContent = w >= 768 ? 'desktop (≥768px)' : 'phone (<768px)';
+}
+window.addEventListener('resize', updateLayoutBanner);
+updateLayoutBanner();
+
+function setViewport(w) {
+  document.body.style.maxWidth = w === 1280 ? '720px' : (w + 'px');
+  document.querySelectorAll('#sketch-tools button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  // Note: viewport tool changes max-width but not actual viewport, so the @media query
+  // doesn't re-trigger. For real layout testing, use browser resize or DevTools device mode.
+}
+
+render();
+</script>
+</body>
+</html>

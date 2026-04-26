@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Couch Viz Redesign — 5 Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #14110f;
+  --surface: #1f1a16;
+  --surface-elev: #2a241f;
+  --border-soft: #2a241f;
+  --text: #f5ede1;
+  --text-muted: #b3a797;
+  --text-dim: #6e6356;
+  --warm-amber: #d4a574;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  padding: 48px 32px 80px;
+  -webkit-font-smoothing: antialiased;
+  max-width: 920px;
+  margin: 0 auto;
+}
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 2.2rem;
+  letter-spacing: -0.025em;
+  margin-bottom: 6px;
+}
+.subhead {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  margin-bottom: 36px;
+}
+.context {
+  background: var(--surface);
+  border-left: 3px solid var(--warm-amber);
+  padding: 18px 22px;
+  border-radius: 0 12px 12px 0;
+  margin-bottom: 40px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.context strong { color: var(--text); font-weight: 600; }
+.context p + p { margin-top: 10px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-bottom: 40px;
+}
+.card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.4, 1), border-color 200ms, box-shadow 200ms;
+  position: relative;
+}
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--warm-amber);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+}
+.card .num {
+  font-family: 'Fraunces', serif;
+  font-size: 0.85rem;
+  color: var(--warm-amber);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.card h3 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.card p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.card .modes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'Inter';
+}
+.card .mode-line { display: flex; gap: 8px; }
+.card .mode-line .check { color: #22c55e; font-weight: 600; width: 14px; }
+.card .mode-line .x { color: #ef4444; font-weight: 600; width: 14px; }
+.card .mode-line .warn { color: var(--warm-amber); font-weight: 600; width: 14px; }
+.card.starred { border-color: var(--warm-amber); background: linear-gradient(135deg, rgba(217, 122, 60, 0.06) 0%, var(--surface) 100%); }
+.card.starred::before {
+  content: '★ proposed';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: var(--warm-amber);
+  color: #1a1410;
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.problem-snapshot {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 36px;
+}
+.problem-snapshot h4 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 1rem;
+  color: #f87171;
+  margin-bottom: 8px;
+}
+.problem-snapshot p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 32px;
+  font-size: 13px;
+}
+.compare-table th,
+.compare-table td {
+  border: 1px solid var(--border-soft);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.compare-table th {
+  background: var(--surface);
+  color: var(--warm-amber);
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+}
+.compare-table td.label {
+  font-weight: 600;
+  color: var(--text);
+  font-family: 'Fraunces', serif;
+}
+.compare-table .y { color: #22c55e; font-weight: 700; }
+.compare-table .n { color: #ef4444; font-weight: 700; }
+.compare-table .w { color: var(--warm-amber); font-weight: 700; }
+.compare-table .scale { color: var(--text-muted); font-style: italic; }
+
+.footer-link {
+  text-align: center;
+  margin-top: 48px;
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.footer-link a { color: var(--warm-amber); text-decoration: none; border-bottom: 1px dashed var(--warm-amber); padding-bottom: 1px; }
+.footer-link a:hover { color: var(--text); border-bottom-color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>Couch viz redesign</h1>
+<p class="subhead">Five candidate directions for "Who's on the couch tonight?"</p>
+
+<div class="problem-snapshot">
+  <h4>What we're rethinking</h4>
+  <p>Phase 14-04 ships <code>couchSize = max(2, totalMembers, claimedCount)</code> capped at 10 → on an 8-member family with 1 claim, you get 1 filled circle followed by 7 dashed-amber <code>+</code> placeholders stretching the screen. User flagged this as "sloppy" and "cluttered."</p>
+</div>
+
+<div class="context">
+  <p><strong>Dual-mode constraint.</strong> Whatever we pick must accommodate both:</p>
+  <p><strong>1. Proxy-fill</strong> — One person physically present marks who's on the couch (e.g. dad at home filling in wife + kids). One operator, multiple seats filled in one session.</p>
+  <p><strong>2. Self-claim / remote ping</strong> — One person remote (e.g. dad at work) wants to see who's down for tonight. Pings family/friends, watches the surface fill in real-time as each person taps in.</p>
+</div>
+
+<div class="grid">
+  <a class="card" href="variant-1-density.html">
+    <div class="num">VARIANT 1</div>
+    <h3>Density</h3>
+    <p>Slack-style overlapping mini-avatars. Tap any avatar to flip in/out. Single CTA below. No fake placeholders.</p>
+    <div class="modes">
+      <div class="mode-line"><span class="check">✓</span>Self-claim</div>
+      <div class="mode-line"><span class="check">✓</span>Proxy-fill</div>
+      <div class="mode-line"><span class="check">✓</span>Remote ping</div>
+      <div class="mode-line"><span class="x">✗</span>Loses per-cushion metaphor</div>
+    </div>
+  </a>
+
+  <a class="card" href="variant-2-filled-only.html">
+    <div class="num">VARIANT 2</div>
+    <h3>Filled-only + Invite</h3>
+    <p>Only claimed seats render. ONE trailing dashed "+ Invite" cell opens a sheet to mark family in. Vacate via × on hover.</p>
+    <div class="modes">
+      <div class="mode-line"><span class="check">✓</span>Self-claim</div>
+      <div class="mode-line"><span class="check">✓</span>Proxy-fill (via sheet)</div>
+      <div class="mode-line"><span class="check">✓</span>Remote ping</div>
+      <div class="mode-line"><span class="warn">⚠</span>Two-tap to seat someone</div>
+    </div>
+  </a>
+
+  <a class="card" href="variant-3-single-cta.html">
+    <div class="num">VARIANT 3</div>
+    <h3>Single CTA</h3>
+    <p>Big pill button flips Find a seat / Leave couch. Roster as thin micro-avatar underline. Most "Apple Health" feel.</p>
+    <div class="modes">
+      <div class="mode-line"><span class="check">✓</span>Self-claim</div>
+      <div class="mode-line"><span class="warn">⚠</span>Proxy-fill (small targets)</div>
+      <div class="mode-line"><span class="check">✓</span>Remote ping</div>
+      <div class="mode-line"><span class="x">✗</span>Roster de-emphasized</div>
+    </div>
+  </a>
+
+  <a class="card" href="variant-4-hybrid.html">
+    <div class="num">VARIANT 4</div>
+    <h3>Hybrid</h3>
+    <p>Phone keeps tightened 5-col grid (filled+1 cells). Desktop ≥768px falls to single-CTA layout.</p>
+    <div class="modes">
+      <div class="mode-line"><span class="check">✓</span>Self-claim</div>
+      <div class="mode-line"><span class="warn">⚠</span>Proxy-fill (varies)</div>
+      <div class="mode-line"><span class="check">✓</span>Remote ping</div>
+      <div class="mode-line"><span class="warn">⚠</span>2 mental models = teaching cost</div>
+    </div>
+  </a>
+
+  <a class="card starred" href="variant-5-roster-control.html">
+    <div class="num">VARIANT 5</div>
+    <h3>Roster IS the control</h3>
+    <p>Each family member is a toggleable pill. Tap = in/out. Long-press out-pill = send push. One surface, all three modes native.</p>
+    <div class="modes">
+      <div class="mode-line"><span class="check">✓</span>Self-claim (tap your YOU pill)</div>
+      <div class="mode-line"><span class="check">✓</span>Proxy-fill (tap any pill)</div>
+      <div class="mode-line"><span class="check">✓</span>Remote ping (long-press)</div>
+      <div class="mode-line"><span class="check">✓</span>No abstract seats</div>
+    </div>
+  </a>
+</div>
+
+<h2 style="font-family:'Fraunces',serif;font-weight:500;font-size:1.5rem;letter-spacing:-0.02em;margin-bottom:18px;">Side-by-side</h2>
+
+<table class="compare-table">
+  <thead>
+    <tr>
+      <th></th>
+      <th>V1 Density</th>
+      <th>V2 Filled+Invite</th>
+      <th>V3 Single CTA</th>
+      <th>V4 Hybrid</th>
+      <th>V5 Roster ★</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="label">Self-claim ergonomics</td><td class="y">✓ 1 tap</td><td class="y">✓ 1 tap</td><td class="y">✓ 1 tap</td><td class="y">✓ 1 tap</td><td class="y">✓ 1 tap</td></tr>
+    <tr><td class="label">Proxy-fill ergonomics</td><td class="y">✓ 1 tap each</td><td class="w">⚠ 2 taps via sheet</td><td class="w">⚠ Small targets</td><td class="w">⚠ Phone-only</td><td class="y">✓ 1 tap each</td></tr>
+    <tr><td class="label">Remote ping discoverability</td><td class="w">⚠ Long-press</td><td class="y">✓ Sheet-native</td><td class="y">✓ Text link</td><td class="y">✓ Text link</td><td class="y">✓ Long-press + link</td></tr>
+    <tr><td class="label">Empty placeholders</td><td class="y">✓ None</td><td class="y">✓ None (1 invite)</td><td class="y">✓ None</td><td class="w">⚠ filled+1 on phone</td><td class="y">✓ None (real members)</td></tr>
+    <tr><td class="label">Visual restraint</td><td class="scale">High</td><td class="scale">High</td><td class="scale">Highest</td><td class="scale">Med</td><td class="scale">High</td></tr>
+    <tr><td class="label">Per-cushion direct manipulation</td><td class="n">✗ Lost</td><td class="y">✓ Kept</td><td class="n">✗ Lost</td><td class="y">✓ Phone only</td><td class="scale">N/A — replaced w/ pill</td></tr>
+    <tr><td class="label">Empty-state look (0 in)</td><td class="scale">Dim stack</td><td class="scale">Pulsing single +</td><td class="scale">Big CTA only</td><td class="scale">Single empty cell</td><td class="scale">Dashed-pill roster</td></tr>
+    <tr><td class="label">All-in look (8 of 8)</td><td class="scale">Dense color stack</td><td class="scale">8 circles, no invite</td><td class="scale">Full micro-row</td><td class="scale">Phone: 5 col + scroll</td><td class="scale">Full pill grid</td></tr>
+    <tr><td class="label">Roadmap-fit (Flow A picker)</td><td class="y">✓ Stack stays compact</td><td class="y">✓ Stack stays compact</td><td class="w">⚠ Roster-line cramped</td><td class="w">⚠ Two layouts to wire</td><td class="y">✓ Pills carry to picker</td></tr>
+    <tr><td class="label">Implementation churn vs current</td><td class="scale">Med (DOM rewrite)</td><td class="scale">Med-High (sheet)</td><td class="scale">Low (button + row)</td><td class="scale">High (2 layouts)</td><td class="scale">Med (DOM rewrite, simpler)</td></tr>
+  </tbody>
+</table>
+
+<p class="footer-link">
+  My read: <a href="variant-5-roster-control.html">Variant 5</a> handles the dual-mode constraint most naturally — but pick whichever feels right after clicking through.<br>
+  See <a href="README.md">README.md</a> for fuller comparison + implementation notes.
+</p>
+
+</body>
+</html>
