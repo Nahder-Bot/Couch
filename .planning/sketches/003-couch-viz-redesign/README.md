@@ -2,7 +2,9 @@
 sketch: 003
 name: couch-viz-redesign
 question: "How should the 'Who's on the couch tonight?' control work, given it must serve both proxy-fill (one operator marks family in) AND self-claim/remote-ping (each member taps in)?"
-winner: null
+winner: "5"
+winner_name: "Roster IS the control"
+locked_at: 2026-04-26T18:30:00Z
 tags: [hero, couch-viz, decision-ritual, dual-mode, redesign]
 ---
 

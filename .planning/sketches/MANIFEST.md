@@ -23,6 +23,9 @@ Sketches explore the central object on the Tonight tab — the visualization tha
 | Functional UI pattern | 5×2 avatar grid with empty-slot ＋ glow (per Netflix / Disney+ / Zoom precedent) | Sketch 001 winner (P) |
 | Capacity | 1-10 members native, no overflow cushion needed | Sketch 001 winner (P) |
 | Production icon swap | Reference `/mark-512.png` directly — auto-propagates when icon updates | Sketch 001 winner (P) |
+| Couch viz interaction model | **Roster IS the control** — each family member is a toggleable pill. Tap = in/out. Long-press = send push. No abstract "seats" — direct manipulation on real domain objects (people). Replaces 14-04 cushion-grid metaphor. | Sketch 003 winner (V5) |
+| Firestore data shape | Migrate `families/{code}.couchSeating: { [memberId]: index }` (positional) → `families/{code}.couchInTonight: { [memberId]: { in: bool, at: timestamp, proxyConfirmedBy?: memberId } }` (member-keyed). Keep legacy field readable for one PWA cache cycle. | Sketch 003 winner (V5) |
+| Dual-mode requirement | Same gesture vocabulary serves proxy-fill (one operator marks family in), self-claim (member taps own pill), remote-ping (long-press out-pill sends push). No mode toggle. | Sketch 003 winner (V5) |
 
 ## Sketches
 
@@ -30,7 +33,7 @@ Sketches explore the central object on the Tonight tab — the visualization tha
 |---|------|----------------|--------|------|
 | 001 | couch-shape | What visual best represents 'who's on the couch tonight' for up to 10 members in Couch's warm-dark brand? | **P** (Hero icon + avatar grid) | phase-14, d-06, hero-icon, avatar-grid |
 | 002 | couch-wordmark | How should the existing C-icon combine with a wordmark to form a complete brand lockup? | ⏸ **Superseded by Fiverr brand design** (Standard $85, ETA 2026-04-28) | brand, wordmark, lockup, superseded |
-| 003 | couch-viz-redesign | How should the "Who's on the couch tonight?" control work, given it must natively support both proxy-fill AND self-claim/remote-ping? | (pending review — V5 proposed) | phase-14, d-06, redesign, dual-mode, post-uat |
+| 003 | couch-viz-redesign | How should the "Who's on the couch tonight?" control work, given it must natively support both proxy-fill AND self-claim/remote-ping? | **V5** (Roster IS the control) | phase-14, d-06, redesign, dual-mode, post-uat |
 
 ## Pending External Deliverables
 
