@@ -5237,6 +5237,13 @@ function renderFullQueue(el, presetList) {
     </div>`;
   }).join('');
   attachQueueDragReorder(el, myQueue);
+  // Plan 14-09 / D-10 — anchor onboarding tooltip on first Library queue render (one-shot).
+  setTimeout(() => {
+    const firstRow = el.querySelector('.full-queue-row');
+    if (firstRow && typeof maybeShowTooltip === 'function') {
+      maybeShowTooltip('queueDragReorder', firstRow, 'Drag to reorder your queue.');
+    }
+  }, 200);
 }
 
 // Group weighted rank map — for each title, what's its group priority rank?
@@ -12242,6 +12249,35 @@ window.replayOnboarding = function() {
   showOnboardingStep(1);
 };
 
+// === Plan 14-09 / D-10 maybeShowTooltip gate — DECI-14-10 ===
+// One-shot anchored tooltip gated on members/{id}.seenTooltips.{primId}.
+// Reads the live member doc (state.members) so cross-tab updates land; falls back
+// to state.me.seenTooltips for first-render bootstrapping. Writes the flag on
+// display so the next render skips. Guests skip entirely (no Firestore writes).
+// Adapted from maybeShowFirstRunOnboarding above — same gate-pattern, sub-map key
+// instead of a top-level boolean, and fired at moment-of-encounter (in render
+// handlers) not at boot.
+//
+// firestore.rules audit (Plan 14-09 Task 2 §5): the members/{memberId} update
+// branch (queuenight/firestore.rules:192-202) is permissive — any field write by
+// self/owner/parent passes. seenTooltips.{primId} writes go through unchanged.
+async function maybeShowTooltip(primId, targetEl, message, opts) {
+  if (!state.me || !targetEl) return;
+  if (state.me.type === 'guest') return; // guests skip — no Firestore write
+  const liveMe = (state.members || []).find(m => m.id === state.me.id);
+  const seenMap = (liveMe && liveMe.seenTooltips) || (state.me.seenTooltips) || {};
+  if (seenMap[primId]) return;
+  showTooltipAt(targetEl, message, opts);
+  try {
+    await updateDoc(doc(membersRef(), state.me.id), {
+      [`seenTooltips.${primId}`]: true,
+      ...writeAttribution()
+    });
+  } catch (e) {
+    console.error('[tooltip] flag write failed', e);
+  }
+}
+
 // ===== Plan 09-07a — Legacy family self-claim flow =====
 // Renders CTA in Account settings when state.ownerUid == null && !dismissed.
 // first-write-wins: second tapper gets a permission-denied (rule denies write once
@@ -12872,6 +12908,12 @@ function renderCouchViz() {
     <p class="couch-sub">${claimedCount > 0 ? `${claimedCount} of ${couchSize} here` : 'Tap a seat to claim it'}</p>
     ${renderCouchAvatarGrid(couchSize)}
   `;
+  // Plan 14-09 / D-10 — anchor onboarding tooltip on the first empty cushion (one-shot).
+  // setTimeout lets the DOM settle so getBoundingClientRect returns final coords.
+  const firstCushion = container.querySelector('.seat-cell.empty');
+  if (firstCushion && typeof maybeShowTooltip === 'function') {
+    setTimeout(() => maybeShowTooltip('couchSeating', firstCushion, 'Tap a cushion to seat yourself.', { placement: 'above' }), 200);
+  }
 }
 
 function renderCouchAvatarGrid(couchSize) {
@@ -13028,6 +13070,13 @@ window.openTileActionSheet = function(titleId, e) {
   items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openActionSheet('${titleId}',event)"><span class="icon">⋯</span>More options</button>`);
   content.innerHTML = `<div class="action-sheet-title">${escapeHtml(t.name)}</div>${items.join('')}`;
   document.getElementById('action-sheet-bg').classList.add('on');
+  // Plan 14-09 / D-10 — anchor onboarding tooltip on first action-sheet open (one-shot).
+  setTimeout(() => {
+    const sheetEl = document.getElementById('action-sheet-content');
+    if (sheetEl && typeof maybeShowTooltip === 'function') {
+      maybeShowTooltip('tileActionSheet', sheetEl, 'These are your options for this title.', { placement: 'above' });
+    }
+  }, 200);
 };
 
 window.openActionSheet = function(titleId, e) {
