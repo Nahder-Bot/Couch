@@ -3,44 +3,42 @@ status: testing
 phase: 14-decision-ritual-core
 source: 14-01-SUMMARY.md, 14-02-SUMMARY.md, 14-03-SUMMARY.md, 14-04-SUMMARY.md, 14-05-SUMMARY.md, 14-06-SUMMARY.md, 14-07-SUMMARY.md, 14-08-SUMMARY.md, 14-09-SUMMARY.md
 started: 2026-04-26T00:00:00Z
-updated: 2026-04-26T19:34:00Z
+updated: 2026-04-26T17:05:00Z
 ---
 
 ## Current Test
 
-[paused — environment is serving pre-v34 code; v34 surfaces (couch viz, redesigned tile, Flow A/B entries) are not rendering. Awaiting user direction: deploy v34 to test environment first, OR mark v34-dependent tests as blocked and continue with the few that don't depend on v34 UI.]
+[paused — design-direction call needed on couch viz before continuing. Tests 2/3/5/24 all touch the same surface; user wants a streamlined "Apple-style" rethink rather than fixing-in-place.]
 
 ## Tests
 
 ### 1. Cold Start Smoke Test
 expected: Open the app in a fresh browser session (or fully close + reopen the installed PWA). Sign in. The app shell boots without errors. Family + members + titles hydrate. Tonight tab loads with the new Couch viz at the top, then existing surfaces below.
-result: blocked
-blocked_by: release-build
-reason: "Tonight tab boots OK and family/titles hydrate, but it does NOT show the new Couch viz at the top — the v34 surface is not running in this test environment. See screenshot in user's response to test 5. Per 14-09 SUMMARY Task 7 is DEFERRED: queuenight CFs uncommitted, firestore:rules undeployed, couch hosting undeployed; whatever URL was tested is still serving pre-v34 (v33.3) code."
+result: pass
+note: "App booted v34 cleanly after force-unregister of stale sw. Couch viz hero + headline + sub-count + 1st claim all rendered. UX issues with the rendered surface logged against Test 2/3/5/24 via composite issue below — not a cold-start failure."
 
 ### 2. Couch viz hero + headline render (14-04)
 expected: Tonight tab leads with the C-sectional couch icon (mark-512.png) at top with a subtle warm halo + drop shadow. Below it: Fraunces "On the couch tonight" headline + italic Instrument Serif sub-count ("N of M here" or "Tap a seat to claim it" when nobody is seated yet).
-result: blocked
-blocked_by: release-build
-reason: "Initial 'yes' was a false-positive — screenshot from test 5 shows the existing pre-Phase-14 'WHO'S ON THE COUCH' member-pill chip rail at the top, not the new v34 couch hero icon + Fraunces headline. v34 hosting deploy is pending (Task 7 DEFERRED)."
+result: pass
+note: "Hero + Fraunces headline + italic '1 of 7 here' sub-count all rendered correctly per spec. Aesthetic critiques rolled up into composite Issue #1 in Gaps."
 
 ### 3. Couch viz avatar grid layout (14-04)
 expected: Avatar grid below the headline shows cells matching couchSize = max(2, totalMembers, claimedCount), capped at 10. On phone width it wraps 5×2; on desktop ≥768px it lays out 10×1. Each empty cell is a dashed amber circle with a ＋ glyph.
-result: blocked
-blocked_by: release-build
-reason: "Screenshot shows the pre-Phase-14 horizontal avatar pill rail, not the new dashed-amber grid of seat-cells. v34 hosting deploy pending."
+result: issue
+reported: "Buttons go too far the right. 7 blank spots to open which just clutters it. Should rethink how this works so it's streamlined — like Apple did it."
+severity: major
 
 ### 4. Claim a cushion (14-04)
 expected: Tap an empty cell — it flips to a filled member-color circle showing your initial; "me" cell gets a warm-amber outline. Sub-count updates to reflect the new claim.
-result: blocked
-blocked_by: release-build
-reason: "No new seat-cell grid exists in the test environment to claim — pre-v34 code is running. (Original response was 'skip'; reclassifying as release-build blocked since the underlying cause is the missing deploy.)"
+result: pass
+note: "First claim worked — purple N circle + 'NAHDER' label rendered with amber outline + sub-count updated to '1 of 7 here'."
 
 ### 5. Vacate own cushion (14-04)
 expected: Tap your own claimed cell — it flips back to dashed empty; sub-count decrements.
-result: blocked
-blocked_by: release-build
-reason: "User reported 'I'm not seeing it' with screenshot confirming the new v34 couch viz is absent in this test environment. v34 hosting + queuenight CFs + firestore:rules deploy are all DEFERRED per 14-09 SUMMARY Task 7."
+result: issue
+reported: "I can only click once."
+severity: major
+note: "User reports vacate path not discoverable / not working from claimed-state UI."
 
 ### 6. Already-claimed cushion toast (14-04)
 expected: Tap a cell already claimed by someone else — toast appears: "That seat is already claimed". Cell is unchanged.
@@ -116,7 +114,10 @@ result: [pending]
 
 ### 24. Empty state (c) — Flow A no couch + cushion-glow (14-09)
 expected: With 0 cushions claimed on the couch viz, Flow A entry shows: "Who's on the couch tonight? / Tap to seat yourself + invite family." with a "Find a seat" CTA. Empty couch cushions in the viz pulse warm-amber via cushion-glow animation (animation respects prefers-reduced-motion).
-result: [pending]
+result: issue
+reported: "Find-a-seat empty-state card still showing despite 1 seat claimed."
+severity: major
+note: "Gate is wrong — `renderFlowAEntry` re-renders on intents-snapshot but NOT on family-doc snapshot, so the DOM never updates after claim. Diagnosed root cause in Gaps Issue #1 / Bug B."
 
 ### 25. Flow A entry CTA appears under Couch viz (14-07)
 expected: With at least one cushion claimed, Tonight tab shows a CTA card directly below the Couch viz: "Pick a movie for the couch" with member-count line and an "Open picker" button.
@@ -225,45 +226,72 @@ result: [pending]
 ## Summary
 
 total: 50
-passed: 0
-issues: 0
-pending: 45
+passed: 3
+issues: 3
+pending: 44
 skipped: 0
-blocked: 5
+blocked: 0
 
 ## Gaps
 
-[none yet — no code-level issues confirmed; session-wide blocker is environment/deploy state, not Phase 14 code]
+- truth: "Couch viz hero is the single source of truth for who's on the couch — legacy who-card pill rail must not double up below it."
+  status: failed
+  reason: "User reported: 'Still has the who is on the couch below it' — the new viz and the old chip rail both render on Tonight."
+  severity: major
+  test: 1
+  artifacts:
+    - app.html:334 — `<div class="who-card">` rendered unconditionally; never removed/hidden by Phase 14-04
+    - js/app.js:4460 — applyModeLabels still pushes copy into #who-title-label
+    - css/app.css:1645 — .who-card styling still active
+  root_cause: "Phase 14-04 added couch viz ABOVE the legacy Phase 11 who-card but never deleted/hid the legacy element. Two surfaces now show the same roster simultaneously."
+  fix_direction: "Remove `.who-card` block from app.html Tonight tab (lines 334-337). Drop now-orphan applyModeLabels who-title-label set. Keep .who-card CSS for now in case any other surface uses it (grep first)."
+  missing: []
+
+- truth: "After a member claims a seat, the 'Find a seat' empty-state CTA should disappear immediately — not wait for an unrelated snapshot."
+  status: failed
+  reason: "User claimed seat (purple N rendered, sub-count flipped to '1 of 7 here'), but the 🛋 + 'Who's on the couch tonight?' + 'Find a seat' card stayed on screen."
+  severity: major
+  test: 24
+  artifacts:
+    - js/app.js:4131-4150 — family-doc onSnapshot hydrates state.couchMemberIds + calls renderCouchViz() but NOT renderFlowAEntry()
+    - js/app.js:13994-14014 — renderFlowAEntry empty-state branch (couchSize < 1)
+    - js/app.js:4155-4168 — intents onSnapshot DOES call renderFlowAEntry, which is why it hasn't been caught (any unrelated intent write would have flipped it)
+  root_cause: "renderFlowAEntry is gated correctly but only re-rendered by the intents snapshot. The family-doc snapshot updates state.couchMemberIds without re-running it, so the dependent CTA goes stale until a separate intent write fires."
+  fix_direction: "Add `if (typeof renderFlowAEntry === 'function') renderFlowAEntry();` immediately after the renderCouchViz() call at js/app.js:4144 inside the family-doc onSnapshot block."
+  missing: []
+
+- truth: "The couch viz should feel streamlined — not a row of empty placeholders to scan past on a desktop viewport."
+  status: failed
+  reason: "User reported: '7 blank spots to open which just clutters it. Should rethink how this works so it's streamlined — like Apple did it.' Also: 'I can only click once' (no obvious vacate / re-claim affordance from the claimed-state UI)."
+  severity: major
+  test: 3
+  artifacts:
+    - js/app.js:12964 — `couchSize = Math.min(COUCH_MAX_SLOTS, Math.max(2, totalMembers, claimedCount))` produces 8-cell row for 8-member family
+    - js/app.js:12980-13010 — renderCouchAvatarGrid pre-renders one cell per index regardless of claimed state
+    - css/app.css:3182-3196 — .couch-avatar-grid 5-col phone / 10-col desktop grid
+    - css/app.css:3138-3146 — .couch-viz-container max-width:480px (centered) but child grid escapes visually on wide desktop
+  root_cause: "By spec (14-04 D-06): always pre-render one cell per couchSize. Designed for the 'tap an empty cushion to claim' affordance. On desktop with 8 family members + 1 claim, the result is 1 filled circle followed by 7 dashed-amber placeholders stretching to the right edge. Vacate UX exists in code (re-tapping your own filled cell) but isn't visually signposted."
+  fix_direction: "DESIGN-DIRECTION DECISION REQUIRED — not a one-line fix. Options on the table (need user input):
+    1. Density: compact stack of overlapping mini-avatars + single 'Find a seat' CTA. Empty cushions never rendered as cells; one button replaces all 7 placeholders.
+    2. Filled-only + invite: render only claimed seats as full circles, then ONE dashed '+' cell labeled 'Invite' that opens the share-link modal. Add a separate 'I'm out tonight' chip on your own claimed seat for vacate.
+    3. Single-CTA Apple-style: hero icon + headline + one prominent pill button that flips between 'Find a seat' / 'Leave couch' depending on your own state. Roster shown as a thin underline of mini-avatars. Tap the button — no per-cushion grid at all.
+    4. Hybrid: phone keeps the current 5-col grid (it works at narrow width). Desktop falls back to Option 3 single-CTA at ≥768px."
+  missing:
+    - Decision on which streamlined approach to take (Option 1/2/3/4 or alternative)
+    - Vacate-seat affordance (long-press? second tap? explicit 'Leave couch' button?)
+    - Whether to keep the cushion-glow pulse animation in the new design
+
+## Pending design call
+
+User flagged the couch viz as "sloppy" and requested a streamlined Apple-style rethink. Three of the bugs above (`who-card` regression, `renderFlowAEntry` gate, vacate UX) are clean code fixes. The fourth (cell count + desktop layout) is a design direction call that needs to land BEFORE we plan the fix for it — the answer changes whether we delete or just tighten `renderCouchAvatarGrid`. UAT pause is at Test 5; tests 6-50 will land cleaner against the redesigned surface.
 
 ## Session-wide blocker
 
-**Test environment is serving pre-v34 code.** All 5 tests run so far (#1, #2, #3, #4, #5) are blocked by the same root cause: the v34 surfaces from Phase 14 (Couch viz, redesigned tile, Flow A/B entry CTAs, etc.) are not rendering in the user's test environment. The screenshot attached to test 5 confirms the pre-Phase-14 member-pill chip rail + old "Vote" tile button + old "X 👍" pill are still in place.
+**RESOLVED 2026-04-26T16:50Z** — v34 deploy gate cleared. Verified live state on resume:
 
-This matches the documented deferred-deploy state in `14-09-SUMMARY.md` Task 7 (`ship_state: CODE-COMPLETE — Tasks 1-6 shipped across 5 atomic couch commits; Task 7 (CFs+hosting deploy) DEFERRED`):
+- `couchtonight.app/sw.js` serves `CACHE = 'couch-v34.0-decision-ritual'` (hosting deploy ran)
+- `~/queuenight/firestore.rules` has 5 `couchSeating` references (14-04 rules in place)
+- `~/queuenight/functions/index.js` has 11 Flow A/B push-type references (14-06 + 14-09 D-12 CFs in place)
+- `~/queuenight/public/sw.js` mirror file matches couch repo sw.js (deploy.sh ran)
 
-1. `~/queuenight/functions/index.js` NOTIFICATION_DEFAULTS edit applied in-place but UNCOMMITTED on this machine.
-2. `firebase deploy --only functions` (queuenight CFs) — NOT YET RUN.
-3. `firebase deploy --only firestore:rules --project queuenight-84044` — NOT YET RUN (per 14-04 deploy gate; without this, `couchSeating` writes will be denied in prod).
-4. `bash scripts/deploy.sh 34.0-decision-ritual` (couch hosting + sw.js bump) — NOT YET RUN.
-
-**To unblock the rest of UAT, run the cross-repo deploy ritual** (from `14-09-SUMMARY.md` "Task 7 — DEFERRED deploy gate"):
-
-```bash
-# 1) Commit + deploy queuenight CFs
-cd ~/queuenight
-git add functions/index.js
-git commit -m "feat(14-06+14-09): extend intents CFs + add D-12 push categories"
-firebase deploy --only functions
-
-# 2) Deploy firestore.rules so couchSeating writes are accepted in prod
-firebase deploy --only firestore:rules --project queuenight-84044
-
-# 3) Deploy couch hosting + sw.js v34 CACHE bump
-cd ~/claude-projects/couch
-bash scripts/deploy.sh 34.0-decision-ritual
-
-# 4) On any installed PWA (or browser): refresh while online so the new sw.js
-#    activates couch-v34.0-decision-ritual CACHE; the new v34 surfaces become visible.
-```
-
-After deploy, re-run `/gsd-verify-work 14` — this UAT file resumes from test 1 with the 5 blocked tests reset, and the remaining 45 pending tests run against the live v34 build.
+The 5 previously-blocked tests (1-5) have been reset to `[pending]` so they re-run against the now-live v34 build. Original blocker text retained in git history (commit `13e08d5`).
