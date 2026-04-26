@@ -255,12 +255,40 @@ idempotent.
 
 ### Task 7 — DEFERRED deploy gate (CHECKPOINT)
 
-Per the executor-context note, this plan has a `type="checkpoint:human-
-action"` task that returns `## CHECKPOINT REACHED` rather than executing
-the cross-repo deploy. The user's anticipated response is `defer-deploy`
-matching the established Phase 14 pattern of bundling all UAT + deploy
-at end. See the Open follow-ups section below for the deploy ritual
-recap.
+**Status: DEFERRED** (not "deployed", not "deploy-failed" — explicitly
+deferred per user `defer-deploy` resume signal 2026-04-26.) This is a
+deliberate deferral matching the established Phase 14 pattern of bundling
+all multi-device UAT + the cross-repo deploy into a single batch
+pre-v34-production-deploy session (locked across 14-02, 14-04, 14-07,
+14-08, and now 14-09 as the 5th deferral).
+
+The deploy ritual itself remains valid and MUST run before Phase 14 ships
+to v34 production. Deploy order (for the future session, copy-pasteable):
+
+1. `cd ~/queuenight && git add functions/index.js && git commit -m "feat(14-06+14-09): extend intents CFs + add D-12 push categories" && firebase deploy --only functions`
+   — server-side `NOTIFICATION_DEFAULTS` learns the 7 D-12 keys and
+   14-06's `onIntentCreated` / `onIntentUpdate` / `watchpartyTick`
+   branches go live. **Required FIRST** so by the time hosting flips,
+   the CFs already understand the new event types and intent flows.
+2. `cd ~/queuenight && firebase deploy --only firestore:rules --project queuenight-84044`
+   — per the 14-04 Task 4 deploy gate; without this, `couchSeating`
+   writes from `persistCouchSeating()` will be denied by the rules
+   currently live in production.
+3. `cd ~/claude-projects/couch && bash scripts/deploy.sh 34.0-decision-ritual`
+   — auto-bumps `sw.js` CACHE if not already set (it IS — committed
+   9132144), mirrors couch repo into `queuenight/public/`, runs
+   `firebase deploy --only hosting`. Installed PWAs invalidate on next
+   online activation and pick up the redesigned tiles + Couch viz +
+   tooltip primitive + new push wiring + extended intents schema.
+4. **Smoke test cross-flow:** claim a couch seat → trigger Flow A picker
+   → trigger tile action sheet → trigger Flow B nominate. Verify each
+   surface renders + persists + (where applicable) push delivers.
+5. Edit `changelog.html` to replace the `[deploy date YYYY-MM-DD]`
+   placeholder with the actual deploy date and re-run `bash
+   scripts/deploy.sh 34.0.1-changelog-date` (tiny patch deploy — clean
+   release notes for users browsing /about → changelog).
+
+**Tag:** v34 cross-repo deploy ritual deferred — bundle with batch UAT.
 
 ## Cross-plan dependency closure
 
