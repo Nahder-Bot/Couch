@@ -113,4 +113,4 @@ The trade is dropping the "couch capacity" metaphor (no more "X of N seats") and
 
 ## Status
 
-Sketches built and ready for review. No production files modified.
+**SHIPPED 2026-04-26** via Phase 14 Plan 10 (gap-closure plan after UAT identified 3 issues converging on this redesign). Production surface in `js/app.js` renderCouchViz + `css/app.css` .pill rules + `app.html` #couch-viz-container. Migration: `families/{code}.couchSeating` (positional) → `families/{code}.couchInTonight` (member-keyed); dual-write for one PWA cache cycle; legacy field will be dropped in a follow-up plan. Deploy bundled with v34.1 cross-repo deploy gate.
