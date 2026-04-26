@@ -11189,6 +11189,7 @@ async function loadTrendingRow() {
     const d = await tmdbFetch('/trending/all/week');
     const items = (d.results || [])
       .filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.title || x.name) && x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x));
     addTabCache.trending = { ts: Date.now(), items };
@@ -11227,6 +11228,7 @@ async function loadStreamingRow() {
     const d = await tmdbFetch(`/discover/movie?sort_by=popularity.desc&vote_count.gte=100${providerParam}`);
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.streaming = { key: cacheKey, ts: Date.now(), items };
@@ -11247,6 +11249,7 @@ async function loadGemsRow() {
     const d = await tmdbFetch('/discover/movie?sort_by=vote_average.desc&vote_average.gte=7.5&vote_count.gte=200&vote_count.lte=2000');
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.gems = { ts: Date.now(), items };
@@ -11459,6 +11462,7 @@ async function loadDiscoveryRow(row) {
         .filter(x => (x.media_type === 'movie' || x.media_type === 'tv'
                        || src.endpoint.includes('/movie/') || src.endpoint.includes('/tv/'))
                      && (x.title || x.name) && x.poster_path)
+        .filter(isFamilySafeTmdbItem)
         .slice(0, 20)
         .map(x => {
           // Infer media_type when endpoint hints it (movie/tv endpoints drop the field).
@@ -11472,6 +11476,7 @@ async function loadDiscoveryRow(row) {
       const d = await tmdbFetch('/discover/movie?' + params.toString());
       items = (d.results || [])
         .filter(x => x.poster_path && (x.title || x.name))
+        .filter(isFamilySafeTmdbItem)
         .slice(0, 20)
         .map(x => mapTmdbItem(x, 'movie'));
     } else if (src.type === 'tmdb-streaming-filter') {
@@ -11493,6 +11498,7 @@ async function loadDiscoveryRow(row) {
       );
       items = results
         .filter(x => x && x.poster_path && (x.title || x.name))
+        .filter(isFamilySafeTmdbItem)
         .map(x => mapTmdbItem({ ...x, media_type: 'movie' }, 'movie'));
     } else if (src.type === 'tmdb-director-rotating') {
       // Plan 11-03b — pick ONE director deterministically per (rowId, dateKey).
@@ -11518,6 +11524,7 @@ async function loadDiscoveryRow(row) {
         );
         items = (d.results || [])
           .filter(x => x.poster_path)
+          .filter(isFamilySafeTmdbItem)
           .slice(0, 20)
           .map(x => mapTmdbItem(x, 'movie'));
       }
@@ -11619,6 +11626,7 @@ async function loadDiscoveryRow(row) {
         );
         items = (d.results || [])
           .filter(x => x.poster_path)
+          .filter(isFamilySafeTmdbItem)
           .slice(0, 20)
           .map(x => mapTmdbItem(x, 'movie'));
       }
@@ -11675,6 +11683,7 @@ window.selectAddMood = async function(moodId) {
     const d = await tmdbFetch(url);
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.mood[moodId] = { ts: Date.now(), items };
@@ -12304,6 +12313,7 @@ async function loadOnboardSeeds() {
     const d = await tmdbFetch('/trending/all/week');
     onboardSeedItems = (d.results || [])
       .filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.title || x.name) && x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 9)
       .map(x => mapTmdbItem(x));
   } catch(e) {
