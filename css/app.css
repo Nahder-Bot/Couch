@@ -3049,3 +3049,75 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 .about-attribution a{color:var(--ink-warm);text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px}
 .about-attribution a:hover,.about-attribution a:focus-visible{color:var(--ink);text-decoration-color:var(--accent)}
+
+/* === D-08 Flow B nominate — DECI-14-08 (Phase 14 Plan 08) === */
+/* Nominate UI (Task 1) */
+.flow-b-nominate-content { width: min(520px, 100%); padding: var(--s4); }
+.flow-b-nominate-form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); }
+.flow-b-label { display: flex; flex-direction: column; gap: var(--s1); }
+.flow-b-label-text { color: var(--c-text-strong, #e8dcc4); font-weight: 600; }
+.flow-b-time-input, .flow-b-note-input {
+  background: var(--c-bg-elevated, #1f1a16);
+  color: var(--c-text-strong, #e8dcc4);
+  border: 1px solid var(--c-border, #4a3d33);
+  border-radius: var(--r-md, 8px);
+  padding: var(--s2);
+  font-family: var(--font-body, Inter, sans-serif);
+  font-size: 16px; /* >=16px to suppress iOS zoom-on-focus */
+}
+.flow-b-note-input { min-height: 80px; resize: vertical; }
+.flow-b-nominate-footer { display: flex; justify-content: space-between; gap: var(--s2); margin-top: var(--s3); }
+
+/* Recipient response + counter-time picker (Task 2) */
+.flow-b-response-content, .flow-b-counter-content { width: min(520px, 100%); padding: var(--s4); }
+.flow-b-response-body { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); }
+.flow-b-already, .flow-b-note {
+  padding: var(--s2);
+  background: var(--c-bg-elevated, #1f1a16);
+  border-radius: var(--r-md, 8px);
+}
+.flow-b-counter-form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); }
+.flow-b-counter-footer { display: flex; justify-content: space-between; gap: var(--s2); margin-top: var(--s3); }
+
+/* Nominator status screen — counter rows + indicators (Task 3) */
+.flow-b-status-content { width: min(680px, 100%); max-height: 90vh; overflow-y: auto; padding: var(--s4); }
+.flow-b-indicator {
+  padding: var(--s3);
+  border-radius: var(--r-md, 8px);
+  margin: var(--s2) 0;
+}
+.flow-b-converting { background: var(--c-bg-elevated, #1f1a16); border: 1px solid var(--c-warm-amber, #d4a574); }
+.flow-b-allno { background: var(--c-bg-elevated, #1f1a16); border: 1px solid var(--c-warning, #d97757); display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.flow-b-counter-list { margin: var(--s3) 0; }
+.flow-b-counter-row {
+  padding: var(--s3);
+  background: var(--c-bg-elevated, #1f1a16);
+  border-radius: var(--r-md, 8px);
+  margin-bottom: var(--s2);
+}
+.flow-b-counter-row-meta { color: var(--c-text-strong, #e8dcc4); }
+.flow-b-counter-row-actions { display: flex; gap: var(--s2); margin-top: var(--s2); flex-wrap: wrap; }
+.flow-b-note-inline { color: var(--c-text-body, #c4b89e); font-style: italic; margin: var(--s2) 0 0; }
+.flow-b-section-h { font-family: var(--font-serif, 'Instrument Serif', serif); font-size: 18px; color: var(--c-text-strong, #e8dcc4); margin: 0 0 var(--s2); }
+
+/* tc-secondary fallback — 14-08 introduces secondary buttons but the existing CSS
+   only declares .tc-primary (css/app.css:1403). 14-09 / future tile-redesign work
+   may replace this with a canonical token; until then this Rule-2 fallback keeps
+   the Cancel / Counter / Decline buttons readable on the warm-dark surface. */
+.tc-secondary {
+  background: transparent;
+  color: var(--ink, #e8dcc4);
+  border: 1px solid var(--border, #4a3d33);
+  border-radius: var(--r-md, 8px);
+  padding: var(--s3) var(--s4);
+  font-family: inherit;
+  font-size: var(--t-body, 16px);
+  cursor: pointer;
+  transition: border-color var(--t-quick, 150ms) ease, background var(--t-quick, 150ms) ease;
+}
+.tc-secondary:hover, .tc-secondary:focus-visible {
+  border-color: var(--border-strong, var(--accent, #e8a04a));
+  background: rgba(255,255,255,0.03);
+  outline: none;
+}
+.tc-secondary:active { transform: scale(0.98); }

@@ -1839,6 +1839,528 @@ window.convertIntent = async function(intentId, kind) {
     openScheduleModal(intent.titleId);
   }
 };
+
+// === D-08 Flow B nominate — DECI-14-08 (Phase 14 Plan 08) ===
+// Solo-nominate flow per D-08: member nominates a title with a proposed time, family
+// members can join / counter / decline. Counter-time decision belongs to nominator
+// (accept / reject / pick compromise). Auto-convert at T-15min handled CF-side
+// (queuenight watchpartyTick from 14-06). All-No edge case auto-cancels client-side.
+window.openFlowBNominate = function(titleId) {
+  if (!state.me) { flashToast('Sign in to nominate', { kind: 'warn' }); return; }
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) { flashToast('Title not found', { kind: 'warn' }); return; }
+  state.flowBNominateTitleId = titleId;
+  renderFlowBNominateScreen();
+};
+
+function renderFlowBNominateScreen() {
+  let modal = document.getElementById('flow-b-nominate-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-nominate-modal';
+    modal.className = 'modal-bg flow-b-nominate-modal';
+    document.body.appendChild(modal);
+  }
+  const titleId = state.flowBNominateTitleId;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) { closeFlowBNominate(); return; }
+
+  // Default proposed time: 8pm tonight (or now+1hr if it's already past 8pm).
+  const now = new Date();
+  const defaultDate = new Date(now);
+  defaultDate.setHours(20, 0, 0, 0);
+  if (defaultDate.getTime() <= now.getTime()) {
+    defaultDate.setTime(now.getTime() + 60 * 60 * 1000);
+  }
+  // ISO datetime-local format (YYYY-MM-DDTHH:MM).
+  const pad = (n) => String(n).padStart(2, '0');
+  const defaultLocal = `${defaultDate.getFullYear()}-${pad(defaultDate.getMonth()+1)}-${pad(defaultDate.getDate())}T${pad(defaultDate.getHours())}:${pad(defaultDate.getMinutes())}`;
+
+  modal.innerHTML = `<div class="modal-content flow-b-nominate-content">
+    <header class="flow-b-nominate-h">
+      <button class="modal-close" type="button" onclick="closeFlowBNominate()" aria-label="Close">✕</button>
+      <h2>Nominate ${escapeHtml(t.name)}</h2>
+      <p>Pick a time. Family members can join, counter, or pass.</p>
+    </header>
+    <form class="flow-b-nominate-form" onsubmit="event.preventDefault();onFlowBSubmitNominate();">
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Proposed start time</span>
+        <input type="datetime-local" id="flow-b-time-input" class="flow-b-time-input" value="${defaultLocal}" required />
+      </label>
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Note (optional)</span>
+        <textarea id="flow-b-note-input" class="flow-b-note-input" maxlength="200" placeholder="e.g. After dinner. BYO popcorn."></textarea>
+      </label>
+      <div class="flow-b-nominate-footer">
+        <button class="tc-secondary" type="button" onclick="closeFlowBNominate()">Cancel</button>
+        <button class="tc-primary" type="submit">Send nomination</button>
+      </div>
+    </form>
+  </div>`;
+  modal.classList.add('on');
+}
+
+window.closeFlowBNominate = function() {
+  const modal = document.getElementById('flow-b-nominate-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBNominateTitleId = null;
+};
+
+window.onFlowBSubmitNominate = async function() {
+  const titleId = state.flowBNominateTitleId;
+  if (!titleId) return;
+  const timeInput = document.getElementById('flow-b-time-input');
+  const noteInput = document.getElementById('flow-b-note-input');
+  if (!timeInput || !timeInput.value) {
+    flashToast('Pick a time', { kind: 'warn' });
+    return;
+  }
+  const proposedStartAt = new Date(timeInput.value).getTime();
+  if (!isFinite(proposedStartAt) || proposedStartAt < Date.now() - 60000) {
+    flashToast('Pick a future time', { kind: 'warn' });
+    return;
+  }
+  const proposedNote = noteInput && noteInput.value ? noteInput.value.trim().slice(0, 200) : null;
+  let intentId;
+  try {
+    intentId = await createIntent({
+      flow: 'nominate',
+      titleId,
+      proposedStartAt,
+      proposedNote: proposedNote || undefined
+    });
+  } catch (e) {
+    console.error('[flowB] createIntent failed', e);
+    flashToast('Could not send nomination — try again', { kind: 'warn' });
+    return;
+  }
+  flashToast('Nomination sent', { kind: 'success' });
+  closeFlowBNominate();
+  // Open status screen so the nominator can watch live progress (Task 3 below).
+  setTimeout(() => openFlowBStatusScreen(intentId), 100);
+};
+
+// --- Recipient response UI (Task 2) ---
+window.openFlowBResponseScreen = function(intentId) {
+  let modal = document.getElementById('flow-b-response-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-response-modal';
+    modal.className = 'modal-bg flow-b-response-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowBOpenIntentId = intentId;
+  renderFlowBResponseScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowBResponseScreen() {
+  const modal = document.getElementById('flow-b-response-modal');
+  if (!modal) return;
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowBResponse(); return; }
+  const t = state.titles.find(x => x.id === intent.titleId);
+  const isNominator = intent.createdBy === (state.me && state.me.id);
+  if (isNominator) {
+    // Nominator status screen — handled by Task 3.
+    closeFlowBResponse();
+    return openFlowBStatusScreen(intentId);
+  }
+
+  const myRsvp = (intent.rsvps || {})[state.me && state.me.id];
+  const responded = !!myRsvp;
+  const proposedTime = intent.proposedStartAt
+    ? new Date(intent.proposedStartAt).toLocaleString([], {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+        timeZone: intent.creatorTimeZone || undefined
+      })
+    : 'soon';
+
+  modal.innerHTML = `<div class="modal-content flow-b-response-content">
+    <header class="flow-b-response-h">
+      <button class="modal-close" type="button" onclick="closeFlowBResponse()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(intent.createdByName || 'Family member')} wants to watch ${escapeHtml(t ? t.name : '')}</h2>
+      <p>Proposed time: <strong>${escapeHtml(proposedTime)}</strong></p>
+      ${intent.proposedNote ? `<p class="flow-b-note">"${escapeHtml(intent.proposedNote)}"</p>` : ''}
+    </header>
+    <div class="flow-b-response-body">
+      ${responded ? `<div class="flow-b-already">You said: ${escapeHtml(myRsvp.state || myRsvp.value || '?')}</div>` : ''}
+      <button class="tc-primary" type="button" onclick="onFlowBRespondJoin()">Join @ proposed time</button>
+      <button class="tc-secondary" type="button" onclick="onFlowBOpenCounterTime()">Counter-suggest a different time</button>
+      <button class="tc-secondary" type="button" onclick="onFlowBRespondDecline()">Decline</button>
+    </div>
+  </div>`;
+}
+
+window.closeFlowBResponse = function() {
+  const modal = document.getElementById('flow-b-response-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBOpenIntentId = null;
+};
+
+window.onFlowBRespondJoin = async function() {
+  const intentId = state.flowBOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'in',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast('You\'re in. Watching for confirmation.', { kind: 'success' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] join failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowBRespondDecline = async function() {
+  const intentId = state.flowBOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'reject',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast('Declined.', { kind: 'info' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] decline failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowBOpenCounterTime = function() {
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counterDepth = intent.counterChainDepth || 0;
+  if (counterDepth >= 3) {
+    flashToast('Counter chain full', { kind: 'warn' });
+    return;
+  }
+  // Render counter-time picker.
+  const modal = document.getElementById('flow-b-response-modal');
+  if (!modal) return;
+  // Default counter time: original + 1hr.
+  const original = intent.proposedStartAt || Date.now();
+  const counterDefault = new Date(original + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const counterDefaultLocal = `${counterDefault.getFullYear()}-${pad(counterDefault.getMonth()+1)}-${pad(counterDefault.getDate())}T${pad(counterDefault.getHours())}:${pad(counterDefault.getMinutes())}`;
+
+  modal.innerHTML = `<div class="modal-content flow-b-counter-content">
+    <header class="flow-b-counter-h">
+      <button class="modal-close" type="button" onclick="closeFlowBResponse()" aria-label="Close">✕</button>
+      <h2>Counter-suggest a time</h2>
+      <p>Nominator decides whether to accept your counter.</p>
+    </header>
+    <form class="flow-b-counter-form" onsubmit="event.preventDefault();onFlowBSubmitCounterTime();">
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Your suggested time</span>
+        <input type="datetime-local" id="flow-b-counter-time-input" class="flow-b-time-input" value="${counterDefaultLocal}" required />
+      </label>
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Note (optional)</span>
+        <textarea id="flow-b-counter-note-input" class="flow-b-note-input" maxlength="200" placeholder="e.g. After kids' bedtime."></textarea>
+      </label>
+      <div class="flow-b-counter-footer">
+        <button class="tc-secondary" type="button" onclick="renderFlowBResponseScreen()">Back</button>
+        <button class="tc-primary" type="submit">Send counter</button>
+      </div>
+    </form>
+  </div>`;
+};
+
+window.onFlowBSubmitCounterTime = async function() {
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent || !state.me) return;
+  const newDepth = (intent.counterChainDepth || 0) + 1;
+  if (newDepth > 3) { flashToast('Counter chain cap reached', { kind: 'warn' }); return; }
+  const ti = document.getElementById('flow-b-counter-time-input');
+  const ni = document.getElementById('flow-b-counter-note-input');
+  if (!ti || !ti.value) { flashToast('Pick a counter time', { kind: 'warn' }); return; }
+  const counterTime = new Date(ti.value).getTime();
+  if (!isFinite(counterTime) || counterTime < Date.now() - 60000) { flashToast('Pick a future time', { kind: 'warn' }); return; }
+  const note = ni && ni.value ? ni.value.trim().slice(0, 200) : null;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'maybe',
+        counterTime,
+        note: note || null,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      counterChainDepth: newDepth,
+      ...writeAttribution()
+    });
+    flashToast('Counter sent', { kind: 'success' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] counter failed', e);
+    flashToast('Could not send counter', { kind: 'warn' });
+  }
+};
+
+// --- Nominator status screen (Task 3) ---
+window.openFlowBStatusScreen = function(intentId) {
+  let modal = document.getElementById('flow-b-status-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-status-modal';
+    modal.className = 'modal-bg flow-b-status-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowBStatusIntentId = intentId;
+  renderFlowBStatusScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowBStatusScreen() {
+  const modal = document.getElementById('flow-b-status-modal');
+  if (!modal) return;
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowBStatus(); return; }
+  if (intent.status !== 'open') {
+    // Auto-close on convert / cancel / expire.
+    setTimeout(() => closeFlowBStatus(), 1500);
+  }
+  const t = state.titles.find(x => x.id === intent.titleId);
+
+  const rsvps = intent.rsvps || {};
+  const ins = Object.entries(rsvps).filter(([mid, r]) => (r.state === 'in' || r.value === 'yes') && mid !== intent.createdBy);
+  const counters = Object.entries(rsvps).filter(([mid, r]) => r.state === 'maybe' && r.counterTime);
+  const declines = Object.entries(rsvps).filter(([mid, r]) => r.state === 'reject' || r.value === 'no');
+
+  // Recipient count (everyone except creator).
+  const recipientCount = (state.members || []).filter(m => m.id !== intent.createdBy).length;
+  const allNo = recipientCount > 0 && declines.length === recipientCount && ins.length === 0;
+
+  // Auto-convert countdown (CF fires at T-15min on its 5-min cadence).
+  const minutesToStart = intent.proposedStartAt ? Math.round((intent.proposedStartAt - Date.now()) / 60000) : null;
+  const willAutoConvert = ins.length > 0 && minutesToStart != null && minutesToStart > 0 && minutesToStart <= 30;
+
+  const counterRows = counters.map(([mid, r]) => {
+    const m = (state.members || []).find(x => x.id === mid);
+    const counterFmt = new Date(r.counterTime).toLocaleString([], {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+    return `<div class="flow-b-counter-row">
+      <div class="flow-b-counter-row-meta">
+        <strong>${escapeHtml(m ? m.name : 'Member')}</strong> countered with <strong>${escapeHtml(counterFmt)}</strong>
+        ${r.note ? `<p class="flow-b-note-inline">"${escapeHtml(r.note)}"</p>` : ''}
+      </div>
+      <div class="flow-b-counter-row-actions">
+        <button class="tc-primary" type="button" onclick="onFlowBAcceptCounter('${mid}')">Accept</button>
+        <button class="tc-secondary" type="button" onclick="onFlowBRejectCounter('${mid}')">Reject</button>
+        <button class="tc-secondary" type="button" onclick="onFlowBOpenCompromiseTimePicker('${mid}')">Compromise</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  modal.innerHTML = `<div class="modal-content flow-b-status-content">
+    <header class="flow-b-status-h">
+      <button class="modal-close" type="button" onclick="closeFlowBStatus()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t ? t.name : 'Nomination')}</h2>
+      <p>Status: <strong>${escapeHtml(intent.status)}</strong> · ${ins.length} in · ${counters.length} counter · ${declines.length} declined of ${recipientCount} family</p>
+    </header>
+    <div class="flow-b-status-body">
+      ${willAutoConvert ? `<div class="flow-b-indicator flow-b-converting">⏱ Auto-converting to watchparty in ${Math.max(0, minutesToStart - 15)} min (T-15)</div>` : ''}
+      ${allNo ? `<div class="flow-b-indicator flow-b-allno">All recipients declined. <button class="tc-secondary" type="button" onclick="onFlowBAutoCancel()">Cancel nomination</button></div>` : ''}
+      ${counterRows ? `<section class="flow-b-counter-list">
+        <h3 class="flow-b-section-h">Counter-time suggestions (${counters.length})</h3>
+        ${counterRows}
+      </section>` : ''}
+      <button class="tc-secondary" type="button" onclick="onFlowBStatusCancel()">End nomination</button>
+    </div>
+  </div>`;
+}
+
+window.closeFlowBStatus = function() {
+  const modal = document.getElementById('flow-b-status-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBStatusIntentId = null;
+};
+
+// Snapshot tick re-render hook (wired into state.unsubIntents handler below).
+function maybeRerenderFlowBStatus() {
+  if (state.flowBStatusIntentId) renderFlowBStatusScreen();
+  if (state.flowBOpenIntentId) renderFlowBResponseScreen();
+}
+
+// Nominator counter decisions.
+window.onFlowBAcceptCounter = async function(memberId) {
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counter = (intent.rsvps || {})[memberId];
+  if (!counter || !counter.counterTime) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      proposedStartAt: counter.counterTime,
+      proposedNote: counter.note || intent.proposedNote || null,
+      // Update nominator's own rsvp to clear any stale state.
+      [`rsvps.${state.me.id}`]: {
+        state: 'in',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    const accepterName = ((state.members || []).find(m => m.id === memberId) || {}).name || 'Counter';
+    flashToast(`Time updated. ${accepterName} accepted.`, { kind: 'success' });
+  } catch (e) {
+    console.error('[flowB] accept counter failed', e);
+    flashToast('Could not accept counter', { kind: 'warn' });
+  }
+};
+
+window.onFlowBRejectCounter = async function(memberId) {
+  // Reject: zero out the member's rsvp so they can re-respond. Does NOT cancel the intent.
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    const memberName = ((state.members || []).find(m => m.id === memberId) || {}).name || null;
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${memberId}`]: {
+        state: 'maybe',
+        at: Date.now(),
+        actingUid: state.me.id,
+        memberName,
+        note: 'counter rejected by nominator'
+      },
+      ...writeAttribution()
+    });
+    flashToast('Counter rejected', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowB] reject counter failed', e);
+  }
+};
+
+window.onFlowBOpenCompromiseTimePicker = function(memberId) {
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counter = (intent.rsvps || {})[memberId];
+  if (!counter || !counter.counterTime) return;
+  // Compromise = midpoint of original proposedStartAt and counterTime.
+  const compromise = Math.round((intent.proposedStartAt + counter.counterTime) / 2);
+  const cd = new Date(compromise);
+  const pad = (n) => String(n).padStart(2, '0');
+  const compromiseLocal = `${cd.getFullYear()}-${pad(cd.getMonth()+1)}-${pad(cd.getDate())}T${pad(cd.getHours())}:${pad(cd.getMinutes())}`;
+  // Browser prompt() — D-08 doesn't specify; sufficient for solo-nominator decision UX.
+  const userInput = window.prompt(`Compromise time (suggested midpoint pre-filled):\nFormat: YYYY-MM-DDTHH:MM`, compromiseLocal);
+  if (!userInput) return;
+  const finalTime = new Date(userInput).getTime();
+  if (!isFinite(finalTime) || finalTime < Date.now()) { flashToast('Pick a future time', { kind: 'warn' }); return; }
+  updateDoc(intentRef(intentId), {
+    proposedStartAt: finalTime,
+    ...writeAttribution()
+  }).then(() => {
+    flashToast('Compromise time set', { kind: 'success' });
+  }).catch(e => {
+    console.error('[flowB] compromise failed', e);
+    flashToast('Could not set time', { kind: 'warn' });
+  });
+};
+
+window.onFlowBStatusCancel = async function() {
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      ...writeAttribution()
+    });
+    closeFlowBStatus();
+    flashToast('Nomination ended', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowB] cancel failed', e);
+  }
+};
+
+window.onFlowBAutoCancel = async function() {
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      cancelReason: 'all-no',
+      ...writeAttribution()
+    });
+    flashToast('All declined — nomination cancelled', { kind: 'info' });
+    closeFlowBStatus();
+  } catch (e) {
+    console.error('[flowB] auto-cancel failed', e);
+  }
+};
+
+// === D-08 deep-link handler (Task 4) ===
+// The CFs in 14-06 emit push payloads with `url: '/?intent=' + intentId`. When the user
+// taps the push, the URL hits the app boot path. This handler reads ?intent=, removes
+// the param (so refresh doesn't re-trigger), waits for the intents collection to hydrate,
+// then routes to the right screen based on the intent's flow + my role (creator vs recipient).
+function maybeOpenIntentFromDeepLink() {
+  let intentId = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    intentId = params.get('intent');
+  } catch (e) { return; }
+  if (!intentId) return;
+  // Remove the param so refresh doesn't re-trigger.
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('intent');
+    window.history.replaceState({}, '', url.toString());
+  } catch (e) {}
+  // Wait for intents subscription to hydrate. Cap retries so we don't spin forever
+  // if the intent was deleted or the user lacks read access.
+  let attempts = 0;
+  const tryOpen = () => {
+    attempts++;
+    const intent = (state.intents || []).find(i => i.id === intentId);
+    if (!intent) {
+      if (attempts < 20) setTimeout(tryOpen, 500); // ~10s ceiling
+      return;
+    }
+    const flow = intent.flow || intent.type;
+    if (flow === 'rank-pick') {
+      // Flow A response screen will be added by 14-07; defensive typeof gate so 14-08
+      // can land before 14-07 without breaking the deep-link handler.
+      if (typeof openFlowAResponseScreen === 'function') openFlowAResponseScreen(intentId);
+    } else if (flow === 'nominate') {
+      if (intent.createdBy === (state.me && state.me.id)) {
+        openFlowBStatusScreen(intentId);
+      } else {
+        openFlowBResponseScreen(intentId);
+      }
+    }
+    // Legacy intents (tonight_at_time / watch_this_title) — the existing
+    // openIntentRsvpModal flow is reachable via the intents-strip render path; no
+    // explicit deep-link route here yet (Phase 8 didn't ship one either).
+  };
+  tryOpen();
+}
+window.maybeOpenIntentFromDeepLink = maybeOpenIntentFromDeepLink;
+
 function activeWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => {
@@ -2136,6 +2658,13 @@ async function onAuthStateChangedCouch(user) {
     try { await Promise.race([groupsReady, new Promise(r => setTimeout(r, 4000))]); } catch(e) {}
     // Consume any pending claim / invite token; else route into group or mode-pick
     await handlePostSignInIntent();
+  }
+  // 14-08 — handle ?intent=<id> deep-link from CF push payloads. Fire after the
+  // post-sign-in routing finishes (claim/invite tokens take precedence). Runs for
+  // both fresh sign-ins and refreshes of an already-signed-in tab; the handler
+  // itself waits for state.intents to hydrate before opening any modal.
+  if (typeof maybeOpenIntentFromDeepLink === 'function') {
+    try { maybeOpenIntentFromDeepLink(); } catch (e) { console.warn('[intent-deeplink] failed', e); }
   }
 }
 
@@ -3592,6 +4121,10 @@ function startSync() {
     state.intents = s.docs.map(d => d.data());
     if (typeof renderIntentsStrip === 'function') renderIntentsStrip();
     if (typeof maybeEvaluateIntentMatches === 'function') maybeEvaluateIntentMatches(state.intents);
+    // 14-08 — re-render any open Flow B screens (status / response) on every snapshot
+    // so counter-row tallies, all-No banners, and converted/cancelled status flips
+    // appear in real time without requiring a local action.
+    if (typeof maybeRerenderFlowBStatus === 'function') maybeRerenderFlowBStatus();
   }, e => { qnLog('[intents] snapshot error', e.message); });
   // Subscribe to watchparties collection
   state.unsubWatchparties = onSnapshot(watchpartiesRef(), s => {
@@ -12101,6 +12634,11 @@ window.openActionSheet = function(titleId, e) {
     // Phase 8 intent-flow entry points. Placed after watchparty (higher-commitment) so
     // the lower-friction "ask" sits closer to cheaper actions (veto, comments, list).
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openProposeIntent('${titleId}')"><span class="icon">📆</span>Propose tonight @ time</button>`);
+    // D-08 (DECI-14-08) — Flow B solo-nominate entry (Phase 14 Plan 08).
+    // Sibling-not-replacement of the legacy Phase 8 "Propose tonight @ time" entry above
+    // (per Anti-pattern #7 in 14-CONTEXT.md: don't conflate primitives — `flow:'nominate'`
+    // is a new D-09 discriminator, not an extension of `tonight_at_time`).
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openFlowBNominate('${titleId}')"><span class="icon">📣</span>Watch with the couch?</button>`);
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();askTheFamily('${titleId}')"><span class="icon">💭</span>Ask the family</button>`);
   }
   if (!t.watched && state.me) {
