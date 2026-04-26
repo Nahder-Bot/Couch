@@ -3272,3 +3272,103 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   .seat-empty { animation: none; }
   .seat-cell, .seat-cell:hover, .seat-cell:focus-visible { transition: none; transform: none; }
 }
+
+/* === D-04 (DECI-14-04) — Tile redesign: X-want-it pill + Trailer btn === */
+/* "X want it" pill — overlapping micro-avatars + "+N" overflow chip + label.
+   Sits inline in .tc-meta where the bare yes-count pill used to be. */
+.tc-want-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 2px 8px 2px 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  font-size: var(--t-micro);
+  color: var(--ink-warm);
+  line-height: 1;
+}
+.tc-want-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.tc-want-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(20, 17, 15, 0.92);
+  margin-left: -4px;
+  border: 2px solid var(--surface-2);
+  flex: none;
+}
+.tc-want-avatar:first-child { margin-left: 0; }
+.tc-want-overflow {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--ink-dim);
+  border: 2px solid var(--surface-2);
+  margin-left: -4px;
+  flex: none;
+}
+.tc-want-label { white-space: nowrap; }
+
+/* ▶ Trailer affordance on tile face. Sits in .tc-footer next to ⋯ — restrained
+   warm-amber outline so it reads as secondary to the warm-grad .tc-primary. */
+.tc-trailer-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--accent, #d4a574);
+  color: var(--accent, #d4a574);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-quick), color var(--t-quick);
+}
+.tc-trailer-btn:hover {
+  background: rgba(212, 167, 106, 0.12);
+}
+
+/* === D-04 (DECI-14-04) — TMDB community reviews in detail modal === */
+/* Sibling to .review-card (family-local reviews) — slightly more compact and uses
+   surface-2 background to visually distinguish from the family review block. */
+.tmdb-reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.tmdb-review {
+  padding: var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-md, 8px);
+}
+.tmdb-review-h {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: var(--s2);
+  font-size: var(--t-meta);
+}
+.tmdb-review-body {
+  color: var(--ink-dim);
+  line-height: 1.5;
+  margin: 0;
+  font-size: var(--t-meta);
+}

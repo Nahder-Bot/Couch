@@ -7017,6 +7017,17 @@ window.openDetailModal = async function(id) {
   // the ✕ scrolls out of view when the detail is scrolled. Only the backdrop itself
   // closes; taps bubbled up from modal content pass through to their targets.
   bg.onclick = (e) => { if (e.target === bg) closeDetailModal(); };
+  // === D-04 (DECI-14-04) — lazy-fetch TMDB community reviews ===
+  // Cast + trailer + providers + synopsis are already surfaced (cast comes from
+  // fetchTmdbDetails which has run on first open via t.detailsCached). TMDB
+  // community reviews are the missing 5th surface — fetched once per title and
+  // cached locally on the title doc (t.tmdbReviews / t.tmdbReviewsFetchedAt).
+  // Per-title gate prevents re-fetch on re-open; rate-limit budget per CLAUDE.md.
+  ensureTmdbReviews(t).then(() => {
+    if (detailTitleId !== id) return;
+    const merged = state.titles.find(x => x.id === id) || t;
+    document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
+  }).catch(e => console.warn('[detail] tmdb reviews fetch failed', e));
   if (t.isManual) return;
   // For TV titles, the fetch also pulls showStatus/nextEpisode/etc which were added
   // in Turn 9. If those are missing even though detailsCached is true, we do one
@@ -7036,6 +7047,66 @@ window.openDetailModal = async function(id) {
     content.innerHTML = renderDetailShell(merged);
   }
 };
+
+// === D-04 (DECI-14-04) — TMDB community reviews lazy-fetch ===
+// Hits /movie|tv/{id}/reviews (TMDB rate-limit ~40 req / 10s — gated per-title via
+// t.tmdbReviewsFetchedAt timestamp so re-opens are no-ops). Top 3 results stored
+// on the local in-memory title; persisted to Firestore so other family members
+// don't re-fetch. Manual titles + titles without tmdbId are skipped.
+// XSS mitigation T-14.05-01: review content is escaped at render time in
+// renderTmdbReviewsForTitle (escapeHtml on author/content). DoS mitigation
+// T-14.05-02: per-title gate + 1-day cache window.
+async function ensureTmdbReviews(t) {
+  if (!t || t.isManual) return;
+  // 1-day TTL — TMDB community reviews don't churn fast and we want to avoid burning rate budget.
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  if (t.tmdbReviewsFetchedAt && (Date.now() - t.tmdbReviewsFetchedAt) < ONE_DAY) return;
+  const tmdbId = t.tmdbId || (t.id && t.id.startsWith('tmdb_') ? t.id.replace('tmdb_','') : null);
+  if (!tmdbId) return;
+  const mediaType = t.mediaType || (t.kind === 'Movie' ? 'movie' : 'tv');
+  try {
+    const r = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_KEY}&language=en-US&page=1`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const top = (data.results || []).slice(0, 3).map(rev => ({
+      author: rev.author || 'Reviewer',
+      rating: (rev.author_details && rev.author_details.rating) || null,
+      content: rev.content || '',
+      url: rev.url || null,
+      createdAt: rev.created_at || null
+    }));
+    t.tmdbReviews = top;
+    t.tmdbReviewsFetchedAt = Date.now();
+    // Persist so other family members benefit. Best-effort — failure is silent.
+    try {
+      await updateDoc(doc(titlesRef(), t.id), {
+        ...writeAttribution(),
+        tmdbReviews: top,
+        tmdbReviewsFetchedAt: t.tmdbReviewsFetchedAt
+      });
+    } catch (e) { /* persist is best-effort; in-memory copy is enough */ }
+  } catch (e) {
+    console.warn('[tmdb-reviews] fetch failed', e);
+  }
+}
+
+// === D-04 (DECI-14-04) — TMDB community reviews render ===
+// Sibling to renderReviewsForTitle (family-local reviews). Renders only when
+// t.tmdbReviews has entries — first paint shows nothing, then re-renders after
+// ensureTmdbReviews resolves. Truncates each review at 360 chars + ellipsis.
+function renderTmdbReviewsForTitle(t) {
+  if (!Array.isArray(t.tmdbReviews) || t.tmdbReviews.length === 0) return '';
+  const items = t.tmdbReviews.slice(0, 3).map(rev => {
+    const body = (rev.content || '').slice(0, 360);
+    const truncated = (rev.content || '').length > 360;
+    const ratingStr = rev.rating ? ` · ${rev.rating}/10` : '';
+    return `<article class="tmdb-review">
+      <header class="tmdb-review-h">${escapeHtml(rev.author)}${ratingStr}</header>
+      <p class="tmdb-review-body">${escapeHtml(body)}${truncated ? '…' : ''}</p>
+    </article>`;
+  }).join('');
+  return `<div class="detail-section"><h4>Community reviews</h4><div class="tmdb-reviews-list">${items}</div></div>`;
+}
 
 window.closeDetailModal = function() {
   document.getElementById('detail-modal-bg').classList.remove('on');
@@ -7126,6 +7197,7 @@ function renderDetailShell(t) {
     ${similarHtml}
     ${renderDiaryForTitle(t)}
     ${renderReviewsForTitle(t)}
+    ${renderTmdbReviewsForTitle(t)}
     ${renderWatchpartyHistoryForTitle(t)}
     ${loadingHtml}
   </div>`;
