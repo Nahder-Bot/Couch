@@ -4133,15 +4133,15 @@ function startSync() {
     const d = s.data();
     state.group = { ...(state.group||{}), code: state.familyCode, mode: d.mode || 'family', name: d.name || state.familyCode, picker: d.picker || null, passwordProtected: !!d.passwordHash };
     state.ownerUid = d.ownerUid || null;
-    // D-06 (DECI-14-06) — hydrate couch seating from family doc into the indexed-array
-    // state shape. Persisted shape: { [memberId]: index }; in-memory shape: array indexed
-    // by cushion position with null for empty slots. 14-04 owns this slot; 14-01's
-    // isWatchedByCouch + 14-03/14-07 downstream consumers all read state.couchMemberIds.
-    const seating = d.couchSeating || {};
-    const couchArr = [];
-    Object.entries(seating).forEach(([mid, idx]) => { if (typeof idx === 'number' && idx >= 0) couchArr[idx] = mid; });
-    state.couchMemberIds = couchArr;
+    // 14-10 / V5 — couchInTonight is the new authoritative shape; couchSeating is
+    // the legacy fallback (auto-rebuilt by couchInTonightFromDoc when only the old
+    // field is present). state.couchMemberIds = filter(in===true) for downstream.
+    // Bug B fix bundled here: renderFlowAEntry must re-run on family-doc snapshot
+    // so the empty-state CTA reacts to claim/vacate, not just intent writes.
+    state.couchInTonight = couchInTonightFromDoc(d);
+    state.couchMemberIds = couchInTonightToMemberIds(state.couchInTonight);
     if (typeof renderCouchViz === 'function') renderCouchViz();
+    if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
     renderPickerCard();
     applyModeLabels();
     try { renderOwnerSettings(); } catch(e) {}
@@ -12940,18 +12940,48 @@ window.toggleLike = async function(id, e) {
   try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), likes }); } catch(err){}
 };
 
-// === D-06 Couch viz — DECI-14-06 (sketch 001 winner: hero-icon + avatar-grid) ===
-// Hero element: <img src='/mark-512.png'> (the existing C-sectional app icon — same asset
-// used by favicons + PWA manifest). When the icon is updated in queuenight/public/, this
-// hero auto-inherits with zero code change.
+// === D-06 Couch viz — DECI-14-06 (Sketch 003 V5 redesign per 14-10) ===
+// V5 winner: Roster IS the control. Each family member is a toggleable pill.
+// Tap = flip in/out. Long-press out-pill (700ms) = send push.
 //
-// Functional layer: CSS-grid avatar cells. Filled = colored circle with initial; empty =
-// dashed amber circle with ＋ glyph + pulse animation. Capacity 1-10 native.
+// Firestore shape (Sketch 003 Material Decisions, locked 2026-04-26):
+//   families/{code}.couchInTonight = { [memberId]: { in: bool, at: serverTimestamp, proxyConfirmedBy?: memberId } }
 //
-// State writes: families/{code}.couchSeating = { [memberId]: index }.
+// Backward-compat: reads fall back to legacy couchSeating: { [memberId]: index }
+// shape from 14-04 if couchInTonight is absent. Writes go to BOTH shapes for one
+// PWA cache cycle (~1-2 weeks of v34.1 deployed) so v33/v34.0 PWAs don't break;
+// drop the dual-write in a follow-up plan after the cache cycle elapses.
 
 const COUCH_HERO_SRC = '/mark-512.png'; // single source of truth — bump if filename changes
-const COUCH_MAX_SLOTS = 10;             // grid wraps to 5×2 on phone, 10×1 on wide viewports
+
+// 14-10 / V5 — hydrate couchInTonight from family doc with legacy couchSeating fallback.
+// Returns the canonical { [memberId]: { in, at, proxyConfirmedBy? } } shape.
+function couchInTonightFromDoc(d) {
+  if (d && d.couchInTonight && typeof d.couchInTonight === 'object') {
+    // Preferred: new shape already on the doc. Pass through verbatim.
+    return d.couchInTonight;
+  }
+  // Legacy fallback: rebuild from couchSeating { [mid]: index }. Every member with
+  // an index >= 0 is treated as in===true; timestamp unknown so omitted.
+  const out = {};
+  const seating = (d && d.couchSeating) || {};
+  Object.entries(seating).forEach(([mid, idx]) => {
+    if (typeof idx === 'number' && idx >= 0) {
+      out[mid] = { in: true };
+    }
+  });
+  return out;
+}
+
+// 14-10 / V5 — derive the indexed array shape downstream consumers expect.
+// 14-01 isWatchedByCouch + 14-03 tier aggregators + 14-07 Flow A roster all read
+// state.couchMemberIds — this keeps the contract stable across the migration.
+function couchInTonightToMemberIds(cit) {
+  if (!cit || typeof cit !== 'object') return [];
+  return Object.keys(cit).filter(mid => cit[mid] && cit[mid].in === true);
+}
+
+const COUCH_MAX_SLOTS = 10;             // legacy 14-04 — kept for any remaining callers; V5 has no capacity cap
 
 function renderCouchViz() {
   const container = document.getElementById('couch-viz-container');
@@ -13024,7 +13054,7 @@ window.claimCushion = async function(idx) {
     while (state.couchMemberIds.length && state.couchMemberIds[state.couchMemberIds.length - 1] == null) {
       state.couchMemberIds.pop();
     }
-    await persistCouchSeating();
+    await persistCouchInTonight();
     renderCouchViz();
     return;
   }
@@ -13036,7 +13066,7 @@ window.claimCushion = async function(idx) {
   const existingIdx = state.couchMemberIds.findIndex(mid => mid === state.me.id);
   if (existingIdx >= 0) state.couchMemberIds[existingIdx] = null;
   state.couchMemberIds[idx] = state.me.id;
-  await persistCouchSeating();
+  await persistCouchInTonight();
   renderCouchViz();
 };
 
@@ -13070,19 +13100,31 @@ window.claimCushionByMember = async function(memberId) {
     return;
   }
   state.couchMemberIds[firstEmpty] = memberId;
-  await persistCouchSeating();
+  await persistCouchInTonight();
   renderCouchViz();
 };
 
-// D-06 — persist couchSeating map to family doc.
-// Shape: families/{code}.couchSeating = { [memberId]: index }; null/missing = not seated.
-async function persistCouchSeating() {
+// 14-10 / V5 — persist couchInTonight + couchSeating (dual-write during migration).
+// Writes the new member-keyed shape AND the legacy positional shape so v33/v34.0
+// PWAs reading couchSeating don't break during the rollout. After one PWA cache
+// cycle (~1-2 weeks), drop the couchSeating write in a follow-up plan.
+async function persistCouchInTonight() {
   if (!state.familyCode) return;
-  const map = {};
-  (state.couchMemberIds || []).forEach((mid, i) => { if (mid) map[mid] = i; });
+  const cit = state.couchInTonight || {};
+  // Build legacy couchSeating map for back-compat: positional index by walking the
+  // in-state members in the order they appear in state.members (stable for one
+  // family-doc snapshot; the index is informational only — V5 doesn't read it).
+  const seatingMap = {};
+  let nextIdx = 0;
+  (state.members || []).forEach(m => {
+    if (cit[m.id] && cit[m.id].in === true) {
+      seatingMap[m.id] = nextIdx++;
+    }
+  });
   try {
     await updateDoc(doc(db, 'families', state.familyCode), {
-      couchSeating: map,
+      couchInTonight: cit,
+      couchSeating: seatingMap, // BACKCOMPAT: drop in follow-up after cache cycle
       ...writeAttribution()
     });
   } catch (e) {
