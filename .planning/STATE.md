@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 14 IN PROGRESS — 2/9 plans complete (14-01 + 14-06)
-stopped_at: "Phase 14 Plan 06 (extend intents + CFs, D-09 / DECI-14-09 — DR-1 reframe) COMPLETE 2026-04-25. Couch repo: 2 commits (3c6b4b9 createIntent extension; 9a09872 firestore.rules widening). Queuenight repo (functions/index.js): Tasks 3 (onIntentCreated 4-way flow branch), 4 (onIntentUpdate counter-chain + reject-majority), 5 (watchpartyTick auto-convert + T-30min warning) edited in-place but UNCOMMITTED — queuenight has no .git on this machine (deviation 1 in 14-06-SUMMARY.md). DR-1 invariant verified: 0 occurrences of watchpartyIntents across all 3 modified files; 0 new top-level CF exports. 7 new eventTypes wired (flowAPick/flowAVoteOnPick/flowARejectMajority/flowBNominate/flowBCounterTime/flowBConvert/intentExpiring) — Plan 14-09 must add them to NOTIFICATION_DEFAULTS + DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS (3-place DR-3) before user toggles take effect. Remaining Phase 14 plans: W1 (14-02 queue polish, 14-04 SVG couch viz, 14-05 tile redesign) → W2 (14-03 tier aggregators, 14-08 Flow B) → W3 (14-07 Flow A) → W4 (14-09 onboarding+empty+push+CACHE). DEPLOY ORDER REMINDER: deploy CFs from ~/queuenight FIRST, then bash scripts/deploy.sh from couch repo (CF must be live before client UI starts writing rank-pick/nominate intents)."
-last_updated: "2026-04-25T23:50:00.000Z"
-last_activity: 2026-04-25 -- Phase 14 Plan 06 SHIPPED (createIntent + rules widened; queuenight CFs extended in-place, uncommitted; DR-1 invariant holds)
+status: Phase 14 IN PROGRESS — 3/9 plans complete (14-01 + 14-02 + 14-06)
+stopped_at: "Phase 14 Plan 02 (queue polish + Add-tab insertion verify + iOS DnD UAT, D-03 / DECI-14-03 — DR-2 reframe) SHIPPED 2026-04-25. Couch repo: 2 commits (2e1ca4b applyVote Yes-vote toast at js/app.js:12477-12483; 2b670d2 createTitleWithApprovalCheck addToMyQueue opt-in + 4 user-Add caller migrations at js/app.js:5587/5632/6563/11020). Task 3 iOS Safari touch-DnD UAT DEFERRED via the plan's explicit `skip-uat` resume signal — drag-reorder is pre-existing shipped behavior 14-02 didn't modify, so testing now vs. later doesn't change anything functionally. UAT remains valid and MUST run before Phase 14 ships to v34 production deploy (tracked in Open follow-ups below). Documented fallback if touch-DnD breaks on iOS: Sortable.js via CDN. DR-2 polish-only invariant holds: zero existing queue infrastructure functions touched (queues map / attachQueueDragReorder / persistQueueOrder / reindexMyQueue all preserved verbatim). Remaining Phase 14 plans: W1 (14-04 SVG couch viz, 14-05 tile redesign) → W2 (14-03 tier aggregators, 14-08 Flow B) → W3 (14-07 Flow A) → W4 (14-09 onboarding+empty+push+CACHE). PRIOR (14-06): queuenight CF edits to onIntentCreated/onIntentUpdate/watchpartyTick uncommitted (queuenight has no .git on this machine — see 14-06-SUMMARY.md deviation 1); 7 new eventTypes wired but pending NOTIFICATION_DEFAULTS/DEFAULT_NOTIFICATION_PREFS/NOTIFICATION_EVENT_LABELS additions in 14-09. DEPLOY ORDER REMINDER (when v34 ships): deploy CFs from ~/queuenight FIRST, then bash scripts/deploy.sh from couch repo (CF must be live before client UI starts writing rank-pick/nominate intents)."
+last_updated: "2026-04-26T00:05:00.000Z"
+last_activity: 2026-04-25 -- Phase 14 Plan 02 SHIPPED (Tasks 1+2 toast + Add-tab insertion paths; Task 3 iOS UAT deferred to batch UAT pass)
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 67
-  completed_plans: 36
-  percent: 54
+  completed_plans: 37
+  percent: 55
 ---
 
 # Project State
@@ -66,6 +66,7 @@ See RUNBOOK §M for the full inventory (Firebase project, Sentry org/project/DSN
 
 | Type | Item | Where |
 |---|---|---|
+| HUMAN-VERIFY | iOS Safari touch-DnD UAT for Library queue drag-reorder (Phase 14 / 14-02 Task 3 — must run before v34 production deploy; fallback if broken: load Sortable.js via CDN per 14-02-SUMMARY.md) | .planning/phases/14-decision-ritual-core/14-02-SUMMARY.md |
 | HUMAN-VERIFY | gcloud Firestore export setup (run `bash scripts/firestore-export-setup.sh`) | RUNBOOK §K |
 | Manual UAT | Trigger account-deletion flow E2E from a real signed-in user | — |
 | Tech debt | TD-1 (firebase-functions SDK 4→7), TD-2 (Variant-B storage rules), TD-4 (CSP audit window 2 weeks then enforcement flip), TD-6 (Sentry Replay re-enable +30 days), TD-7 (Firestore index spec record-only) | .planning/TECH-DEBT.md |
