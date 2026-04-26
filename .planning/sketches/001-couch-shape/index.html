@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch 001 — Hero icon + avatar grid (Path A) vs Stylized flat couch (Path B)</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  body { padding-top: 56px; padding-bottom: 100px; min-height: 100vh; }
+
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+    background: rgba(20, 17, 15, 0.95); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--color-border);
+    padding: 10px 14px;
+    display: flex; gap: 8px; align-items: center; overflow-x: auto;
+    font-family: var(--font-sans);
+  }
+  #variant-nav .nav-title {
+    font-family: var(--font-display); font-size: var(--text-base);
+    color: var(--color-text); margin-right: var(--space-2);
+    font-weight: 500; white-space: nowrap;
+  }
+  .variant-tab {
+    background: transparent; color: var(--color-text-muted);
+    border: 1px solid var(--color-border-soft); border-radius: var(--radius-full);
+    padding: 5px 14px; font-family: var(--font-sans); font-size: var(--text-xs);
+    cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+  }
+  .variant-tab:hover { color: var(--color-text); border-color: var(--color-border); }
+  .variant-tab.active {
+    background: var(--color-surface-raised); color: var(--color-text);
+    border-color: var(--color-primary-soft); box-shadow: var(--shadow-glow);
+  }
+
+  .variant {
+    padding: var(--space-6) var(--space-4);
+    max-width: 480px; margin: 0 auto;
+  }
+  .variant h2 {
+    font-family: var(--font-display); font-size: var(--text-2xl);
+    font-weight: 500; letter-spacing: -0.02em;
+    margin: 0 0 var(--space-2) 0; color: var(--color-text);
+  }
+  .variant .subtitle {
+    font-family: var(--font-serif); font-style: italic;
+    color: var(--color-text-muted); font-size: var(--text-base);
+    margin-bottom: var(--space-6); line-height: 1.45;
+  }
+
+  .stage {
+    position: relative;
+    background: linear-gradient(180deg, #1c1815 0%, #0f0c0a 100%);
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6) var(--space-4);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--space-4);
+  }
+
+  /* ===== PATH A — HERO ICON + AVATAR GRID ===== */
+
+  .hero-icon-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto var(--space-4);
+    aspect-ratio: 1;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.55), 0 0 0 1px var(--color-border-soft);
+  }
+  .hero-icon-wrap img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* Gentle warm bottom-fade so it grounds against the dark stage */
+  .hero-icon-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.25) 100%);
+    pointer-events: none;
+  }
+
+  .ritual-headline {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 500;
+    color: var(--color-text);
+    text-align: center;
+    margin: 0 0 var(--space-1) 0;
+    letter-spacing: -0.015em;
+  }
+  .ritual-sub {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-size: var(--text-base);
+    text-align: center;
+    margin: 0 0 var(--space-6) 0;
+  }
+
+  /* Avatar grid */
+  .avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-2);
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  .seat-cell {
+    position: relative;
+    aspect-ratio: 1;
+    cursor: pointer;
+    transition: transform 0.18s ease;
+  }
+  .seat-cell:hover { transform: scale(1.06); }
+  .seat-avatar {
+    width: 100%; height: 100%;
+    border-radius: 9999px;
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-family: var(--font-display);
+    font-size: clamp(15px, 3.2vw, 22px);
+    font-weight: 500;
+    border: 2.5px solid var(--color-bg);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
+  }
+  .seat-name {
+    margin-top: var(--space-1);
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--color-text-muted);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .seat-empty {
+    width: 100%; height: 100%;
+    border-radius: 9999px;
+    border: 2px dashed var(--leather-cognac);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    font-size: clamp(20px, 4vw, 32px);
+    font-weight: 300;
+    background: radial-gradient(circle at center, rgba(217, 122, 60, 0.12), transparent 70%);
+    animation: pulse-empty 2.4s ease-in-out infinite;
+    transition: border-color 0.18s ease;
+  }
+  .seat-empty:hover { border-color: var(--color-primary); border-style: solid; }
+  @keyframes pulse-empty {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 60, 0); }
+    50% { box-shadow: 0 0 18px 0 rgba(217, 122, 60, 0.35); }
+  }
+
+  /* ===== PATH B — STYLIZED FLAT COUCH ===== */
+
+  .flat-couch-stage {
+    width: 100%;
+    aspect-ratio: 800 / 460;
+    margin-bottom: var(--space-4);
+    position: relative;
+  }
+  .flat-couch-stage svg {
+    width: 100%; height: 100%; display: block; overflow: visible;
+  }
+  .flat-couch-stage .seat-zone {
+    cursor: pointer;
+    transition: opacity 0.18s ease;
+  }
+  .flat-couch-stage .seat-zone:hover { opacity: 0.85; }
+  .flat-couch-stage .seat-zone.empty .empty-glow {
+    animation: pulse-glow 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+  .flat-couch-stage .avatar-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .flat-couch-stage .avatar-overlay .ov-avatar {
+    position: absolute;
+    width: 9%; aspect-ratio: 1;
+    border-radius: 9999px;
+    border: 2.5px solid #0f0c0a;
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-family: var(--font-display);
+    font-size: clamp(11px, 2vw, 17px);
+    font-weight: 500;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.7);
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+  }
+
+  .seat-pills {
+    display: flex; gap: var(--space-2); justify-content: center; margin-top: var(--space-2); flex-wrap: wrap;
+  }
+  .seat-pill {
+    background: transparent; color: var(--color-text-muted);
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius-full);
+    padding: 5px 14px; font-size: 11px; font-family: var(--font-sans);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .seat-pill:hover { color: var(--color-text); border-color: var(--color-border); }
+  .seat-pill.active {
+    background: var(--color-primary-soft); color: white; border-color: var(--color-primary);
+  }
+
+  #sketch-tools {
+    position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+    font-family: system-ui; font-size: 11px;
+    background: rgba(0,0,0,0.78); color: white;
+    padding: 8px 12px; border-radius: 10px;
+    opacity: 0.4; transition: opacity 0.2s;
+    display: flex; gap: 8px; align-items: center;
+  }
+  #sketch-tools:hover { opacity: 1; }
+  #sketch-tools button {
+    background: rgba(255,255,255,0.1); color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 3px 7px; font-size: 10px; cursor: pointer;
+  }
+
+  body.vp-phone .variant { max-width: 375px; }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <span class="nav-title">Couch viz</span>
+  <button class="variant-tab active" data-v="p" onclick="showVariant('p', event)">P: Hero icon + grid ★</button>
+  <button class="variant-tab" data-v="q" onclick="showVariant('q', event)">Q: Stylized flat couch</button>
+</div>
+
+<!-- ============================================================
+     PATH A — HERO APP ICON + AVATAR GRID
+     The icon does brand. The grid does function. They don't fight.
+============================================================ -->
+<div id="variant-p" class="variant">
+  <h2>Hero icon + avatar grid ★</h2>
+  <p class="subtitle">Your existing app icon as the warm brand hero. Below it: clean grid of who's on the couch tonight. Empty slots glow ember and ＋. Scales from 1 to 10 cleanly. This is what Netflix / Disney+ / Zoom actually do.</p>
+
+  <div class="stage">
+    <div class="hero-icon-wrap">
+      <!-- ============================================================
+           ICON SWAP POINT
+           To preview a new icon: replace `app-icon.png` in this folder.
+           Filename must stay `app-icon.png` so the sketch picks it up.
+           Production app already references /mark-512.png in app.html;
+           when production icon updates, Tonight tab inherits automatically.
+      ============================================================ -->
+      <img src="app-icon.png" alt="Couch app icon" />
+    </div>
+
+    <h3 class="ritual-headline">On the couch tonight</h3>
+    <p class="ritual-sub">Tap an empty seat to join · 5 of 10 here</p>
+
+    <div class="avatar-grid" id="grid-p"></div>
+
+    <div class="seat-pills">
+      <button class="seat-pill" onclick="renderP(3, event)">3</button>
+      <button class="seat-pill active" onclick="renderP(5, event)">5</button>
+      <button class="seat-pill" onclick="renderP(8, event)">8</button>
+      <button class="seat-pill" onclick="renderP(10, event)">10</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PATH B — STYLIZED FLAT COUCH (clean illustrated style)
+     Restraint = quality. Bold flat fills, single accent, no realism.
+     Like Lucide / Notion / Mailchimp illustration energy.
+============================================================ -->
+<div id="variant-q" class="variant" style="display:none">
+  <h2>Stylized flat couch</h2>
+  <p class="subtitle">Hand-drawn flat illustration style — clean lines, single fill, no realistic textures. Quality comes from restraint, not detail. Members on the cushions; overflow row below for more than 6.</p>
+
+  <div class="stage">
+    <h3 class="ritual-headline">On the couch tonight</h3>
+    <p class="ritual-sub">Tap an empty seat to join</p>
+
+    <div class="flat-couch-stage" id="couch-q">
+      <svg viewBox="0 0 800 460" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="empty-glow-q" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#d97a3c" stop-opacity="0.55"/>
+            <stop offset="1" stop-color="#d97a3c" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <!-- ===== FLAT-STYLE COUCH (single brown fill, clean strokes) =====
+             Front-elevation, 3 cushions, rolled arms, low feet.
+             Fill: solid #5b3a22 (brand mid-brown).
+             Strokes: #1a0e05 at 3.5px (bold, intentional).
+             Highlights: single off-white #d6b08c stroke (catch-light).
+             No gradients on couch body. No tufting. No textures.
+        -->
+
+        <!-- Floor shadow (subtle) -->
+        <ellipse cx="400" cy="425" rx="320" ry="14" fill="#000" opacity="0.4"/>
+
+        <!-- Couch body — single shape, single fill -->
+        <path d="M 100 130
+                 Q 100 90 145 90
+                 L 655 90
+                 Q 700 90 700 130
+                 L 700 270
+                 L 700 350
+                 Q 700 380 670 380
+                 L 130 380
+                 Q 100 380 100 350
+                 Z"
+              fill="#5b3a22" stroke="#1a0e05" stroke-width="3.5" stroke-linejoin="round"/>
+
+        <!-- Back-rest separation line (defines the back vs seat) -->
+        <path d="M 100 270 L 700 270" stroke="#1a0e05" stroke-width="2.5" stroke-linecap="round"/>
+
+        <!-- 3 cushion divisions on the seat -->
+        <line x1="300" y1="270" x2="300" y2="375" stroke="#1a0e05" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="500" y1="270" x2="500" y2="375" stroke="#1a0e05" stroke-width="2.5" stroke-linecap="round"/>
+
+        <!-- Back cushion divisions (3 back pillows) -->
+        <line x1="300" y1="95" x2="300" y2="265" stroke="#1a0e05" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="500" y1="95" x2="500" y2="265" stroke="#1a0e05" stroke-width="2.5" stroke-linecap="round"/>
+
+        <!-- Top catch-light (warm cream, single stroke at top edge) -->
+        <path d="M 145 95 Q 200 92 270 92 M 330 92 Q 400 92 470 92 M 530 92 Q 600 92 655 95"
+              stroke="#d6b08c" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+
+        <!-- Tiny rolled-arm highlight -->
+        <path d="M 105 145 Q 108 180 108 220" stroke="#d6b08c" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.4"/>
+        <path d="M 695 145 Q 692 180 692 220" stroke="#d6b08c" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.4"/>
+
+        <!-- Wooden feet -->
+        <rect x="125" y="378" width="14" height="22" rx="3" fill="#1a0e05"/>
+        <rect x="661" y="378" width="14" height="22" rx="3" fill="#1a0e05"/>
+
+        <!-- ===== 3 SEAT ZONES on the couch ===== -->
+        <g class="seat-zone" data-idx="0">
+          <ellipse class="empty-glow" cx="200" cy="320" rx="80" ry="40" fill="url(#empty-glow-q)" opacity="0"/>
+        </g>
+        <g class="seat-zone" data-idx="1">
+          <ellipse class="empty-glow" cx="400" cy="320" rx="80" ry="40" fill="url(#empty-glow-q)" opacity="0"/>
+        </g>
+        <g class="seat-zone" data-idx="2">
+          <ellipse class="empty-glow" cx="600" cy="320" rx="80" ry="40" fill="url(#empty-glow-q)" opacity="0"/>
+        </g>
+      </svg>
+
+      <!-- Member avatars overlay positioned ON the cushions -->
+      <div class="avatar-overlay" id="overlay-q"></div>
+    </div>
+
+    <!-- Overflow row: members beyond 3 appear as a chip row below the couch -->
+    <div id="overflow-q" style="text-align:center; margin-top: var(--space-2);"></div>
+
+    <div class="seat-pills">
+      <button class="seat-pill" onclick="renderQ(3, event)">3</button>
+      <button class="seat-pill active" onclick="renderQ(5, event)">5</button>
+      <button class="seat-pill" onclick="renderQ(8, event)">8</button>
+      <button class="seat-pill" onclick="renderQ(10, event)">10</button>
+    </div>
+  </div>
+</div>
+
+<div id="sketch-tools">
+  <button onclick="setVp('phone')">Phone</button>
+  <button onclick="setVp('full')">Full</button>
+</div>
+
+<script>
+  const MEMBERS = [
+    { initial: 'D', name: 'Dad',     color: '#c95f4a' },
+    { initial: 'M', name: 'Mom',     color: '#d99a3c' },
+    { initial: 'A', name: 'Ava',     color: '#7fa56a' },
+    { initial: 'L', name: 'Liam',    color: '#6c8db8' },
+    { initial: 'E', name: 'Ellie',   color: '#b07ac9' },
+    { initial: 'S', name: 'Sam',     color: '#d97a3c' },
+    { initial: 'J', name: 'Jules',   color: '#b3937a' },
+    { initial: 'K', name: 'Kit',     color: '#88a89c' },
+    { initial: 'R', name: 'Rose',    color: '#e8a88c' },
+    { initial: 'T', name: 'Theo',    color: '#a8c4d4' },
+  ];
+  const TOTAL_SEATS = 10;
+
+  // ===== Path P (hero + grid) =====
+  function renderP(claimed, ev) {
+    document.querySelectorAll('#variant-p .seat-pill').forEach(p => p.classList.remove('active'));
+    if (ev && ev.target) ev.target.classList.add('active');
+    // Update sub-headline
+    document.querySelector('#variant-p .ritual-sub').textContent =
+      `Tap an empty seat to join · ${claimed} of 10 here`;
+    const grid = document.getElementById('grid-p');
+    grid.innerHTML = '';
+    for (let i = 0; i < TOTAL_SEATS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'seat-cell';
+      if (i < claimed) {
+        const m = MEMBERS[i];
+        cell.innerHTML = `
+          <div class="seat-avatar" style="background:${m.color}">${m.initial}</div>
+          <div class="seat-name">${m.name}</div>
+        `;
+      } else {
+        cell.innerHTML = `
+          <div class="seat-empty" onclick="this.parentElement.firstElementChild.remove(); this.outerHTML='<div class=&quot;seat-avatar&quot; style=&quot;background:#7a705f&quot;>?</div><div class=&quot;seat-name&quot;>You?</div>';">＋</div>
+          <div class="seat-name" style="color:transparent">·</div>
+        `;
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  // ===== Path Q (stylized couch + overflow row) =====
+  // 3 main couch seats (idx 0-2) + 7 overflow chips (idx 3-9)
+  const POSITIONS_Q = [
+    { left: '25%', top: '69%' },
+    { left: '50%', top: '69%' },
+    { left: '75%', top: '69%' },
+  ];
+  function renderQ(claimed, ev) {
+    document.querySelectorAll('#variant-q .seat-pill').forEach(p => p.classList.remove('active'));
+    if (ev && ev.target) ev.target.classList.add('active');
+    // Couch seats (max 3)
+    const onCouch = Math.min(claimed, 3);
+    document.querySelectorAll('#couch-q .seat-zone').forEach((z, i) => {
+      const isClaimed = i < onCouch;
+      z.classList.toggle('empty', !isClaimed);
+      const glow = z.querySelector('.empty-glow');
+      if (glow) glow.style.opacity = isClaimed ? '0' : '';
+    });
+    const overlay = document.getElementById('overlay-q');
+    overlay.innerHTML = '';
+    for (let i = 0; i < onCouch; i++) {
+      const a = document.createElement('div');
+      a.className = 'ov-avatar';
+      a.style.left = POSITIONS_Q[i].left;
+      a.style.top = POSITIONS_Q[i].top;
+      a.style.background = MEMBERS[i].color;
+      a.textContent = MEMBERS[i].initial;
+      overlay.appendChild(a);
+    }
+    // Overflow row
+    const overflow = document.getElementById('overflow-q');
+    overflow.innerHTML = '';
+    if (claimed > 3) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:12px; border-top:1px dashed var(--color-border-soft); margin-top: 8px;';
+      const label = document.createElement('div');
+      label.style.cssText = 'width:100%; text-align:center; font-family:var(--font-serif); font-style:italic; color:var(--color-text-muted); font-size:12px; margin-bottom:6px;';
+      label.textContent = `+${claimed - 3} on the floor / chairs`;
+      wrap.appendChild(label);
+      for (let i = 3; i < claimed; i++) {
+        const m = MEMBERS[i];
+        const chip = document.createElement('div');
+        chip.style.cssText = `
+          display:flex; align-items:center; gap:6px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid var(--color-border-soft);
+          padding:4px 10px 4px 4px;
+          border-radius:9999px;
+          font-family:var(--font-sans);
+          font-size:12px;
+          color:var(--color-text-muted);
+        `;
+        chip.innerHTML = `
+          <span style="
+            width:22px;height:22px;border-radius:9999px;
+            background:${m.color};color:white;
+            display:flex;align-items:center;justify-content:center;
+            font-family:var(--font-display);font-size:12px;font-weight:500;
+            border:1.5px solid var(--color-bg);
+          ">${m.initial}</span>
+          ${m.name}
+        `;
+        wrap.appendChild(chip);
+      }
+      overflow.appendChild(wrap);
+    }
+  }
+
+  function showVariant(id, ev) {
+    document.querySelectorAll('.variant').forEach(v => v.style.display = 'none');
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).style.display = 'block';
+    if (ev && ev.target) ev.target.classList.add('active');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+
+  function setVp(v) {
+    document.body.classList.toggle('vp-phone', v === 'phone');
+  }
+
+  // Initial render
+  renderP(5);
+  renderQ(5);
+</script>
+
+</body>
+</html>
