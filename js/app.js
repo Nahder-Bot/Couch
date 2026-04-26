@@ -5323,7 +5323,14 @@ function checkApprovalUpdates() {
 // Wrapper for the raw `setDoc` calls that create new titles. If the adder is a kid,
 // it stamps the title as pending and returns so the caller can surface "awaiting approval" UI.
 // Returns { ok: true, pending: boolean }.
-async function createTitleWithApprovalCheck(titleId, titleData) {
+//
+// === D-03 Add-tab insertion (DECI-14-03) ===
+// opts.addToMyQueue (default false): when true, the new title is appended to the BOTTOM
+// of state.me's personal queue at create time (queues[state.me.id] = currentQueueLen + 1).
+// Caller-opt-in keeps bulk-import paths (Trakt sync, Couch Nights packs, first-run seed)
+// from auto-populating the actor's queue. The 4 user-Add paths (addToLibrary,
+// submitManualAdd, addSimilar, addFromAddTab) pass true.
+async function createTitleWithApprovalCheck(titleId, titleData, opts) {
   const me = state.me ? state.members.find(x => x.id === state.me.id) : null;
   const pending = needsApproval(me);
   const finalData = { ...titleData };
@@ -5331,6 +5338,13 @@ async function createTitleWithApprovalCheck(titleId, titleData) {
     finalData.approvalStatus = 'pending';
     finalData.requestedBy = me.id;
     finalData.requestedAt = Date.now();
+  }
+  // D-03: append to bottom of state.me's personal queue if caller opts in.
+  // Skipped for bulk imports (Trakt / pack expand / first-run seed) and when state.me
+  // is unset (defensive — pre-claim flows).
+  if (opts && opts.addToMyQueue && state.me && state.me.id) {
+    const myQueueLen = state.titles.filter(x => !x.watched && x.queues && x.queues[state.me.id] != null).length;
+    finalData.queues = { ...(finalData.queues || {}), [state.me.id]: myQueueLen + 1 };
   }
   await setDoc(doc(titlesRef(), titleId), { ...finalData, ...writeAttribution() });
   return { ok: true, pending };
@@ -5569,7 +5583,8 @@ window.addToLibrary = async function(id) {
   if (!r) return;
   const extras = await fetchTmdbExtras(r.mediaType, r.tmdbId);
   const moods = suggestMoods(r.genreIds || [], extras.runtime);
-  const res = await createTitleWithApprovalCheck(r.id, { ...r, ...extras, moods, votes:{}, watched:false });
+  // === D-03 Add-tab insertion (DECI-14-03) === — search "+ Pull up" lands in my queue.
+  const res = await createTitleWithApprovalCheck(r.id, { ...r, ...extras, moods, votes:{}, watched:false }, { addToMyQueue: true });
   logActivity(res.pending ? 'requested' : 'added', { titleName: r.name, titleId: r.id });
   if (res.pending) flashToast(`"${r.name}" sent for a parent to review.`);
   renderSearchResults();
@@ -5613,7 +5628,8 @@ window.submitManualAdd = async function() {
   const id = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   const title = { id, name, year, kind, poster, overview: notes, moods: manualMoods.slice(), votes: {}, watched: false, isManual: true };
   try {
-    const res = await createTitleWithApprovalCheck(id, title);
+    // === D-03 Add-tab insertion (DECI-14-03) === — manual modal lands in my queue.
+    const res = await createTitleWithApprovalCheck(id, title, { addToMyQueue: true });
     logActivity(res.pending ? 'requested' : 'added', { titleName: name, titleId: id });
     if (res.pending) flashToast(`"${name}" sent for a parent to review.`);
     closeManualAdd();
@@ -6543,7 +6559,8 @@ window.addSimilar = async function(id) {
   if (state.titles.find(x => x.id === id)) return;
   const extras = await fetchTmdbExtras(s.mediaType, s.tmdbId);
   const newTitle = { ...s, ...extras, votes:{}, watched:false };
-  const res = await createTitleWithApprovalCheck(s.id, newTitle);
+  // === D-03 Add-tab insertion (DECI-14-03) === — "more like this" lands in my queue.
+  const res = await createTitleWithApprovalCheck(s.id, newTitle, { addToMyQueue: true });
   if (res.pending) {
     newTitle.approvalStatus = 'pending';
     newTitle.requestedBy = state.me.id;
@@ -10999,7 +11016,8 @@ window.addFromAddTab = async function(rowId, titleId) {
   const moods = suggestMoods(item.genreIds || [], extras.runtime);
   const newTitle = { ...item, ...extras, moods, votes:{}, watched:false };
   try {
-    const res = await createTitleWithApprovalCheck(titleId, newTitle);
+    // === D-03 Add-tab insertion (DECI-14-03) === — Add-tab "+ Pull up" lands in my queue.
+    const res = await createTitleWithApprovalCheck(titleId, newTitle, { addToMyQueue: true });
     logActivity(res.pending ? 'requested' : 'added', { titleName: item.name, titleId });
     if (res.pending) flashToast(`"${item.name}" sent for a parent to review.`);
     // Re-render the row to flip the + to ✓
