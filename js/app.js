@@ -1397,16 +1397,35 @@ function computeIntentThreshold(group) {
   return { rule };
 }
 
-async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {}) {
+// === D-09 createIntent extension — DECI-14-09 (DR-1: extend, do not fork) ===
+// Phase 14 Plan 06: extends Phase 8's createIntent to accept 4 flow values.
+// Legacy callers passing `type` still work (back-compat preserved verbatim).
+// New callers pass `flow` to opt into 'rank-pick' (Flow A) or 'nominate' (Flow B).
+// Per-flow expiresAt + per-flow rsvps[me] seed shape + new fields (counterChainDepth,
+// expectedCouchMemberIds) layered on without breaking any existing intent doc.
+async function createIntent({ type, flow, titleId, proposedStartAt, proposedNote, expectedCouchMemberIds } = {}) {
   if (!state.me || !state.familyCode) return null;
-  if (type !== 'tonight_at_time' && type !== 'watch_this_title') throw new Error('bad_intent_type');
+  // Back-compat: legacy callers pass `type`; new callers pass `flow`. Accept either; prefer flow.
+  const flowVal = flow || type;
+  const allowed = ['tonight_at_time', 'watch_this_title', 'rank-pick', 'nominate'];
+  if (!allowed.includes(flowVal)) throw new Error('bad_intent_flow');
   const t = state.titles.find(x => x.id === titleId);
   if (!t) throw new Error('title_not_found');
   const id = 'i_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   const now = Date.now();
-  const expiresAt = type === 'tonight_at_time'
-    ? (proposedStartAt || now) + 3 * 60 * 60 * 1000  // 3h past startAt
-    : now + 30 * 24 * 60 * 60 * 1000;                // 30d for interest polls
+  // Per-flow expiry per D-07 (Flow A: 11pm same-day) and D-08 (Flow B: T+4hr).
+  // Legacy 'tonight_at_time' (3h past startAt) and 'watch_this_title' (30d) preserved verbatim.
+  let expiresAt;
+  if (flowVal === 'rank-pick') {
+    const eod = new Date(); eod.setHours(23, 0, 0, 0);
+    expiresAt = eod.getTime();
+  } else if (flowVal === 'nominate') {
+    expiresAt = (proposedStartAt || now) + 4 * 60 * 60 * 1000;
+  } else if (flowVal === 'tonight_at_time') {
+    expiresAt = (proposedStartAt || now) + 3 * 60 * 60 * 1000;
+  } else {
+    expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+  }
   const th = computeIntentThreshold(state.group || {});
   // Plan 09-07a (absorbs 08x-intent-cf-timezone): capture the creator's IANA tz name
   // so onIntentCreated CF can render the push-body time in local instead of UTC.
@@ -1415,27 +1434,39 @@ async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
     catch(e) { return null; }
   })();
+  // Per D-09: rsvps[me] vocabulary differs by flow. Legacy flows use {value:'yes'};
+  // new flows use {state:'in'}. CF + reads accept both (intent.flow || intent.type fallback).
+  const meRsvp = (flowVal === 'rank-pick' || flowVal === 'nominate')
+    ? {
+        state: 'in',
+        at: now,
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      }
+    : {
+        value: 'yes',
+        at: now,
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      };
   const intent = {
-    id, type,
+    id,
+    type: flowVal,            // legacy field — preserved for back-compat (rules + Phase 8 readers)
+    flow: flowVal,            // new D-09 discriminator (rules accept either; CFs prefer flow)
     titleId, titleName: t.name, titlePoster: t.poster || '',
     createdBy: state.me.id,
     createdByName: state.me.name || null,
     createdByUid: (state.auth && state.auth.uid) || null,
     createdAt: now,
     creatorTimeZone,
-    rsvps: {
-      [state.me.id]: {
-        value: 'yes',
-        at: now,
-        actingUid: (state.auth && state.auth.uid) || null,
-        memberName: state.me.name || null
-      }
-    },
+    rsvps: { [state.me.id]: meRsvp },
     thresholdRule: th.rule,
     status: 'open',
-    expiresAt
+    expiresAt,
+    counterChainDepth: 0   // D-07.6 cap at 3 (rules enforce); 0 = no counters yet
   };
-  if (type === 'tonight_at_time') intent.proposedStartAt = proposedStartAt || null;
+  if (flowVal === 'tonight_at_time' || flowVal === 'nominate') intent.proposedStartAt = proposedStartAt || null;
+  if (flowVal === 'rank-pick' && Array.isArray(expectedCouchMemberIds)) intent.expectedCouchMemberIds = expectedCouchMemberIds;
   if (proposedNote) intent.proposedNote = proposedNote;
   await setDoc(intentRef(id), { ...intent, ...writeAttribution() });
   return id;
