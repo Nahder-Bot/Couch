@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 14 PLANNED — 9 plans across 4 waves, ready to execute
-stopped_at: "Phase 14 PLANNED 2026-04-25 — 9 PLAN.md files written (14-01..09) covering all 12 D-XX decisions + 3 reconciled DRs (DR-1 extend intents collection, DR-2 polish queue, DR-3 push categories in 3 places). 13 DECI-14-* requirements minted in REQUIREMENTS.md. Plan-checker: 0 blockers, 4 warnings (3 cosmetic wave-numbers fixed; D-12 friendly-UI deferral confirmed as override → CONTEXT.md updated). Wave structure: W1 (14-01,02,04,05,06) → W2 (14-03,08) → W3 (14-07) → W4 (14-09). Phase 13 still SHIPPED (3/4 HUMAN-VERIFY closed; 1 gcloud Firestore export setup remains user-side). Full per-phase audit trail at .planning/phases/{phase-dir}/."
-last_updated: "2026-04-25T20:30:00.000Z"
-last_activity: 2026-04-25 -- Phase 14 PLANNED (9 plans, 13 DECI-* requirements, plan-checker passed with 4 warnings resolved)
+status: Phase 14 IN PROGRESS — 2/9 plans complete (14-01 + 14-06)
+stopped_at: "Phase 14 Plan 06 (extend intents + CFs, D-09 / DECI-14-09 — DR-1 reframe) COMPLETE 2026-04-25. Couch repo: 2 commits (3c6b4b9 createIntent extension; 9a09872 firestore.rules widening). Queuenight repo (functions/index.js): Tasks 3 (onIntentCreated 4-way flow branch), 4 (onIntentUpdate counter-chain + reject-majority), 5 (watchpartyTick auto-convert + T-30min warning) edited in-place but UNCOMMITTED — queuenight has no .git on this machine (deviation 1 in 14-06-SUMMARY.md). DR-1 invariant verified: 0 occurrences of watchpartyIntents across all 3 modified files; 0 new top-level CF exports. 7 new eventTypes wired (flowAPick/flowAVoteOnPick/flowARejectMajority/flowBNominate/flowBCounterTime/flowBConvert/intentExpiring) — Plan 14-09 must add them to NOTIFICATION_DEFAULTS + DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS (3-place DR-3) before user toggles take effect. Remaining Phase 14 plans: W1 (14-02 queue polish, 14-04 SVG couch viz, 14-05 tile redesign) → W2 (14-03 tier aggregators, 14-08 Flow B) → W3 (14-07 Flow A) → W4 (14-09 onboarding+empty+push+CACHE). DEPLOY ORDER REMINDER: deploy CFs from ~/queuenight FIRST, then bash scripts/deploy.sh from couch repo (CF must be live before client UI starts writing rank-pick/nominate intents)."
+last_updated: "2026-04-25T23:50:00.000Z"
+last_activity: 2026-04-25 -- Phase 14 Plan 06 SHIPPED (createIntent + rules widened; queuenight CFs extended in-place, uncommitted; DR-1 invariant holds)
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 67
-  completed_plans: 35
-  percent: 52
+  completed_plans: 36
+  percent: 54
 ---
 
 # Project State
