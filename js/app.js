@@ -91,10 +91,10 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
 // fires. Acceptable for the current product loop — most people leave one tab open.
 // === Web Push (real OS-level notifications via service worker) ===
 // VAPID public key is imported from js/constants.js (public-by-design, matches TMDB_KEY posture).
-// Matching private key lives server-side in queuenight/functions/.env.
+// Matching private key lives server-side in the deploy-mirror repo's functions/.env.
 
 // Per-event-type notification defaults (PUSH-02). Written to users/{uid}.notificationPrefs when
-// the user touches a toggle; server reads and respects these in queuenight/functions sendToMembers.
+// the user touches a toggle; server reads and respects these in the deploy-mirror repo's functions/ sendToMembers.
 // Four events default ON (the ones users expect). Two default OFF because they can be noisy
 // if the family is large — users opt in via Settings when they want them.
 const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
@@ -108,7 +108,7 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   intentProposed: true,
   intentMatched: true,
   // === Phase 14 — Decision Ritual Core (D-12 / DR-3 place 2 of 3) ===
-  // Must stay in lockstep with queuenight/functions/index.js NOTIFICATION_DEFAULTS
+  // Must stay in lockstep with the deploy-mirror repo's functions/index.js NOTIFICATION_DEFAULTS
   // (server gate) and NOTIFICATION_EVENT_LABELS below (UI copy). All default ON
   // per RESEARCH §5 — these fire only when the user has actively engaged.
   flowAPick: true,
@@ -1870,7 +1870,7 @@ window.convertIntent = async function(intentId, kind) {
 // Solo-nominate flow per D-08: member nominates a title with a proposed time, family
 // members can join / counter / decline. Counter-time decision belongs to nominator
 // (accept / reject / pick compromise). Auto-convert at T-15min handled CF-side
-// (queuenight watchpartyTick from 14-06). All-No edge case auto-cancels client-side.
+// (deploy-mirror watchpartyTick from 14-06). All-No edge case auto-cancels client-side.
 window.openFlowBNominate = function(titleId) {
   if (!state.me) { flashToast('Sign in to nominate', { kind: 'warn' }); return; }
   const t = state.titles.find(x => x.id === titleId);
@@ -12289,7 +12289,7 @@ window.replayOnboarding = function() {
 // handlers) not at boot.
 //
 // firestore.rules audit (Plan 14-09 Task 2 §5): the members/{memberId} update
-// branch (queuenight/firestore.rules:192-202) is permissive — any field write by
+// branch (deploy-mirror firestore.rules:192-202) is permissive — any field write by
 // self/owner/parent passes. seenTooltips.{primId} writes go through unchanged.
 async function maybeShowTooltip(primId, targetEl, message, opts) {
   if (!state.me || !targetEl) return;
