@@ -11139,6 +11139,16 @@ function mapTmdbItem(x, typeOverride) {
   };
 }
 
+// Phase-14 polish — safety filter for TMDB list responses before they render to
+// family-shared discovery surfaces (Add tab rows, onboarding seeds, etc.).
+// Drop adult content. Same defensive pattern as the "you might also like" fix at
+// fetchTmdbDetails (commit 51f7f50). Couch is family-shared by definition.
+function isFamilySafeTmdbItem(x) {
+  if (!x) return false;
+  if (x.adult) return false;
+  return true;
+}
+
 function renderAddRow(rowId, items) {
   const el = document.getElementById('add-row-' + rowId);
   if (!el) return;
@@ -11541,10 +11551,32 @@ async function loadDiscoveryRow(row) {
       else {
         const mediaPath = (recent.mediaType === 'tv' || recent.kind === 'TV') ? 'tv' : 'movie';
         const d = await tmdbFetch(`/${mediaPath}/${recent.tmdbId}/similar`);
-        items = (d.results || [])
+        // Same Boys-style filter we applied at fetchTmdbDetails (commit 51f7f50):
+        // format match (live-action ↔ live-action, animated ↔ animated) + adult drop +
+        // genre-overlap sort. Source title is `recent` which carries genreIds from
+        // mapTmdbItem; older titles may lack it so animated check falls back to genre name.
+        const recentGenreSet = new Set(recent.genreIds || []);
+        const recentIsAnimated = recentGenreSet.has(16) ||
+          (Array.isArray(recent.genres) && recent.genres.includes('Animation'));
+        const candidates = (d.results || [])
           .filter(x => x.poster_path && (x.title || x.name))
-          .slice(0, 20)
-          .map(x => mapTmdbItem(x, mediaPath));
+          .filter(isFamilySafeTmdbItem)
+          .filter(x => ((x.genre_ids || []).includes(16)) === recentIsAnimated);
+        candidates.sort((a, b) => {
+          const aOverlap = (a.genre_ids || []).filter(g => recentGenreSet.has(g)).length;
+          const bOverlap = (b.genre_ids || []).filter(g => recentGenreSet.has(g)).length;
+          if (bOverlap !== aOverlap) return bOverlap - aOverlap;
+          return (b.vote_average || 0) - (a.vote_average || 0);
+        });
+        // Fallback: if strict format/genre filter leaves <3, fall back to adult-filtered
+        // (still drops porn) but skips format match. Avoids empty rows on niche sources.
+        const finalList = candidates.length >= 3
+          ? candidates.slice(0, 20)
+          : (d.results || [])
+              .filter(x => x.poster_path && (x.title || x.name))
+              .filter(isFamilySafeTmdbItem)
+              .slice(0, 20);
+        items = finalList.map(x => mapTmdbItem(x, mediaPath));
         // Swap the eyebrow on the live row to reflect which title seeded the similar list.
         try {
           const rowEl = document.getElementById('add-row-' + row.id);
