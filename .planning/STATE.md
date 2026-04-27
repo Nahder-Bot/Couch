@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: Executing Phase 15.1
-last_updated: "2026-04-27T13:00:00.000Z"
+last_updated: "2026-04-27T13:11:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 5
   total_plans: 58
-  completed_plans: 41
-  percent: 71
+  completed_plans: 42
+  percent: 72
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 15.1 (security-hardening) — EXECUTING
-Plan: 2 of 3 (Wave 1 / 15.1-01 SHIPPED 2026-04-27 — 3 tasks committed 1443fa6 + 2e61547 + 8dc9c52, 32/32 tests passing, no regression. Awaits Wave 2 / 15.1-02 (rules + tests) and Wave 3 / 15.1-03 (close-out + deploy).)
+Plan: 3 of 3 (Wave 1 / 15.1-01 SHIPPED 2026-04-27 — 3 tasks committed 1443fa6 + 2e61547 + 8dc9c52. Wave 2 / 15.1-02 SHIPPED 2026-04-27 — 3 tasks committed 7ab3015 SEC-15-1-02 anchor + SEC-15-1-01 progress sub-rule + 5b5fdb7 SEC-15-1-03 family-doc participant check + 5d605f4 tests #33-#38. 38/38 tests passing. couch/firestore.rules and ~/queuenight/firestore.rules byte-identical. Closes SEC-15-1-01..04 rule+test halves. Awaits Wave 3 / 15.1-03 (close-out + cross-repo deploy in REVERSED order: HOSTING FIRST → RULES SECOND per CONTEXT §Cross-cutting).)
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass minted via /gsd-plan-phase 15.1.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
