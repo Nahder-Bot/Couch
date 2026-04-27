@@ -6849,6 +6849,7 @@ window.deleteMyReview = async function() {
     if (detailTitleId === reviewTitleId) {
       const merged = state.titles.find(x => x.id === detailTitleId);
       if (merged) { merged.reviews = reviews; document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged); }
+      if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
     }
   } catch(e) { flashToast('Could not delete. Try again.', { kind: 'warn' }); }
 };
@@ -6874,6 +6875,7 @@ window.saveReview = async function() {
     if (detailTitleId === reviewTitleId) {
       const merged = state.titles.find(x => x.id === detailTitleId);
       if (merged) { merged.reviews = reviews; document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged); }
+      if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
     }
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
@@ -7055,6 +7057,7 @@ window.openDetailModal = async function(id) {
   const bg = document.getElementById('detail-modal-bg');
   const content = document.getElementById('detail-modal-content');
   content.innerHTML = renderDetailShell(t);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   bg.classList.add('on');
   // Tap-outside-to-close. Essential on iOS PWA where there's no browser back and
   // the ✕ scrolls out of view when the detail is scrolled. Only the backdrop itself
@@ -7070,6 +7073,7 @@ window.openDetailModal = async function(id) {
     if (detailTitleId !== id) return;
     const merged = state.titles.find(x => x.id === id) || t;
     document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
+    if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   }).catch(e => console.warn('[detail] tmdb reviews fetch failed', e));
   if (t.isManual) return;
   // For TV titles, the fetch also pulls showStatus/nextEpisode/etc which were added
@@ -7088,6 +7092,7 @@ window.openDetailModal = async function(id) {
   if (detailTitleId === id) {
     const merged = { ...t, ...update };
     content.innerHTML = renderDetailShell(merged);
+    if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   }
 };
 
@@ -7240,6 +7245,7 @@ function renderDetailShell(t) {
     ${similarHtml}
     ${renderDiaryForTitle(t)}
     ${renderReviewsForTitle(t)}
+    ${renderCv15TupleProgressSection(t)}
     ${renderTmdbReviewsForTitle(t)}
     ${renderWatchpartyHistoryForTitle(t)}
     ${loadingHtml}
@@ -7291,6 +7297,7 @@ window.addSimilar = async function(id) {
   state.titles.push(newTitle);
   const merged = state.titles.find(x => x.id === detailTitleId);
   if (merged) document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
 };
 
 // Phase 3 (Mood Tags): inline detail-view mood editing
@@ -7366,6 +7373,7 @@ function _rerenderDetailFromState() {
   if (!content) return;
   const scrollTop = content.scrollTop;
   content.innerHTML = renderDetailShell(t);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   content.scrollTop = scrollTop;
 }
 
