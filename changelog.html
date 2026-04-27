@@ -66,6 +66,19 @@
 
   <article class="release">
     <header class="release-h">
+      <span class="release-version">v35.1</span>
+      <span class="release-date">[deploy date YYYY-MM-DD] · Security &amp; trust</span>
+    </header>
+    <p class="release-summary"><em>Quiet hardening &mdash; nothing to do; a fresh open updates the cached app.</em></p>
+    <ul class="release-list">
+      <li><strong>Sealed per-couch progress:</strong> episode progress, couch nicknames, and "stop nagging me" records are now sealed to their owner per row, not just per family. Nobody can rewrite anyone else's progress or rename a couch they're not on.</li>
+      <li><strong>Pencil hides off-couch:</strong> the rename pencil only shows for couches you're on. Named couches now show "Renamed by &lt;name&gt;" attribution &mdash; silent vandalism becomes attributable action.</li>
+      <li><strong>Audit trail:</strong> Closes 4 findings from the post-Phase-15 holistic audit (F-OPEN-01, F-OPEN-02, WR-02, WR-03). Full trail in <code>.planning/phases/15-tracking-layer/15-SECURITY.md</code> + <code>15-REVIEW.md</code>.</li>
+    </ul>
+  </article>
+
+  <article class="release">
+    <header class="release-h">
       <span class="release-version">v35</span>
       <span class="release-date">2026-04-27 · Tracking layer</span>
     </header>
