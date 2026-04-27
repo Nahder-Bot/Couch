@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v35.1-security-hardening
+milestone: v33.3
 milestone_name: milestone
-status: Phase 15.1 SHIPPED — awaiting next phase kickoff
-last_updated: "2026-04-27T13:25:00.000Z"
+status: Executing Phase 15.2
+last_updated: "2026-04-27T17:15:37.394Z"
 progress:
-  total_phases: 11
-  completed_phases: 6
-  total_plans: 58
-  completed_plans: 43
-  percent: 74
+  total_phases: 14
+  completed_phases: 5
+  total_plans: 65
+  completed_plans: 40
+  percent: 62
 ---
 
 # Project State
@@ -19,12 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.1 SHIPPED — Security Hardening complete; awaiting next phase kickoff (16 Calendar Layer or 17 App Store Launch Readiness)
+**Current focus:** Phase 15.2 — audit-trail-backfill
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 15.1 (security-hardening) — **SHIPPED 2026-04-27 — couch-v35.1-security-hardening live at couchtonight.app + tightened rules on queuenight-84044.** Wave 1 / 15.1-01 — 3 tasks committed (1443fa6 dotted-path progress writers + 2e61547 actingTupleKey stamping + 8dc9c52 pencil-glyph hide + setBy attribution). Wave 2 / 15.1-02 — 3 tasks committed (7ab3015 SEC-15-1-02 anchor + SEC-15-1-01 progress sub-rule + 5b5fdb7 SEC-15-1-03 family-doc participant check + 5d605f4 tests #33-#38; 38/38 tests passing; source/mirror byte-identical). Wave 3 / 15.1-03 — 5 commits (341cac9 v35.1 changelog article + ff57f71 sw.js auto-bump + 2d7089d deploy date stamp + a481138 REQUIREMENTS+ROADMAP close-out + queuenight c9e27c4 rules mirror commit). REVERSED cross-repo deploy executed near-lockstep (hosting at ~13:20 UTC → rules at ~13:21 UTC, gap <1 min; both deploys returned `Deploy complete!`). 5/5 SEC-15-1-* requirements Complete; closes 4 findings from Phase 15 holistic audit (F-OPEN-01 HIGH + WR-02 HIGH + F-OPEN-02 MEDIUM + WR-03 MEDIUM). Phase 15.1 auditably CLOSED.
+Phase: 15.2 (audit-trail-backfill) — EXECUTING
+Plan: 1 of 7
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
