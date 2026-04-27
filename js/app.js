@@ -1061,8 +1061,13 @@ async function cv15CoWatchPromptDecline() {
     // HIGH-2 safety: validate tk before dotted-path write
     if (isSafeTupleKey(c.tupleKey)) {
       try {
+        // Phase 15.1 / SEC-15-1-03 — stamp actingTupleKey alongside the
+        // dotted-path coWatchPromptDeclined write. The Wave 2 family-doc
+        // 5th-branch participant regex reads request.resource.data.actingTupleKey
+        // to validate actor membership in c.tupleKey.
         await updateDoc(doc(db, 'families', state.familyCode), {
           [`coWatchPromptDeclined.${c.tupleKey}`]: Date.now(),
+          actingTupleKey: c.tupleKey,
           ...writeAttribution()
         });
         // Optimistic local update (matches 15-02 MEDIUM-8 pattern).
@@ -8550,8 +8555,13 @@ async function setTupleName(tupleKeyStr, name) {
     setAt: Date.now()
   };
   try {
+    // Phase 15.1 / SEC-15-1-03 — stamp actingTupleKey alongside the dotted-path
+    // tupleNames write. Mirrors the writeTupleProgress pattern at js/app.js:8488.
+    // The Wave 2 family-doc 5th-branch participant regex reads
+    // request.resource.data.actingTupleKey to validate actor membership in tk.
     await updateDoc(doc(db, 'families', state.familyCode), {
       [`tupleNames.${tupleKeyStr}`]: slot,
+      actingTupleKey: tupleKeyStr,
       ...writeAttribution()
     });
     // REVIEW MEDIUM-8 — optimistically update local state so the immediate
