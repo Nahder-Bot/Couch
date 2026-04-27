@@ -9,7 +9,7 @@ Couch turns "what do you want to watch?" into a 30-second ritual. Phases 1 and 2
 ## Milestones
 
 - ✅ **Phases 1-2 (Catalog + Tonight/Voting)** — shipped pre-GSD
-- 🚧 **v1 Commercial Release (Phases 3-10)** — in progress; user wants full product polish before public launch
+- 🚧 **v1 Commercial Release (Phases 3-15.4)** — slug `v1-commercial-release`; in progress (15.2/15.3/15.4 closing audit-trail + DESIGN-01 + integration-FLAG debt before Milestone close-out). User wants full product polish before public launch.
 
 ## Phases
 
@@ -350,4 +350,4 @@ This section records phase-number reassignments to prevent scoped-but-unstarted 
 *Phase 15.2 / 15.3 / 15.4 inserted: 2026-04-27 (v33.3 milestone audit gap closure — 15.2 verification-artifact backfill (Phases 5-9 missing VERIFICATION.md + 10 missing SUMMARYs + REQUIREMENTS.md/ROADMAP/CLAUDE.md docs refresh + milestone-label normalization), 15.3 DESIGN-01 canonical SVG logo + wordmark production (closes the only genuinely unsatisfied requirement), 15.4 integration-FLAG fixes (F-W-1 sendCouchPing real push fan-out + D-3 friendly-UI Settings parity → POL-01 fully satisfied). Decimal-phase insertion mirrors 03.5 + 15.1 precedent — NOT slot reassignments; Phase 16 Calendar Layer + Phase 17 App Store Readiness scope preserved. **Phase 15.5 Nyquist back-fill DEFERRED** — accepting Nyquist tooling tech-debt for v1; framework will apply going forward only. Audit report: `.planning/v33.3-MILESTONE-AUDIT.md` committed as 001b259; integration check inline in audit YAML frontmatter.)*
 
 *ROADMAP refreshed: 2026-04-27 — Phase 15.2 / Plan 06 reconciled Progress table for Phases 5/6/7/8/9 (all SHIPPED, with Phase 9 passed_partial pending DESIGN-01 → 15.3) + reconciled Plans-list checkboxes for Phases 5/6/8 (per v33.3 milestone audit Pitfall 6 — disk wins). 28 traceability rows in REQUIREMENTS.md flipped Pending→Complete in same plan.*
-*v1 milestone: Commercial Release (Phases 3-11)*
+*v1 milestone: Commercial Release (Phases 3-15.4) — slug `v1-commercial-release`*
