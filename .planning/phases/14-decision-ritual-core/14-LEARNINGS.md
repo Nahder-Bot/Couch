@@ -5,9 +5,10 @@ project: "Couch"
 generated: "2026-04-26T22:54:34Z"
 counts:
   decisions: 12
-  lessons: 9
-  patterns: 9
+  lessons: 12
+  patterns: 10
   surprises: 7
+post_phase_amendments: 4 entries added 2026-04-26 after production bug surfaced (rules deploy gap + populated-state UAT gap + survivor-state-path audit + compat-shim pattern)
 missing_artifacts: []
 ---
 
@@ -185,6 +186,30 @@ The helper at js/app.js:1388 returns a doc ref directly. Wrapping it in `doc(int
 
 ---
 
+### "approved-deploy" signals must be evidence-backed, not self-reported
+The cross-repo deploy ritual has 3 separate deploys (queuenight CFs · queuenight rules · couch hosting). User signaled "approved-deploy" in good faith after the V5 4-step UAT, but only the hosting deploy actually ran — the `firebase deploy --only firestore:rules` and `firebase deploy --only functions` steps from `~/queuenight` were silently skipped. Production V5 then rejected every toggle write for hours with `permission_denied`, surfacing only as the "Could not save couch — try again" toast. The bug was a missing deploy step, not a code bug.
+
+**Lesson:** Resume signals like "approved-deploy" need to be backed by `curl` checks of all THREE deployed surfaces (sw.js cache version + rules version + functions version), not just the hosting smoke test. Add explicit verification commands to the resume-signal block in plan task definitions: e.g., `firebase deploy:list` or rules-version curl. Silent rules rejection has no monitoring alert beyond per-action toasts.
+**Source:** Post-Phase-14 production bug 2026-04-26 (rules deploy gap discovered when user reported tap-to-toggle failing; resolved by running `cd ~/queuenight && firebase deploy --only firestore:rules`)
+
+---
+
+### UAT empty-state confirms render but misses populated-state bugs
+The 14-10 V5 deploy-time UAT (4 steps: cross-repo deploy verify · cold-start visual · multi-device proxy · downstream contract regression) confirmed the V5 surface RENDERED correctly. But two production bugs surfaced only after real usage with a populated couch + queue: (a) the Tonight matches "Pick who's watching" empty state showed despite a full couch, because the empty-state gate read legacy `state.selectedMembers` (V4) instead of `state.couchMemberIds` (V5); (b) the Flow A picker's all-tiers-empty state showed misleading "you've seen everything in queue" copy when the real cause was zero Yes votes (queue genuinely empty, not all-watched).
+
+**Lesson:** UAT scripts for state-shape migrations must include a "populated state" pass — couch full of members AND queue has voted titles AND `state.couchInTonight` round-tripped via Firestore. Empty-state UAT proves the surface compiles; populated-state UAT proves the data flow is correct end-to-end. Both bugs above were invisible in the empty-couch / single-member starting state used during the deploy UAT.
+**Source:** Post-Phase-14 production bug 2026-04-26 (commit 2c4fecc — Tonight matches gating + picker empty copy)
+
+---
+
+### Survivor reads of deprecated state path: silent staleness
+Phase 14-10 introduced `state.couchInTonight` (member-keyed map) → `state.couchMemberIds` (filtered IDs) as the V5 source of truth, replacing V4's `state.selectedMembers` (toggle-state per device). Code review caught the who-mini sticky bar reading legacy state (e89aa0b). But a deeper grep revealed **19 more reads** of `state.selectedMembers` scattered across the recommendation engine (getNext3, computeRanks, buildAffinityModel), tile rendering (provider-blocked detection), fairness gate (D-08 solo-member waiver), and Tonight matches empty-state gate — all rendering subtly stale results because nothing was writing to `selectedMembers` after the V5 cutover.
+
+**Lesson:** When refactoring a state field, BEFORE merging do a `grep -rn "state\.fieldName"` audit and inventory every read site. Categorize: (a) needs migration to new field, (b) legitimate legacy semantic, (c) dead code. The compatibility-shim pattern (mirror new → legacy on every write) is faster + lower-risk than mass-rewriting all read sites — especially for refactors that touch a hot field with reads spread across multiple subsystems. Migrate reads in a follow-up cleanup phase after the shim has soaked.
+**Source:** Post-Phase-14 production audit 2026-04-26 (commit 3f1d98b followups + state.selectedMembers shim)
+
+---
+
 ## Patterns
 
 ### Atomic sibling primitive insertion (don't modify the existing primitive)
@@ -192,6 +217,17 @@ The helper at js/app.js:1388 returns a doc ref directly. Wrapping it in `doc(int
 
 **Rationale:** Modifying an existing primitive that has multiple call sites risks regressions. Sibling insertion preserves the legacy primitive verbatim while adding the new variant. Greppable comment marker `// === D-04 openTileActionSheet — DECI-14-04 ===` makes the new sibling discoverable.
 **Source:** 14-05-SUMMARY.md (Task 2)
+
+---
+
+### Compatibility shim for state-shape migration
+When migrating a state field (e.g., V4 `state.selectedMembers` → V5 `state.couchMemberIds`), instead of rewriting all read sites at once, write a **shim**: every place that updates the new field also mirrors to the legacy field as a synchronized copy. The new field is the source of truth; the legacy field is a one-way mirror for survivor reads. After the shim has soaked (one PWA cache cycle), a follow-up cleanup phase removes both the shim and the legacy reads in one atomic pass.
+
+**When to use:** Any state-shape migration where the legacy field has 5+ scattered reads across multiple subsystems. Mass-rewriting all reads in the migration plan inflates plan size + risks regressions per-site. Shim approach lets the migration plan focus on the WRITE side; reads continue to work via the mirror.
+
+**Implementation:** All write sites of the new field append `state.legacyField = derive(state.newField);`. Document the shim in the write site comments so the cleanup phase can find them. Never read the legacy field in NEW code (only the source-of-truth field).
+
+**Source:** 14-10 V5 redesign + post-deploy `state.selectedMembers` audit (commit 3f1d98b)
 
 ---
 

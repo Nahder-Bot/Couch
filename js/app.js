@@ -4140,6 +4140,8 @@ function startSync() {
     // so the empty-state CTA reacts to claim/vacate, not just intent writes.
     state.couchInTonight = couchInTonightFromDoc(d);
     state.couchMemberIds = couchInTonightToMemberIds(state.couchInTonight);
+    // Mirror V5 source-of-truth into legacy state.selectedMembers shim (see toggleCouchMember).
+    state.selectedMembers = state.couchMemberIds.slice();
     if (typeof renderCouchViz === 'function') renderCouchViz();
     if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
     renderPickerCard();
@@ -13105,6 +13107,11 @@ window.toggleCouchMember = async function(memberId) {
   cit[memberId] = next;
   // Recompute downstream contract
   state.couchMemberIds = couchInTonightToMemberIds(cit);
+  // Mirror to legacy state.selectedMembers so the 19 V4-era reads scattered through
+  // recommendation engine + tile rendering + fairness gate stay correct. After V5
+  // ships, couchInTonight is the source of truth; selectedMembers is a synchronized
+  // shim. Future cleanup phase can remove the shim and migrate the reads.
+  state.selectedMembers = state.couchMemberIds.slice();
   // Optimistic re-render — the onSnapshot callback will re-render again on echo
   renderCouchViz();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
@@ -13158,6 +13165,7 @@ async function couchMarkAllIn() {
     cit[m.id] = next;
   });
   state.couchMemberIds = couchInTonightToMemberIds(cit);
+  state.selectedMembers = state.couchMemberIds.slice();
   renderCouchViz();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   haptic('light');
@@ -13178,6 +13186,7 @@ async function couchClearAll() {
     }
   });
   state.couchMemberIds = couchInTonightToMemberIds(cit);
+  state.selectedMembers = state.couchMemberIds.slice();
   renderCouchViz();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   haptic('light');
