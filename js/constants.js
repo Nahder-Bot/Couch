@@ -789,6 +789,6 @@ export const COUCH_NIGHTS_PACKS = [
 // 'couch-v32-pre-launch-polish' → APP_VERSION 32). BUILD_DATE is the deploy
 // date in ISO 8601 (UTC); set at hand-edit time when shipping a release.
 // Surfaced in Account → ABOUT and used as mailto subject suffix.
-export const APP_VERSION = 32;
-export const BUILD_DATE = '2026-04-25';
+export const APP_VERSION = 35;
+export const BUILD_DATE = '2026-04-27';
 

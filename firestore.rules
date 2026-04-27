@@ -179,7 +179,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['couchInTonight', 'couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
         ) || (
-          // === Phase 15 / D-02 (TRACK-15-01) — tupleNames write ===
+          // === Phase 15 / D-02 + D-06 (TRACK-15-01 / REVIEW MEDIUM-9) — tupleNames + coWatchPromptDeclined writes ===
           // Decoration map for tuple progress (e.g. "Wife and me", "Date night").
           // Shape: families/{code}.tupleNames = { [tupleKey]: { name, setBy, setAt } }
           // Tuple is the data key (sorted memberId,memberId — see js/app.js tupleKey
@@ -188,9 +188,16 @@ service cloud.firestore {
           // rules do not peek into nested map values per the established pattern
           // (couchInTonight proxyConfirmedBy is also nested-only).
           // Phase 15 / S3 inline rename consumes — see 15-04 renderCv15TupleProgressSection.
+          //
+          // REVIEW MEDIUM-9 (15-07 / 15-08 cross-plan coordination) —
+          // coWatchPromptDeclined is the durable decline record for Trakt overlap
+          // prompts. Shape: families/{code}.coWatchPromptDeclined =
+          // { [tupleKey]: <timestamp> }. Written by cv15CoWatchPromptDecline in
+          // 15-07 via dotted-path update; read on detector entry to skip
+          // already-declined pairs.
           attributedWrite(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['tupleNames', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+              .hasOnly(['tupleNames', 'coWatchPromptDeclined', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
         );
 
       allow delete: if false;

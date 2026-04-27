@@ -7313,6 +7313,11 @@ window.openDetailModal = async function(id) {
   const details = await fetchTmdbDetails(mediaType, tmdbId);
   const update = { detailsCached: true };
   Object.keys(details).forEach(k => { if (details[k] !== undefined && details[k] !== null) update[k] = details[k]; });
+  // Phase 15 / TRACK-15-08 fix: stamp nextEpisodeRefreshedAt so the CF live-release
+  // sweep's HIGH-4 stale-data guard (>7 days) doesn't skip every title. Without this,
+  // t.nextEpisodeRefreshedAt defaults to 0 (Jan 1 1970) → every title looks 56+ years
+  // stale → live-release push silently never fires. Stamped on every TMDB refresh.
+  update.nextEpisodeRefreshedAt = Date.now();
   try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update }); } catch(e){ console.error(e); }
   if (detailTitleId === id) {
     const merged = { ...t, ...update };
