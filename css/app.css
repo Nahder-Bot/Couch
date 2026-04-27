@@ -2439,6 +2439,204 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 /* — Hidden offscreen input (emoji picker target) — */
 .input-offscreen{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 
+/* === Phase 15 — Tracking Layer === */
+/* All Phase 15 selectors prefixed .cv15- per UI-SPEC §Integration. Zero new
+   color/spacing/type tokens — bound to existing :root scale. Reuses
+   .detail-section + .modal-bg + .tc-primary verbatim (NOT redeclared).
+   Letter-spacing: -0.015em on Fraunces title is the established Couch
+   convention (see css/app.css:334, :544 — REVIEW Codex CSS letter-spacing
+   concern rejected per BRAND.md §Typography). */
+
+/* S2 row visual + S1 widget reuse. */
+.cv15-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--ink-faint);
+}
+.cv15-progress-row:first-of-type { padding-top: 0; }
+.cv15-progress-row:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.cv15-progress-row-body { flex: 1; min-width: 0; }
+.cv15-tuple-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: var(--t-h3);
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+/* REVIEW MEDIUM-6 — modifier renamed for semantic clarity. Fires only when the
+   placeholder shimmer is rendered (no custom name AND we want to invite naming). */
+.cv15-tuple-name.unnamed-placeholder {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  letter-spacing: 0;
+  margin-left: var(--s2);
+}
+.cv15-tuple-rename {
+  background: none;
+  border: 0;
+  padding: var(--s1);
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  transition: color var(--t-quick);
+}
+.cv15-tuple-rename:hover { color: var(--ink); }
+.cv15-tuple-rename:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cv15-tuple-rename-input {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 4px var(--s2);
+  width: 100%;
+  max-width: 240px;
+}
+.cv15-progress-pos {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  white-space: nowrap;
+}
+.cv15-progress-time {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+.cv15-progress-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.cv15-progress-show-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: var(--t-h3);
+  color: var(--ink);
+  line-height: 1.2;
+}
+.cv15-progress-tuple-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  margin-top: 2px;
+}
+
+/* S6 per-show notif kill-switch. */
+.cv15-mute-toggle {
+  background: none;
+  border: 0;
+  padding: var(--s2) 0 0 0;
+  margin-top: var(--s3);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  text-align: left;
+  width: 100%;
+  border-top: 1px solid var(--ink-faint);
+  transition: color var(--t-quick);
+}
+.cv15-mute-toggle:hover { color: var(--ink); }
+.cv15-mute-toggle.on { color: var(--bad); }
+.cv15-mute-toggle.on:hover { opacity: 0.85; }
+.cv15-mute-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* S5 conflict-prompt modal (consumed by 15-07). */
+.cv15-cowatch-prompt-content {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: var(--s5);
+  width: 100%;
+  max-width: 320px;
+}
+.cv15-cowatch-prompt-h {
+  font-family: 'Fraunces', serif;
+  font-size: var(--t-h3);
+  color: var(--ink);
+  margin: 0 0 var(--s3) 0;
+}
+.cv15-cowatch-prompt-body {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  line-height: 1.45;
+  margin: 0 0 var(--s5) 0;
+}
+.cv15-cowatch-prompt-actions {
+  display: flex;
+  gap: var(--s2);
+  justify-content: flex-end;
+}
+.cv15-cowatch-prompt-actions .tc-secondary.accent-border {
+  border-color: var(--accent);
+}
+
+/* S1 Tonight widget container (consumed by 15-05). */
+.cv15-pickup-container {
+  margin-top: var(--space-section);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: var(--s4);
+}
+.cv15-pickup-container:empty { display: none; }
+.cv15-pickup-h {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 var(--s3) 0;
+}
+
+/* Post-session auto-track confirmation row. */
+.cv15-autotrack-row {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: var(--s3) var(--s4);
+  margin-top: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.cv15-autotrack-row p {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.cv15-autotrack-row .cv15-autotrack-confidence {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  display: inline;
+}
+/* === /Phase 15 — Tracking Layer === */
+
 /* ==========================================================================
    Phase 9 / DESIGN-04 — Desktop responsive layer
    Phone-column layout stays the default (mobile-first). At >=900px, modals
