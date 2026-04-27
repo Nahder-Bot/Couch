@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v33.3
-milestone_name: milestone
-status: Executing Phase 15.2
-last_updated: "2026-04-27T17:43:27Z"
+milestone: v1-commercial-release
+milestone_name: v1 Commercial Release
+sw_cache_version: couch-v35.1-security-hardening
+status: Phase 15.2 IN-FLIGHT — audit-trail backfill (closes verification-artifact debt from v33.3 audit)
+last_updated: "2026-04-27T17:46:34Z"
 progress:
   total_phases: 14
-  completed_phases: 5
-  total_plans: 65
-  completed_plans: 41
-  percent: 63
+  completed_phases: 13
+  total_plans: 85
+  completed_plans: 83
+  percent: 98
 ---
 
 # Project State
@@ -20,7 +21,7 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
 **Current focus:** Phase 15.2 — audit-trail-backfill
-**Active milestone:** v1 Commercial Release (Phases 3-10)
+**Active milestone:** v1 Commercial Release (Phases 3-15.4) — slug: `v1-commercial-release`
 
 ## Current Position
 
