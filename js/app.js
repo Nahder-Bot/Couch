@@ -11077,7 +11077,33 @@ window.openPostSession = function(wpId) {
     }
   }
   const sub = document.getElementById('wp-post-session-sub');
-  if (sub) sub.innerHTML = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
+  if (sub) {
+    let baseHtml = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
+    // === Phase 15 / D-01 (TRACK-15-04) — auto-track confirmation row ===
+    // REVIEW MEDIUM-7 — data-cv15-action attrs + delegated listener (NOT inline onclick).
+    const at = state._pendingTupleAutoTrack;
+    if (at && at.titleId === wp.titleId && at.memberIds && at.memberIds.length) {
+      const tk = tupleKey(at.memberIds);
+      const tupleNameRaw = (tk && tupleCustomName(tk))
+        || (tk && tupleDisplayName(tk, state.members))
+        || 'this couch';
+      const seasonNum = at.season != null ? at.season : '?';
+      const episodeNum = at.episode != null ? at.episode : '?';
+      // REVIEW MEDIUM-5 surface — show "(best guess)" qualifier when low-confidence.
+      const confidenceQual = (at.sourceField === 'host-progress-plus-1')
+        ? `<span class="cv15-autotrack-confidence"> (best guess)</span>`
+        : '';
+      const promptLabel = `Mark S${escapeHtml(String(seasonNum))}E${escapeHtml(String(episodeNum))} for <strong>${escapeHtml(tupleNameRaw)}</strong>?${confidenceQual}`;
+      baseHtml += `<div class="cv15-autotrack-row">
+        <p>${promptLabel}</p>
+        <button class="tc-primary" type="button" data-cv15-action="confirmAutoTrack">Yes</button>
+        <button class="tc-secondary" type="button" data-cv15-action="editAutoTrack">Edit</button>
+      </div>`;
+    }
+    sub.innerHTML = baseHtml;
+    // REVIEW MEDIUM-7 — attach delegated listener for the Yes/Edit buttons.
+    if (typeof cv15AttachPostSessionDelegate === 'function') cv15AttachPostSessionDelegate();
+  }
   // Reset rating + photo UI
   document.querySelectorAll('.wp-rating-star').forEach(s => { s.classList.remove('filled'); s.innerHTML = '&#9734;'; });
   const rc = document.getElementById('wp-rating-confirm'); if (rc) rc.style.display = 'none';
@@ -11087,6 +11113,46 @@ window.openPostSession = function(wpId) {
   const bg = document.getElementById('wp-post-session-modal-bg');
   if (bg) bg.classList.add('on');
 };
+
+// === Phase 15 / D-01 (TRACK-15-04) — auto-track Yes/Edit handlers + REVIEW MEDIUM-7 delegated listener ===
+async function cv15ConfirmAutoTrack() {
+  const at = state._pendingTupleAutoTrack;
+  if (!at || !at.titleId || !at.memberIds || !at.memberIds.length) return;
+  await writeTupleProgress(at.titleId, at.memberIds, at.season, at.episode, 'watchparty');
+  state._pendingTupleAutoTrack = null;
+  flashToast('Saved');
+  const row = document.querySelector('#wp-post-session-sub .cv15-autotrack-row');
+  if (row) row.style.display = 'none';
+}
+function cv15EditAutoTrack() {
+  const at = state._pendingTupleAutoTrack;
+  if (!at || !at.titleId) return;
+  if (typeof window.openProgressSheet === 'function' && state.me) {
+    window.openProgressSheet(at.titleId, state.me.id);
+  }
+}
+function cv15HandlePostSessionClick(ev) {
+  const trigger = ev.target.closest('[data-cv15-action]');
+  if (!trigger) return;
+  const action = trigger.getAttribute('data-cv15-action');
+  switch (action) {
+    case 'confirmAutoTrack':
+      cv15ConfirmAutoTrack();
+      break;
+    case 'editAutoTrack':
+      cv15EditAutoTrack();
+      break;
+    default:
+      console.warn('[Phase 15 / MEDIUM-7] unknown post-session cv15-action', action);
+  }
+}
+function cv15AttachPostSessionDelegate() {
+  const sub = document.getElementById('wp-post-session-sub');
+  if (!sub) return;
+  if (sub.getAttribute('data-cv15-bound') === '1') return;
+  sub.addEventListener('click', cv15HandlePostSessionClick);
+  sub.setAttribute('data-cv15-bound', '1');
+}
 
 window.closePostSession = async function() {
   // Flag dismissal so the modal doesn't reappear on next render of this wp.
