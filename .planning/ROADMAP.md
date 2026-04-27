@@ -243,11 +243,11 @@ Plans:
   6. `CLAUDE.md` token-budget note updated for `js/app.js` (15757 lines, not ~10200).
 **Plans**: 7 plans across 3 waves — finalized 2026-04-27 via /gsd-plan-phase 15.2 (research + planner + plan-checker pipeline)
 Plans:
-- [ ] 15.2-01-PLAN.md — Phase 5 backfill: 05-VERIFICATION.md + 05-01-SUMMARY.md + 05-09-SUMMARY.md (AUTH-01..05) [Wave 1]
-- [ ] 15.2-02-PLAN.md — Phase 6 backfill: 06-VERIFICATION.md + 5 plan SUMMARYs 06-01..05 (PUSH-01..05) [Wave 1]
-- [ ] 15.2-03-PLAN.md — Phase 7 backfill: 07-VERIFICATION.md + 4 plan SUMMARYs 07-01..04 (PARTY-01/02/05/07 orphaned + PARTY-03/04/06 partial-traced) [Wave 1]
-- [ ] 15.2-04-PLAN.md — Phase 8 backfill: 08-VERIFICATION.md + 5 plan SUMMARYs 08-01..05 (INTENT-01..06; largest single audit-trail gap pre-15.2) [Wave 1]
-- [ ] 15.2-05-PLAN.md — Phase 9 backfill: 09-VERIFICATION.md only (DESIGN-02..10 SATISFIED; DESIGN-01 documented as UNSATISFIED with forward-pointer to Phase 15.3; 09-01-SUMMARY.md OUT OF SCOPE) [Wave 1]
+- [x] 15.2-01-PLAN.md — Phase 5 backfill: 05-VERIFICATION.md + 05-01-SUMMARY.md + 05-09-SUMMARY.md (AUTH-01..05) [Wave 1]
+- [x] 15.2-02-PLAN.md — Phase 6 backfill: 06-VERIFICATION.md + 5 plan SUMMARYs 06-01..05 (PUSH-01..05) [Wave 1]
+- [x] 15.2-03-PLAN.md — Phase 7 backfill: 07-VERIFICATION.md + 4 plan SUMMARYs 07-01..04 (PARTY-01/02/05/07 orphaned + PARTY-03/04/06 partial-traced) [Wave 1]
+- [x] 15.2-04-PLAN.md — Phase 8 backfill: 08-VERIFICATION.md + 5 plan SUMMARYs 08-01..05 (INTENT-01..06; largest single audit-trail gap pre-15.2) [Wave 1]
+- [x] 15.2-05-PLAN.md — Phase 9 backfill: 09-VERIFICATION.md only (DESIGN-02..10 SATISFIED; DESIGN-01 documented as UNSATISFIED with forward-pointer to Phase 15.3; 09-01-SUMMARY.md OUT OF SCOPE) [Wave 1]
 - [ ] 15.2-06-PLAN.md — REQUIREMENTS.md + ROADMAP.md refresh: 28 traceability rows flipped Pending→Complete + inline checkboxes + Coverage line 59→87 + Progress table for Phases 5/6/7/8/9 + Plans-list reconciliation for Phases 5/6/8 (POL-01..04 + COMP-13-01 + OPS-13-04/05/07 + DECI-14-01 + cross-cuts orphan REQ flips from 15.2-01..05) [Wave 2 — ROADMAP.md file-overlap with 15.2-07]
 - [ ] 15.2-07-PLAN.md — Hygiene pass: STATE.md milestone-label normalization (v35.1-security-hardening → v1-commercial-release; new sw_cache_version field) + ROADMAP narrative milestone refs + CLAUDE.md token-budget refresh for js/app.js (15757 lines, was ~10200; uses wc -l ONLY — never full Read) [Wave 3 — depends on 15.2-06 for ROADMAP.md merge order]
 **UI hint**: none — pure documentation phase
