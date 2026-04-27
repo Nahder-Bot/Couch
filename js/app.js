@@ -4885,6 +4885,10 @@ function renderTonight() {
   // D-07 (DECI-14-07) — Flow A entry CTA. Lives directly under couch viz; gated on
   // state.couchMemberIds ≥ 1. Safe to call on every renderTonight pass (innerHTML overwrite).
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  // === Phase 15 / S1 (TRACK-15-07) — Pick up where you left off (tuple-aware cross-show).
+  // Renders into #cv15-pickup-container between #couch-viz-container and #flow-a-entry-container.
+  // Hides entirely on zero tuples per UI-SPEC §Discretion Q7. ===
+  renderPickupWidget();
 }
 
 // Combined filters-bar toggle + active state
@@ -8911,6 +8915,69 @@ function renderDetailStatusStrip(t, memberId) {
     }
   }
   return '';
+}
+
+// === Phase 15 / S1 (TRACK-15-07) — Pick up where you left off (tuple-aware cross-show) ===
+// Sibling primitive to renderContinueWatching (per-INDIVIDUAL — UNCHANGED below).
+// Both surfaces COEXIST during v1 per RESEARCH §Q11 — Phase 15 widget hides
+// when zero tuples (UI-SPEC §Discretion Q7); legacy continue-section serves
+// users without tuples. Filter is "tuples containing me" instead of
+// "I have progress". Max 3 rows visible on Tonight (vs max 4 in S2 detail
+// modal — UI-SPEC §Cross-tuple visual handling locked).
+function renderPickupWidget() {
+  const el = document.getElementById('cv15-pickup-container');
+  if (!el) return;
+  if (!state.me || !state.titles || !state.titles.length) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  const meId = state.me.id;
+  // Build {t, tupleKey, prog} for every (title, tuple-containing-me) pair —
+  // then take the MOST-RECENT tuple per title, sort cross-show by that tuple's
+  // updatedAt desc, slice 3.
+  const candidates = [];
+  for (const t of state.titles) {
+    if (!t || t.kind !== 'TV' || t.watched) continue;
+    if (typeof isHiddenByScope === 'function' && isHiddenByScope(t)) continue;
+    const tuples = tuplesContainingMember(t, meId);
+    if (!tuples.length) continue;
+    // tuplesContainingMember already sorts by updatedAt desc — first entry
+    // is the most-recent tuple containing me on this title.
+    candidates.push({ t, tupleKey: tuples[0].tupleKey, prog: tuples[0].prog });
+  }
+  candidates.sort((a, b) => ((b.prog && b.prog.updatedAt) || 0) - ((a.prog && a.prog.updatedAt) || 0));
+  const visible = candidates.slice(0, 3);
+  if (!visible.length) {
+    // UI-SPEC §Discretion Q7 — HIDE entirely on zero tuples. No empty state.
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  const rows = visible.map(({ t, tupleKey: tk, prog }) => {
+    // Prefer user-set custom name (tupleCustomName), else derived display name,
+    // else "You" fallback. tupleDisplayName already prefers the custom name when
+    // present, but we route through tupleCustomName first to mirror the 15-04
+    // pattern and keep the precedence explicit.
+    const custom = (typeof tupleCustomName === 'function') ? tupleCustomName(tk) : null;
+    const tupleName = custom || tupleDisplayName(tk, state.members) || 'You';
+    const seasonNum = (prog && prog.season != null) ? prog.season : '?';
+    const episodeNum = (prog && prog.episode != null) ? prog.episode : '?';
+    const ago = (prog && prog.updatedAt) ? cv15RelativeTime(prog.updatedAt) : '';
+    const escId = escapeHtml(t.id);
+    return `<div class="cv15-progress-row" onclick="openDetailModal('${escId}')" style="cursor:pointer;">
+      <div class="cv15-progress-row-body">
+        <div class="cv15-progress-show-name">${escapeHtml(t.name || '')}</div>
+        <div class="cv15-progress-tuple-meta">${escapeHtml(tupleName)} &middot; ${escapeHtml(ago)}</div>
+      </div>
+      <div class="cv15-progress-row-actions">
+        <div class="cv15-progress-pos">S${escapeHtml(String(seasonNum))} &middot; E${escapeHtml(String(episodeNum))}</div>
+        <button class="tc-primary" type="button" onclick="event.stopPropagation();openDetailModal('${escId}')">Continue</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="cv15-pickup-h">PICK UP WHERE YOU LEFT OFF</div>${rows}`;
 }
 
 function renderContinueWatching() {

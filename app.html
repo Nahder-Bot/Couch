@@ -315,6 +315,11 @@
          (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
          above the picker card, so "who's on the couch" is the first thing the user sees. -->
     <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
+    <!-- Phase 15 / S1 (TRACK-15-07) — "Pick up where you left off" tuple-aware cross-show widget.
+         Sits between couch viz and Flow A entry per UI-SPEC §Surface insertion order.
+         Renderer: renderPickupWidget() in js/app.js (called from renderTonight()).
+         HIDES ENTIRELY when zero tuples (UI-SPEC §Discretion Q7) — renderer sets style.display='none'. -->
+    <div id="cv15-pickup-container" class="t-section cv15-pickup-container" aria-label="Pick up where you left off"></div>
     <!-- D-07 (DECI-14-07) — Flow A entry CTA. Sits directly under couch viz so the "claim a seat
          then pick a movie" gradient feels like a single composition. Hidden until couch ≥1. -->
     <div id="flow-a-entry-container" class="flow-a-entry-container"></div>
