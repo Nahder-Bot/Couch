@@ -75,15 +75,15 @@ Plans:
   5. Existing features (Tonight, Mood, Veto, existing Sports Watchparty) continue to work end-to-end after migration.
 **Plans**: 9 plans
 Plans:
-- [ ] 05-01-PLAN.md — Auth infrastructure: firebase.js + authDomain flip + js/auth.js module + state/constants extensions (AUTH-01)
-- [ ] 05-02-PLAN.md — External service config checkpoint: Apple Developer + Firebase console + hosting /__/auth passthrough (AUTH-01)
-- [ ] 05-03-PLAN.md — Cloud Functions scaffold: setGroupPassword, joinGroup, claimMember, inviteGuest, transferOwnership in sibling queuenight/ repo (AUTH-02, AUTH-03, AUTH-04)
-- [ ] 05-04-PLAN.md — Firestore security rules + /settings/auth bootstrap + rules unit tests (AUTH-02, AUTH-03, AUTH-04, AUTH-05)
-- [ ] 05-05-PLAN.md — writeAttribution utility + migrate ~25 Firestore write sites + self-echo guard updates (AUTH-02, AUTH-05)
-- [ ] 05-06-PLAN.md — Sign-in screen UI + bootstrapAuth + onAuthStateChanged + replace submitFamily flow (AUTH-01, AUTH-02)
+- [x] 05-01-PLAN.md — Auth infrastructure: firebase.js + authDomain flip + js/auth.js module + state/constants extensions (AUTH-01) [SUMMARY backfilled by Phase 15.2 / 15.2-01]
+- [x] 05-02-PLAN.md — External service config checkpoint: Apple Developer + Firebase console + hosting /__/auth passthrough (AUTH-01)
+- [x] 05-03-PLAN.md — Cloud Functions scaffold: setGroupPassword, joinGroup, claimMember, inviteGuest, transferOwnership in sibling queuenight/ repo (AUTH-02, AUTH-03, AUTH-04)
+- [x] 05-04-PLAN.md — Firestore security rules + /settings/auth bootstrap + rules unit tests (AUTH-02, AUTH-03, AUTH-04, AUTH-05)
+- [x] 05-05-PLAN.md — writeAttribution utility + migrate ~25 Firestore write sites + self-echo guard updates (AUTH-02, AUTH-05)
+- [x] 05-06-PLAN.md — Sign-in screen UI + bootstrapAuth + onAuthStateChanged + replace submitFamily flow (AUTH-01, AUTH-02)
 - [x] 05-07-PLAN.md — Member-type model: sub-profiles + act-as + guest invites + owner password/transfer + group switcher sync (AUTH-02, AUTH-03)
-- [ ] 05-08-PLAN.md — Migration claim flow + sub-profile graduation + mintClaimTokens CF + grace-window enforcement (AUTH-04, AUTH-05)
-- [ ] 05-09-PLAN.md — iOS PWA UAT checkpoint: all providers + feature regression + migration scenarios (AUTH-05)
+- [x] 05-08-PLAN.md — Migration claim flow + sub-profile graduation + mintClaimTokens CF + grace-window enforcement (AUTH-04, AUTH-05)
+- [x] 05-09-PLAN.md — iOS PWA UAT checkpoint: all providers + feature regression + migration scenarios (AUTH-05) [SUMMARY backfilled by Phase 15.2 / 15.2-01]
 **UI hint**: yes
 
 ### Phase 6: Push Notifications
@@ -96,7 +96,13 @@ Plans:
   3. At least one event (watchparty-starting) delivers a real push within ~5s on iOS (home-screen PWA) and Android.
   4. A muted / do-not-disturb state respects per-user and per-family quiet hours.
   5. No push is sent to a user for their own action (self-echo guard, same pattern as VETO-03).
-**Plans**: TBD — starts with a research spike
+**Plans**: 5 plans across 5 waves — finalized 2026-04-21 / autonomous run; SUMMARYs backfilled by Phase 15.2 / 15.2-02
+Plans:
+- [x] 06-01-PLAN.md — Web-push research spike + recommendation: web-push vs FCM vs OneSignal vs Capacitor (PUSH-01) [complete 2026-04-21; 06-RESEARCH.md artifact]
+- [x] 06-02-PLAN.md — VAPID key wiring + self-echo guard via excludeUid + excludeMemberId in sendToMembers (PUSH-02, PUSH-05) [complete 2026-04-21]
+- [x] 06-03-PLAN.md — notificationPrefs schema + per-event toggle UI + sendToMembers respects per-user pref (PUSH-02) [complete 2026-04-21]
+- [x] 06-04-PLAN.md — 3 new CF triggers (invite-received / veto-cap-hit / tonight's-pick-chosen) + quietHours wiring + forceThroughQuiet override (PUSH-03, PUSH-04) [complete 2026-04-21]
+- [x] 06-05-PLAN.md — iOS PWA UAT checkpoint: end-to-end push + per-event toggle + quiet hours (PUSH-03) [complete 2026-04-21]
 **UI hint**: partial (settings + permission flow)
 
 ### Phase 7: Watchparty
@@ -131,7 +137,13 @@ Plans:
   3. A positive match (threshold-defined per group size) surfaces as a prompt that can auto-schedule a Tonight or auto-launch a Watchparty depending on flow type.
   4. Group-size-aware thresholds apply: duos need any-yes; families use majority (configurable).
   5. Both flows cleanly end, expire, or convert without leaving orphan docs in Firestore — same pattern as VETO-01/PARTY-06.
-**Plans**: TBD — finalized at plan-phase
+**Plans**: 5 plans across 5 waves — finalized 2026-04-21 / browser-Claude autonomous UAT; SUMMARYs backfilled by Phase 15.2 / 15.2-04
+Plans:
+- [x] 08-01-PLAN.md — intentsRef + createIntent helper + Firestore rules for intents collection (INTENT-01, INTENT-02) [complete 2026-04-22]
+- [x] 08-02-PLAN.md — Title-detail action sheet entry points: "Propose tonight @ time" + "Ask the family" (INTENT-01, INTENT-02) [complete 2026-04-22]
+- [x] 08-03-PLAN.md — maybeEvaluateIntentMatches + threshold rules (any_yes / majority) + onIntentUpdate CF + convertIntent routing (INTENT-03, INTENT-04, INTENT-05, INTENT-06) [complete 2026-04-22]
+- [x] 08-04-PLAN.md — Push lockstep: intentProposed + intentMatched keys added to NOTIFICATION_DEFAULTS + DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS (INTENT-01, INTENT-02, INTENT-03) [complete 2026-04-22]
+- [x] 08-05-PLAN.md — UAT checkpoint: propose-tonight + watch-this-title flows + match conversion + orphan cleanup (INTENT-01..06) [complete 2026-04-22; UAT autonomous via browser-Claude per ROADMAP §25]
 **UI hint**: yes
 
 ### Phase 9: Redesign / Brand / Marketing Surface
@@ -290,11 +302,11 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 2. Tonight + Voting (shipped pre-GSD) | — | Complete | Pre-2026-04-19 |
 | 3. Mood Tags | 2/2 | Implementation complete — awaiting /gsd-verify-work | 03-02 complete 2026-04-20 |
 | 4. Veto System | 3/3 | Implementation complete — awaiting /gsd-verify-work | 04-03 complete 2026-04-20 |
-| 5. Auth + Groups | 0/? | Not started | - |
-| 6. Push Notifications | 0/? | Not started | - |
-| 7. Watchparty | 8/8 | Implementation complete — all gap-closure deployed; awaiting consolidated /gsd-verify-work 7 UAT | 07-08 deployed 2026-04-22 |
-| 8. Watch-Intent Flows | 0/? | Not started | - |
-| 9. Redesign / Brand / Marketing | 0/8 | Not started (planning revision 1 complete 2026-04-21 — split 09-07 into 09-07a + 09-07b) | - |
+| 5. Auth + Groups | 9/9 | **SHIPPED 2026-04-22** — 9 plan SUMMARYs (05-01..09 backfilled by Phase 15.2 / 15.2-01) + 05-VERIFICATION.md backfilled by Phase 15.2. Code shipped to production: Firebase Auth (Google + Email-link + Phone) + 6 Cloud Functions (setGroupPassword + joinGroup + claimMember + mintClaimTokens + inviteGuest + transferOwnership) live in us-central1; firestore.rules auth-aware; writeAttribution call sites stamping uid across all writes. Multi-account runtime UAT items deferred as environmental per ROADMAP §22. AUTH-01..05 all Complete in REQUIREMENTS.md traceability post-15.2. | 05-09 backfilled 2026-04-27 |
+| 6. Push Notifications | 5/5 | **SHIPPED 2026-04-21** — 5 plan SUMMARYs + 06-VERIFICATION.md backfilled by Phase 15.2 / 15.2-02. Web-push delivery live; per-event opt-in via notificationPrefs map at users/{uid}; quiet hours (isInQuietHours at queuenight/functions/index.js:45); self-echo guard via excludeUid + excludeMemberId; watchparty-starting push delivers ≤5s on iOS PWA. 16 push event types lockstep across server NOTIFICATION_DEFAULTS + client DEFAULT_NOTIFICATION_PREFS + client NOTIFICATION_EVENT_LABELS (extended through Phase 14 D-12 + Phase 15 newSeasonAirDate). PUSH-01..05 all Complete in REQUIREMENTS.md traceability post-15.2. | 06-05 backfilled 2026-04-27 |
+| 7. Watchparty | 8/8 | **SHIPPED 2026-04-22** — All 4 original + 4 gap-closure plans deployed; 8 SUMMARYs + 07-VERIFICATION.md backfilled by Phase 15.2 / 15.2-03 (07-01..04 SUMMARYs were missing pre-15.2 per v33.3 milestone audit). PARTY-01..07 all Complete in REQUIREMENTS.md traceability post-15.2. | 07-08 deployed 2026-04-22 |
+| 8. Watch-Intent Flows | 5/5 | **SHIPPED 2026-04-22** — 5 plan SUMMARYs + 08-VERIFICATION.md backfilled by Phase 15.2 / 15.2-04 (Phase 8 had ZERO SUMMARYs pre-15.2 per v33.3 milestone audit — largest single audit-trail gap). UAT autonomous via browser-Claude per ROADMAP §25; 1 seed (08x intent-cf-timezone) absorbed by Phase 9 Plan 07a. intentsRef + onIntentCreated CF + 4 flow discriminators + intentProposed/intentMatched push lockstep all live. INTENT-01..06 all Complete in REQUIREMENTS.md traceability post-15.2. | 08-05 backfilled 2026-04-27 |
+| 9. Redesign / Brand / Marketing | 7/8 | **SHIPPED 2026-04-24 (passed_partial — DESIGN-01 deferred to Phase 15.3)** — 7 plan SUMMARYs (09-02..06 + 09-07a + 09-07b) + 09-VERIFICATION.md backfilled by Phase 15.2 / 15.2-05. Token canonicalization (47 semantic aliases / 1840 var(--…) uses) + inline-style purge (119→36) + desktop responsive layer + landing page at couchtonight.app + marketing screenshots + first-run + invite-flow onboarding + motion tokens + BRAND.md (185 lines / 8 sections) all shipped to production. **DESIGN-01 (canonical SVG logo + wordmark) is the only unsatisfied requirement** — 09-01-SUMMARY deferred to Phase 15.3 since it depends on producing the SVG source-of-truth. DESIGN-02..10 all Complete in REQUIREMENTS.md traceability post-15.2. | 09-07b deployed 2026-04-24 |
 | 10. Year-in-Review | 0/3 | Not started | - |
 | 11. Feature refresh & streamline | 8/8 | **CODE-COMPLETE** — All 8 plans shipped, all 13 REFR-* closed. W1 11-01 + 11-02 deployed; W2 11-03a + 11-03b deployed; W3 11-04 + 11-05 code-complete (deploy deferred); W4 11-06 + 11-07 code-complete (deploy bundled with W3). See 11-COMPLETION.md for phase rollup | 11-07 code 2026-04-24 |
 | 12. Pre-launch polish | 3/3 | **SHIPPED** 2026-04-25 — POL-01 + POL-02 + POL-03/04 all deployed; 8/8 smoke tests pass | 12-03 deployed 2026-04-25 |
@@ -336,4 +348,6 @@ This section records phase-number reassignments to prevent scoped-but-unstarted 
 *Phase 15.1 closed-out: 2026-04-27 (Security Hardening — 3 plans across 3 waves shipped in 1 deploy day. SEC-15-1-01..05 all Complete; closes F-OPEN-01 HIGH + WR-02 HIGH + F-OPEN-02 MEDIUM + WR-03 MEDIUM from the Phase 15 holistic audit. Cross-repo deploy ordering REVERSED from Phase 15: hosting first → rules second per RESEARCH §Q6. 38 rules-unit tests pass; source/mirror parity enforced. Production live: couch-v35.1-security-hardening at couchtonight.app + tightened rules on queuenight-84044.)*
 
 *Phase 15.2 / 15.3 / 15.4 inserted: 2026-04-27 (v33.3 milestone audit gap closure — 15.2 verification-artifact backfill (Phases 5-9 missing VERIFICATION.md + 10 missing SUMMARYs + REQUIREMENTS.md/ROADMAP/CLAUDE.md docs refresh + milestone-label normalization), 15.3 DESIGN-01 canonical SVG logo + wordmark production (closes the only genuinely unsatisfied requirement), 15.4 integration-FLAG fixes (F-W-1 sendCouchPing real push fan-out + D-3 friendly-UI Settings parity → POL-01 fully satisfied). Decimal-phase insertion mirrors 03.5 + 15.1 precedent — NOT slot reassignments; Phase 16 Calendar Layer + Phase 17 App Store Readiness scope preserved. **Phase 15.5 Nyquist back-fill DEFERRED** — accepting Nyquist tooling tech-debt for v1; framework will apply going forward only. Audit report: `.planning/v33.3-MILESTONE-AUDIT.md` committed as 001b259; integration check inline in audit YAML frontmatter.)*
+
+*ROADMAP refreshed: 2026-04-27 — Phase 15.2 / Plan 06 reconciled Progress table for Phases 5/6/7/8/9 (all SHIPPED, with Phase 9 passed_partial pending DESIGN-01 → 15.3) + reconciled Plans-list checkboxes for Phases 5/6/8 (per v33.3 milestone audit Pitfall 6 — disk wins). 28 traceability rows in REQUIREMENTS.md flipped Pending→Complete in same plan.*
 *v1 milestone: Commercial Release (Phases 3-11)*
