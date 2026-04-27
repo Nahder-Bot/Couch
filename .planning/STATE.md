@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Milestone complete
-last_updated: "2026-04-27T12:35:00.000Z"
+status: Executing Phase 15.1
+last_updated: "2026-04-27T13:00:00.000Z"
 progress:
-  total_phases: 12
+  total_phases: 11
   completed_phases: 5
-  total_plans: 61
-  completed_plans: 40
-  percent: 66
+  total_plans: 58
+  completed_plans: 41
+  percent: 71
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.1 — Security Hardening (planned 2026-04-27 — ready to execute)
+**Current focus:** Phase 15.1 — security-hardening
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 15.1
-Plan: Ready to execute (3 plans across 3 waves; 5 SEC-15-1-* requirements)
+Phase: 15.1 (security-hardening) — EXECUTING
+Plan: 2 of 3 (Wave 1 / 15.1-01 SHIPPED 2026-04-27 — 3 tasks committed 1443fa6 + 2e61547 + 8dc9c52, 32/32 tests passing, no regression. Awaits Wave 2 / 15.1-02 (rules + tests) and Wave 3 / 15.1-03 (close-out + deploy).)
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass minted via /gsd-plan-phase 15.1.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 

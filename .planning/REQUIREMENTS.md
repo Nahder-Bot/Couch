@@ -191,7 +191,7 @@ insertion (mirrors 03.5 precedent) — not a slot reassignment.
 - [ ] **SEC-15-1-02**: `memberId` regex anchor + `auth.uid` cross-validation (closes WR-02) — every rule branch that consumes `request.resource.data.memberId` adds two preconditions: (a) `memberId is string && memberId.matches('^m_[A-Za-z0-9_-]+$')` to defang RE2 meta-character injection in the title-doc `actingTupleKey` runtime regex; (b) `validAttribution()` extended to verify `memberId == request.auth.uid` (or `managedMemberId(uid)` for proxy-acted writes) so a member can no longer spoof another member's id. Same anchor applied to `mutedShows.hasOnly([memberId])` and the 5th UPDATE branch family-doc allowlist. (WR-02 / 15-REVIEW.md)
 - [ ] **SEC-15-1-03**: `tupleNames.<tk>` participant check on the family-doc 5th UPDATE branch (closes F-OPEN-02 server-side) — rule peeks into the nested map's affected keys and verifies `actingMemberId in tk.split(',')` for each tupleKey being written, mirroring the title-doc HIGH-1 `actingTupleKey` echo + regex pattern. Requires `setTupleName` (`js/app.js:8517`) to stamp `actingTupleKey: tupleKeyStr` on its dotted-path write. Same enforcement extended to `coWatchPromptDeclined.<tk>` writes (the only other tupleKey-keyed map under that branch). (F-OPEN-02 / 15-SECURITY.md)
 - [ ] **SEC-15-1-04**: Rules tests #33-#35 cover the new isolation paths (closes WR-03) — `tests/rules.test.js` extended with #33 (authed member writes own `coWatchPromptDeclined` tuple → ALLOWED), #34 (authed member writes `coWatchPromptDeclined` for tuple they're NOT in → DENIED, gated on SEC-15-1-03), #35 (forged `memberId: '.*'` regex injection writing `tupleProgress` → DENIED, gated on SEC-15-1-02). Plus regression tests for any rule branches changed by SEC-15-1-01..03. Pins the contract and blocks future regressions. (WR-03 / 15-REVIEW.md WR-03 fix block)
-- [ ] **SEC-15-1-05**: Defense-in-depth UI surfacing for tupleNames (defense for F-OPEN-02 client-side) — TWO changes: (a) gate the `.cv15-tuple-rename` pencil glyph in `cv15ShowRenameInput` + `renderCv15TupleProgressSection` so it only renders when `state.me.id ∈ tk.split(',')` (~10 lines client-only, closes the casual-griefing path even before SEC-15-1-03 lands); (b) surface the existing `setBy` field as a subtle "Renamed by {memberName}" attribution beside the tuple name on hover/tap — turns silent vandalism into an attributable action. Both per the 15-SECURITY.md F-OPEN-02 §Recommendation. (F-OPEN-02 / 15-SECURITY.md)
+- [x] **SEC-15-1-05**: Defense-in-depth UI surfacing for tupleNames (defense for F-OPEN-02 client-side) — TWO changes: (a) gate the `.cv15-tuple-rename` pencil glyph in `cv15ShowRenameInput` + `renderCv15TupleProgressSection` so it only renders when `state.me.id ∈ tk.split(',')` (~10 lines client-only, closes the casual-griefing path even before SEC-15-1-03 lands); (b) surface the existing `setBy` field as a subtle "Renamed by {memberName}" attribution beside the tuple name on hover/tap — turns silent vandalism into an attributable action. Both per the 15-SECURITY.md F-OPEN-02 §Recommendation. (F-OPEN-02 / 15-SECURITY.md) ✓ 2026-04-27 / 15.1-01
 
 ## v2 Requirements
 
@@ -329,11 +329,11 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | TRACK-15-12 | Phase 15 Plan 07 | Complete |
 | TRACK-15-13 | Phase 15 Plan 08 | Complete |
 | TRACK-15-14 | Phase 15 Plan 07 | Complete |
-| SEC-15-1-01 | Phase 15.1 (TBD plan) | Pending |
-| SEC-15-1-02 | Phase 15.1 (TBD plan) | Pending |
-| SEC-15-1-03 | Phase 15.1 (TBD plan) | Pending |
-| SEC-15-1-04 | Phase 15.1 (TBD plan) | Pending |
-| SEC-15-1-05 | Phase 15.1 (TBD plan) | Pending |
+| SEC-15-1-01 | Phase 15.1 Plan 01 (writer half) + Plan 02 (rule half — pending) | In Progress (writer half complete 2026-04-27 / 15.1-01) |
+| SEC-15-1-02 | Phase 15.1 Plan 02 (TBD) | Pending |
+| SEC-15-1-03 | Phase 15.1 Plan 01 (writer half) + Plan 02 (rule half — pending) | In Progress (writer half complete 2026-04-27 / 15.1-01) |
+| SEC-15-1-04 | Phase 15.1 Plan 02 (TBD) | Pending |
+| SEC-15-1-05 | Phase 15.1 Plan 01 | Complete (2026-04-27) |
 
 **Coverage:**
 - v1 requirements: 107 total (55 complete across Phases 3+4+7+9+11+14+15; 52 pending across Phases 5/6/8/12/13/14/15.1 + deferred Phase 10)
