@@ -400,6 +400,9 @@ async function run() {
   // stranger denial, missing attribution, and non-allowlisted-field smuggling.
   await describe('Family doc — tupleNames update (Phase 15 / D-02 / TRACK-15-01)', async () => {
     await it('#23 authed member writes tupleNames + attribution → ALLOWED', async () => {
+      // Phase 15.1 / SEC-15-1-03: actingTupleKey is now required by the
+      // 5th-branch participant check. Production setTupleName stamps it
+      // alongside the dotted-path tupleNames write (see js/app.js:8552).
       await assertSucceeds(
         member.doc('families/fam1').set(
           {
@@ -410,6 +413,7 @@ async function run() {
                 setAt: 1234567890,
               },
             },
+            actingTupleKey: 'm_UID_MEMBER,m_UID_OWNER',
             actingUid: UID_MEMBER,
             memberId: 'm_UID_MEMBER',
             memberName: 'Member',
@@ -583,6 +587,117 @@ async function run() {
       );
     });
     await it('#32 authed member writes titles/{id} non-Phase-15 fields (queues / ratings) → ALLOWED (no regression)', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            queues: { 'm_UID_MEMBER': { tier: 1, addedAt: 0 } },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+  });
+
+  // === Phase 15.1 — Security Hardening tests #33-#38 ===
+  // #33-#34: coWatchPromptDeclined participant check (SEC-15-1-03)
+  // #35:     memberId regex injection defang (SEC-15-1-02)
+  // #36-#38: per-member progress isolation (SEC-15-1-01)
+  await describe('Phase 15.1 — Security Hardening (SEC-15-1-* isolation)', async () => {
+    await it('#33 authed member writes own coWatchPromptDeclined tuple → ALLOWED', async () => {
+      // SEC-15-1-03: actingTupleKey echo passes — actor is in the tuple.
+      await assertSucceeds(
+        member.doc('families/fam1').set(
+          {
+            coWatchPromptDeclined: { 'm_UID_MEMBER,m_UID_OWNER': 1234567890 },
+            actingTupleKey: 'm_UID_MEMBER,m_UID_OWNER',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#34 authed member writes coWatchPromptDeclined for tuple they are NOT in → DENIED (SEC-15-1-03)', async () => {
+      // Member echoes actingTupleKey honestly but the key excludes their memberId
+      // — the regex check '(^|.*,)m_UID_MEMBER(,.*|$)' fails on 'm_UID_OUTSIDER,m_UID_OTHER'.
+      await assertFails(
+        member.doc('families/fam1').set(
+          {
+            coWatchPromptDeclined: { 'm_UID_OUTSIDER,m_UID_OTHER': 1234567890 },
+            actingTupleKey: 'm_UID_OUTSIDER,m_UID_OTHER',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it("#35 forged memberId='.*' writing tupleProgress → DENIED (SEC-15-1-02 anchor)", async () => {
+      // The validAttribution() anchor rejects '.*' because '.' and '*' are not
+      // in the allowed character class [A-Za-z0-9_-].
+      await assertFails(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            tupleProgress: {
+              'm_UID_MEMBER,m_UID_OWNER': {
+                season: 2,
+                episode: 3,
+                updatedAt: 1234567890,
+                source: 'manual',
+              },
+            },
+            actingTupleKey: 'm_UID_MEMBER,m_UID_OWNER',
+            actingUid: UID_MEMBER,
+            memberId: '.*',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#36 authed member writes own progress dotted-path → ALLOWED (SEC-15-1-01)', async () => {
+      // Reset titles/t1 so progress writes start clean (mutedShows test
+      // #28 may have stamped progress merges via merge: true).
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await ctx.firestore().doc('families/fam1/titles/t1').set({
+          createdAt: Date.now(),
+        });
+      });
+      await assertSucceeds(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            progress: { 'm_UID_MEMBER': { season: 1, episode: 1, updatedAt: 1234567890 } },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#37 authed member writes someone-else progress → DENIED (SEC-15-1-01)', async () => {
+      // The 4th sub-rule's hasOnly([memberId]) check rejects writes
+      // touching a progress inner key that is not the actor's memberId.
+      await assertFails(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            progress: { 'm_UID_OWNER': { season: 9, episode: 9, updatedAt: 1234567890 } },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#38 authed member writes non-progress field → ALLOWED (SEC-15-1-01 no regression)', async () => {
+      // Confirm the 4th sub-rule short-circuits when progress is not in the
+      // diff. Tests baseline writes still work (queues field is permissive).
       await assertSucceeds(
         member.doc('families/fam1/titles/t1').set(
           {
