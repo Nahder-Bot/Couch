@@ -4764,7 +4764,14 @@ function renderTonight() {
     if (actionsEl) actionsEl.innerHTML = '';
     return;
   }
-  if (state.selectedMembers.length === 0) {
+  // 14-10 (V5 redesign) follow-up: gate the "who's watching" empty state on the V5
+  // couchMemberIds source of truth, NOT the legacy state.selectedMembers (which is only
+  // written by the deprecated V4 toggleMember helper). Same bug class as the who-mini
+  // sticky bar fix in commit e89aa0b.
+  const couch = (state.couchMemberIds && state.couchMemberIds.length)
+    ? state.couchMemberIds
+    : (state.selectedMembers && state.selectedMembers.length ? state.selectedMembers : (state.me ? [state.me.id] : []));
+  if (couch.length === 0) {
     // D-11 (CONTEXT.md) — empty states should have action-leading CTAs, not dead ends.
     el.innerHTML = `<div class="empty"><strong>Pick who's watching</strong>Tap anyone above, or <button class="link-like" onclick="openInviteShare()">invite someone</button> to join the couch.</div>`;
     countEl.textContent = '';
@@ -4772,14 +4779,6 @@ function renderTonight() {
     return;
   }
 
-  // Common title-filter predicate — honors scope, providers, moods, vetoes, and age tiers.
-  // Doesn't check votes; callers apply vote logic themselves.
-  // D-01 (DECI-14-01): use couch-aware watched filter (Tonight tab is a discovery surface).
-  // Couch identity here is the actively-selected members tonight; falls back to state.couchMemberIds
-  // once 14-04's writer ships, or [state.me.id] as a last resort.
-  const couch = (state.couchMemberIds && state.couchMemberIds.length)
-    ? state.couchMemberIds
-    : (state.selectedMembers.length ? state.selectedMembers : (state.me ? [state.me.id] : []));
   function passesBaseFilter(t) {
     if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
@@ -7900,12 +7899,22 @@ function startActivitySync() {
   }, e => console.error('activity sync', e));
 }
 
+let activityExpanded = false;
+window.toggleActivityExpand_all = function() {
+  activityExpanded = !activityExpanded;
+  renderActivity();
+};
 function renderActivity() {
   const el = document.getElementById('activity-list');
   updateActivityBadge();
   if (!el) return;
   if (!recentActivity.length) { el.innerHTML = '<div class="activity-empty">Quiet on the couch. Start adding and voting to see activity here.</div>'; return; }
-  el.innerHTML = recentActivity.map(a => {
+  // Collapse-by-default with show-more — keep the Tonight tab from being dominated by
+  // a 7-day scroll. First N entries shown; rest gated behind a "Show all" expand control.
+  const COLLAPSED_N = 5;
+  const total = recentActivity.length;
+  const visible = activityExpanded ? recentActivity : recentActivity.slice(0, COLLAPSED_N);
+  const itemsHtml = visible.map(a => {
     const m = state.members.find(x => x.id === a.actorId);
     const color = m ? m.color : 'var(--ink-faint)';
     const initial = (a.actorName || '?')[0];
@@ -7946,6 +7955,10 @@ function renderActivity() {
       </div>
     </div>`;
   }).join('');
+  const moreHtml = (total > COLLAPSED_N)
+    ? `<button class="activity-show-more" type="button" onclick="toggleActivityExpand_all()">${activityExpanded ? 'Show less' : `Show all (${total - COLLAPSED_N} more)`}</button>`
+    : '';
+  el.innerHTML = itemsHtml + moreHtml;
 }
 
 let expandedActivityTs = null;
@@ -14223,10 +14236,23 @@ function renderFlowAPickerScreen() {
     </div>
   </section>` : '';
 
-  // Plan 14-09 / D-11 (d) — all-watched. CONTEXT.md D-11 copy + 2 CTAs:
-  // "Show rewatch options" reveals T3 (off-couch picks); "Discover more" → Add tab.
-  const emptyState = (!t1.length && !t2.length && !(showT3 && t3.length))
-    ? `<div class="queue-empty">
+  // Plan 14-09 / D-11 (d) + 14-10 follow-up: differentiate "no votes yet" from
+  // "all watched". Tier aggregators consume t.queues[memberId] which only populates
+  // on Yes votes — if nobody has voted, all 3 tiers are empty even when titles exist.
+  // The "you've seen everything" copy was misleading in that case (it implied watched,
+  // when really nothing was queued). Now: check whether including-watched would
+  // produce results — if yes, it's truly an all-watched state; if no, it's an
+  // unvoted-queue state.
+  const emptyAllTiers = (!t1.length && !t2.length && !(showT3 && t3.length));
+  let emptyState = '';
+  if (emptyAllTiers) {
+    // Probe: would including watched titles produce any tier rows?
+    const probeOpts = { includeWatched: true };
+    const wouldHaveContent = state.flowARevealRewatch
+      ? false
+      : (getTierOneRanked(couch, probeOpts).length || getTierTwoRanked(couch, probeOpts).length || (showT3 && getTierThreeRanked(couch, probeOpts).length));
+    if (wouldHaveContent) {
+      emptyState = `<div class="queue-empty">
         <span class="emoji">🛋️</span>
         <strong>You've seen everything in queue</strong>
         Revisit a favorite or expand discovery?
@@ -14234,8 +14260,20 @@ function renderFlowAPickerScreen() {
           <button class="tc-primary" type="button" onclick="onFlowAShowRewatchOptions()">Show rewatch options</button>
           <button class="tc-secondary" type="button" onclick="closeFlowAPicker();showScreen('add')">Discover more</button>
         </div>
-      </div>`
-    : '';
+      </div>`;
+    } else {
+      // No queued titles at all — nudge into Vote mode or Add tab to populate.
+      emptyState = `<div class="queue-empty">
+        <span class="emoji">🛋️</span>
+        <strong>Nothing in the couch's queue yet</strong>
+        Vote Yes on titles to fill it up, or add new ones.
+        <div class="queue-empty-cta">
+          <button class="tc-primary" type="button" onclick="closeFlowAPicker();openSwipeMode()">Open Vote mode</button>
+          <button class="tc-secondary" type="button" onclick="closeFlowAPicker();showScreen('add')">Add titles</button>
+        </div>
+      </div>`;
+    }
+  }
 
   const subhead = isCounter
     ? `Pick a different title to counter-nominate.`

@@ -1785,6 +1785,8 @@ h3{font-size:var(--t-h3)}
 .activity-text em{color:var(--accent);font-style:italic;font-family:'Instrument Serif','Fraunces',serif;font-weight:500}
 .activity-time{font-size:var(--t-micro);color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.12em;font-weight:500;margin-top:3px}
 .activity-empty{font-size:var(--t-meta);color:var(--ink-dim);text-align:center;padding:14px;font-style:italic}
+.activity-show-more{display:block;width:100%;background:transparent;border:none;color:var(--ink-dim);font-size:var(--t-meta);font-style:italic;padding:12px 0 4px;cursor:pointer;letter-spacing:0.02em}
+.activity-show-more:hover{color:var(--ink)}
 
 .section-head{font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;font-style:italic;letter-spacing:-0.015em;margin:0 4px 12px;display:flex;align-items:baseline;justify-content:space-between}
 .section-head .sub{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.18em;font-weight:600;font-style:normal;font-family:'Inter',sans-serif}
