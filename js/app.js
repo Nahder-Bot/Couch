@@ -747,17 +747,18 @@ const trakt = {
           || maxSeason > current.season
           || (maxSeason === current.season && maxEpisodeInSeason > current.episode);
         if (traktAhead) {
-          const prevProgress = existing.progress && typeof existing.progress === 'object'
-            ? { ...existing.progress }
-            : {};
-          prevProgress[meId] = {
-            season: maxSeason,
-            episode: maxEpisodeInSeason,
-            lastWatchedAt: lastWatchedAt,
-            updatedAt: Date.now(),
-            source: 'trakt'
+          // Phase 15.1 / SEC-15-1-01 — dotted-path single-inner-key write so
+          // the Wave 2 4th sub-rule's affectedKeys().hasOnly([memberId]) check
+          // passes. Only the actor's own progress slice is written.
+          const update = {
+            [`progress.${meId}`]: {
+              season: maxSeason,
+              episode: maxEpisodeInSeason,
+              lastWatchedAt: lastWatchedAt,
+              updatedAt: Date.now(),
+              source: 'trakt'
+            }
           };
-          const update = { progress: prevProgress };
           // Apply rating if we have one and user hasn't already rated
           const rating = ratingByTmdb.get(String(tmdbId));
           if (rating && (!existing.ratings || !existing.ratings[meId])) {
@@ -8409,14 +8410,17 @@ function membersWithProgress(t) {
 }
 
 // Write a member's progress. Always goes to the new per-member map.
+// Phase 15.1 / SEC-15-1-01 — dotted-path single-inner-key shape so the Wave 2
+// 4th sub-rule's affectedKeys().hasOnly([memberId]) check passes.
 async function writeMemberProgress(titleId, memberId, season, episode) {
   if (!titleId || !memberId) return;
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
-  const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
-  prevProgress[memberId] = { season: season, episode: episode, updatedAt: Date.now() };
   try {
-    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), {
+      ...writeAttribution(),
+      [`progress.${memberId}`]: { season: season, episode: episode, updatedAt: Date.now() }
+    });
   } catch(e) { console.warn('progress write failed', e); }
   // Push to Trakt if connected and this is the current user's own progress.
   // We only push for the signed-in user — a parent setting their kid's progress
@@ -8429,14 +8433,17 @@ async function writeMemberProgress(titleId, memberId, season, episode) {
 }
 
 // Clear a member's progress (when they say "I haven't started this")
+// Phase 15.1 / SEC-15-1-01 — dotted-path with deleteField() so the Wave 2 4th
+// sub-rule's affectedKeys().hasOnly([memberId]) check passes.
 async function clearMemberProgress(titleId, memberId) {
   if (!titleId || !memberId) return;
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
-  const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
-  delete prevProgress[memberId];
   try {
-    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), {
+      ...writeAttribution(),
+      [`progress.${memberId}`]: deleteField()
+    });
   } catch(e) { console.warn('progress clear failed', e); }
 }
 
