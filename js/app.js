@@ -5901,7 +5901,13 @@ function renderTraktCard() {
     // Hide the main action button since we're using inline buttons in the body now
     btn.style.display = 'none';
   } else {
-    body.innerHTML = '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
+    // === Phase 15 / D-07 (TRACK-15-14) — Trakt opt-in Settings disclosure ===
+    // Heading + italic sub-line above the existing Connect button. Verbatim from
+    // UI-SPEC §Discretion Q9 + §Copywriting Contract. Permanent (not dismissable).
+    body.innerHTML =
+      '<div style="font-family:\'Inter\',sans-serif;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:0.18em;color:var(--accent);margin-bottom:var(--s2);">JUMP-START YOUR COUCH&#39;S HISTORY WITH TRAKT</div>' +
+      '<p style="margin-bottom:var(--s3);"><em style="font-family:var(--font-serif);font-style:italic;color:var(--ink-warm);">Optional &mdash; tracking works without it.</em></p>' +
+      '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
     btn.textContent = 'Connect';
     btn.classList.add('accent');
     btn.onclick = function(){ trakt.connect(); };
