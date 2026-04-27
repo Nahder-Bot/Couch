@@ -137,9 +137,15 @@ async function run() {
 
   await describe('Session writes', async () => {
     await it('#1 authed member writes session with actingUid == self → ALLOWED', async () => {
+      // Phase 15.1 / SEC-15-1-02: validAttribution() now requires memberId is
+      // string + matches '^m_[A-Za-z0-9_-]+$'. Production writeAttribution()
+      // always stamps memberId — see js/utils.js:92. The earlier minimal
+      // payload omitted it; backfill to match the live writer contract.
       await assertSucceeds(
         member.doc('families/fam1/sessions/2026-04-20').set({
           actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
           votes: { 't_1': 1 },
           updatedAt: Date.now(),
         })
@@ -147,10 +153,14 @@ async function run() {
     });
 
     await it('#2 authed parent writes session with managedMemberId == kid_sub → ALLOWED', async () => {
+      // Phase 15.1 / SEC-15-1-02: managedMemberId now also requires the
+      // anchored regex; memberId is still required as the actor surface.
       await assertSucceeds(
         owner.doc('families/fam1/sessions/2026-04-21').set({
           actingUid: UID_OWNER,
           managedMemberId: 'm_kid_sub',
+          memberId: 'm_UID_OWNER',
+          memberName: 'Owner',
           votes: { 't_1': 1 },
           updatedAt: Date.now(),
         })

@@ -56,12 +56,28 @@ service cloud.firestore {
     // If the write is on behalf of a managed sub-profile (managedMemberId set),
     // the caller must actually manage that sub — member.managedBy must equal
     // the caller's uid. This is what stops parent forgery attacks.
+    //
+    // Phase 15.1 / SEC-15-1-02: anchor `memberId` (and `managedMemberId` when
+    // present) to '^m_[A-Za-z0-9_-]+$' so RE2 meta-characters can never be
+    // injected into runtime regex constructions like the title-doc
+    // `actingTupleKey` echo regex `(^|.*,)' + memberId + '(,.*|$)`. The anchor
+    // requires the full-string shape `m_<word-char-or-dash>+` — `.`, `*`, `\\`,
+    // and other meta-characters are NOT in the allowed character class
+    // `[A-Za-z0-9_-]` (`-` is last so it's a literal, not a range operator).
+    // Closes WR-02. Mirrors the pattern at firestore.rules tupleProgress
+    // sub-rule for memberId-derived runtime regex inputs.
     function validAttribution(familyCode) {
       return isMemberOfFamily(familyCode)
         && request.resource.data.actingUid == uid()
+        && request.resource.data.memberId is string
+        && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
         && (
           !('managedMemberId' in request.resource.data)
-          || get(/databases/$(database)/documents/families/$(familyCode)/members/$(request.resource.data.managedMemberId)).data.managedBy == uid()
+          || (
+            request.resource.data.managedMemberId is string
+            && request.resource.data.managedMemberId.matches('^m_[A-Za-z0-9_-]+$')
+            && get(/databases/$(database)/documents/families/$(familyCode)/members/$(request.resource.data.managedMemberId)).data.managedBy == uid()
+          )
         );
     }
 
@@ -188,7 +204,6 @@ service cloud.firestore {
           // rules do not peek into nested map values per the established pattern
           // (couchInTonight proxyConfirmedBy is also nested-only).
           // Phase 15 / S3 inline rename consumes — see 15-04 renderCv15TupleProgressSection.
-          //
           // REVIEW MEDIUM-9 (15-07 / 15-08 cross-plan coordination) —
           // coWatchPromptDeclined is the durable decline record for Trakt overlap
           // prompts. Shape: families/{code}.coWatchPromptDeclined =
@@ -429,6 +444,29 @@ service cloud.firestore {
                     ? request.resource.data.managedMemberId
                     : request.resource.data.memberId
                 ])
+            )
+          )
+          && (
+            // === Phase 15.1 / SEC-15-1-01 — per-member progress isolation ===
+            // Mirrors the mutedShows pattern; closes F-OPEN-01.
+            // The actor (auth.uid via memberId or managedMemberId proxy) MUST own the
+            // single touched inner key. Requires Phase 15.1-01 dotted-path writers
+            // (writeMemberProgress / clearMemberProgress / Trakt-sync ingest) so the
+            // diff exposes a single inner key rather than a full-map merge.
+            // `'progress' in resource.data ? ... : {}` property-existence guards are
+            // mandatory — bare resource.data.progress errors when the doc has no
+            // progress field yet (first-write case).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['progress'])
+            || (
+              request.resource.data.progress is map
+              && ('progress' in request.resource.data ? request.resource.data.progress : {})
+                   .diff('progress' in resource.data ? resource.data.progress : {})
+                   .affectedKeys()
+                   .hasOnly([
+                     ('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                       ? request.resource.data.managedMemberId
+                       : request.resource.data.memberId
+                   ])
             )
           );
         allow delete: if isMemberOfFamily(familyCode);
