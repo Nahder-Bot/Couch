@@ -117,7 +117,10 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   flowBNominate: true,
   flowBCounterTime: true,
   flowBConvert: true,
-  intentExpiring: true
+  intentExpiring: true,
+  // === Phase 15 / D-11 + D-12 (TRACK-15-10) — auto-subscribe on watch (DR-3 place 2 of 3) ===
+  // Must stay in lockstep with deploy-mirror NOTIFICATION_DEFAULTS in 15-06
+  newSeasonAirDate: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -144,7 +147,13 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
   flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
   flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
-  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." }
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
+  // === Phase 15 / D-11 + D-12 (TRACK-15-11) — auto-subscribe on watch (DR-3 place 3 of 3) ===
+  // REVIEW MEDIUM-12: customer-facing label is "New episode alerts" because the
+  // implementation surfaces per-EPISODE prompts, not the original season-only
+  // framing. The KEY remains 'newSeasonAirDate' for back-compat with Phase
+  // 14-09 D-12 framework + already-installed PWAs.
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
@@ -657,6 +666,11 @@ const trakt = {
         'trakt.lastSyncedAt': Date.now()
       });
 
+      // === Phase 15 / D-06 (TRACK-15-12) — fire co-watch overlap detector after sync ===
+      if (typeof trakt.detectAndPromptCoWatchOverlap === 'function') {
+        trakt.detectAndPromptCoWatchOverlap().catch(e => console.warn('[15-07] coWatch detect failed', e));
+      }
+
       if (opts.manual) {
         const msg = added || updated
           ? `Synced: ${added} new, ${updated} updated`
@@ -706,15 +720,20 @@ const trakt = {
       if (!tmdbId) continue; // can't match without a TMDB id
       // Trakt's /watched/shows aggregates per-user watched episodes. The
       // last-played episode is in `seasons[last].episodes[last]`. Find it:
-      let maxSeason = 0, maxEpisodeInSeason = 0;
+      let maxSeason = 0, maxEpisodeInSeason = 0, lastWatchedAt = null;
       for (const s of (entry.seasons || [])) {
         if (s.number > maxSeason) {
           maxSeason = s.number;
           maxEpisodeInSeason = 0;
+          lastWatchedAt = null;  // === Phase 15 / D-06 — reset on new max season ===
         }
         if (s.number === maxSeason) {
           for (const ep of (s.episodes || [])) {
-            if (ep.number > maxEpisodeInSeason) maxEpisodeInSeason = ep.number;
+            if (ep.number > maxEpisodeInSeason) {
+              maxEpisodeInSeason = ep.number;
+              // === Phase 15 / D-06 (TRACK-15-12) — capture per-episode timestamp for overlap detection ===
+              lastWatchedAt = ep.last_watched_at ? new Date(ep.last_watched_at).getTime() : null;
+            }
           }
         }
       }
@@ -734,6 +753,7 @@ const trakt = {
           prevProgress[meId] = {
             season: maxSeason,
             episode: maxEpisodeInSeason,
+            lastWatchedAt: lastWatchedAt,
             updatedAt: Date.now(),
             source: 'trakt'
           };
@@ -755,6 +775,7 @@ const trakt = {
             [meId]: {
               season: maxSeason,
               episode: maxEpisodeInSeason,
+              lastWatchedAt: lastWatchedAt,
               updatedAt: Date.now(),
               source: 'trakt'
             }
@@ -889,6 +910,198 @@ const trakt = {
   }
 };
 window.trakt = trakt;
+
+// === Phase 15 / D-06 (TRACK-15-12) — co-watch overlap detection + S5 prompt ===
+// Walks every TV title; for each, finds member pairs whose
+// t.progress[mid].source === 'trakt' AND lastWatchedAt within ±3hr.
+//
+// REVIEW MEDIUM-10 — episode selection uses a SINGLE ordinal comparator
+// (season * 1000 + episode), copying BOTH season AND episode from the
+// winning progress object. Fixes a bug where Math.max-of-season + Math.max-of-episode
+// could yield S5E10 when neither member had watched that exact episode.
+//
+// REVIEW MEDIUM-9 — declined pairs are persisted at
+// families/{code}.coWatchPromptDeclined[tupleKey] = timestamp. The detector
+// reads this on entry and SKIPS any pair whose tupleKey appears, preventing
+// the same prompt from re-triggering after every sync.
+//
+// CROSS-PLAN COORDINATION NOTE: the families/{code}.coWatchPromptDeclined
+// dotted-path write requires 15-01's family-doc 5th UPDATE branch allowlist
+// to be EXTENDED to include 'coWatchPromptDeclined'. Until 15-08 ships that
+// rule extension, the decline write will be DENIED — wrapped in try/catch +
+// Sentry breadcrumb so the local UX still drains the queue without crashing.
+const COWATCH_OVERLAP_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+// REVIEW MEDIUM-10 helper — ordinal score for (season, episode) pair.
+// Assumes episode <1000 per season (TMDB max ever observed: ~430 for One Piece).
+function cv15EpisodeOrdinal(prog) {
+  const s = (prog && prog.season != null) ? prog.season : 0;
+  const e = (prog && prog.episode != null) ? prog.episode : 0;
+  return s * 1000 + e;
+}
+
+// REVIEW MEDIUM-10 — pick the higher of two progress objects, return BOTH
+// fields from the winner (NOT independent maxes).
+function cv15SelectHigherProgress(a, b) {
+  const oa = cv15EpisodeOrdinal(a);
+  const ob = cv15EpisodeOrdinal(b);
+  return oa >= ob ? a : b;
+}
+
+trakt.detectAndPromptCoWatchOverlap = async function() {
+  if (!state.me || !state.familyCode || !state.titles) return;
+  const meId = state.me.id;
+  // REVIEW MEDIUM-9 — load the decline map once at the top.
+  const declined = (state.family && state.family.coWatchPromptDeclined) || {};
+  const candidates = [];
+  for (const t of state.titles) {
+    if (!t || t.kind !== 'TV') continue;
+    const progressMap = t.progress || {};
+    const myProg = progressMap[meId];
+    if (!myProg || myProg.source !== 'trakt' || !myProg.lastWatchedAt) continue;
+    for (const otherId of Object.keys(progressMap)) {
+      if (otherId === meId) continue;
+      const otherProg = progressMap[otherId];
+      if (!otherProg || otherProg.source !== 'trakt' || !otherProg.lastWatchedAt) continue;
+      const drift = Math.abs(myProg.lastWatchedAt - otherProg.lastWatchedAt);
+      if (drift > COWATCH_OVERLAP_WINDOW_MS) continue;
+      const tk = tupleKey([meId, otherId]);
+      if (!tk) continue;  // HIGH-2 safety
+      // REVIEW MEDIUM-9 — skip declined pairs.
+      if (declined[tk]) continue;
+      // Skip pairs already grouped — we don't ask twice.
+      if (t.tupleProgress && t.tupleProgress[tk]) continue;
+      // REVIEW MEDIUM-10 — single-comparator winner; copy BOTH fields from winner.
+      const winner = cv15SelectHigherProgress(myProg, otherProg);
+      const candSeason = winner.season;
+      const candEpisode = winner.episode;
+      if (candSeason == null || candEpisode == null) continue;
+      candidates.push({
+        titleId: t.id,
+        titleName: t.name || 'this show',
+        memberIds: [meId, otherId],
+        otherMemberName: (state.members.find(m => m.id === otherId) || {}).name || 'them',
+        season: candSeason,
+        episode: candEpisode,
+        tupleKey: tk
+      });
+    }
+  }
+  if (!candidates.length) return;
+  state._coWatchPromptQueue = state._coWatchPromptQueue || [];
+  for (const c of candidates) state._coWatchPromptQueue.push(c);
+  cv15ProcessNextCoWatchPrompt();
+};
+
+function cv15ProcessNextCoWatchPrompt() {
+  if (state._coWatchPromptShowing) return;
+  if (!state._coWatchPromptQueue || !state._coWatchPromptQueue.length) return;
+  const next = state._coWatchPromptQueue.shift();
+  state._coWatchPromptShowing = next;
+  renderCv15CoWatchPromptModal(next);
+}
+
+// REVIEW MEDIUM-7-style: data-cv15-action attrs + delegated listener (mirrors
+// the 15-04 pattern; this modal has only 2 buttons but consistency wins).
+function renderCv15CoWatchPromptModal(c) {
+  let modal = document.getElementById('cv15-cowatch-prompt-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cv15-cowatch-prompt-modal';
+    modal.className = 'modal-bg';
+    document.body.appendChild(modal);
+    // Outside-tap = No (UI-SPEC §Discretion Q4).
+    modal.addEventListener('click', function(ev) {
+      if (ev.target === modal) cv15CoWatchPromptDecline();
+    });
+    // Single delegated listener for the Yes/No buttons.
+    modal.addEventListener('click', function(ev) {
+      const trigger = ev.target.closest('[data-cv15-action]');
+      if (!trigger) return;
+      const action = trigger.getAttribute('data-cv15-action');
+      if (action === 'cowatchAccept') cv15CoWatchPromptAccept();
+      else if (action === 'cowatchDecline') cv15CoWatchPromptDecline();
+    });
+  }
+  const escName = escapeHtml(c.otherMemberName || 'them');
+  const escShow = escapeHtml(c.titleName || 'this show');
+  const escSeason = escapeHtml(String(c.season || '?'));
+  const escEpisode = escapeHtml(String(c.episode || '?'));
+  modal.innerHTML = `<div class="modal-content cv15-cowatch-prompt-content">
+    <h3 class="cv15-cowatch-prompt-h">Watched together?</h3>
+    <p class="cv15-cowatch-prompt-body"><em>Looks like you and ${escName} both watched ${escShow} S${escSeason}E${escEpisode} around the same time. Group your progress?</em></p>
+    <div class="cv15-cowatch-prompt-actions">
+      <button class="tc-secondary" type="button" id="cv15-cowatch-decline" data-cv15-action="cowatchDecline">No, keep separate</button>
+      <button class="tc-secondary accent-border" type="button" data-cv15-action="cowatchAccept">Yes, group us</button>
+    </div>
+  </div>`;
+  modal.classList.add('on');
+  // Default focus on No.
+  setTimeout(function() {
+    const noBtn = document.getElementById('cv15-cowatch-decline');
+    if (noBtn) noBtn.focus();
+  }, 50);
+}
+
+async function cv15CoWatchPromptAccept() {
+  const c = state._coWatchPromptShowing;
+  if (!c) return;
+  await writeTupleProgress(c.titleId, c.memberIds, c.season, c.episode, 'trakt-overlap');
+  cv15CloseCoWatchPrompt();
+  cv15ProcessNextCoWatchPrompt();
+}
+
+// REVIEW MEDIUM-9 — On decline, persist the per-tuple decline timestamp to
+// families/{code}.coWatchPromptDeclined[tupleKey] = now. The detector skips
+// declined pairs on next run, preventing nag.
+async function cv15CoWatchPromptDecline() {
+  const c = state._coWatchPromptShowing;
+  if (c && c.tupleKey && state.familyCode) {
+    // HIGH-2 safety: validate tk before dotted-path write
+    if (isSafeTupleKey(c.tupleKey)) {
+      try {
+        await updateDoc(doc(db, 'families', state.familyCode), {
+          [`coWatchPromptDeclined.${c.tupleKey}`]: Date.now(),
+          ...writeAttribution()
+        });
+        // Optimistic local update (matches 15-02 MEDIUM-8 pattern).
+        state.family = state.family || {};
+        state.family.coWatchPromptDeclined = {
+          ...(state.family.coWatchPromptDeclined || {}),
+          [c.tupleKey]: Date.now()
+        };
+      } catch (e) {
+        console.warn('[15-07] coWatchPromptDeclined write failed', e);
+        // Silent failure is acceptable — the user's local session won't re-prompt
+        // (cv15ProcessNextCoWatchPrompt drains the queue) and Sentry breadcrumb
+        // covers diagnostics. Expected to fail until 15-08 extends the family-doc
+        // 5th UPDATE branch allowlist (15-01) to include 'coWatchPromptDeclined'.
+        try {
+          if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+            Sentry.addBreadcrumb({
+              category: 'coWatchPromptDeclined',
+              level: 'warning',
+              message: 'persist of decline record failed',
+              data: { tupleKey: c.tupleKey }
+            });
+          }
+        } catch (_) {}
+      }
+    }
+  }
+  cv15CloseCoWatchPrompt();
+  cv15ProcessNextCoWatchPrompt();
+}
+
+function cv15CloseCoWatchPrompt() {
+  state._coWatchPromptShowing = null;
+  const modal = document.getElementById('cv15-cowatch-prompt-modal');
+  if (modal) modal.classList.remove('on');
+}
+
+// Expose on window for any external/debug invocation.
+window.cv15CoWatchPromptAccept = cv15CoWatchPromptAccept;
+window.cv15CoWatchPromptDecline = cv15CoWatchPromptDecline;
 
 // Listen for postMessage from the OAuth callback page. When the user grants
 // permission and Trakt redirects them back to /trakt-callback.html, that page
@@ -4143,6 +4356,8 @@ function startSync() {
     // === Phase 15 / D-02 — tupleNames hydration ===
     state.family = state.family || {};
     state.family.tupleNames = (d && d.tupleNames) || {};
+    // === Phase 15 / D-06 (TRACK-15-12) — REVIEW MEDIUM-9 — coWatchPromptDeclined hydration ===
+    state.family.coWatchPromptDeclined = (d && d.coWatchPromptDeclined) || {};
     // Mirror V5 source-of-truth into legacy state.selectedMembers shim (see toggleCouchMember).
     state.selectedMembers = state.couchMemberIds.slice();
     if (typeof renderCouchViz === 'function') renderCouchViz();
@@ -5686,7 +5901,13 @@ function renderTraktCard() {
     // Hide the main action button since we're using inline buttons in the body now
     btn.style.display = 'none';
   } else {
-    body.innerHTML = '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
+    // === Phase 15 / D-07 (TRACK-15-14) — Trakt opt-in Settings disclosure ===
+    // Heading + italic sub-line above the existing Connect button. Verbatim from
+    // UI-SPEC §Discretion Q9 + §Copywriting Contract. Permanent (not dismissable).
+    body.innerHTML =
+      '<div style="font-family:\'Inter\',sans-serif;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:0.18em;color:var(--accent);margin-bottom:var(--s2);">JUMP-START YOUR COUCH&#39;S HISTORY WITH TRAKT</div>' +
+      '<p style="margin-bottom:var(--s3);"><em style="font-family:var(--font-serif);font-style:italic;color:var(--ink-warm);">Optional &mdash; tracking works without it.</em></p>' +
+      '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
     btn.textContent = 'Connect';
     btn.classList.add('accent');
     btn.onclick = function(){ trakt.connect(); };
