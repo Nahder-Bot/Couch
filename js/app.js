@@ -8015,6 +8015,125 @@ window.postActivityReply = async function(ts) {
 // the family. getMemberProgress handles the migration on read, and any write through
 // the new API stores per-member going forward.
 
+// === Phase 15 — Tracking Layer (read helpers) ===
+// REVIEW HIGH-2 — defense-in-depth character-safety guard for tuple keys.
+// Allowed: alphanumeric, underscore, hyphen, comma. Comma is the documented
+// separator between sorted member IDs (per RESEARCH §Q2). Anything else
+// (`.`, backtick, `/`, `\`, `$`, `[`, `]`, `#`, etc.) would corrupt a Firestore
+// dotted-path field update like `tupleNames.${tk}`. Couch's existing member ID
+// generator yields family-scoped alphanumeric strings (verified RESEARCH §A8),
+// but if that contract ever drifts (e.g., upstream OAuth provider returns an
+// email-like ID), this guard prevents a class of nested-path corruption.
+const TUPLE_KEY_SAFE_RE = /^[A-Za-z0-9_,-]+$/;
+function isSafeTupleKey(tk) {
+  return typeof tk === 'string' && tk.length > 0 && TUPLE_KEY_SAFE_RE.test(tk);
+}
+
+// Tuple-key encoding: sorted memberIds joined by comma. Idempotent regardless of
+// input order. Returns '' (and console.warns) if any member ID would produce an
+// unsafe key — per REVIEW HIGH-2 callers must check the return value before
+// using it as a Firestore field path.
+function tupleKey(memberIds) {
+  if (!memberIds || !memberIds.length) return '';
+  const sorted = [...memberIds].filter(Boolean).sort();
+  // Validate each member ID individually before join — a comma in any single
+  // ID would create an ambiguous tupleKey (cannot round-trip via tk.split(',')).
+  for (const id of sorted) {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      console.warn('[Phase 15 / HIGH-2] tupleKey rejected unsafe member ID', id);
+      try {
+        if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+          Sentry.addBreadcrumb({
+            category: 'tupleNames',
+            level: 'warning',
+            message: 'tupleKey rejected unsafe member ID',
+            data: { memberIdSample: String(id).slice(0, 16) }
+          });
+        }
+      } catch (_) {}
+      return '';
+    }
+  }
+  const tk = sorted.join(',');
+  // Belt-and-suspenders: re-validate the joined string (paranoia for future
+  // separator changes).
+  return isSafeTupleKey(tk) ? tk : '';
+}
+
+// Read accessor for the tuple-progress field on a title doc. Returns the
+// {[tupleKey]: {season, episode, updatedAt, source, ...}} map, or {} if missing.
+function tupleProgressFromTitle(t) {
+  if (!t || !t.tupleProgress || typeof t.tupleProgress !== 'object') return {};
+  return t.tupleProgress;
+}
+
+// Find every tuple on this title that contains memberId. Returns
+// [{tupleKey, prog}, ...] sorted by prog.updatedAt desc (newest first).
+// Used by S1 Tonight widget (cross-show roll-up) and S2 detail-modal section.
+function tuplesContainingMember(t, memberId) {
+  if (!t || !memberId) return [];
+  const tp = tupleProgressFromTitle(t);
+  const out = [];
+  for (const tk of Object.keys(tp)) {
+    if (!tk) continue;
+    const ids = tk.split(',');
+    if (ids.includes(memberId)) {
+      out.push({ tupleKey: tk, prog: tp[tk] });
+    }
+  }
+  out.sort((a, b) => (b.prog && b.prog.updatedAt || 0) - (a.prog && a.prog.updatedAt || 0));
+  return out;
+}
+
+// REVIEW MEDIUM-6 — return the user-set CUSTOM name for this tupleKey, or
+// null if no custom name exists. CRITICAL: returns null (not empty string and
+// not a derived fallback) so consumers like 15-04 can render the italic
+// "*name this couch*" placeholder in the no-custom-name case. Distinct from
+// tupleDisplayName which falls back to derived names like "You (solo)".
+function tupleCustomName(tk) {
+  if (!tk) return null;
+  const fam = state.family || {};
+  const slot = (fam.tupleNames || {})[tk];
+  if (!slot || typeof slot.name !== 'string') return null;
+  const trimmed = slot.name.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+// Resolve a tuple key to a display name for UI. Returns the user-set name from
+// state.family.tupleNames if present; otherwise a derived fallback (NEVER empty
+// string — consumers that need to detect "no custom name set" must call
+// tupleCustomName(tk) === null directly per REVIEW MEDIUM-6).
+// Fallback derivation rules per UI-SPEC §Discretion Q3:
+//   - solo, includes me      → "You (solo)"
+//   - solo, NOT me           → `${otherName} (solo)`
+//   - pair, includes me      → `${otherName} and me`
+//   - pair, NOT me           → `${a} & ${b}` (alphabetical)
+//   - 3+, includes me        → `You + ${n-1}`
+//   - 3+, NOT me             → `${first}, ${second}, ${third}` (truncated)
+function tupleDisplayName(tk, members) {
+  if (!tk) return '';
+  const custom = tupleCustomName(tk);
+  if (custom) return custom;
+  // Fallback: derive from member roster.
+  const ids = tk.split(',').filter(Boolean);
+  const meId = state.me && state.me.id;
+  const memberMap = (members || state.members || []).reduce((acc, m) => { acc[m.id] = m; return acc; }, {});
+  const names = ids.map(id => (memberMap[id] && memberMap[id].name) || '').filter(Boolean);
+  if (ids.length === 1) {
+    return ids[0] === meId ? 'You (solo)' : ((memberMap[ids[0]] && memberMap[ids[0]].name) || 'Unknown') + ' (solo)';
+  }
+  if (ids.length === 2) {
+    if (ids.includes(meId)) {
+      const otherId = ids.find(x => x !== meId);
+      return ((memberMap[otherId] && memberMap[otherId].name) || 'Unknown') + ' and me';
+    }
+    return names.slice().sort().join(' & ');
+  }
+  // 3+ members
+  if (ids.includes(meId)) return 'You + ' + (ids.length - 1);
+  return names.slice(0, 3).join(', ');
+}
+
 // Read a member's current progress on a title, handling the legacy shared-progress
 // fields as a fallback so existing data keeps rendering while we migrate.
 function getMemberProgress(t, memberId) {
