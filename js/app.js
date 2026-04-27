@@ -4140,6 +4140,9 @@ function startSync() {
     // so the empty-state CTA reacts to claim/vacate, not just intent writes.
     state.couchInTonight = couchInTonightFromDoc(d);
     state.couchMemberIds = couchInTonightToMemberIds(state.couchInTonight);
+    // === Phase 15 / D-02 — tupleNames hydration ===
+    state.family = state.family || {};
+    state.family.tupleNames = (d && d.tupleNames) || {};
     // Mirror V5 source-of-truth into legacy state.selectedMembers shim (see toggleCouchMember).
     state.selectedMembers = state.couchMemberIds.slice();
     if (typeof renderCouchViz === 'function') renderCouchViz();
@@ -8015,6 +8018,125 @@ window.postActivityReply = async function(ts) {
 // the family. getMemberProgress handles the migration on read, and any write through
 // the new API stores per-member going forward.
 
+// === Phase 15 — Tracking Layer (read helpers) ===
+// REVIEW HIGH-2 — defense-in-depth character-safety guard for tuple keys.
+// Allowed: alphanumeric, underscore, hyphen, comma. Comma is the documented
+// separator between sorted member IDs (per RESEARCH §Q2). Anything else
+// (`.`, backtick, `/`, `\`, `$`, `[`, `]`, `#`, etc.) would corrupt a Firestore
+// dotted-path field update like `tupleNames.${tk}`. Couch's existing member ID
+// generator yields family-scoped alphanumeric strings (verified RESEARCH §A8),
+// but if that contract ever drifts (e.g., upstream OAuth provider returns an
+// email-like ID), this guard prevents a class of nested-path corruption.
+const TUPLE_KEY_SAFE_RE = /^[A-Za-z0-9_,-]+$/;
+function isSafeTupleKey(tk) {
+  return typeof tk === 'string' && tk.length > 0 && TUPLE_KEY_SAFE_RE.test(tk);
+}
+
+// Tuple-key encoding: sorted memberIds joined by comma. Idempotent regardless of
+// input order. Returns '' (and console.warns) if any member ID would produce an
+// unsafe key — per REVIEW HIGH-2 callers must check the return value before
+// using it as a Firestore field path.
+function tupleKey(memberIds) {
+  if (!memberIds || !memberIds.length) return '';
+  const sorted = [...memberIds].filter(Boolean).sort();
+  // Validate each member ID individually before join — a comma in any single
+  // ID would create an ambiguous tupleKey (cannot round-trip via tk.split(',')).
+  for (const id of sorted) {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      console.warn('[Phase 15 / HIGH-2] tupleKey rejected unsafe member ID', id);
+      try {
+        if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+          Sentry.addBreadcrumb({
+            category: 'tupleNames',
+            level: 'warning',
+            message: 'tupleKey rejected unsafe member ID',
+            data: { memberIdSample: String(id).slice(0, 16) }
+          });
+        }
+      } catch (_) {}
+      return '';
+    }
+  }
+  const tk = sorted.join(',');
+  // Belt-and-suspenders: re-validate the joined string (paranoia for future
+  // separator changes).
+  return isSafeTupleKey(tk) ? tk : '';
+}
+
+// Read accessor for the tuple-progress field on a title doc. Returns the
+// {[tupleKey]: {season, episode, updatedAt, source, ...}} map, or {} if missing.
+function tupleProgressFromTitle(t) {
+  if (!t || !t.tupleProgress || typeof t.tupleProgress !== 'object') return {};
+  return t.tupleProgress;
+}
+
+// Find every tuple on this title that contains memberId. Returns
+// [{tupleKey, prog}, ...] sorted by prog.updatedAt desc (newest first).
+// Used by S1 Tonight widget (cross-show roll-up) and S2 detail-modal section.
+function tuplesContainingMember(t, memberId) {
+  if (!t || !memberId) return [];
+  const tp = tupleProgressFromTitle(t);
+  const out = [];
+  for (const tk of Object.keys(tp)) {
+    if (!tk) continue;
+    const ids = tk.split(',');
+    if (ids.includes(memberId)) {
+      out.push({ tupleKey: tk, prog: tp[tk] });
+    }
+  }
+  out.sort((a, b) => (b.prog && b.prog.updatedAt || 0) - (a.prog && a.prog.updatedAt || 0));
+  return out;
+}
+
+// REVIEW MEDIUM-6 — return the user-set CUSTOM name for this tupleKey, or
+// null if no custom name exists. CRITICAL: returns null (not empty string and
+// not a derived fallback) so consumers like 15-04 can render the italic
+// "*name this couch*" placeholder in the no-custom-name case. Distinct from
+// tupleDisplayName which falls back to derived names like "You (solo)".
+function tupleCustomName(tk) {
+  if (!tk) return null;
+  const fam = state.family || {};
+  const slot = (fam.tupleNames || {})[tk];
+  if (!slot || typeof slot.name !== 'string') return null;
+  const trimmed = slot.name.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+// Resolve a tuple key to a display name for UI. Returns the user-set name from
+// state.family.tupleNames if present; otherwise a derived fallback (NEVER empty
+// string — consumers that need to detect "no custom name set" must call
+// tupleCustomName(tk) === null directly per REVIEW MEDIUM-6).
+// Fallback derivation rules per UI-SPEC §Discretion Q3:
+//   - solo, includes me      → "You (solo)"
+//   - solo, NOT me           → `${otherName} (solo)`
+//   - pair, includes me      → `${otherName} and me`
+//   - pair, NOT me           → `${a} & ${b}` (alphabetical)
+//   - 3+, includes me        → `You + ${n-1}`
+//   - 3+, NOT me             → `${first}, ${second}, ${third}` (truncated)
+function tupleDisplayName(tk, members) {
+  if (!tk) return '';
+  const custom = tupleCustomName(tk);
+  if (custom) return custom;
+  // Fallback: derive from member roster.
+  const ids = tk.split(',').filter(Boolean);
+  const meId = state.me && state.me.id;
+  const memberMap = (members || state.members || []).reduce((acc, m) => { acc[m.id] = m; return acc; }, {});
+  const names = ids.map(id => (memberMap[id] && memberMap[id].name) || '').filter(Boolean);
+  if (ids.length === 1) {
+    return ids[0] === meId ? 'You (solo)' : ((memberMap[ids[0]] && memberMap[ids[0]].name) || 'Unknown') + ' (solo)';
+  }
+  if (ids.length === 2) {
+    if (ids.includes(meId)) {
+      const otherId = ids.find(x => x !== meId);
+      return ((memberMap[otherId] && memberMap[otherId].name) || 'Unknown') + ' and me';
+    }
+    return names.slice().sort().join(' & ');
+  }
+  // 3+ members
+  if (ids.includes(meId)) return 'You + ' + (ids.length - 1);
+  return names.slice(0, 3).join(', ');
+}
+
 // Read a member's current progress on a title, handling the legacy shared-progress
 // fields as a fallback so existing data keeps rendering while we migrate.
 function getMemberProgress(t, memberId) {
@@ -8078,6 +8200,154 @@ async function clearMemberProgress(titleId, memberId) {
   try {
     await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
   } catch(e) { console.warn('progress clear failed', e); }
+}
+
+// === Phase 15 — Tracking Layer (writers) ===
+// Write a tuple's progress entry. Tuple-keyed analog of writeMemberProgress.
+// memberIds: array of memberIds on the watch (sorted internally via tupleKey).
+// source: 'watchparty' | 'manual' | 'trakt-overlap' — D-05 attribution.
+// Per D-08 (independent tuples), this does NOT push to anyone's Trakt account
+// — group writes are local-only. Only writeMemberProgress (legacy per-individual)
+// pushes to Trakt for the actor.
+//
+// REVIEW HIGH-2 — early-exit if tupleKey() returns '' (validation failed in
+// the read-helpers block above); also re-validate the resulting tk via
+// isSafeTupleKey() as belt-and-suspenders.
+//
+// Plan-15-01 forward-contract — the title-doc UPDATE rule (firestore.rules
+// lines ~368-405) requires the write payload to echo `actingTupleKey: <tk>`
+// so the rule can hasOnly-equality-check the diff'd tupleProgress key against
+// it AND regex-match the actor's memberId/managedMemberId against it. Without
+// this echo field the write is rejected with PERMISSION_DENIED. The plan's
+// must_haves did not mention this explicitly — it was added as a 15-01
+// deviation when the Firestore emulator rejected the planner's
+// `affectedKeys().toList()[0].matches(...)` form. Documented in SUMMARY.
+async function writeTupleProgress(titleId, memberIds, season, episode, source) {
+  if (!titleId || !memberIds || !memberIds.length) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const tk = tupleKey(memberIds);
+  if (!tk || !isSafeTupleKey(tk)) {
+    console.warn('[Phase 15 / HIGH-2] writeTupleProgress aborted — unsafe tupleKey from memberIds', memberIds);
+    return;
+  }
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  prev[tk] = {
+    season: season,
+    episode: episode,
+    updatedAt: Date.now(),
+    source: source || 'manual'
+  };
+  try {
+    // 15-01 forward-contract: stamp actingTupleKey alongside the tupleProgress write.
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tk });
+  } catch (e) { console.warn('tupleProgress write failed', e); }
+}
+
+// Clear a tuple's progress entry. Used by manual override paths in 15-04.
+// REVIEW HIGH-2 — also gated on isSafeTupleKey since the input string is the
+// raw key from a UI element, not always derived from a fresh tupleKey() call.
+//
+// Plan-15-01 forward-contract: stamp actingTupleKey: tupleKeyStr alongside
+// the tupleProgress write so the rules-enforced per-key isolation passes.
+async function clearTupleProgress(titleId, tupleKeyStr) {
+  if (!titleId || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.warn('[Phase 15 / HIGH-2] clearTupleProgress aborted — unsafe tupleKey', tupleKeyStr);
+    return;
+  }
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  delete prev[tupleKeyStr];
+  try {
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tupleKeyStr });
+  } catch (e) { console.warn('tupleProgress clear failed', e); }
+}
+
+// Write a tuple's display name to families/{code}.tupleNames.{tupleKey}. Uses
+// dotted-path field write so concurrent renames don't clobber sibling slots.
+// Permitted by the Phase 15 / D-02 5th UPDATE branch in firestore.rules (15-01).
+// On failure: flashToast warn variant per UI-SPEC §Copywriting Contract.
+//
+// REVIEW HIGH-2 — REJECT writes whose tupleKey is unsafe BEFORE issuing the
+// dotted-path update. An unsafe key here would not just fail to write — it
+// could create an unintended nested field path (e.g., a `.` in the key would
+// shred the doc into nested maps). Defense-in-depth for the
+// `[`tupleNames.${tupleKeyStr}`]` template-literal field path.
+//
+// On unsafe key: skip the network round-trip, surface the same warn toast as a
+// failure path (so the UI doesn't silently appear to succeed), and breadcrumb.
+// Also OPTIMISTICALLY UPDATE state.family.tupleNames after a successful write
+// (REVIEW MEDIUM-8) so the immediate re-render in 15-04's cv15SaveRenameInput
+// reads the new value rather than the pre-snapshot stale state.
+async function setTupleName(tupleKeyStr, name) {
+  if (!state.familyCode || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.error('[Phase 15 / HIGH-2] setTupleName rejected unsafe tupleKey', tupleKeyStr);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        Sentry.addBreadcrumb({
+          category: 'tupleNames',
+          level: 'error',
+          message: 'setTupleName rejected unsafe tupleKey',
+          data: { tupleKeySample: String(tupleKeyStr).slice(0, 32) }
+        });
+      }
+    } catch (_) {}
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+    return;
+  }
+  const trimmed = (name || '').slice(0, 40);
+  const slot = {
+    name: trimmed,
+    setBy: (state.me && state.me.id) || null,
+    setAt: Date.now()
+  };
+  try {
+    await updateDoc(doc(db, 'families', state.familyCode), {
+      [`tupleNames.${tupleKeyStr}`]: slot,
+      ...writeAttribution()
+    });
+    // REVIEW MEDIUM-8 — optimistically update local state so the immediate
+    // re-render in 15-04's cv15SaveRenameInput reads the new value before the
+    // family-doc onSnapshot fires (typical 50-150ms delay).
+    state.family = state.family || {};
+    state.family.tupleNames = { ...(state.family.tupleNames || {}), [tupleKeyStr]: slot };
+  } catch (e) {
+    console.error('[tupleNames] setTupleName failed', e);
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+  }
+}
+
+// Write the per-show muted state. Member-keyed map mirroring t.queues / t.votes
+// per-member shape. Per REVIEW HIGH-1, the 15-01 title-doc rule enforces that
+// memberId == auth.uid (or managedMemberId for proxy-acted writes) — meaning
+// callers MUST pass me.id as memberId; passing someone else's ID will be
+// rejected by rules. This helper does not enforce that locally (the rule is
+// authoritative); callers in 15-03 (toggleMutedShow) only pass me.id.
+//
+// Plan-15-01 forward-contract: writeAttribution() already stamps memberId
+// (and managedMemberId when proxy-acting) on the payload — the title-doc
+// UPDATE rule per-member mutedShows isolation branch checks the inner-map
+// affectedKeys().hasOnly([managedMemberId || memberId]) which holds when the
+// caller's memberId arg equals the writeAttribution memberId (true in all
+// 15-03 call sites by construction).
+async function writeMutedShow(titleId, memberId, muted) {
+  if (!titleId || !memberId) return;
+  try {
+    if (muted) {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: true,
+        ...writeAttribution()
+      });
+    } else {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: deleteField(),
+        ...writeAttribution()
+      });
+    }
+  } catch (e) { console.warn('mutedShow write failed', e); }
 }
 
 // Quick-advance: bump the current user's episode by one. Hooked to "Next ep" buttons.
