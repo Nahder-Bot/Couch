@@ -385,6 +385,208 @@ async function run() {
     });
   });
 
+  // Phase 15 / D-02 (TRACK-15-01) — tupleNames family-doc write branch.
+  // Mirrors the couchSeating block above: 4 tests covering happy path,
+  // stranger denial, missing attribution, and non-allowlisted-field smuggling.
+  await describe('Family doc — tupleNames update (Phase 15 / D-02 / TRACK-15-01)', async () => {
+    await it('#23 authed member writes tupleNames + attribution → ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1').set(
+          {
+            tupleNames: {
+              'm_UID_MEMBER,m_UID_OWNER': {
+                name: 'Date night',
+                setBy: 'm_UID_MEMBER',
+                setAt: 1234567890,
+              },
+            },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#24 stranger writes tupleNames → DENIED', async () => {
+      await assertFails(
+        stranger.doc('families/fam1').set(
+          {
+            tupleNames: {
+              'm_X,m_Y': { name: 'Pwned', setBy: 'm_X', setAt: 0 },
+            },
+            actingUid: UID_STRANGER,
+            memberId: 'm_X',
+            memberName: 'Stranger',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#25 authed member writes tupleNames WITHOUT attribution (missing actingUid) post-grace → DENIED', async () => {
+      // Reset fam1 so the actingUid stamped by test #19/#23 isn't preserved
+      // by `merge: true` (same hygiene as test #20). Then flip grace OFF so
+      // the 5th branch's validAttribution() check is what denies (not just
+      // legacyGraceWrite accepting a memberId-only legacy write).
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await ctx.firestore().doc('families/fam1').set({
+          ownerUid: UID_OWNER,
+          createdAt: Date.now(),
+        });
+      });
+      await flipGraceOff();
+      try {
+        await assertFails(
+          member.doc('families/fam1').set(
+            {
+              tupleNames: {
+                'm_UID_MEMBER,m_UID_OWNER': {
+                  name: 'Sneaky',
+                  setBy: 'm_UID_MEMBER',
+                  setAt: 0,
+                },
+              },
+              memberId: 'm_UID_MEMBER',
+              memberName: 'Member',
+              // actingUid intentionally omitted
+            },
+            { merge: true }
+          )
+        );
+      } finally {
+        await flipGraceOn();
+      }
+    });
+    await it('#26 authed member writes tupleNames AND a non-allowlisted field (foo) → DENIED', async () => {
+      await assertFails(
+        member.doc('families/fam1').set(
+          {
+            tupleNames: {
+              'm_UID_MEMBER,m_UID_OWNER': {
+                name: 'OK',
+                setBy: 'm_UID_MEMBER',
+                setAt: 0,
+              },
+            },
+            foo: 'bar',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+  });
+
+  // Phase 15 / REVIEW HIGH-1 — title-doc isolation matrix for the 3 new sensitive
+  // fields (tupleProgress, mutedShows, liveReleaseFiredFor). Verifies the Task 1.5
+  // tightening ships per-member field-level isolation: actor's memberId must
+  // appear in each touched tupleKey; mutedShows inner key must equal actor's
+  // memberId; liveReleaseFiredFor is CF-only (admin SDK bypass) and DENIED for
+  // any client write. Test #32 anchors no-regression on Phase 1-14 paths.
+  await describe('Title doc — Phase 15 sensitive fields (REVIEW HIGH-1 isolation matrix)', async () => {
+    await it('#27 authed member writes titles/{id}.tupleProgress[tk] WHERE tk INCLUDES them → ALLOWED', async () => {
+      // Per the Plan 15-01 deviation note in firestore.rules: writeTupleProgress
+      // MUST stamp `actingTupleKey: <the tupleKey being written>` so the rule can
+      // validate (a) the diff hasOnly that key AND (b) the key contains the actor.
+      await assertSucceeds(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            tupleProgress: {
+              'm_UID_MEMBER,m_UID_OWNER': {
+                season: 2,
+                episode: 3,
+                updatedAt: 1234567890,
+                source: 'watchparty',
+              },
+            },
+            actingTupleKey: 'm_UID_MEMBER,m_UID_OWNER',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#28 authed member writes titles/{id}.mutedShows[memberId=self] → ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            mutedShows: { 'm_UID_MEMBER': true },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#29 authed member writes titles/{id}.tupleProgress[tk] WHERE tk does NOT include them → DENIED (HIGH-1)', async () => {
+      // Member echoes actingTupleKey honestly but the key excludes their memberId
+      // — the regex check `(^|.*,)m_UID_MEMBER(,.*|$)` fails on 'm_UID_OWNER,m_UID_OTHER'.
+      await assertFails(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            tupleProgress: {
+              'm_UID_OWNER,m_UID_OTHER': {
+                season: 9,
+                episode: 9,
+                updatedAt: 1234567890,
+                source: 'manual',
+              },
+            },
+            actingTupleKey: 'm_UID_OWNER,m_UID_OTHER',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#30 authed member writes titles/{id}.mutedShows[someone-else] → DENIED (HIGH-1)', async () => {
+      await assertFails(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            mutedShows: { 'm_UID_OWNER': true },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#31 authed member writes titles/{id}.liveReleaseFiredFor (CLIENT) → DENIED (HIGH-1; CF-only field)', async () => {
+      await assertFails(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            liveReleaseFiredFor: { 's2e3': 1234567890 },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#32 authed member writes titles/{id} non-Phase-15 fields (queues / ratings) → ALLOWED (no regression)', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1/titles/t1').set(
+          {
+            queues: { 'm_UID_MEMBER': { tier: 1, addedAt: 0 } },
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);
