@@ -8863,19 +8863,43 @@ function renderCv15TupleProgressSection(t) {
     const visibleName = customName !== null ? customName : tupleDisplayName(tk, state.members);
     const escId = escapeHtml(t.id);
     const escTk = escapeHtml(tk);
+    // === Phase 15.1 / SEC-15-1-05 — participant gate for the rename pencil ===
+    // Non-participants don't see the rename affordance (defense-in-depth +
+    // UX). The Wave 2 rule is the actual security boundary; this is the
+    // casual-griefing close.
+    const meId = (state.me && state.me.id) || '';
+    const isParticipant = meId && tk.split(',').includes(meId);
     const nameMarkup = isUnnamed
       ? `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>` +
         `<span class="cv15-tuple-name unnamed-placeholder"><em>name this couch</em></span>`
       : `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>`;
+    // === Phase 15.1 / SEC-15-1-05 — setBy attribution surface ===
+    // When a tuple has a custom name + a setBy field, render a small
+    // "Renamed by {memberName}" attribution beside the name. Turns silent
+    // vandalism into attributable action. Pre-rule defense-in-depth.
+    let setByMarkup = '';
+    if (!isUnnamed && state.family && state.family.tupleNames && state.family.tupleNames[tk]) {
+      const setBy = state.family.tupleNames[tk].setBy;
+      if (setBy) {
+        const setByMember = (state.members || []).find(m => m && m.id === setBy);
+        const setByName = (setByMember && setByMember.name) || '';
+        if (setByName) {
+          setByMarkup = `<span class="cv15-tuple-setby" title="Renamed by ${escapeHtml(setByName)}">&middot; Renamed by ${escapeHtml(setByName)}</span>`;
+        }
+      }
+    }
     // REVIEW MEDIUM-7 — data-* attrs carry tk + titleId; no inline onclick.
-    const renameBtn = `<button class="cv15-tuple-rename" type="button" aria-label="Rename this couch"
-      data-cv15-action="renameTuple" data-title-id="${escId}" data-tk="${escTk}">&#9998;</button>`;
+    // Phase 15.1 / SEC-15-1-05 — gate on isParticipant.
+    const renameBtn = isParticipant
+      ? `<button class="cv15-tuple-rename" type="button" aria-label="Rename this couch"
+          data-cv15-action="renameTuple" data-title-id="${escId}" data-tk="${escTk}">&#9998;</button>`
+      : '';
     const seasonNum = (prog.season != null) ? prog.season : '?';
     const episodeNum = (prog.episode != null) ? prog.episode : '?';
     const ago = prog.updatedAt ? cv15RelativeTime(prog.updatedAt) : '';
     return `<div class="cv15-progress-row" data-tk="${escTk}">
       <div class="cv15-progress-row-body">
-        ${nameMarkup}${renameBtn}
+        ${nameMarkup}${renameBtn}${setByMarkup}
         <div class="cv15-progress-time">${escapeHtml(ago)}</div>
       </div>
       <div class="cv15-progress-row-actions">
@@ -8930,6 +8954,13 @@ function cv15RelativeTime(ts) {
 // === Phase 15 / S3 — inline tuple rename handlers (called by delegated listener) ===
 function cv15ShowRenameInput(titleId, tupleKeyStr) {
   if (!titleId || !tupleKeyStr) return;
+  // === Phase 15.1 / SEC-15-1-05 — participant guard ===
+  // Defense-in-depth: even if a non-participant somehow gets the data-cv15-action
+  // attribute click through (DOM injection / dev console / out-of-date PWA before
+  // the renderCv15TupleProgressSection gate above re-renders), refuse to swap
+  // the span for an editable input.
+  const meId = (state.me && state.me.id) || '';
+  if (!meId || !tupleKeyStr.split(',').includes(meId)) return;
   const span = document.getElementById(`cv15-tname-${titleId}-${tupleKeyStr}`);
   if (!span) return;
   // REVIEW MEDIUM-6 — read current value via tupleCustomName so we don't
