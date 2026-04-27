@@ -195,24 +195,69 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['couchInTonight', 'couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
         ) || (
-          // === Phase 15 / D-02 + D-06 (TRACK-15-01 / REVIEW MEDIUM-9) — tupleNames + coWatchPromptDeclined writes ===
-          // Decoration map for tuple progress (e.g. "Wife and me", "Date night").
-          // Shape: families/{code}.tupleNames = { [tupleKey]: { name, setBy, setAt } }
-          // Tuple is the data key (sorted memberId,memberId — see js/app.js tupleKey
-          // helper from 15-02). Names editable any time per CONTEXT.md D-02.
-          // Inner shape (slot.name, slot.setBy, slot.setAt) validated client-side;
-          // rules do not peek into nested map values per the established pattern
-          // (couchInTonight proxyConfirmedBy is also nested-only).
-          // Phase 15 / S3 inline rename consumes — see 15-04 renderCv15TupleProgressSection.
-          // REVIEW MEDIUM-9 (15-07 / 15-08 cross-plan coordination) —
-          // coWatchPromptDeclined is the durable decline record for Trakt overlap
-          // prompts. Shape: families/{code}.coWatchPromptDeclined =
-          // { [tupleKey]: <timestamp> }. Written by cv15CoWatchPromptDecline in
-          // 15-07 via dotted-path update; read on detector entry to skip
-          // already-declined pairs.
+          // === Phase 15.1 / SEC-15-1-03 — tupleNames + coWatchPromptDeclined participant check ===
+          // Closes F-OPEN-02. Replaces the Phase 15 / D-02 + REVIEW MEDIUM-9 5th
+          // branch (which only allowlisted the top-level fields without peeking
+          // into the nested map's affected keys).
+          //
+          // Requires Phase 15.1-01 writer-side stamping of actingTupleKey on:
+          //   - setTupleName (js/app.js:8546)
+          //   - cv15CoWatchPromptDecline (js/app.js:1063)
+          // Mirrors the existing title-doc tupleProgress actingTupleKey echo+regex
+          // pattern at firestore.rules tupleProgress sub-rule.
+          //
+          // Five-part check:
+          //   (a) attribution baseline (validAttribution → SEC-15-1-02 anchor on memberId)
+          //   (b) outer allowlist now includes 'actingTupleKey' alongside the
+          //       original 6 fields
+          //   (c) when either tupleNames OR coWatchPromptDeclined is touched,
+          //       require actingTupleKey to be a string AND match a regex that
+          //       includes the actor's memberId at a comma boundary; the
+          //       outer regex `^[A-Za-z0-9_,-]+$` self-sanitizes the tupleKey
+          //       so attackers can't inject RE2 metas into the inner regex.
+          //   (d) tupleNames diff inner keys hasOnly([actingTupleKey])
+          //   (e) coWatchPromptDeclined diff inner keys hasOnly([actingTupleKey])
           attributedWrite(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['tupleNames', 'coWatchPromptDeclined', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+              .hasOnly(['tupleNames', 'coWatchPromptDeclined', 'actingTupleKey',
+                        'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          // (c) actingTupleKey echo + comma-boundary actor regex
+          && (
+            !(request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['tupleNames', 'coWatchPromptDeclined']))
+            || (
+              'actingTupleKey' in request.resource.data
+              && request.resource.data.actingTupleKey is string
+              && request.resource.data.actingTupleKey.matches('^[A-Za-z0-9_,-]+$')
+              && request.resource.data.actingTupleKey.matches(
+                   '(^|.*,)' +
+                   (('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                      ? request.resource.data.managedMemberId
+                      : request.resource.data.memberId) +
+                   '(,.*|$)'
+                 )
+            )
+          )
+          // (d) tupleNames diff inner keys must hasOnly [actingTupleKey]
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tupleNames'])
+            || (
+              ('tupleNames' in request.resource.data ? request.resource.data.tupleNames : {})
+                .diff('tupleNames' in resource.data ? resource.data.tupleNames : {})
+                .affectedKeys()
+                .hasOnly([request.resource.data.actingTupleKey])
+            )
+          )
+          // (e) coWatchPromptDeclined diff inner keys must hasOnly [actingTupleKey]
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coWatchPromptDeclined'])
+            || (
+              ('coWatchPromptDeclined' in request.resource.data ? request.resource.data.coWatchPromptDeclined : {})
+                .diff('coWatchPromptDeclined' in resource.data ? resource.data.coWatchPromptDeclined : {})
+                .affectedKeys()
+                .hasOnly([request.resource.data.actingTupleKey])
+            )
+          )
         );
 
       allow delete: if false;
