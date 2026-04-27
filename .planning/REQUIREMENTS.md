@@ -5,6 +5,8 @@
 
 > **Brownfield note:** Phases 1 and 2 shipped prior to GSD adoption. Their capabilities are captured under **Validated** in PROJECT.md. This file scopes **v1 Requirements** to Phase 3-6 work (the remaining milestone toward commercial release).
 
+> ⚠ **Coverage state acknowledged stale per v33.3 milestone audit (2026-04-27).** Many requirements below are marked `Pending` even though the underlying work shipped to production — Phase 5/6/8 entire ranges, plus most PARTY-* + POL-* + COMP-13-* + OPS-13-* rows. The v33.3 audit (`.planning/v33.3-MILESTONE-AUDIT.md`, commit 001b259) found this is verification-artifact debt, not implementation-debt: the cross-phase integration check confirmed all 3 critical E2E flows wired and 0 BLOCKERS. Comprehensive traceability refresh is tracked under **Phase 15.2** (audit-trail backfill). Only **DESIGN-01** is genuinely unsatisfied — being closed by **Phase 15.3** (canonical SVG logo production). The 2 integration FLAGS (F-W-1 sendCouchPing fake fan-out + D-3 friendly-UI Settings parity) are being closed by **Phase 15.4** (integration polish).
+
 ## v1 Requirements
 
 ### Mood Tags (Phase 3)
@@ -264,7 +266,7 @@ Deferred to post-v1. Tracked but not in current roadmap.
 | INTENT-04 | Phase 8 | Pending |
 | INTENT-05 | Phase 8 | Pending |
 | INTENT-06 | Phase 8 | Pending |
-| DESIGN-01 | Phase 9 | Pending |
+| DESIGN-01 | Phase 9 → Phase 15.3 (gap closure) | Pending — assigned to Phase 15.3 (canonical SVG logo + wordmark production) per v33.3 audit |
 | DESIGN-02 | Phase 9 | Complete |
 | DESIGN-03 | Phase 9 | Complete |
 | DESIGN-04 | Phase 9 | Complete |
