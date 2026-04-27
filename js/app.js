@@ -8576,6 +8576,224 @@ function progressPill(t) {
   return `<span class="tv-progress-pill many" title="${label}"><span>${others.length}</span><span class="member-dots">${dots}</span></span>`;
 }
 
+// === Phase 15 / S2 + S3 + S6 (TRACK-15-04..06) — Your couch's progress (tuple-aware) ===
+// Detail-modal "YOUR COUCH'S PROGRESS" section. Sibling primitive to
+// renderTvProgressSection (per-INDIVIDUAL, immediately below) — both coexist during v1.
+// REVIEW MEDIUM-7: tuple-key-bearing handlers use data-* attributes + a
+// single delegated listener on #detail-modal-content. NEVER inline onclick with
+// tupleKey embedded in single-quoted JS args.
+// REVIEW MEDIUM-6: placeholder render is gated on tupleCustomName(tk) === null
+// (NOT on !displayName, which would never fire because tupleDisplayName always
+// returns a derived fallback for valid tuples).
+// NOTE: Plan 15-04 referenced #detail-modal-body; the actual element ID in
+// app.html is #detail-modal-content (verified app.html:995). Delegated listener
+// is bound to that element instead.
+function renderCv15TupleProgressSection(t) {
+  if (!t || t.kind !== 'TV' || t.watched) return '';
+  const tuples = (t.tupleProgress && typeof t.tupleProgress === 'object') ? t.tupleProgress : {};
+  const tupleKeys = Object.keys(tuples);
+  if (tupleKeys.length === 0) return '';
+  const sorted = tupleKeys
+    .map(tk => ({ tk, prog: tuples[tk] || {} }))
+    .sort((a, b) => (b.prog.updatedAt || 0) - (a.prog.updatedAt || 0));
+  // Honor cv15ShowAllTuples expand state (toggled by clicking "View all (N)").
+  const limit = (state._cv15ExpandTuples && state._cv15ExpandTuples[t.id]) ? sorted.length : 4;
+  const visible = sorted.slice(0, limit);
+  const overflow = (sorted.length > 4 && limit === 4) ? sorted.length - 4 : 0;
+  const rows = visible.map(({ tk, prog }) => {
+    // REVIEW MEDIUM-6 — separate custom from derived; placeholder fires only
+    // when no custom name is set.
+    const customName = tupleCustomName(tk);
+    const isUnnamed = customName === null;
+    const visibleName = customName !== null ? customName : tupleDisplayName(tk, state.members);
+    const escId = escapeHtml(t.id);
+    const escTk = escapeHtml(tk);
+    const nameMarkup = isUnnamed
+      ? `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>` +
+        `<span class="cv15-tuple-name unnamed-placeholder"><em>name this couch</em></span>`
+      : `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>`;
+    // REVIEW MEDIUM-7 — data-* attrs carry tk + titleId; no inline onclick.
+    const renameBtn = `<button class="cv15-tuple-rename" type="button" aria-label="Rename this couch"
+      data-cv15-action="renameTuple" data-title-id="${escId}" data-tk="${escTk}">&#9998;</button>`;
+    const seasonNum = (prog.season != null) ? prog.season : '?';
+    const episodeNum = (prog.episode != null) ? prog.episode : '?';
+    const ago = prog.updatedAt ? cv15RelativeTime(prog.updatedAt) : '';
+    return `<div class="cv15-progress-row" data-tk="${escTk}">
+      <div class="cv15-progress-row-body">
+        ${nameMarkup}${renameBtn}
+        <div class="cv15-progress-time">${escapeHtml(ago)}</div>
+      </div>
+      <div class="cv15-progress-row-actions">
+        <div class="cv15-progress-pos">S${escapeHtml(String(seasonNum))} &middot; E${escapeHtml(String(episodeNum))}</div>
+      </div>
+    </div>`;
+  }).join('');
+  // REVIEW MEDIUM-7 — overflow expand link uses data-* not inline onclick.
+  const overflowHtml = overflow > 0
+    ? `<button class="cv15-mute-toggle" type="button" style="border-top:0;color:var(--ink-dim);"
+        data-cv15-action="expandTuples" data-title-id="${escapeHtml(t.id)}">View all (${sorted.length})</button>`
+    : '';
+  return `<div class="detail-section detail-cv15-progress">
+    <h4>YOUR COUCH'S PROGRESS</h4>
+    ${rows}
+    ${overflowHtml}
+    ${renderCv15MutedShowToggle(t)}
+  </div>`;
+}
+
+// S6 per-show kill-switch text-link. REVIEW MEDIUM-7 — uses data-* attrs.
+function renderCv15MutedShowToggle(t) {
+  if (!t) return '';
+  const me = state.me;
+  if (!me) return '';
+  const muted = !!(t.mutedShows && t.mutedShows[me.id]);
+  const label = muted ? 'Notifications off &middot; Re-enable' : 'Stop notifying me about this show';
+  const cls = muted ? 'cv15-mute-toggle on' : 'cv15-mute-toggle';
+  return `<button class="${cls}" type="button"
+    data-cv15-action="muteToggle" data-title-id="${escapeHtml(t.id)}">${label}</button>`;
+}
+
+// Relative-time helper.
+function cv15RelativeTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'just now';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+// === Phase 15 / S3 — inline tuple rename handlers (called by delegated listener) ===
+function cv15ShowRenameInput(titleId, tupleKeyStr) {
+  if (!titleId || !tupleKeyStr) return;
+  const span = document.getElementById(`cv15-tname-${titleId}-${tupleKeyStr}`);
+  if (!span) return;
+  // REVIEW MEDIUM-6 — read current value via tupleCustomName so we don't
+  // pre-fill the input with a derived fallback like "You (solo)".
+  const currentName = tupleCustomName(tupleKeyStr) || '';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 40;
+  input.className = 'cv15-tuple-rename-input';
+  input.value = currentName;
+  input.placeholder = 'e.g. Date night';
+  input.dataset.tk = tupleKeyStr;
+  input.dataset.titleId = titleId;
+  input.addEventListener('keydown', cv15RenameKeydown);
+  input.addEventListener('blur', cv15RenameBlur);
+  // Hide the placeholder shimmer (sibling) while the input is open.
+  const placeholder = span.parentElement && span.parentElement.querySelector('.cv15-tuple-name.unnamed-placeholder');
+  if (placeholder) placeholder.style.display = 'none';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+}
+function cv15RenameKeydown(ev) {
+  if (ev.key === 'Enter') { ev.preventDefault(); cv15SaveRenameInput(ev.target); }
+  else if (ev.key === 'Escape') { ev.preventDefault(); cv15CancelRenameInput(ev.target); }
+}
+function cv15RenameBlur(ev) {
+  if (ev.target.dataset.cancelled === '1') return;
+  cv15SaveRenameInput(ev.target);
+}
+async function cv15SaveRenameInput(input) {
+  if (!input) return;
+  const tk = input.dataset.tk;
+  const titleId = input.dataset.titleId;
+  const value = (input.value || '').trim();
+  input.removeEventListener('blur', cv15RenameBlur);
+  input.removeEventListener('keydown', cv15RenameKeydown);
+  // REVIEW MEDIUM-8 — setTupleName from 15-02 OPTIMISTICALLY updates
+  // state.family.tupleNames on success, so the re-render below reads the new
+  // value immediately (no race with the family-doc onSnapshot ~50-150ms delay).
+  await setTupleName(tk, value);
+  flashToast('Saved');
+  if (typeof renderDetailShell === 'function' && state.titles) {
+    const t = state.titles.find(x => x.id === titleId);
+    const dm = document.getElementById('detail-modal-bg');
+    if (t && dm && dm.classList.contains('on')) {
+      const content = document.getElementById('detail-modal-content');
+      if (content) {
+        content.innerHTML = renderDetailShell(t);
+        cv15AttachDetailModalDelegate();  // re-attach after innerHTML wipe
+      }
+    }
+  }
+}
+function cv15CancelRenameInput(input) {
+  if (!input) return;
+  input.dataset.cancelled = '1';
+  const titleId = input.dataset.titleId;
+  if (state.titles) {
+    const t = state.titles.find(x => x.id === titleId);
+    if (t) {
+      const content = document.getElementById('detail-modal-content');
+      if (content && typeof renderDetailShell === 'function') {
+        content.innerHTML = renderDetailShell(t);
+        cv15AttachDetailModalDelegate();
+      }
+    }
+  }
+}
+
+// "View all (N)" expand handler — toggles state._cv15ExpandTuples then re-renders.
+function cv15ShowAllTuples(titleId) {
+  if (!titleId) return;
+  state._cv15ExpandTuples = state._cv15ExpandTuples || {};
+  state._cv15ExpandTuples[titleId] = true;
+  const t = state.titles && state.titles.find(x => x.id === titleId);
+  if (t) {
+    const content = document.getElementById('detail-modal-content');
+    if (content && typeof renderDetailShell === 'function') {
+      content.innerHTML = renderDetailShell(t);
+      cv15AttachDetailModalDelegate();
+    }
+  }
+}
+
+// === REVIEW MEDIUM-7 — delegated event listener for #detail-modal-content ===
+// Single listener handles all cv15-* clicks via data-cv15-action attribute.
+// Idempotent — calling cv15AttachDetailModalDelegate twice does NOT double-bind
+// because we track via a sentinel data-cv15-bound attribute.
+// (Plan 15-04 referenced #detail-modal-body; the actual element ID is
+// #detail-modal-content per app.html:995.)
+function cv15HandleDetailModalClick(ev) {
+  const trigger = ev.target.closest('[data-cv15-action]');
+  if (!trigger) return;
+  const action = trigger.getAttribute('data-cv15-action');
+  const titleId = trigger.getAttribute('data-title-id') || '';
+  const tk = trigger.getAttribute('data-tk') || '';
+  switch (action) {
+    case 'renameTuple':
+      cv15ShowRenameInput(titleId, tk);
+      break;
+    case 'muteToggle':
+      if (typeof window.toggleMutedShow === 'function') window.toggleMutedShow(titleId);
+      break;
+    case 'expandTuples':
+      cv15ShowAllTuples(titleId);
+      break;
+    default:
+      console.warn('[Phase 15 / MEDIUM-7] unknown cv15-action', action);
+  }
+}
+function cv15AttachDetailModalDelegate() {
+  const content = document.getElementById('detail-modal-content');
+  if (!content) return;
+  if (content.getAttribute('data-cv15-bound') === '1') return;
+  content.addEventListener('click', cv15HandleDetailModalClick);
+  content.setAttribute('data-cv15-bound', '1');
+}
+
 // Per-member progress section inside the detail modal. Each family member gets
 // a row showing their position, an "Edit" pill to open the sheet, and a "Next ep"
 // quick-bump for their own row.
