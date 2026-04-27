@@ -1,10 +1,11 @@
 ---
 phase: 15
 slug: tracking-layer
-status: draft
+status: approved
 shadcn_initialized: false
 preset: not applicable (brownfield single-file PWA — `couchtonight.app`)
 created: 2026-04-26
+reviewed_at: 2026-04-26
 project: Couch
 ---
 
