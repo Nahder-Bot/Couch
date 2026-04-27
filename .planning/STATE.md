@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase 14 SHIPPED 2026-04-26 — 10/10 plans complete (incl. 14-10 V5 gap-closure); v34.1-roster-control live on couchtonight.app; user-confirmed via 'approved-deploy'. 5 deferred multi-device UAT items tracked in 14-UAT.md (non-blocking, batch UAT pattern).
-last_updated: "2026-04-27T01:58:13.830Z"
+status: Phase 15 PLANNED 2026-04-26 — 8 plans across 7 waves; ready to execute. Phase 14 SHIPPED 2026-04-26 (10/10 plans; v34.1-roster-control live).
+last_updated: "2026-04-26T23:50:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 5
-  total_plans: 58
+  total_plans: 66
   completed_plans: 40
-  percent: 69
+  percent: 61
 ---
 
 # Project State
