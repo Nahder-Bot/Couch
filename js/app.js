@@ -8350,6 +8350,27 @@ async function writeMutedShow(titleId, memberId, muted) {
   } catch (e) { console.warn('mutedShow write failed', e); }
 }
 
+// Toggle the per-show muted state for the current user. S6 click handler in
+// 15-04. Reads current state from t.mutedShows[me.id] and flips it. Pure
+// convenience wrapper around writeMutedShow.
+//
+// Per REVIEW HIGH-1, the 15-01 title-doc rule enforces server-side that the
+// memberId in mutedShows.{memberId} writes must equal auth.uid (or
+// managedMemberId for proxy-acted writes). This helper passes me.id — which
+// resolves to the actor's UID — so the rule allows the write.
+window.toggleMutedShow = async function(titleId) {
+  if (!titleId) return;
+  const me = state.me;
+  if (!me) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const currentlyMuted = !!(t.mutedShows && t.mutedShows[me.id]);
+  await writeMutedShow(titleId, me.id, !currentlyMuted);
+  // No flashToast on success — UI re-renders via title-doc onSnapshot will flip
+  // the affordance copy from "Stop notifying me about this show" to
+  // "Notifications off · Re-enable" (per UI-SPEC §Copywriting Contract).
+};
+
 // Quick-advance: bump the current user's episode by one. Hooked to "Next ep" buttons.
 window.advanceEpisode = async function(titleId, e) {
   if (e) e.stopPropagation();
@@ -10702,6 +10723,67 @@ window.hostStartSession = async function(wpId) {
 // couch-photo upload (Firebase Storage first use, narrow scope per CLAUDE.md) +
 // "Schedule another night" CTA that pre-fills the watchparty start modal with the same
 // title. "Maybe later" dismisses and flags wp.postSessionDismissedBy[memberId]=true.
+
+// === Phase 15 / D-01 (TRACK-15-03) — REVIEW MEDIUM-5 episode resolution waterfall ===
+// D-01 spec: "members who joined + episode queued = automatic progress tuple."
+// "Episode queued" means the episode that was selected when the watchparty
+// was scheduled. Prefer the watchparty payload over host-progress inference.
+// Returns { season, episode, sourceField } when any tier resolves, else null.
+//
+// Tier order (highest confidence first):
+//   1. wp.episode + wp.season         (direct fields — Phase 7 schema)
+//   2. wp.queuedEpisode {season,episode}  (nested object — payload variant)
+//   3. wp.intent.proposedSeason + wp.intent.proposedEpisode  (Phase 14-08 Flow B prefill inheritance)
+//   4. host-progress + 1              (last-resort fallback — explicit "best guess"; sourceField='host-progress-plus-1')
+//   5. null                           (abort: better to skip stash than to lie)
+//
+// Field-shape verification at execution time (2026-04-27): Grep on
+// `wp.episode|wp.season|wp.queuedEpisode|wp.intent|proposedSeason|proposedEpisode`
+// across js/app.js returned NO matches — meaning the current Phase 7 watchparty
+// schema does NOT store any queued-episode metadata on the wp doc, AND Phase
+// 14-08 Flow B intents are not propagated as wp.intent. As a result, in
+// production today only Tier 4 (host-progress + 1) will resolve. Tiers 1-3 are
+// future-ready scaffolding for a follow-up plan that extends the wp schema (or
+// for any consumer who chooses to propagate wp.intent on Flow-B-spawned
+// watchparties). The stash records `sourceField` so 15-04 UI + telemetry can
+// distinguish high-confidence from best-guess resolutions.
+function resolveAutoTrackEpisode(wp, t) {
+  if (!wp || !t || t.kind !== 'TV') return null;
+  // Tier 1 — direct fields on wp
+  if (wp.episode != null && wp.season != null) {
+    return { season: wp.season, episode: wp.episode, sourceField: 'wp.episode' };
+  }
+  // Tier 2 — wp.queuedEpisode object
+  if (wp.queuedEpisode && wp.queuedEpisode.episode != null && wp.queuedEpisode.season != null) {
+    return {
+      season: wp.queuedEpisode.season,
+      episode: wp.queuedEpisode.episode,
+      sourceField: 'wp.queuedEpisode'
+    };
+  }
+  // Tier 3 — Phase 14-08 Flow B intent inheritance
+  if (wp.intent && wp.intent.proposedEpisode != null && wp.intent.proposedSeason != null) {
+    return {
+      season: wp.intent.proposedSeason,
+      episode: wp.intent.proposedEpisode,
+      sourceField: 'wp.intent'
+    };
+  }
+  // Tier 4 — host-progress + 1 fallback (last resort; explicitly low-confidence)
+  if (wp.hostId) {
+    const hostProgress = (t.progress || {})[wp.hostId];
+    if (hostProgress && hostProgress.season != null && hostProgress.episode != null) {
+      return {
+        season: hostProgress.season,
+        episode: hostProgress.episode + 1,
+        sourceField: 'host-progress-plus-1'
+      };
+    }
+  }
+  // Tier 5 — abort
+  return null;
+}
+
 let _postSessionWpId = null;
 let _postSessionRating = 0;
 
@@ -10713,6 +10795,61 @@ window.openPostSession = function(wpId) {
   if (dismissed || alreadyRated) return;
   _postSessionWpId = wpId;
   _postSessionRating = 0;
+  // === Phase 15 / D-01 (TRACK-15-03) — auto-track tuple progress on watchparty end ===
+  // Compute the auto-track candidate from the watchparty roster + REVIEW MEDIUM-5
+  // episode resolution waterfall. Stash on state._pendingTupleAutoTrack —
+  // 15-04's post-session sub-render reads this and presents an inline
+  // "Mark S{N}E{M} for {tupleName}? [Yes] [Edit]" affordance. Yes calls
+  // writeTupleProgress(...). Edit opens openProgressSheet for manual selection.
+  // We DO NOT silently write the tuple — D-06 forbids silent fabrication.
+  state._pendingTupleAutoTrack = null;  // clear stale stash from prior open
+  if (wp.titleId) {
+    const wpParticipants = Object.keys(wp.participants || {}).filter(mid => {
+      const p = wp.participants[mid];
+      return p && p.startedAt;  // only members who actually started timers
+    });
+    if (wpParticipants.length >= 1) {
+      const t = state.titles.find(x => x.id === wp.titleId);
+      if (t && t.kind === 'TV') {
+        const resolved = resolveAutoTrackEpisode(wp, t);
+        if (resolved) {
+          state._pendingTupleAutoTrack = {
+            titleId: wp.titleId,
+            memberIds: wpParticipants,
+            season: resolved.season,
+            episode: resolved.episode,
+            sourceField: resolved.sourceField,  // 'wp.episode' | 'wp.queuedEpisode' | 'wp.intent' | 'host-progress-plus-1'
+            sourceWpId: wpId
+          };
+          // Sentry breadcrumb so we can telemeter which tier wins in production
+          try {
+            if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+              Sentry.addBreadcrumb({
+                category: 'tupleAutoTrack',
+                level: 'info',
+                message: 'auto-track candidate stashed',
+                data: { sourceField: resolved.sourceField, season: resolved.season, episode: resolved.episode }
+              });
+            }
+          } catch (_) {}
+        } else {
+          // No tier resolved — tier-5 abort. Don't stash. Sentry-track so we
+          // can observe how often this happens in production (informs whether
+          // we need a follow-up plan to extend wp schema).
+          try {
+            if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+              Sentry.addBreadcrumb({
+                category: 'tupleAutoTrack',
+                level: 'warning',
+                message: 'auto-track aborted — no episode could be resolved from wp/intent/host-progress',
+                data: { wpId: wpId, titleId: wp.titleId }
+              });
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  }
   const sub = document.getElementById('wp-post-session-sub');
   if (sub) sub.innerHTML = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
   // Reset rating + photo UI
