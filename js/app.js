@@ -8350,6 +8350,27 @@ async function writeMutedShow(titleId, memberId, muted) {
   } catch (e) { console.warn('mutedShow write failed', e); }
 }
 
+// Toggle the per-show muted state for the current user. S6 click handler in
+// 15-04. Reads current state from t.mutedShows[me.id] and flips it. Pure
+// convenience wrapper around writeMutedShow.
+//
+// Per REVIEW HIGH-1, the 15-01 title-doc rule enforces server-side that the
+// memberId in mutedShows.{memberId} writes must equal auth.uid (or
+// managedMemberId for proxy-acted writes). This helper passes me.id — which
+// resolves to the actor's UID — so the rule allows the write.
+window.toggleMutedShow = async function(titleId) {
+  if (!titleId) return;
+  const me = state.me;
+  if (!me) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const currentlyMuted = !!(t.mutedShows && t.mutedShows[me.id]);
+  await writeMutedShow(titleId, me.id, !currentlyMuted);
+  // No flashToast on success — UI re-renders via title-doc onSnapshot will flip
+  // the affordance copy from "Stop notifying me about this show" to
+  // "Notifications off · Re-enable" (per UI-SPEC §Copywriting Contract).
+};
+
 // Quick-advance: bump the current user's episode by one. Hooked to "Next ep" buttons.
 window.advanceEpisode = async function(titleId, e) {
   if (e) e.stopPropagation();
