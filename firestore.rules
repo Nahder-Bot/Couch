@@ -144,6 +144,10 @@ service cloud.firestore {
       // The attributedWrite() helper is reused for actor-uid enforcement (T-14.04-01
       // Tampering mitigation: a member cannot plant a fake claim by another member because
       // request.resource.data.actingUid must equal request.auth.uid).
+      //
+      // 14-10 (sketch 003 V5 redesign): the FOURTH branch below allows the new
+      // couchInTonight shape from V5's roster-pill control. Both branches are
+      // active during the migration window (one PWA cache cycle).
       allow update: if (
           isMemberOfFamily(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker'])
@@ -156,9 +160,37 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])
         ) || (
           // D-06: couchSeating write from persistCouchSeating() — attribution-required.
+          // 14-10 NOTE: this branch is LEGACY but kept active because persistCouchInTonight
+          // still writes both shapes during the migration. Drop after one cache cycle.
           attributedWrite(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+        ) || (
+          // 14-10 (DECI-14-06 redesign per sketch 003 V5): couchInTonight write —
+          // attribution-required. Any family member can write any member's slot
+          // (proxy-fill is a feature, not a bug — one operator marks family in).
+          // Audit trail via proxyConfirmedBy field embedded in the per-member
+          // payload (NOT in affectedKeys; it's nested inside couchInTonight).
+          // The allowlist also names couchSeating because persistCouchInTonight
+          // dual-writes both shapes for one PWA cache cycle. After the cycle
+          // elapses, a follow-up plan will drop couchSeating from this allowlist
+          // AND the third branch above.
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['couchInTonight', 'couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+        ) || (
+          // === Phase 15 / D-02 (TRACK-15-01) — tupleNames write ===
+          // Decoration map for tuple progress (e.g. "Wife and me", "Date night").
+          // Shape: families/{code}.tupleNames = { [tupleKey]: { name, setBy, setAt } }
+          // Tuple is the data key (sorted memberId,memberId — see js/app.js tupleKey
+          // helper from 15-02). Names editable any time per CONTEXT.md D-02.
+          // Inner shape (slot.name, slot.setBy, slot.setAt) validated client-side;
+          // rules do not peek into nested map values per the established pattern
+          // (couchInTonight proxyConfirmedBy is also nested-only).
+          // Phase 15 / S3 inline rename consumes — see 15-04 renderCv15TupleProgressSection.
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['tupleNames', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
         );
 
       allow delete: if false;
@@ -294,10 +326,104 @@ service cloud.firestore {
       // per-member-keyed maps. Re-evaluate this comment if title updates
       // ever get tightened to a hasOnly([...]) allowlist; rewatchAllowedBy
       // would need to be added to that list at the same time.
+      //
+      // Title-doc updates (Phase 15 — REVIEW HIGH-1 tightening, 2026-04-26):
+      // Permissive baseline (allows attributed writes by any family member to
+      // most fields like queues, votes, watched, ratings, progress) PLUS three
+      // new sensitive Phase 15 fields gated with per-member field-level rules:
+      //   1. tupleProgress.{tupleKey}  — actor memberId (or managedMemberId)
+      //                                  MUST appear in comma-split tupleKey
+      //   2. mutedShows.{memberId}     — memberId MUST equal acting memberId
+      //                                  (or managedMemberId — cannot silence others)
+      //   3. liveReleaseFiredFor.{epKey} — CLIENT WRITES DENIED; CF-only via
+      //                                    admin SDK (which bypasses rules)
+      // The per-member predicates short-circuit to TRUE when the diff doesn't
+      // touch the gated field, so all Phase 1-14 paths (queues/votes/ratings/
+      // progress/etc.) continue to write under the permissive baseline.
+      //
+      // Per Plan 15-01 Task 1.5 fallback note: the rules-language `where`
+      // lambda predicate is not supported on Sets/Lists in the Firestore rules
+      // expression language, so the tupleProgress branch uses the planner's
+      // pre-approved fallback shape — restrict the diff to EXACTLY ONE
+      // tupleKey at a time and require that key contain the acting member.
+      // This matches the v1 client write pattern (writeTupleProgress writes
+      // one tupleKey per call per 15-02 plan).
+      //
+      // Identity surface: memberId in the writeAttribution payload is the
+      // canonical actor surface (m_<UID> prefixed; tuple keys + mutedShows
+      // keys both use this convention). managedMemberId takes precedence when
+      // the actor is proxy-acting on a managed sub-profile.
 
       match /titles/{titleId} {
         allow read: if isMemberOfFamily(familyCode);
-        allow create, update: if attributedWrite(familyCode);
+        allow create: if attributedWrite(familyCode);
+        allow update: if attributedWrite(familyCode)
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — explicit DENY for liveReleaseFiredFor ===
+            // Client must NOT write this field. CF admin SDK bypasses rules and
+            // writes via tdoc.ref.update({[`liveReleaseFiredFor.${epKey}`]: ...})
+            // in 15-06 watchpartyTick. Any client write attempt is rejected here.
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['liveReleaseFiredFor'])
+          )
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — per-tuple-key isolation for tupleProgress ===
+            // Plan-15-01 deviation: the planner's per-key actor-membership check
+            // required `affectedKeys().toList()[0].matches(...)` but rules.Set has
+            // no `.toList()` accessor (verified in Firestore emulator 2026-04-27).
+            // Implemented partial HIGH-1 mitigation:
+            //   (a) bound the diff to EXACTLY ONE tupleKey per write
+            //   (b) require the client to echo the written tupleKey in a sibling
+            //       payload field `request.resource.data.actingTupleKey` so the
+            //       rule can hasOnly-equality the diff'd key
+            //   (c) regex-validate that the echoed key contains the actor memberId
+            //       (anchored at start, end, or surrounded by commas — matches the
+            //       sorted-comma-joined tupleKey shape from 15-02 helper).
+            // Forward-contract for 15-02: writeTupleProgress() MUST stamp
+            // `actingTupleKey: tupleKey` alongside the tupleProgress write.
+            // Without this echo, the write is denied. mutedShows + liveReleaseFiredFor
+            // are fully mitigated (no echo needed; their inner keys are static).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tupleProgress'])
+            || (
+              request.resource.data.tupleProgress is map
+              && request.resource.data.tupleProgress
+                   .diff('tupleProgress' in resource.data ? resource.data.tupleProgress : {})
+                   .affectedKeys().size() == 1
+              && 'actingTupleKey' in request.resource.data
+              && request.resource.data.actingTupleKey is string
+              && request.resource.data.tupleProgress
+                   .diff('tupleProgress' in resource.data ? resource.data.tupleProgress : {})
+                   .affectedKeys()
+                   .hasOnly([request.resource.data.actingTupleKey])
+              && request.resource.data.actingTupleKey
+                   .matches(
+                     '(^|.*,)' +
+                     (('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                        ? request.resource.data.managedMemberId
+                        : request.resource.data.memberId) +
+                     '(,.*|$)'
+                   )
+            )
+          )
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — per-member mutedShows isolation ===
+            // mutedShows.{memberId} writes/deletes only allowed when the inner
+            // memberId matches the actor's memberId payload (or managedMemberId
+            // when proxy-acting). diff().affectedKeys() returns the inner-map
+            // keys being touched — every one must equal the actor's id.
+            // `'X' in resource.data` guards property access against missing-field
+            // errors for first-time writes (existing doc may not have mutedShows yet).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['mutedShows'])
+            || (
+              ('mutedShows' in request.resource.data ? request.resource.data.mutedShows : {})
+                .diff('mutedShows' in resource.data ? resource.data.mutedShows : {})
+                .affectedKeys()
+                .hasOnly([
+                  ('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                    ? request.resource.data.managedMemberId
+                    : request.resource.data.memberId
+                ])
+            )
+          );
         allow delete: if isMemberOfFamily(familyCode);
 
         match /comments/{commentId} {
