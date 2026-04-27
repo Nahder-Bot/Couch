@@ -715,15 +715,20 @@ const trakt = {
       if (!tmdbId) continue; // can't match without a TMDB id
       // Trakt's /watched/shows aggregates per-user watched episodes. The
       // last-played episode is in `seasons[last].episodes[last]`. Find it:
-      let maxSeason = 0, maxEpisodeInSeason = 0;
+      let maxSeason = 0, maxEpisodeInSeason = 0, lastWatchedAt = null;
       for (const s of (entry.seasons || [])) {
         if (s.number > maxSeason) {
           maxSeason = s.number;
           maxEpisodeInSeason = 0;
+          lastWatchedAt = null;  // === Phase 15 / D-06 — reset on new max season ===
         }
         if (s.number === maxSeason) {
           for (const ep of (s.episodes || [])) {
-            if (ep.number > maxEpisodeInSeason) maxEpisodeInSeason = ep.number;
+            if (ep.number > maxEpisodeInSeason) {
+              maxEpisodeInSeason = ep.number;
+              // === Phase 15 / D-06 (TRACK-15-12) — capture per-episode timestamp for overlap detection ===
+              lastWatchedAt = ep.last_watched_at ? new Date(ep.last_watched_at).getTime() : null;
+            }
           }
         }
       }
@@ -743,6 +748,7 @@ const trakt = {
           prevProgress[meId] = {
             season: maxSeason,
             episode: maxEpisodeInSeason,
+            lastWatchedAt: lastWatchedAt,
             updatedAt: Date.now(),
             source: 'trakt'
           };
@@ -764,6 +770,7 @@ const trakt = {
             [meId]: {
               season: maxSeason,
               episode: maxEpisodeInSeason,
+              lastWatchedAt: lastWatchedAt,
               updatedAt: Date.now(),
               source: 'trakt'
             }
