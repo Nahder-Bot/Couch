@@ -117,7 +117,10 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   flowBNominate: true,
   flowBCounterTime: true,
   flowBConvert: true,
-  intentExpiring: true
+  intentExpiring: true,
+  // === Phase 15 / D-11 + D-12 (TRACK-15-10) — auto-subscribe on watch (DR-3 place 2 of 3) ===
+  // Must stay in lockstep with deploy-mirror NOTIFICATION_DEFAULTS in 15-06
+  newSeasonAirDate: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -144,7 +147,13 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
   flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
   flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
-  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." }
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
+  // === Phase 15 / D-11 + D-12 (TRACK-15-11) — auto-subscribe on watch (DR-3 place 3 of 3) ===
+  // REVIEW MEDIUM-12: customer-facing label is "New episode alerts" because the
+  // implementation surfaces per-EPISODE prompts, not the original season-only
+  // framing. The KEY remains 'newSeasonAirDate' for back-compat with Phase
+  // 14-09 D-12 framework + already-installed PWAs.
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
