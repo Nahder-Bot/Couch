@@ -4140,6 +4140,9 @@ function startSync() {
     // so the empty-state CTA reacts to claim/vacate, not just intent writes.
     state.couchInTonight = couchInTonightFromDoc(d);
     state.couchMemberIds = couchInTonightToMemberIds(state.couchInTonight);
+    // === Phase 15 / D-02 — tupleNames hydration ===
+    state.family = state.family || {};
+    state.family.tupleNames = (d && d.tupleNames) || {};
     // Mirror V5 source-of-truth into legacy state.selectedMembers shim (see toggleCouchMember).
     state.selectedMembers = state.couchMemberIds.slice();
     if (typeof renderCouchViz === 'function') renderCouchViz();
@@ -8197,6 +8200,154 @@ async function clearMemberProgress(titleId, memberId) {
   try {
     await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
   } catch(e) { console.warn('progress clear failed', e); }
+}
+
+// === Phase 15 — Tracking Layer (writers) ===
+// Write a tuple's progress entry. Tuple-keyed analog of writeMemberProgress.
+// memberIds: array of memberIds on the watch (sorted internally via tupleKey).
+// source: 'watchparty' | 'manual' | 'trakt-overlap' — D-05 attribution.
+// Per D-08 (independent tuples), this does NOT push to anyone's Trakt account
+// — group writes are local-only. Only writeMemberProgress (legacy per-individual)
+// pushes to Trakt for the actor.
+//
+// REVIEW HIGH-2 — early-exit if tupleKey() returns '' (validation failed in
+// the read-helpers block above); also re-validate the resulting tk via
+// isSafeTupleKey() as belt-and-suspenders.
+//
+// Plan-15-01 forward-contract — the title-doc UPDATE rule (firestore.rules
+// lines ~368-405) requires the write payload to echo `actingTupleKey: <tk>`
+// so the rule can hasOnly-equality-check the diff'd tupleProgress key against
+// it AND regex-match the actor's memberId/managedMemberId against it. Without
+// this echo field the write is rejected with PERMISSION_DENIED. The plan's
+// must_haves did not mention this explicitly — it was added as a 15-01
+// deviation when the Firestore emulator rejected the planner's
+// `affectedKeys().toList()[0].matches(...)` form. Documented in SUMMARY.
+async function writeTupleProgress(titleId, memberIds, season, episode, source) {
+  if (!titleId || !memberIds || !memberIds.length) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const tk = tupleKey(memberIds);
+  if (!tk || !isSafeTupleKey(tk)) {
+    console.warn('[Phase 15 / HIGH-2] writeTupleProgress aborted — unsafe tupleKey from memberIds', memberIds);
+    return;
+  }
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  prev[tk] = {
+    season: season,
+    episode: episode,
+    updatedAt: Date.now(),
+    source: source || 'manual'
+  };
+  try {
+    // 15-01 forward-contract: stamp actingTupleKey alongside the tupleProgress write.
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tk });
+  } catch (e) { console.warn('tupleProgress write failed', e); }
+}
+
+// Clear a tuple's progress entry. Used by manual override paths in 15-04.
+// REVIEW HIGH-2 — also gated on isSafeTupleKey since the input string is the
+// raw key from a UI element, not always derived from a fresh tupleKey() call.
+//
+// Plan-15-01 forward-contract: stamp actingTupleKey: tupleKeyStr alongside
+// the tupleProgress write so the rules-enforced per-key isolation passes.
+async function clearTupleProgress(titleId, tupleKeyStr) {
+  if (!titleId || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.warn('[Phase 15 / HIGH-2] clearTupleProgress aborted — unsafe tupleKey', tupleKeyStr);
+    return;
+  }
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  delete prev[tupleKeyStr];
+  try {
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tupleKeyStr });
+  } catch (e) { console.warn('tupleProgress clear failed', e); }
+}
+
+// Write a tuple's display name to families/{code}.tupleNames.{tupleKey}. Uses
+// dotted-path field write so concurrent renames don't clobber sibling slots.
+// Permitted by the Phase 15 / D-02 5th UPDATE branch in firestore.rules (15-01).
+// On failure: flashToast warn variant per UI-SPEC §Copywriting Contract.
+//
+// REVIEW HIGH-2 — REJECT writes whose tupleKey is unsafe BEFORE issuing the
+// dotted-path update. An unsafe key here would not just fail to write — it
+// could create an unintended nested field path (e.g., a `.` in the key would
+// shred the doc into nested maps). Defense-in-depth for the
+// `[`tupleNames.${tupleKeyStr}`]` template-literal field path.
+//
+// On unsafe key: skip the network round-trip, surface the same warn toast as a
+// failure path (so the UI doesn't silently appear to succeed), and breadcrumb.
+// Also OPTIMISTICALLY UPDATE state.family.tupleNames after a successful write
+// (REVIEW MEDIUM-8) so the immediate re-render in 15-04's cv15SaveRenameInput
+// reads the new value rather than the pre-snapshot stale state.
+async function setTupleName(tupleKeyStr, name) {
+  if (!state.familyCode || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.error('[Phase 15 / HIGH-2] setTupleName rejected unsafe tupleKey', tupleKeyStr);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        Sentry.addBreadcrumb({
+          category: 'tupleNames',
+          level: 'error',
+          message: 'setTupleName rejected unsafe tupleKey',
+          data: { tupleKeySample: String(tupleKeyStr).slice(0, 32) }
+        });
+      }
+    } catch (_) {}
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+    return;
+  }
+  const trimmed = (name || '').slice(0, 40);
+  const slot = {
+    name: trimmed,
+    setBy: (state.me && state.me.id) || null,
+    setAt: Date.now()
+  };
+  try {
+    await updateDoc(doc(db, 'families', state.familyCode), {
+      [`tupleNames.${tupleKeyStr}`]: slot,
+      ...writeAttribution()
+    });
+    // REVIEW MEDIUM-8 — optimistically update local state so the immediate
+    // re-render in 15-04's cv15SaveRenameInput reads the new value before the
+    // family-doc onSnapshot fires (typical 50-150ms delay).
+    state.family = state.family || {};
+    state.family.tupleNames = { ...(state.family.tupleNames || {}), [tupleKeyStr]: slot };
+  } catch (e) {
+    console.error('[tupleNames] setTupleName failed', e);
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+  }
+}
+
+// Write the per-show muted state. Member-keyed map mirroring t.queues / t.votes
+// per-member shape. Per REVIEW HIGH-1, the 15-01 title-doc rule enforces that
+// memberId == auth.uid (or managedMemberId for proxy-acted writes) — meaning
+// callers MUST pass me.id as memberId; passing someone else's ID will be
+// rejected by rules. This helper does not enforce that locally (the rule is
+// authoritative); callers in 15-03 (toggleMutedShow) only pass me.id.
+//
+// Plan-15-01 forward-contract: writeAttribution() already stamps memberId
+// (and managedMemberId when proxy-acting) on the payload — the title-doc
+// UPDATE rule per-member mutedShows isolation branch checks the inner-map
+// affectedKeys().hasOnly([managedMemberId || memberId]) which holds when the
+// caller's memberId arg equals the writeAttribution memberId (true in all
+// 15-03 call sites by construction).
+async function writeMutedShow(titleId, memberId, muted) {
+  if (!titleId || !memberId) return;
+  try {
+    if (muted) {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: true,
+        ...writeAttribution()
+      });
+    } else {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: deleteField(),
+        ...writeAttribution()
+      });
+    }
+  } catch (e) { console.warn('mutedShow write failed', e); }
 }
 
 // Quick-advance: bump the current user's episode by one. Hooked to "Next ep" buttons.
