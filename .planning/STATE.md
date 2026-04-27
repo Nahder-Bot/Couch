@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v33.3
+milestone: v35.1-security-hardening
 milestone_name: milestone
-status: Executing Phase 15.1
-last_updated: "2026-04-27T13:11:00.000Z"
+status: Phase 15.1 SHIPPED — awaiting next phase kickoff
+last_updated: "2026-04-27T13:25:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 58
-  completed_plans: 42
-  percent: 72
+  completed_plans: 43
+  percent: 74
 ---
 
 # Project State
@@ -19,14 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.1 — security-hardening
+**Current focus:** Phase 15.1 SHIPPED — Security Hardening complete; awaiting next phase kickoff (16 Calendar Layer or 17 App Store Launch Readiness)
 **Active milestone:** v1 Commercial Release (Phases 3-10)
 
 ## Current Position
 
-Phase: 15.1 (security-hardening) — EXECUTING
-Plan: 3 of 3 (Wave 1 / 15.1-01 SHIPPED 2026-04-27 — 3 tasks committed 1443fa6 + 2e61547 + 8dc9c52. Wave 2 / 15.1-02 SHIPPED 2026-04-27 — 3 tasks committed 7ab3015 SEC-15-1-02 anchor + SEC-15-1-01 progress sub-rule + 5b5fdb7 SEC-15-1-03 family-doc participant check + 5d605f4 tests #33-#38. 38/38 tests passing. couch/firestore.rules and ~/queuenight/firestore.rules byte-identical. Closes SEC-15-1-01..04 rule+test halves. Awaits Wave 3 / 15.1-03 (close-out + cross-repo deploy in REVERSED order: HOSTING FIRST → RULES SECOND per CONTEXT §Cross-cutting).)
-Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass minted via /gsd-plan-phase 15.1.
+Phase: 15.1 (security-hardening) — **SHIPPED 2026-04-27 — couch-v35.1-security-hardening live at couchtonight.app + tightened rules on queuenight-84044.** Wave 1 / 15.1-01 — 3 tasks committed (1443fa6 dotted-path progress writers + 2e61547 actingTupleKey stamping + 8dc9c52 pencil-glyph hide + setBy attribution). Wave 2 / 15.1-02 — 3 tasks committed (7ab3015 SEC-15-1-02 anchor + SEC-15-1-01 progress sub-rule + 5b5fdb7 SEC-15-1-03 family-doc participant check + 5d605f4 tests #33-#38; 38/38 tests passing; source/mirror byte-identical). Wave 3 / 15.1-03 — 5 commits (341cac9 v35.1 changelog article + ff57f71 sw.js auto-bump + 2d7089d deploy date stamp + a481138 REQUIREMENTS+ROADMAP close-out + queuenight c9e27c4 rules mirror commit). REVERSED cross-repo deploy executed near-lockstep (hosting at ~13:20 UTC → rules at ~13:21 UTC, gap <1 min; both deploys returned `Deploy complete!`). 5/5 SEC-15-1-* requirements Complete; closes 4 findings from Phase 15 holistic audit (F-OPEN-01 HIGH + WR-02 HIGH + F-OPEN-02 MEDIUM + WR-03 MEDIUM). Phase 15.1 auditably CLOSED.
+Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
 | Requirement | Status |
@@ -54,7 +53,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 ## sw.js cache version
 
-Current source: `couch-v34.1-roster-control` (Plan 14-10 — Sketch 003 V5 redesign **DEPLOYED 2026-04-26** via cross-repo deploy ritual; queuenight firestore:rules deployed with 14-10 4th UPDATE branch + couch hosting deployed via scripts/deploy.sh 34.1-roster-control). Live on couchtonight.app: `couch-v34.1-roster-control`. Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13/13-01 account deletion) → v33.1 (P13/13-02 Sentry) → v33.2 (P13/13-05 CSP) → v33.3-sentry-dsn (P13/post-merge DSN substitution) → v34.0-decision-ritual (P14 / 14-09 — superseded mid-deploy by 14-10) → v34.1-roster-control (P14 / 14-10 — **DEPLOYED 2026-04-26**).
+Current source: `couch-v35.1-security-hardening` (Plan 15.1-03 — Wave 3 close-out **DEPLOYED 2026-04-27** via REVERSED cross-repo deploy ritual; couch hosting deployed first via `scripts/deploy.sh 35.1-security-hardening`, then queuenight firestore:rules deployed second). Live on couchtonight.app: `couch-v35.1-security-hardening`. Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13/13-01 account deletion) → v33.1 (P13/13-02 Sentry) → v33.2 (P13/13-05 CSP) → v33.3-sentry-dsn (P13/post-merge DSN substitution) → v34.0-decision-ritual (P14 / 14-09 — superseded mid-deploy by 14-10) → v34.1-roster-control (P14 / 14-10 — DEPLOYED 2026-04-26) → v35.0-tracking-layer (P15 / 15-08 — DEPLOYED 2026-04-27) → v35.0.1-stale-fix (post-15 hotfix) → v35.1-security-hardening (P15.1 / 15.1-03 — **DEPLOYED 2026-04-27**).
 
 ## Production services
 
@@ -80,6 +79,7 @@ See RUNBOOK §M for the full inventory (Firebase project, Sentry org/project/DSN
 | Two-repo discipline | queuenight commit pending — `C:/Users/nahde/queuenight/functions/index.js` NOTIFICATION_DEFAULTS edit applied in-place but uncommitted on this machine (same pattern as 14-06 deviation 1). User must `cd ~/queuenight && git add functions/index.js && git commit -m "feat(14-09): add 7 D-12 push categories to NOTIFICATION_DEFAULTS"` from a queuenight-equipped session before deploy. | .planning/phases/14-decision-ritual-core/14-09-SUMMARY.md |
 | Polish backlog | DR-3 friendly-UI parity — the 7 new D-12 keys surface ONLY in the legacy NOTIFICATION_EVENT_LABELS Settings UI per the DR-3 follow-up override. Phase 12 friendly-UI maps (`NOTIF_UI_TO_SERVER_KEY` / `NOTIF_UI_LABELS` / `NOTIF_UI_DEFAULTS` at js/app.js:128-155) need a follow-up polish plan to mirror them in. RESEARCH §5 flagged the dual-Settings-screen collision risk; a future polish plan must resolve which Settings surface wins (legacy vs friendly-UI) before adding the keys to friendly-UI. | .planning/phases/14-decision-ritual-core/14-09-SUMMARY.md DR-3 override note |
 | Deploy gate | ✓ DEPLOYED 2026-04-26 — **v34/v34.1 cross-repo deploy ritual** completed end-to-end via 'approved-deploy' signal. (1) `firebase deploy --only functions` from `~/queuenight` (NOTIFICATION_DEFAULTS with 7 D-12 keys + 14-06 CF branches live); (2) `firebase deploy --only firestore:rules --project queuenight-84044` from `~/queuenight` (covers 14-10's couchInTonight 4th UPDATE branch + 14-04's couchSeating 3rd branch); (3) `bash scripts/deploy.sh 34.1-roster-control` from couch repo (sw.js CACHE = couch-v34.1-roster-control + queuenight/public/ mirror + firebase deploy --only hosting). couchtonight.app live at v34.1-roster-control. Row retained for audit trail. Recommended future remediation (out of scope): extend `scripts/deploy.sh` to add `--only hosting,firestore:rules` with mirror-check guard between the two repos AND optionally chain the queuenight `--only functions` deploy if `QUEUENIGHT_PATH` env var is set. | .planning/phases/14-decision-ritual-core/14-04 + 14-09 + 14-10 SUMMARYs |
+| HUMAN-VERIFY (soak) | Phase 15.1 post-deploy soak — within ~24h, monitor Sentry for unexpected `progress.write.failed` / `tupleNames.write.failed` / `coWatchPromptDeclined.write.failed` breadcrumbs from in-flight pre-v35.1 PWAs that haven't yet picked up the new sw.js. Service worker auto-revalidates on next online activation; small spike from old PWAs would be expected and benign. Persistent spike past 1h triggers investigation. | .planning/phases/15.1-security-hardening/15.1-03-SUMMARY.md |
 | HUMAN-VERIFY | gcloud Firestore export setup (run `bash scripts/firestore-export-setup.sh`) | RUNBOOK §K |
 | Manual UAT | Trigger account-deletion flow E2E from a real signed-in user | — |
 | Tech debt | TD-1 (firebase-functions SDK 4→7), TD-2 (Variant-B storage rules), TD-4 (CSP audit window 2 weeks then enforcement flip), TD-6 (Sentry Replay re-enable +30 days), TD-7 (Firestore index spec record-only) | .planning/TECH-DEBT.md |
