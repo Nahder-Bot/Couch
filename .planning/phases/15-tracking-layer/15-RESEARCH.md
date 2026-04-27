@@ -876,17 +876,27 @@ Plan 15-08 is the close-out plan matching Phase 14-09's pattern. Plan-bouncing 1
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED at /gsd-plan-phase 15)
 
 1. **Time-of-day precision in D-13 push body (Q6).** TMDB only provides date, not time-of-day. UI-SPEC's "airs Friday at 9pm" copy cannot be honored verbatim from TMDB alone. Options: (a) drop time-of-day, use "{day}" only ("airs Friday"); (b) add a per-show network-airtime mapping table (server-side); (c) defer to user-confirm at push-tap. Recommend (a) for v1; flag this for the user explicitly at /gsd-plan-phase 15.
 
+   **RESOLVED:** TMDB does not expose time-of-day for episode air. Push copy ships day-only ("airs Friday") in v1; per-show network-airtime mapping table is deferred to a follow-up phase. Implemented in 15-06 Task 2 push body. **Requires user approval at the 15-08 deploy checkpoint** — the substituted D-11 + Specifics copy (drops {Provider} and {time}) is gated by a checkpoint:human-action task in 15-08 (id 15-08-T2.5) before Step 4 hosting deploy.
+
 2. **Episode inference at watchparty end (Q9).** The auto-track tuple write needs a `{season, episode}` value but the watchparty doc doesn't store episode. Recommended fallback: `t.progress[hostId]?.episode + 1` plus a single-step UI confirmation in the post-session modal. Open: should the watchparty creation flow capture an episode reference upstream (would require a Phase 7-style "which episode?" selector at `openWatchpartyStart` — Phase 16 territory? Or Phase 15 polish?).
+
+   **RESOLVED:** Stash (host's t.progress.episode + 1) in state._pendingTupleAutoTrack then surface a confirmation row (Yes / Edit) in the post-session sheet for user override; the [Edit] path opens the existing openProgressSheet episode picker for manual selection. Implemented in 15-03 (stash) + 15-04 (Yes/Edit confirmation row). Upstream watchparty-creation episode capture is deferred to Phase 16 polish (NOT Phase 15 scope).
 
 3. **D-09 union-of-tuples subscriber set vs the per-show kill-switch precedence (D-12 / S6).** When a user is in a tuple AND has muted that show, S6 wins (push suppressed). The push subscriber-set computation in Q7 handles this correctly. But what if a user mutes the show, then a NEW season is added 6 months later — does the mute persist or should it expire? Recommendation for v1: persistent mute, no expiry — recoverable via S6 inline "Re-enable" (UI-SPEC §Surface S6). Lock at /gsd-plan-phase 15.
 
+   **RESOLVED:** Persistent (no expiry); recoverable via S6 inline "Re-enable" affordance. Implemented in 15-04 renderCv15MutedShowToggle (state-flip text-link) wired to window.toggleMutedShow from 15-03 which delegates to writeMutedShow from 15-02. No TTL or auto-expire logic ships in v1.
+
 4. **Co-watch overlap window (D-06).** "3 hours" was an example. Real Trakt scrobble timestamps for two co-watching family members typically land within ±15 minutes (synchronized session) but can drift to several hours when sessions are paused/resumed. Recommend 3 hours as a compromise; tune post-launch from telemetry. Lock at /gsd-plan-phase 15.
 
+   **RESOLVED:** Locked at 3 hours via constant COWATCH_OVERLAP_WINDOW_MS = 3 * 60 * 60 * 1000 for post-launch tuning. Implemented in 15-07 Task 3 (trakt.detectAndPromptCoWatchOverlap). Tunable via the named constant if telemetry indicates false-positive or false-negative rates need adjustment.
+
 5. **Existing `t.progress[memberId]` legacy data: keep or fold into solo tuples?** The foundational finding above proposes coexistence during v1. After two PWA cache cycles, a follow-up plan can fold all `t.progress[memberId]` entries into `t.tupleProgress[memberId]` (where the tupleKey is the singleton `[memberId]`). This is post-Phase-15 polish. Confirm in plan-phase that v1 keeps both shapes.
+
+   **RESOLVED:** Coexist for v1, matching the 14-10 couchInTonight / couchSeating dual-shape pattern. Both t.progress[memberId] (per-individual, legacy) and t.tupleProgress[tupleKey] (Phase 15, additive) populate live in production. A follow-up plan post-Phase-15 will fold singleton solos (t.progress[memberId] → t.tupleProgress[memberId] where tupleKey is the singleton). Confirmed across 15-02 (sibling-primitive read/write helpers, no replacement) and 15-04 (renderTvProgressSection per-individual UNCHANGED; renderCv15TupleProgressSection sibling).
 
 ---
 
