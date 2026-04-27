@@ -710,6 +710,54 @@ async function run() {
         )
       );
     });
+    await it("#39 forged managedMemberId='.*' on proxy-acted write → DENIED (SEC-15-1-02 anchor)", async () => {
+      // The validAttribution() anchor applies to managedMemberId too. Attempts
+      // to forge a regex meta in the proxy path must be rejected before the
+      // managedBy get() lookup runs. Mirrors test #35 but for the proxy path.
+      // Reset titles/t1 so any progress carryover from #36/#37 doesn't change
+      // which sub-rule fires first (mirrors the pattern at test #36).
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await ctx.firestore().doc('families/fam1/titles/t1').set({
+          createdAt: Date.now(),
+        });
+      });
+      const owner = testEnv.authenticatedContext(UID_OWNER).firestore();
+      await assertFails(
+        owner.doc('families/fam1/titles/t1').set(
+          {
+            progress: { 'm_UID_OWNER': { season: 1, episode: 1, updatedAt: 1234567890 } },
+            actingUid: UID_OWNER,
+            memberId: 'm_UID_OWNER',
+            managedMemberId: '.*',
+            memberName: 'Owner',
+          },
+          { merge: true }
+        )
+      );
+    });
+    await it('#40 authed member writes tupleNames for tuple they are NOT in → DENIED (SEC-15-1-03)', async () => {
+      // Member echoes actingTupleKey honestly but the key excludes their memberId
+      // — the regex check '(^|.*,)m_UID_MEMBER(,.*|$)' fails on 'm_UID_OUTSIDER,m_UID_OTHER'.
+      // Mirrors test #34 but for tupleNames instead of coWatchPromptDeclined.
+      await assertFails(
+        member.doc('families/fam1').set(
+          {
+            tupleNames: {
+              'm_UID_OUTSIDER,m_UID_OTHER': {
+                name: 'Pwned',
+                setBy: 'm_UID_MEMBER',
+                setAt: 1234567890,
+              },
+            },
+            actingTupleKey: 'm_UID_OUTSIDER,m_UID_OTHER',
+            actingUid: UID_MEMBER,
+            memberId: 'm_UID_MEMBER',
+            memberName: 'Member',
+          },
+          { merge: true }
+        )
+      );
+    });
   });
 
   await testEnv.cleanup();
