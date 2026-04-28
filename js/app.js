@@ -10287,6 +10287,46 @@ window.postBurstReaction = async function(wpId, emoji) {
 // participants[mid].dvrOffsetMs AND participants[mid].reactionDelay so the
 // existing Phase 7 PARTY-04 reaction-delay render filter reuses the same anchor.
 // Throttle Firestore writes to once per 500ms while the slider is dragged.
+
+// Phase 15.5 / D-01 + REQ-1: position-to-seconds non-linear transform for the sport-mode slider.
+// The native HTML <input type="range"> step attribute cannot vary per position; this transform
+// gives us 5 visual bands of step granularity (5s / 15s / 60s / 300s / 900s) across the 0-86400s
+// (24 hr) range. The slider emits position 0-100; setDvrOffset receives clamped seconds.
+// Bands locked in 15.5-CONTEXT.md D-01 + 15.5-RESEARCH.md § REQ-1.
+const WAIT_UP_BANDS = Object.freeze([
+  { pStart: 0,  pEnd: 7,   sStart: 0,    sEnd: 60,    step: 5   },
+  { pStart: 7,  pEnd: 22,  sStart: 60,   sEnd: 300,   step: 15  },
+  { pStart: 22, pEnd: 47,  sStart: 300,  sEnd: 1800,  step: 60  },
+  { pStart: 47, pEnd: 67,  sStart: 1800, sEnd: 7200,  step: 300 },
+  { pStart: 67, pEnd: 100, sStart: 7200, sEnd: 86400, step: 900 }
+]);
+
+function positionToSeconds(posInput) {
+  const pRaw = parseFloat(posInput);
+  if (!isFinite(pRaw)) return 0;
+  const p = Math.max(0, Math.min(100, pRaw));
+  // Find containing band (last band's pEnd is inclusive at 100).
+  const band = WAIT_UP_BANDS.find(b => p <= b.pEnd) || WAIT_UP_BANDS[WAIT_UP_BANDS.length - 1];
+  // Linear interpolation within band, then snap to step.
+  const pSpan = band.pEnd - band.pStart;
+  const sSpan = band.sEnd - band.sStart;
+  const frac  = pSpan > 0 ? (p - band.pStart) / pSpan : 0;
+  const sRaw  = band.sStart + frac * sSpan;
+  const snapped = Math.round(sRaw / band.step) * band.step;
+  return Math.max(0, Math.min(86400, snapped));
+}
+
+function secondsToPosition(secInput) {
+  const sRaw = parseInt(secInput, 10);
+  if (!isFinite(sRaw)) return 0;
+  const s = Math.max(0, Math.min(86400, sRaw));
+  const band = WAIT_UP_BANDS.find(b => s <= b.sEnd) || WAIT_UP_BANDS[WAIT_UP_BANDS.length - 1];
+  const sSpan = band.sEnd - band.sStart;
+  const pSpan = band.pEnd - band.pStart;
+  const frac  = sSpan > 0 ? (s - band.sStart) / sSpan : 0;
+  return band.pStart + frac * pSpan;
+}
+
 function renderDvrSlider(wp, mine) {
   if (!mine) return '';
   const offsetMs = mine.dvrOffsetMs || 0;
