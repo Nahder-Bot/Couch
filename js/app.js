@@ -11317,6 +11317,71 @@ window.addWaitUpNudge = async function() {
   }
 };
 
+// Phase 15.5 / D-03 + REQ-3 + REQ-8: Wait Up custom picker open/close/submit.
+// R-1 mitigation: scrollIntoView on focus to avoid iOS keyboard overlap on standalone PWA.
+window.openWaitUpPicker = function() {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  const mine = wp && wp.participants && state.me ? wp.participants[state.me.id] : null;
+  const current = (mine && mine.reactionDelay) || 0;
+  const h = Math.floor(current / 3600);
+  const m = Math.floor((current % 3600) / 60);
+  const s = current % 60;
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  if (hEl) hEl.value = h ? String(h) : '';
+  if (mEl) mEl.value = m ? String(m) : '';
+  if (sEl) sEl.value = s ? String(s) : '';
+  const bg = document.getElementById('wait-up-picker-bg');
+  if (bg) bg.classList.add('on');
+  // Focus hours input + scroll into view (R-1 — iOS keyboard overlap mitigation).
+  // setTimeout 60ms ensures the .on class has applied + sheet has slid up before focus fires.
+  setTimeout(() => {
+    if (hEl) {
+      try { hEl.focus(); } catch(e) { /* defensive */ }
+      try { hEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(e) { /* defensive */ }
+    }
+  }, 60);
+};
+
+window.closeWaitUpPicker = function() {
+  const bg = document.getElementById('wait-up-picker-bg');
+  if (bg) bg.classList.remove('on');
+  // Return focus to the Custom… chip for accessibility (per UI-SPEC § Accessibility / focus order).
+  const customChip = document.querySelector('.wp-control-btn.wp-delay.custom-chip');
+  if (customChip && typeof customChip.focus === 'function') {
+    try { customChip.focus(); } catch(e) { /* defensive */ }
+  }
+};
+
+window.submitWaitUpPicker = function() {
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  const h = hEl ? (parseInt(hEl.value, 10) || 0) : 0;
+  const m = mEl ? (parseInt(mEl.value, 10) || 0) : 0;
+  const s = sEl ? (parseInt(sEl.value, 10) || 0) : 0;
+  const total = Math.max(0, Math.min(86400, h * 3600 + m * 60 + s));
+  // setReactionDelay clamps at 86400 too (Plan 01) — defense in depth.
+  setReactionDelay(total);
+  closeWaitUpPicker();
+};
+
+window.setPickerPreset = function(sec) {
+  // Tap on 1 hr / 2 hr / 12 hr / 24 hr inside the picker — fills fields AND submits in one tap (D-03).
+  const safeSec = Math.max(0, Math.min(86400, parseInt(sec, 10) || 0));
+  const h = Math.floor(safeSec / 3600);
+  const m = Math.floor((safeSec % 3600) / 60);
+  const s = safeSec % 60;
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  if (hEl) hEl.value = String(h);
+  if (mEl) mEl.value = String(m);
+  if (sEl) sEl.value = String(s);
+  submitWaitUpPicker();
+};
+
 // Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
 // elapsed-time anchor. When a participant joined AFTER startAt + grace (default inference
 // branch doesn't fire for them) but they WERE actually watching from the scheduled start,
