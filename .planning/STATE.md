@@ -1,16 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1-commercial-release
-milestone_name: v1 Commercial Release
-sw_cache_version: couch-v35.1-security-hardening
+milestone: v33.3
+milestone_name: milestone
 status: Phase 15.2 VERIFIED 2026-04-27 — audit-trail backfill complete (49 REQ-IDs closed; DESIGN-01 → 15.3, POL-01 partial-parity → 15.4)
-last_updated: "2026-04-27T18:30:00Z"
+last_updated: "2026-04-28T05:43:35.825Z"
 progress:
-  total_phases: 14
-  completed_phases: 13
-  total_plans: 85
-  completed_plans: 83
-  percent: 98
+  total_phases: 15
+  completed_phases: 10
+  total_plans: 65
+  completed_plans: 63
+  percent: 97
 ---
 
 # Project State
