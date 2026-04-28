@@ -836,9 +836,20 @@ h3{font-size:var(--t-h3)}
 .wp-control-btn.on{background:var(--brand-grad);color:var(--bg);border-color:transparent;font-weight:700;box-shadow:0 2px 8px rgba(232,160,74,0.2),inset 0 1px 0 rgba(255,255,255,0.15)}
 .wp-control-btn.danger{color:var(--bad,#e53170)}
 /* Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Reuses .wp-control-btn base; .wp-delay tightens padding for chip-look. */
-.wp-delay-row{display:flex;gap:6px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
+/* Phase 15.5 / UI-SPEC § Spacing Scale: gap raised from 6px to 8px (--space-inline-sm). */
+.wp-delay-row{display:flex;gap:8px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
 .wp-delay-label{font-size:var(--t-meta);color:var(--ink-dim);margin-right:2px}
-.wp-control-btn.wp-delay{min-width:44px;padding:4px 10px;font-size:var(--t-meta)}
+/* Phase 15.5 / UI-SPEC § Movie-mode chip strip: ≥44px touch target floor (iOS HIG). */
+.wp-control-btn.wp-delay{min-width:44px;min-height:44px;padding:8px 12px;font-size:var(--t-meta);box-sizing:border-box}
+/* Phase 15.5 / UI-SPEC § Movie-mode chip strip: Custom… chip idle dashed border. */
+.wp-control-btn.wp-delay.custom-chip{background:var(--surface-2);color:var(--ink);border:1px dashed var(--ink-faint)}
+.wp-control-btn.wp-delay.custom-chip.on{border-style:solid}
+/* Phase 15.5 / UI-SPEC § "2. Movie-mode chip strip" sub-line: italic readout + +5 min nudge. */
+.wp-delay-subline{display:flex;align-items:center;gap:var(--space-inline-md,12px);margin:-6px 0 12px}
+.wp-delay-subline .wp-delay-readout-text{color:var(--ink-warm);font-style:italic;font-family:var(--font-serif,'Instrument Serif',serif);font-size:var(--t-meta);flex-shrink:0}
+/* Phase 15.5 / UI-SPEC § "4. +5 min nudge button": surface-2 background, NOT accent. */
+.wp-delay-nudge-btn{min-width:44px;min-height:44px;padding:8px 12px;box-sizing:border-box;background:var(--surface-2);color:var(--ink);border:1px solid var(--ink-faint);border-radius:100px;font-family:inherit;font-size:var(--t-meta);font-weight:500;cursor:pointer;transition:transform var(--t-quick) ease-out}
+.wp-delay-nudge-btn:active{transform:scale(0.96)}
 /* Phase 7 Plan 08 (Issue #4): on-time override controls on OWN participant chip. Secondary affordance — subtle, not competing with primary controls. */
 .wp-ontime-claim{margin-top:4px;min-height:32px;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--ink-dim);font-size:var(--t-meta);border-radius:var(--r-sm,8px);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .wp-ontime-claim:hover{color:var(--ink);border-color:var(--border-strong)}
