@@ -10854,16 +10854,16 @@ function renderCatchupCard(wp, mine) {
       ? recentPlays.map(p => {
           const qLabel = p.period ? `Q${p.period}` : '';
           const clockLabel = p.clock ? ` ${escapeHtml(p.clock)}` : '';
-          return `<div class="wp-catchup-sport-play">${escapeHtml(qLabel)}${clockLabel} &mdash; ${escapeHtml(p.text || 'Score')}</div>`;
+          return `<div class="wp-catchup-sport-play">${escapeHtml(qLabel)}${clockLabel} · ${escapeHtml(p.text || 'Score')}</div>`;
         }).join('')
       : '<div class="wp-catchup-sport-play"><em>No scoring plays yet.</em></div>';
     return `<div class="wp-catchup-card">
-      <div class="wp-catchup-eyebrow">YOU MISSED</div>
+      <div class="wp-catchup-eyebrow">WAITED UP</div>
       <div class="wp-catchup-title"><em>Here's where we are.</em></div>
       <div class="wp-catchup-sport-score">Score: ${escapeHtml(awayAbbr)} ${awayScore}, ${escapeHtml(homeAbbr)} ${homeScore}</div>
       <div class="wp-catchup-sport-label">Last 3 plays:</div>
       ${playsHtml}
-      <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+      <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it. Catch me up.</button>
     </div>`;
   }
   // Movie-mode variant — 30s reaction rail
@@ -10882,10 +10882,10 @@ function renderCatchupCard(wp, mine) {
     </div>`;
   }).join('');
   return `<div class="wp-catchup-card">
-    <div class="wp-catchup-eyebrow">YOU MISSED</div>
+    <div class="wp-catchup-eyebrow">WAITED UP</div>
     <div class="wp-catchup-title"><em>Here's the last 30 seconds.</em></div>
     <div class="wp-catchup-rail">${rail}</div>
-    <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+    <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it. Catch me up.</button>
   </div>`;
 }
 
