@@ -10327,19 +10327,31 @@ function secondsToPosition(secInput) {
   return band.pStart + frac * pSpan;
 }
 
+// Phase 15.5 / REQ-1 + REQ-4 + UI-SPEC § Sport-mode slider:
+// - Slider value space is now position 0-100 (NOT seconds). positionToSeconds maps to seconds.
+// - Readout uses dvrReadoutText (extended in Plan 01) wrapped in italic <em> when active per UI-SPEC.
+// - Aria-label uses comma separator (no em-dash, no banned words) per UI-SPEC.
 function renderDvrSlider(wp, mine) {
   if (!mine) return '';
   const offsetMs = mine.dvrOffsetMs || 0;
   const offsetSec = Math.round(offsetMs / 1000);
-  const readout = dvrReadoutText(offsetSec);
+  const offsetSecClamped = Math.max(0, Math.min(86400, offsetSec));
+  const initialPos = secondsToPosition(offsetSecClamped);
+  const readoutText = dvrReadoutText(offsetSecClamped);
+  const isActive = offsetSecClamped > 0;
+  // Active state: italic Instrument Serif "holding {value}". Idle: regular "Live".
+  const readoutHtml = isActive
+    ? `<em class="serif-italic">holding ${escapeHtml(readoutText)}</em>`
+    : `${escapeHtml(readoutText)}`;
+  const ariaLabel = `Wait up by, current value ${readoutText}`;
   return `<div class="wp-dvr-slider">
     <span class="wp-dvr-label">Wait up</span>
-    <input type="range" min="0" max="180" value="${offsetSec}" step="5"
+    <input type="range" min="0" max="100" value="${initialPos}" step="0.5"
       class="wp-dvr-input"
-      oninput="updateDvrReadout(this.value)"
-      onchange="setDvrOffset('${escapeHtml(wp.id)}', this.value)"
-      aria-label="Wait up. How far behind your stream is." />
-    <span class="wp-dvr-readout" id="wp-dvr-readout">${escapeHtml(readout)}</span>
+      oninput="updateDvrReadout(positionToSeconds(this.value))"
+      onchange="setDvrOffset('${escapeHtml(wp.id)}', positionToSeconds(this.value))"
+      aria-label="${escapeHtml(ariaLabel)}" />
+    <span class="wp-dvr-readout" id="wp-dvr-readout">${readoutHtml}</span>
   </div>`;
 }
 
@@ -10357,10 +10369,17 @@ function dvrReadoutText(sec) {
   return m ? `${h} hr ${m} min` : `${h} hr`;
 }
 
-window.updateDvrReadout = function(secStr) {
-  const sec = parseInt(secStr, 10) || 0;
+// Phase 15.5 / REQ-1: live-update readout uses same italic-wrapper recipe as renderDvrSlider.
+// Switched from textContent to innerHTML because the active state needs the <em> element;
+// escapeHtml is still applied to the dynamic text portion.
+window.updateDvrReadout = function(secInput) {
+  const sec = Math.max(0, Math.min(86400, parseInt(secInput, 10) || 0));
   const el = document.getElementById('wp-dvr-readout');
-  if (el) el.textContent = dvrReadoutText(sec);
+  if (!el) return;
+  const text = dvrReadoutText(sec);
+  el.innerHTML = sec > 0
+    ? `<em class="serif-italic">holding ${escapeHtml(text)}</em>`
+    : escapeHtml(text);
 };
 
 let _dvrThrottleHandle = null;
