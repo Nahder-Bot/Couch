@@ -1007,6 +1007,22 @@
     </div>
   </div>
 
+  <!-- Phase 15.5 / D-04 + REQ-10: Past parties tall-sheet modal. List of stale wps (5h-25h since startAt).
+       Reuses .modal / .modal-bg base scaffold; subclassed via .past-parties-surface for full-height layout.
+       Open via openPastParties() from the inline Tonight tab link; close via Close button or backdrop tap. -->
+  <div class="modal-bg" id="past-parties-bg" onclick="if(event.target.id==='past-parties-bg')closePastParties()">
+    <div class="modal past-parties-surface" id="past-parties-content" role="dialog" aria-labelledby="past-parties-title" aria-modal="true">
+      <div class="past-parties-header">
+        <span class="past-parties-eyebrow">Still rolling</span>
+        <h3 id="past-parties-title" class="past-parties-h">Past parties</h3>
+        <button type="button" class="past-parties-close" onclick="closePastParties()" aria-label="Close past parties">✕</button>
+      </div>
+      <div class="past-parties-list" id="past-parties-list">
+        <!-- Populated by renderPastParties() at open time -->
+      </div>
+    </div>
+  </div>
+
   <div class="swipe-overlay" id="swipe-overlay">
     <div class="swipe-header">
       <button class="close" aria-label="Close vote mode" onclick="closeSwipeMode()">✕</button>
