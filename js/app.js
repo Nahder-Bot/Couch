@@ -11174,12 +11174,13 @@ window.setWpMode = async function(mode) {
 // mutate local state + synchronous renderWatchpartyLive() BEFORE the await updateDoc, so the
 // preset chip highlights instantly. Distinct from postReaction's post-await echo pattern —
 // delay is a local UI preference (zero-latency feel matters, rollback is trivial via
-// onSnapshot authoritative overwrite). Seconds are clamped [0, 60] defensively — UI only
-// offers 0 / 5 / 15 / 30 but console callers could pass anything.
+// onSnapshot authoritative overwrite). Seconds are clamped [0, 86400] defensively (Phase 15.5
+// widened from [0, 60]) — UI offers Live + 6 chip presets + Custom… picker + slider 0-24h.
 window.setReactionDelay = async function(seconds) {
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp || !state.me) return;
-  const s = Math.max(0, Math.min(60, parseInt(seconds, 10) || 0));
+  // Phase 15.5 / D-01 + REQ-1: clamp widened from 60 to 86400 (24 hr) — supports flex Wait Up across sport+movie modes.
+  const s = Math.max(0, Math.min(86400, parseInt(seconds, 10) || 0));
   // Pre-await optimistic mutation — matches setWpMode's shape (Plan 06 Gap #2a).
   if (wp.participants && wp.participants[state.me.id]) {
     wp.participants[state.me.id].reactionDelay = s;
