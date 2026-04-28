@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase complete — ready for verification
-last_updated: "2026-04-28T15:40:34.852Z"
+status: Phase 15.5 shipped 2026-04-28 (verified human_needed; user approved)
+last_updated: "2026-04-28T15:50:00.000Z"
 progress:
   total_phases: 15
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 72
-  completed_plans: 70
-  percent: 97
+  completed_plans: 71
+  percent: 99
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.5 — wait-up-flex
-**Active milestone:** v1 Commercial Release (Phases 3-15.4) — slug: `v1-commercial-release`
+**Current focus:** Phase 15.5 SHIPPED 2026-04-28 — next-up phase TBD (no further phases queued in current milestone)
+**Active milestone:** v1 Commercial Release (Phases 3-15.5) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 15.5 (wait-up-flex) — EXECUTING
-Plan: 7 of 7
+Phase: 15.5 (wait-up-flex) — SHIPPED 2026-04-28 (cache `couch-v35.5-wait-up-flex` live; verifier human_needed → user approved; 6 device-UAT items tracked in 15.5-HUMAN-UAT.md)
+Plan: 7 of 7 complete
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
@@ -46,6 +46,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 | Phase | Status | Reference |
 |---|---|---|
+| 15.5 — Wait Up flex | SHIPPED 2026-04-28 (v35.5-wait-up-flex; 26 commits; verifier human_needed; user approved; 6 device-UAT items tracked) | .planning/phases/15.5-wait-up-flex/15.5-VERIFICATION.md + 15.5-HUMAN-UAT.md |
 | 12 — Pre-launch polish | SHIPPED 2026-04-25, 8/8 smoke tests | .planning/phases/12-pre-launch-polish/12-VERIFICATION.md |
 | 11 — Feature refresh & streamline | CODE-COMPLETE 2026-04-24 (deploys bundled, pending Blaze + Storage enablement) | .planning/phases/11-feature-refresh-and-streamline/11-COMPLETION.md |
 | 7 — Watchparty | All gap-closure deployed; awaiting consolidated /gsd-verify-work 7 UAT | .planning/phases/07-watchparty/ |
@@ -54,7 +55,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 ## sw.js cache version
 
-Current source: `couch-v35.1-security-hardening` (Plan 15.1-03 — Wave 3 close-out **DEPLOYED 2026-04-27** via REVERSED cross-repo deploy ritual; couch hosting deployed first via `scripts/deploy.sh 35.1-security-hardening`, then queuenight firestore:rules deployed second). Live on couchtonight.app: `couch-v35.1-security-hardening`. Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13/13-01 account deletion) → v33.1 (P13/13-02 Sentry) → v33.2 (P13/13-05 CSP) → v33.3-sentry-dsn (P13/post-merge DSN substitution) → v34.0-decision-ritual (P14 / 14-09 — superseded mid-deploy by 14-10) → v34.1-roster-control (P14 / 14-10 — DEPLOYED 2026-04-26) → v35.0-tracking-layer (P15 / 15-08 — DEPLOYED 2026-04-27) → v35.0.1-stale-fix (post-15 hotfix) → v35.1-security-hardening (P15.1 / 15.1-03 — **DEPLOYED 2026-04-27**).
+Current source: `couch-v35.5-wait-up-flex` (Plan 15.5-07 — Wave 3 close-out **DEPLOYED 2026-04-28** via STANDARD cross-repo deploy ritual: queuenight `firebase deploy --only functions` first at 15:33Z, then couch `bash scripts/deploy.sh 35.5-wait-up-flex` at 15:36Z). Live on couchtonight.app: `couch-v35.5-wait-up-flex` (curl-verified). Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13/13-01 account deletion) → v33.1 (P13/13-02 Sentry) → v33.2 (P13/13-05 CSP) → v33.3-sentry-dsn (P13/post-merge DSN substitution) → v34.0-decision-ritual (P14 / 14-09 — superseded mid-deploy by 14-10) → v34.1-roster-control (P14 / 14-10 — DEPLOYED 2026-04-26) → v35.0-tracking-layer (P15 / 15-08 — DEPLOYED 2026-04-27) → v35.0.1-stale-fix (post-15 hotfix) → v35.1-security-hardening (P15.1 / 15.1-03 — DEPLOYED 2026-04-27) → v35.5-wait-up-flex (P15.5 / 15.5-07 — **DEPLOYED 2026-04-28**).
 
 ## Production services
 
