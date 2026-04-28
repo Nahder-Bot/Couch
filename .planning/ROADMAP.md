@@ -290,6 +290,23 @@ Plans:
 **Plans**: TBD — finalized at `/gsd-plan-phase 15.4`
 **UI hint**: yes (Settings surface) + minimal (Couch viz copy only if F-W-1 path B)
 
+### Phase 15.5: Wait Up — flexible delay UX + push template hygiene
+**Goal**: Convert the existing fixed-cap reaction-delay mechanism into a flexible "Wait Up" feature that supports any delay from 0 to multi-hour, in both sport-mode watchparties and movie-mode watchparties, with a chip + nudge + custom-picker UX. Strip reaction content from server-side push templates when the receiver has Wait Up active so spoiler text stops landing on lock screens before the moment arrives. Builds on the Wait Up rebrand already on main (commits `25df50c` / `bb08fd1` / `e0f06c4` / `82fed7c`) — same feature voice, broader implementation. Inserted as decimal phase post-v33.3 milestone audit (mirrors 03.5 + 15.1 precedent), NOT a slot reassignment.
+**Depends on**: Phase 7 (`reactionDelay` field — canonical render-filter anchor), Phase 11 / REFR-10 (DVR slider scaffold for sport mode), Phase 14 (DECI-14-12 push key catalog). Cross-repo: queuenight `functions/index.js` push templates need a content-stripping branch when receiver `reactionDelay > 0`.
+**Requirements**: Closes the implementation gap surfaced 2026-04-28 — the Wait Up rebrand voice promised feature scope that the underlying slider (max 180 sec) + chips (max 30 sec) didn't actually support.
+**Success Criteria** (what must be TRUE):
+  1. Reaction-delay UI supports values from 0 (Live) through at least 2 hours, in both sport-mode (slider) and movie-mode (chip + custom picker) surfaces. The exact max + step granularity locked at `/gsd-spec-phase 15.5`.
+  2. Preset chips are starting-point shortcuts only — any value in the supported range is reachable via custom picker. Readout always shows the actual current value, no chip "snap-to" lying.
+  3. `+5 min` nudge button (or equivalent) is always reachable when Wait Up is active so the bathroom-bump case is one tap.
+  4. `Live` (0-state) reset is one tap from any non-zero value.
+  5. queuenight `functions/index.js` push templates branch on receiver `reactionDelay > 0`: when set, push notification body strips reaction content (e.g., "Your couch is reacting to [Title]" instead of "Bob: WHAT A CATCH"). Receiver-content gates the spoiler hygiene; sender behavior unchanged.
+  6. Per-receiver-only contract honored everywhere: no surface lets Wait Up affect what other viewers see, and the copy reinforces this so users trust it.
+  7. Async-replay (the "Red Wedding" scope — feel original group's reactions days/weeks/years later, with persistent reaction archive + rejoin flow) is explicitly DEFERRED — see `seeds/phase-async-replay.md`. Phase 15.5 ships the live-ish foundation only; async-replay earns a dedicated phase if Wait Up flex earns its keep in production first.
+  8. `sw.js` CACHE bumped (likely `couch-v35.5-wait-up` or similar) so installed PWAs invalidate on activation.
+  9. Cross-repo deploy ritual followed per RUNBOOK §H — queuenight `functions` deploy precedes couch hosting deploy if push template change shipped (path A).
+**Plans**: TBD — finalized at `/gsd-plan-phase 15.5`
+**UI hint**: yes (watchparty live UI — slider + chips + custom picker modal) + minimal (push template body — copy-only on the queuenight side)
+
 
 ## Progress
 
