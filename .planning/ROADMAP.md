@@ -308,7 +308,7 @@ Plans:
 
 Plans:
 - [x] 15.5-01-PLAN.md — Storage layer + readout extension (setReactionDelay 60→86400, setDvrOffset defensive clamp, dvrReadoutText extended for hours + 'Live' label) [Wave 1]
-- [ ] 15.5-02-PLAN.md — Sport-mode slider step ramp (positionToSeconds + secondsToPosition transforms, renderDvrSlider position-based + italic readout + comma aria-label) [Wave 2, depends on 15.5-01]
+- [x] 15.5-02-PLAN.md — Sport-mode slider step ramp (positionToSeconds + secondsToPosition transforms, renderDvrSlider position-based + italic readout + comma aria-label) [Wave 2, depends on 15.5-01]
 - [ ] 15.5-03-PLAN.md — Movie-mode chip ladder + sub-line + +5 min nudge (8-element D-02 chip set, addWaitUpNudge, custom-chip dashed border) [Wave 2]
 - [ ] 15.5-04-PLAN.md — Custom picker bottom sheet (DOM block, open/close/submit/preset functions, picker CSS + R-1 scrollIntoView mitigation) [Wave 2]
 - [ ] 15.5-05-PLAN.md — Push template content stripping (cross-repo: queuenight onWatchpartyUpdate Branch 2 + reactionPosted in NOTIFICATION_DEFAULTS + DR-3 client mirror) [Wave 2, non-autonomous]
