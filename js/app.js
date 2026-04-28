@@ -11411,6 +11411,65 @@ window.setPickerPreset = function(sec) {
   submitWaitUpPicker();
 };
 
+// Phase 15.5 / D-04 + REQ-10: Past parties surface — modal-based listing of 5h-25h stale wps.
+// Sorted most-recent-first per UI-SPEC § "6b Sort order".
+// Modal approach (per RESEARCH § REQ-9) avoids un-highlighted tab-bar state issue and gives free
+// hardware-back / iOS-swipe-back dismissal.
+window.openPastParties = function() {
+  renderPastParties();
+  const bg = document.getElementById('past-parties-bg');
+  if (bg) bg.classList.add('on');
+};
+
+window.closePastParties = function() {
+  const bg = document.getElementById('past-parties-bg');
+  if (bg) bg.classList.remove('on');
+};
+
+function renderPastParties() {
+  const el = document.getElementById('past-parties-list');
+  if (!el) return;
+  const now = Date.now();
+  // Use the same WP_STALE_MS boundary as renderWatchpartyBanner — single source of truth.
+  const stale = activeWatchparties().filter(wp =>
+    wp.status !== 'cancelled' &&
+    wp.startAt <= now &&
+    (now - wp.startAt) >= WP_STALE_MS
+  ).sort((a, b) => b.startAt - a.startAt); // most recent first
+  if (!stale.length) {
+    // Defensive — shouldn't happen because the inline link is hidden when staleWps.length === 0.
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = stale.map(wp => {
+    const mine = (typeof myParticipation === 'function') ? myParticipation(wp) : (wp.participants && state.me ? wp.participants[state.me.id] : null);
+    const joined = !!mine;
+    const hoursAgo = Math.max(1, Math.floor((now - wp.startAt) / (60 * 60 * 1000)));
+    const participantCount = wp.participants ? Object.keys(wp.participants).length : 0;
+    const titleNameSafe = escapeHtml(wp.titleName || 'Watchparty');
+    const posterStyle = wp.titlePoster
+      ? `background-image:url('${escapeHtml(wp.titlePoster)}')`
+      : '';
+    const wpIdSafe = escapeHtml(wp.id);
+    const actionFn = joined
+      ? `openWatchpartyLive('${wpIdSafe}')`
+      : `joinWatchparty('${wpIdSafe}')`;
+    const ariaLabel = `${titleNameSafe}, started ${hoursAgo} hour${hoursAgo === 1 ? '' : 's'} ago, ${participantCount} on the couch`;
+    return `<div class="past-parties-row" role="button" tabindex="0"
+              onclick="closePastParties();${actionFn}"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closePastParties();${actionFn};}"
+              aria-label="${escapeHtml(ariaLabel)}">
+      <div class="past-parties-poster" style="${posterStyle}"></div>
+      <div class="past-parties-body">
+        <div class="past-parties-title">${titleNameSafe}</div>
+        <div class="past-parties-meta">Started ${hoursAgo} hr ago</div>
+        <div class="past-parties-meta">${participantCount} on the couch</div>
+      </div>
+      <span class="past-parties-row-chevron" aria-hidden="true">›</span>
+    </div>`;
+  }).join('');
+}
+
 // Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
 // elapsed-time anchor. When a participant joined AFTER startAt + grace (default inference
 // branch doesn't fire for them) but they WERE actually watching from the scheduled start,
