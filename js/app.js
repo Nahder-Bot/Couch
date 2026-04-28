@@ -11284,6 +11284,39 @@ window.setReactionDelay = async function(seconds) {
   } catch(e) { alert('Could not change delay: ' + e.message); }
 };
 
+// Phase 15.5 / D-07 + REQ-5: addWaitUpNudge — +5 min nudge for the bathroom-bump case.
+// Adds 300 sec to current reactionDelay, clamped at 86400 (24 hr). Pattern copied from
+// setReactionDelay's pre-await optimistic mutation shape (lines 11268-11285 above).
+// Haptic on successful add only; no haptic on clamp (per UI-SPEC § +5 min nudge button —
+// no haptic for "did nothing"). Logs failures via qnLog (matches setDvrOffset error path).
+window.addWaitUpNudge = async function() {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp || !state.me) return;
+  const mine = wp.participants && wp.participants[state.me.id];
+  if (!mine) return;
+  const current = mine.reactionDelay || 0;
+  if (current <= 0) return; // button is hidden when 0; defensive guard
+  const newVal = Math.max(0, Math.min(86400, current + 300));
+  const wasClamped = (current + 300) > 86400;
+  if (!wasClamped && typeof haptic === 'function') {
+    try { haptic(); } catch(e) { /* haptic best-effort */ }
+  }
+  // Pre-await optimistic mutation (matches setReactionDelay shape — js/app.js:11273-11277).
+  if (wp.participants && wp.participants[state.me.id]) {
+    wp.participants[state.me.id].reactionDelay = newVal;
+  }
+  renderWatchpartyLive();
+  try {
+    await updateDoc(watchpartyRef(wp.id), {
+      [`participants.${state.me.id}.reactionDelay`]: newVal,
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch(e) {
+    if (typeof qnLog === 'function') qnLog('[WaitUp] nudge write failed', e && e.message);
+  }
+};
+
 // Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
 // elapsed-time anchor. When a participant joined AFTER startAt + grace (default inference
 // branch doesn't fire for them) but they WERE actually watching from the scheduled start,
