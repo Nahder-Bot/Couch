@@ -120,7 +120,10 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   intentExpiring: true,
   // === Phase 15 / D-11 + D-12 (TRACK-15-10) — auto-subscribe on watch (DR-3 place 2 of 3) ===
   // Must stay in lockstep with deploy-mirror NOTIFICATION_DEFAULTS in 15-06
-  newSeasonAirDate: true
+  newSeasonAirDate: true,
+  // Phase 15.5 / D-05 + REQ-7: reactionPosted — server fans out reaction pushes;
+  // body stripped per receiver reactionDelay. Mirror of queuenight NOTIFICATION_DEFAULTS.
+  reactionPosted: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -153,7 +156,11 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // implementation surfaces per-EPISODE prompts, not the original season-only
   // framing. The KEY remains 'newSeasonAirDate' for back-compat with Phase
   // 14-09 D-12 framework + already-installed PWAs.
-  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." }
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." },
+  // Phase 15.5 / D-05 + REQ-7: legacy Settings UI label — friend-voice, no banned words.
+  // NOTE: NOTIF_UI_TO_SERVER_KEY (friendly-UI map below) intentionally NOT updated —
+  // friendly-UI parity tracked as polish backlog item (Phase 15.4 / DR-3 follow-up).
+  reactionPosted:      { label: 'Someone reacts in a watchparty', hint: 'When someone in your family reacts during a watchparty.' }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
