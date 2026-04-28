@@ -10317,7 +10317,9 @@ window.updateDvrReadout = function(secStr) {
 
 let _dvrThrottleHandle = null;
 window.setDvrOffset = function(wpId, secStr) {
-  const sec = parseInt(secStr, 10) || 0;
+  // Phase 15.5 / D-01 + REQ-1: defensive clamp matching setReactionDelay (86400 = 24 hr).
+  // Plan 02's positionToSeconds() also clamps; this is belt-and-suspenders.
+  const sec = Math.max(0, Math.min(86400, parseInt(secStr, 10) || 0));
   const ms = sec * 1000;
   if (!state.me) return;
   if (_dvrThrottleHandle) clearTimeout(_dvrThrottleHandle);
