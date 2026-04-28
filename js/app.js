@@ -10293,20 +10293,20 @@ function renderDvrSlider(wp, mine) {
   const offsetSec = Math.round(offsetMs / 1000);
   const readout = dvrReadoutText(offsetSec);
   return `<div class="wp-dvr-slider">
-    <span class="wp-dvr-label">I'm behind</span>
+    <span class="wp-dvr-label">Wait up</span>
     <input type="range" min="0" max="180" value="${offsetSec}" step="5"
       class="wp-dvr-input"
       oninput="updateDvrReadout(this.value)"
       onchange="setDvrOffset('${escapeHtml(wp.id)}', this.value)"
-      aria-label="DVR offset in seconds behind live" />
+      aria-label="Wait up. How far behind your stream is." />
     <span class="wp-dvr-readout" id="wp-dvr-readout">${escapeHtml(readout)}</span>
   </div>`;
 }
 
 function dvrReadoutText(sec) {
-  if (!sec || sec <= 0) return 'On time';
-  if (sec <= 60) return `${sec}s behind`;
-  return `${Math.floor(sec/60)}m ${sec%60}s behind`;
+  if (!sec || sec <= 0) return 'No wait';
+  if (sec <= 60) return `${sec} sec`;
+  return `${Math.floor(sec/60)} min ${sec%60} sec`;
 }
 
 window.updateDvrReadout = function(secStr) {
