@@ -3947,3 +3947,116 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
    state no longer needs to add the cushion-glow class because the dashed-pill
    roster IS the empty state in V5. Whole block (selectors + keyframes) deleted. */
 /* === Phase 14 / Plan 14-09 — END === */
+
+/* === Phase 15.5 / Plan 04 — D-03 + REQ-3: Wait Up custom picker bottom-sheet === */
+/* Subclass of .modal — inherits .modal positioning + animation; overrides
+   max-height + padding for picker-specific layout. iOS safe-area-inset honored
+   in bottom padding so the home indicator doesn't clip the action row. */
+.wait-up-picker-modal {
+  max-height: 70vh;
+  padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+}
+.wait-up-picker-h {
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 12px 0;
+}
+/* Numeric input row — three side-by-side fields with labels below. */
+.wup-input-row {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 16px 0;
+  justify-content: flex-start;
+}
+.wup-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wup-field input {
+  width: 64px;
+  height: 56px;
+  background: var(--surface-3, #2c261f);
+  border: 1px solid var(--border, #3a322a);
+  border-radius: var(--r-sm, 8px);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 400;
+  text-align: center;
+  transition: border-color var(--duration-fast, 150ms);
+  box-sizing: border-box;
+}
+.wup-field input:focus {
+  outline: none;
+  border-color: var(--accent, #e8a04a);
+}
+.wup-field-label {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim, #847868);
+}
+/* Helper line — italic Instrument Serif, the per-receiver-only contract reinforcement (REQ-8 / D-06). */
+.wup-helper {
+  margin: 0 0 16px 0;
+  color: var(--ink-dim, #847868);
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: var(--t-meta, 13px);
+  font-style: italic;
+  line-height: 1.4;
+}
+.wup-helper em { font-style: italic; }  /* defensive — em already italic */
+/* Eyebrow above preset row. */
+.wup-preset-eyebrow {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim, #847868);
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+}
+/* Preset row — same chip recipe as main strip; reuses .wp-control-btn.wp-delay rules from Plan 03. */
+.wup-preset-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 20px 0;
+}
+/* Action row — Cancel link left, Set wait button right. */
+.wup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+.wup-cancel {
+  background: none;
+  border: none;
+  color: var(--ink-dim, #847868);
+  font-family: inherit;
+  font-size: var(--t-meta, 13px);
+  font-weight: 500;
+  padding: 12px 8px;
+  min-height: 44px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.wup-cancel:hover { color: var(--ink-warm, #c9bca8); }
+/* Set wait submit button — inherits .modal-close base recipe (--brand-grad + --shadow-warm + weight 700). */
+.wup-submit {
+  min-height: 44px;
+  padding: 12px 24px;
+  font-weight: 700;
+  border-radius: var(--r-md, 12px);
+}
+/* Reduced motion — sheet appears instantly per UI-SPEC § Accessibility Contract. */
+@media (prefers-reduced-motion: reduce) {
+  .wait-up-picker-modal { animation: none; }
+  #wait-up-picker-bg { animation: none; }
+}
+/* === Phase 15.5 / Plan 04 — END === */
