@@ -972,6 +972,41 @@
     </div>
   </div>
 
+  <!-- Phase 15.5 / D-03 + REQ-3 + REQ-8: Wait Up custom picker bottom-sheet modal.
+       Reuses .modal / .modal-bg base scaffold (BRAND.md §7 / css/app.css:478-491).
+       Open via openWaitUpPicker() from movie-mode Custom… chip; close via Cancel, backdrop tap, or Set wait commit. -->
+  <div class="modal-bg" id="wait-up-picker-bg" onclick="if(event.target.id==='wait-up-picker-bg')closeWaitUpPicker()">
+    <div class="modal wait-up-picker-modal" id="wait-up-picker-content" role="dialog" aria-labelledby="wait-up-picker-title" aria-modal="true">
+      <h3 id="wait-up-picker-title" class="wait-up-picker-h">How long should we wait up?</h3>
+      <div class="wup-input-row">
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-hours" placeholder="0" aria-label="Hours" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">HOURS</span>
+        </div>
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-min" placeholder="0" aria-label="Minutes" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">MIN</span>
+        </div>
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-sec" placeholder="0" aria-label="Seconds" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">SEC</span>
+        </div>
+      </div>
+      <p class="wup-helper"><em>Only changes when you see reactions. Never anyone else's view.</em></p>
+      <div class="wup-preset-eyebrow">Or jump to</div>
+      <div class="wup-preset-row">
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(3600)">1 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(7200)">2 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(43200)">12 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(86400)">24 hr</button>
+      </div>
+      <div class="wup-actions">
+        <button type="button" class="wup-cancel" onclick="closeWaitUpPicker()">Cancel</button>
+        <button type="button" class="wup-submit modal-close" onclick="submitWaitUpPicker()">Set wait</button>
+      </div>
+    </div>
+  </div>
+
   <div class="swipe-overlay" id="swipe-overlay">
     <div class="swipe-header">
       <button class="close" aria-label="Close vote mode" onclick="closeSwipeMode()">✕</button>
