@@ -4378,7 +4378,11 @@ function startSync() {
     state.selectedMembers = state.couchMemberIds.slice();
     if (typeof renderCouchViz === 'function') renderCouchViz();
     if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
-    renderPickerCard();
+    // Cross-device couch toggles need Tonight surfaces refreshed too — replaces the
+    // narrower renderPickerCard() so matches list + UpNext + Next3 also catch up
+    // when a partner toggles a pill from another device. renderTonight() calls
+    // renderPickerCard() at its top so coverage is preserved.
+    renderTonight();
     applyModeLabels();
     try { renderOwnerSettings(); } catch(e) {}
     // Plan 09-07a: re-evaluate legacy self-claim CTA whenever ownership changes.
@@ -14435,8 +14439,14 @@ window.toggleCouchMember = async function(memberId) {
   // ships, couchInTonight is the source of truth; selectedMembers is a synchronized
   // shim. Future cleanup phase can remove the shim and migrate the reads.
   state.selectedMembers = state.couchMemberIds.slice();
-  // Optimistic re-render — the onSnapshot callback will re-render again on echo
+  // Optimistic re-render — covers V5 pills AND Tonight surfaces (matches list,
+  // UpNext, ContinueWatching, Next3, MoodFilter). The legacy V4 toggleMember at
+  // line 6375 called renderTonight() directly; V5 originally replaced that with
+  // renderCouchViz() alone, which left the matches list + empty-state stale on
+  // pill taps. Both renderers are needed: renderCouchViz updates pill visuals,
+  // renderTonight refreshes the actual title-rendering surfaces.
   renderCouchViz();
+  renderTonight();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   haptic('light');
   await persistCouchInTonight();
@@ -14490,6 +14500,7 @@ async function couchMarkAllIn() {
   state.couchMemberIds = couchInTonightToMemberIds(cit);
   state.selectedMembers = state.couchMemberIds.slice();
   renderCouchViz();
+  renderTonight();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   haptic('light');
   await persistCouchInTonight();
@@ -14511,6 +14522,7 @@ async function couchClearAll() {
   state.couchMemberIds = couchInTonightToMemberIds(cit);
   state.selectedMembers = state.couchMemberIds.slice();
   renderCouchViz();
+  renderTonight();
   if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   haptic('light');
   await persistCouchInTonight();
