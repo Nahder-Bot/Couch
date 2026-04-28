@@ -443,25 +443,15 @@
       <button id="search-btn" onclick="doSearch()">Find</button>
     </div>
 
-    <!-- Sports: schedule a game as a watchparty. Quiet entry under the search. -->
-    <div class="sports-entry" onclick="openSportsPicker()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSportsPicker();}">
-      <div class="sports-entry-icon">🏈</div>
-      <div class="sports-entry-body">
-        <div class="sports-entry-title">Schedule a game</div>
-        <div class="sports-entry-sub">NFL, NBA, MLB, NHL · Browse upcoming</div>
-      </div>
-      <div class="sports-entry-chev">›</div>
-    </div>
-
-    <!-- Phase 11 / REFR-10 — Dedicated Game Mode entry. Distinct from "Schedule a game"
-         above: this flow creates a wp with mode='game' which unlocks the live score strip,
-         score-delta amplified reactions, DVR slider, team-flair badges, and sports
-         Catch-me-up variant. Legacy sports entry stays for compatibility. -->
+    <!-- Sports entry. Single tile for live + upcoming games. mode='game' watchparty unlocks
+         live score strip, score-delta amplified reactions, Wait Up slider, team-flair badges,
+         and sports catchup card. Legacy openSportsPicker tile retired 2026-04-28 (was a
+         Phase-11 compatibility hedge that outlived its window). -->
     <div class="sports-entry" onclick="openGamePicker()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGamePicker();}">
       <div class="sports-entry-icon">📺</div>
       <div class="sports-entry-body">
         <div class="sports-entry-title">Watch a game live</div>
-        <div class="sports-entry-sub">Live score · amplified reactions · DVR offset</div>
+        <div class="sports-entry-sub">Wait up. We'll hold the moment until it's yours.</div>
       </div>
       <div class="sports-entry-chev">›</div>
     </div>
