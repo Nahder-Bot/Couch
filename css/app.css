@@ -4060,3 +4060,136 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   #wait-up-picker-bg { animation: none; }
 }
 /* === Phase 15.5 / Plan 04 — END === */
+
+/* === Phase 15.5 / Plan 06 — Past parties surface === */
+/* Phase 15.5 / D-04 + UI-SPEC § "6a Tonight tab inline entry point": Past parties link row.
+   Renders inside #wp-banner-tonight below the active wp banners when stale wps exist. */
+.past-parties-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 12px 16px;
+  margin-top: 40px; /* --space-section approximation per UI-SPEC § Spacing Scale */
+  color: var(--ink-warm, #c9bca8);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+.past-parties-link-row:hover { color: var(--ink, #f5ede0); }
+.past-parties-link-row:focus { outline: 2px solid var(--accent, #e8a04a); outline-offset: 2px; }
+.past-parties-count { color: var(--accent, #e8a04a); font-weight: 500; }
+.past-parties-chevron { color: var(--ink-dim, #847868); margin-left: 4px; }
+/* Phase 15.5 / UI-SPEC § "6b Past parties surface": tall sheet — full-height, full-width.
+   Subclasses .modal (which is bottom-anchored bottom-sheet by default). */
+.past-parties-surface {
+  max-height: 100vh;
+  height: 100vh;
+  max-width: 480px;
+  border-radius: 24px 24px 0 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.past-parties-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface, #1c1814);
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--ink-faint, #3a322a);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.past-parties-eyebrow {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  color: var(--ink-dim, #847868);
+  text-transform: uppercase;
+}
+.past-parties-h {
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ink, #f5ede0);
+  margin: 0;
+}
+.past-parties-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--ink-dim, #847868);
+  font-size: 24px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.past-parties-close:hover { color: var(--ink, #f5ede0); }
+.past-parties-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px max(20px, env(safe-area-inset-bottom));
+}
+/* Past parties row — based on .approval-row pattern (css/app.css:1841-1860). */
+.past-parties-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--ink-faint, #3a322a);
+  cursor: pointer;
+  min-height: 96px;
+}
+.past-parties-row:first-child { border-top: none; }
+.past-parties-row:focus { outline: 2px solid var(--accent, #e8a04a); outline-offset: 2px; }
+.past-parties-row:hover { background: rgba(232, 160, 74, 0.03); }
+/* Poster size override per UI-SPEC § "6b" (56×84, 3:2 aspect) */
+.past-parties-poster {
+  width: 56px;
+  height: 84px;
+  border-radius: var(--r-sm, 8px);
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2, #25201a);
+  flex-shrink: 0;
+}
+.past-parties-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.past-parties-title {
+  color: var(--ink, #f5ede0);
+  font-size: 15px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* UI-SPEC §6b color correction: subtitles use --ink-warm (8.5:1 contrast) NOT --ink-dim (4.0:1 fails AA Large at 13px). */
+.past-parties-meta {
+  color: var(--ink-warm, #c9bca8);
+  font-size: 13px;
+}
+.past-parties-row-chevron {
+  color: var(--ink-faint, rgba(132, 120, 104, 0.4));
+  flex-shrink: 0;
+  font-size: 16px;
+}
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #past-parties-bg { animation: none; }
+  .past-parties-surface { animation: none; }
+}
+/* === Phase 15.5 / Plan 06 — END === */
