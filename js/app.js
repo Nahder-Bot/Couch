@@ -10303,10 +10303,18 @@ function renderDvrSlider(wp, mine) {
   </div>`;
 }
 
+// Phase 15.5 / REQ-1 + REQ-4: extended for hours; zero-state label changed from 'No wait' to 'Live' per UI-SPEC.
 function dvrReadoutText(sec) {
-  if (!sec || sec <= 0) return 'No wait';
-  if (sec <= 60) return `${sec} sec`;
-  return `${Math.floor(sec/60)} min ${sec%60} sec`;
+  if (!sec || sec <= 0) return 'Live';
+  if (sec < 60) return `${sec} sec`;
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s ? `${m} min ${s} sec` : `${m} min`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return m ? `${h} hr ${m} min` : `${h} hr`;
 }
 
 window.updateDvrReadout = function(secStr) {
