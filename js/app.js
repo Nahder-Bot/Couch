@@ -11028,7 +11028,7 @@ function renderWatchpartyFooter(wp, mine) {
   const delayChips = delayPresets.map(s => {
     const label = s === 0 ? 'Off' : s + 's';
     const on = s === currentDelay;
-    const title = s === 0 ? 'No reaction delay' : `Delay reactions by ${s} seconds`;
+    const title = s === 0 ? 'Wait Up off. Reactions land as posted.' : `Wait Up. Hold reactions ${s} seconds so they land when you see the moment.`;
     return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" title="${title}">${label}</button>`;
   }).join('');
   const delayRowDisplay = (mode === 'elapsed') ? 'flex' : 'none';
@@ -11041,14 +11041,14 @@ function renderWatchpartyFooter(wp, mine) {
     <button class="wp-control-btn danger" onclick="endMyWatchparty('${wp.id}')">Done</button>
   </div>
   <div class="wp-delay-row" style="display:${delayRowDisplay};">
-    <span class="wp-delay-label">Delay</span>
+    <span class="wp-delay-label">Wait up</span>
     ${delayChips}
   </div>`;
   return `<div class="wp-live-footer">
     ${controls}
     <div class="wp-emoji-row">${emojiBtns}</div>
     <div class="wp-compose">
-      <input type="text" id="wp-compose-input" placeholder="${paused ? 'Paused — reactions queued' : 'Say something…'}" maxlength="240" ${paused?'disabled':''}>
+      <input type="text" id="wp-compose-input" placeholder="${paused ? 'Paused. We waited up.' : 'Say something…'}" maxlength="240" ${paused?'disabled':''}>
       <button onclick="postTextReaction()" ${paused?'disabled style="opacity:0.5;"':''}>Post</button>
     </div>
   </div>`;
