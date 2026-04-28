@@ -1622,6 +1622,9 @@ function isFairnessLocked() {
 
 // ===== Watchparty =====
 const WP_ARCHIVE_MS = 25 * 60 * 60 * 1000; // 25h after start time
+// Phase 15.5 / D-04 + REQ-9: stale-wp cutoff. Wps where (now - startAt) >= WP_STALE_MS move from
+// the Tonight tab main banner to the Past parties surface. Boundary EXACT at 5h since startAt.
+const WP_STALE_MS = 5 * 60 * 60 * 1000; // 5h since start time
 function watchpartiesRef() { return collection(db, 'families', state.familyCode, 'watchparties'); }
 function watchpartyRef(id) { return doc(db, 'families', state.familyCode, 'watchparties', id); }
 
@@ -10614,7 +10617,21 @@ function renderWatchpartyBanner() {
   if (!el) return;
   const active = activeWatchparties();
   if (!active.length) { el.innerHTML = ''; return; }
-  el.innerHTML = active.map(wp => {
+  // Phase 15.5 / D-04 + REQ-9: split active wps into fresh (Tonight banner) vs stale (Past parties).
+  // Cancelled wps follow the existing 10-min visibility from activeWatchparties — keep them in the
+  // banner regardless of age (consistent with pre-15.5 cancellation UX).
+  const splitNow = Date.now();
+  const freshWps = active.filter(wp =>
+    wp.status === 'cancelled' ||
+    wp.startAt > splitNow ||
+    (splitNow - wp.startAt) < WP_STALE_MS
+  );
+  const staleWps = active.filter(wp =>
+    wp.status !== 'cancelled' &&
+    wp.startAt <= splitNow &&
+    (splitNow - wp.startAt) >= WP_STALE_MS
+  );
+  const bannerHtml = freshWps.map(wp => {
     const now = Date.now();
     const mine = myParticipation(wp);
     const joined = !!mine;
@@ -10677,6 +10694,18 @@ function renderWatchpartyBanner() {
       <button class="wp-banner-action" onclick="event.stopPropagation();${actionFn}">${actionLabel}</button>
     </div>`;
   }).join('');
+  // Phase 15.5 / D-04 + REQ-10: Past parties inline link. Renders ONLY when staleWps.length > 0.
+  const pastPartiesHtml = staleWps.length > 0
+    ? `<div class="past-parties-link-row" role="button" tabindex="0"
+          onclick="openPastParties()"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPastParties();}"
+          aria-label="Past parties, ${staleWps.length} watchpart${staleWps.length === 1 ? 'y' : 'ies'}">
+        Past parties
+        <span class="past-parties-count">(${staleWps.length})</span>
+        <span class="past-parties-chevron" aria-hidden="true">›</span>
+      </div>`
+    : '';
+  el.innerHTML = bannerHtml + pastPartiesHtml;
 }
 
 // Live view — full implementation
