@@ -11092,14 +11092,33 @@ function renderWatchpartyFooter(wp, mine) {
   // Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Only meaningful in elapsed mode
   // — wallclock ignores delay by design (shows everything as-posted) and hidden renders nothing
   // regardless. Chips are a thin visual modifier on the base .wp-control-btn class.
+  // Phase 15.5 / D-02 + REQ-2 + REQ-4 + REQ-6: 8-element chip ladder (Live + 6 presets + Custom).
+  // Custom… renders dashed border in idle state; ON when reactionDelay > 0 AND not in preset list.
+  // Per UI-SPEC § Banned-words ledger: no 'delay'/'buffer'/'queue'/'offset'/'sync' in chip labels or aria-labels.
   const currentDelay = (mine.reactionDelay || 0);
-  const delayPresets = [0, 5, 15, 30];
-  const delayChips = delayPresets.map(s => {
-    const label = s === 0 ? 'Off' : s + 's';
+  const delayPresets = [0, 15, 60, 300, 900, 1800, 3600];
+  const presetLabels = { 0: 'Live', 15: '15 sec', 60: '1 min', 300: '5 min', 900: '15 min', 1800: '30 min', 3600: '1 hr' };
+  const isPresetMatch = delayPresets.includes(currentDelay);
+  const customOn = currentDelay > 0 && !isPresetMatch;
+  const presetChipsHtml = delayPresets.map(s => {
+    const label = presetLabels[s];
     const on = s === currentDelay;
-    const title = s === 0 ? 'Wait Up off. Reactions land as posted.' : `Wait Up. Hold reactions ${s} seconds so they land when you see the moment.`;
-    return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" title="${title}">${label}</button>`;
+    const aria = s === 0
+      ? (on ? 'Wait up: Live, currently active' : 'Stop waiting up, go back to live')
+      : (on ? `Wait up: ${label}, currently active` : `Wait up: ${label}`);
+    return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" aria-label="${escapeHtml(aria)}">${escapeHtml(label)}</button>`;
   }).join('');
+  const customAria = customOn ? 'Wait up: open custom picker, currently active' : 'Wait up: open custom picker';
+  const customChipHtml = `<button class="wp-control-btn wp-delay custom-chip ${customOn?'on':''}" onclick="openWaitUpPicker()" aria-label="${escapeHtml(customAria)}">Custom…</button>`;
+  const delayChips = presetChipsHtml + customChipHtml;
+  // Phase 15.5 / D-07 + REQ-5: sub-line below chip strip with italic 'waiting {value}' readout
+  // and +5 min nudge button. Visible only when currentDelay > 0; hidden at Live (0).
+  const subLineDisplay = currentDelay > 0 ? 'flex' : 'none';
+  const readoutValue = dvrReadoutText(currentDelay);
+  const subLineHtml = `<div class="wp-delay-subline" id="wp-delay-subline" style="display:${subLineDisplay};">
+      <em class="serif-italic wp-delay-readout-text">waiting ${escapeHtml(readoutValue)}</em>
+      <button class="wp-delay-nudge-btn" onclick="addWaitUpNudge()" aria-label="Add 5 minutes to wait up">+5 min</button>
+    </div>`;
   const delayRowDisplay = (mode === 'elapsed') ? 'flex' : 'none';
   const controls = `<div class="wp-controls">
     ${paused
@@ -11112,7 +11131,8 @@ function renderWatchpartyFooter(wp, mine) {
   <div class="wp-delay-row" style="display:${delayRowDisplay};">
     <span class="wp-delay-label">Wait up</span>
     ${delayChips}
-  </div>`;
+  </div>
+  ${subLineHtml}`;
   return `<div class="wp-live-footer">
     ${controls}
     <div class="wp-emoji-row">${emojiBtns}</div>
