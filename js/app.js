@@ -7915,10 +7915,17 @@ function isWatchedByCouch(t, couchMemberIds) {
   if (couchMemberIds.some(mid => recently(allow[mid]))) return false;
   // Source 1 + 4 — global watched flag covers Trakt sync AND manual mark-watched.
   if (t.watched) return true;
-  // Sources 2 + 3 — any couch member's prior vote (yes OR no) counts as "watched-status known".
-  // Per D-01 literal read: voting No on a title still hides it from rediscovery (intentional opinionation).
+  // Source 2 — 'seen' vote is the canonical "I already watched this" signal (👁 button at
+  // line 15089). The original 14-01 implementation conflated 'yes' votes with watched
+  // status, which broke every downstream surface that reads from t.queues (yes-voted =
+  // queued): Tonight matches list, Next3 group rankings, Flow A picker tiers, swipe-mode
+  // candidate pool, spin-pick matches all went silently empty for couches with shared
+  // yes-voted titles. 'yes' = "I want to watch" (queue it); 'seen' = "I already watched
+  // it" (hide from discovery). They are distinct vote types and must not be conflated.
+  // Source 3 — 'no' votes still hide titles from rediscovery per D-01 literal read
+  // (intentional opinionation: voting No on a title means don't keep showing it).
   const votes = t.votes || {};
-  return couchMemberIds.some(mid => votes[mid] === 'yes' || votes[mid] === 'no');
+  return couchMemberIds.some(mid => votes[mid] === 'no' || votes[mid] === 'seen');
 }
 
 // D-01 — Resolve the active couch's member-id list for filter calls.
