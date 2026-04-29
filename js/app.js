@@ -5040,32 +5040,33 @@ function renderTonight() {
     return true;
   }
 
+  // Tonight's picks: at least one couch member yes-voted. Couch abstainers don't
+  // disqualify (per user 2026-04-28 — "if someone didn't vote yet too bad for them").
+  // passesBaseFilter already excludes movies any couch member said 'no' or 'seen' to
+  // (via isWatchedByCouch), so couch dissent is handled upstream.
   const matches = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
-    return state.selectedMembers.every(mid => (t.votes||{})[mid] === 'yes');
+    return state.selectedMembers.some(mid => (t.votes||{})[mid] === 'yes');
   }).sort((a,b) => {
     const aY = Object.values(a.votes||{}).filter(v=>v==='yes').length;
     const bY = Object.values(b.votes||{}).filter(v=>v==='yes').length;
     return bY - aY;
   });
 
-  // "Worth considering": at least one selected member said Yes, and nobody selected said No or Seen.
-  // Excludes titles that are already matches. Ordered by number of Yes votes within the selected group.
+  // "Worth considering": no couch member yes-voted, but at least one non-couch family
+  // member yes-voted (per user 2026-04-28 — "third person wanted to see it but we are
+  // ok watching it without them"). Excludes titles already in matches (which would mean
+  // a couch member yes-voted). passesBaseFilter already excludes couch no/seen votes.
   const matchIds = new Set(matches.map(t => t.id));
   const considerable = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
     if (matchIds.has(t.id)) return false;
     const votes = t.votes || {};
-    let yesCount = 0;
-    for (const mid of state.selectedMembers) {
-      const v = votes[mid];
-      if (v === 'no' || v === 'seen') return false; // anyone bailed → disqualified
-      if (v === 'yes') yesCount++;
-    }
-    return yesCount >= 1;
+    return Object.entries(votes).some(([mid, v]) => v === 'yes' && !state.selectedMembers.includes(mid));
   }).sort((a,b) => {
-    const aY = state.selectedMembers.filter(mid => (a.votes||{})[mid] === 'yes').length;
-    const bY = state.selectedMembers.filter(mid => (b.votes||{})[mid] === 'yes').length;
+    // Order by total family yes-count (more family enthusiasm → higher rank).
+    const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
+    const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
   });
 
@@ -5101,7 +5102,7 @@ function renderTonight() {
           <div class="t-section-title">Worth considering</div>
           <div class="t-section-meta">${considerable.length} pending</div>
         </div>
-        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">At least one of you is in. Nobody's passed yet.</p>
+        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">Family wishlist — nobody on the couch picked these tonight.</p>
         ${considerable.map(t => card(t)).join('')}
       </div>`
     : '';
