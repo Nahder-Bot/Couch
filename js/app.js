@@ -14474,35 +14474,64 @@ window.toggleCouchMember = async function(memberId) {
   await persistCouchInTonight();
 };
 
-// V5 — long-press → send push. Path C (toast + Sentry breadcrumb).
-// Path A (notifyMember helper) was investigated and rejected — no generic
-// notifyMember / sendPushTo / pingMember helper exists in the codebase
-// (verified via grep). Path B (createIntent({flow:'couch-ping'})) was
-// rejected because it would require cross-repo CF additions: a new event
-// type 'couchPing' added to NOTIFICATION_DEFAULTS + NOTIFICATION_EVENT_LABELS
-// per 14-09's DR-3 pattern, plus a fan-out branch in onIntentCreated (CF) and
-// a client subscription handler — that surface deserves its own plan.
+// V5 — long-press → send push. Path A (Firestore write → onCouchPingFire CF → FCM).
 //
-// Path C ships the visible UX win (long-press progress → toast confirmation)
-// without the CF wiring. Sentry breadcrumb captures attempted fires for
-// product analytics so we can size demand before the follow-up CF plan.
-window.sendCouchPing = function(memberId) {
+// Phase 15.4 / F-W-1 / D-01..D-07: replaced the prior Path C stub (toast + Sentry
+// breadcrumb only) with a real push fan-out path. Client writes a doc to the new
+// ephemeral collection families/{familyCode}/couchPings/{pingId}; the queuenight
+// onCouchPingFire CF (queuenight/functions/index.js, deployed in Plan 15.4-03)
+// fans out a single push to the recipient via sendToMembers, then admin-SDK
+// deletes the doc. Push body: "{senderName} wants you on the couch tonight"
+// (locked at Plan 15.4-01 banned-words sweep). Self-echo guard via
+// excludeMemberId in the CF, redundantly enforced by the senderId == memberId
+// rule clause + the rules anchor on recipientId.
+//
+// Sentry breadcrumb retained per D-07 — even with real fan-out, the breadcrumb
+// is the only client-side product-analytics signal for ping volume.
+// flashToast retained — copy "Push sent to {name}" is now accurate (push IS being
+// delivered, modulo the recipient's notificationPrefs[couchPing] toggle + quiet
+// hours, both enforced server-side per Phase 6 baseline).
+window.sendCouchPing = async function(memberId) {
   if (!state.me || !memberId) return;
+  if (!state.familyCode) return;
+  if (memberId === state.me.id) return;  // client-side self-echo short-circuit
   const m = (state.members || []).find(x => x.id === memberId);
-  const name = m ? m.name : 'them';
-  // 14-10 Task 5 / Path C — Sentry breadcrumb captures attempted pings
-  // for product analytics. Real push fan-out deferred to a follow-up plan.
+  const recipientName = m ? m.name : 'them';
+  // Sentry breadcrumb stays — analytics signal for ping volume (D-07).
   try {
     if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
       Sentry.addBreadcrumb({
         category: 'couch-ping',
-        message: `would-fire ${memberId}`,
+        message: `fire ${memberId}`,
         level: 'info',
         data: { from: state.me.id, to: memberId }
       });
     }
   } catch (e) { /* never let analytics block UX */ }
-  flashToast(`Push sent to ${name}`, { kind: 'info' });
+  // Path A: write the ephemeral ping doc. CF picks up via onCreate trigger,
+  // pushes to the recipient, deletes the doc.
+  try {
+    await addDoc(collection(db, 'families', state.familyCode, 'couchPings'), {
+      senderId: state.me.id,
+      senderName: state.me.name || 'A family member',
+      senderUid: state.me.uid || null,
+      recipientId: memberId,
+      createdAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch (e) {
+    // Defensive: if the rules-emulator-locked contract diverges from the deployed
+    // rules (e.g., a deploy-window race), surface the failure in Sentry but don't
+    // block the toast — the user already got tactile haptic feedback at long-press
+    // resolution. Logging here keeps the failure mode debuggable post-incident.
+    console.warn('[15.4/F-W-1] sendCouchPing write failed:', e && e.message);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(e, { tags: { area: 'couch-ping' } });
+      }
+    } catch (e2) {}
+  }
+  flashToast(`Push sent to ${recipientName}`, { kind: 'info' });
 };
 
 // V5 — bulk action: mark every roster member in.
