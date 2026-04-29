@@ -184,7 +184,20 @@ const NOTIF_UI_TO_SERVER_KEY = Object.freeze({
   intentRsvpRequested:    'intentProposed',
   inviteReceived:         'inviteReceived',
   vetoCapReached:         'vetoCapReached',
-  tonightPickChosen:      'tonightPickChosen'
+  tonightPickChosen:      'tonightPickChosen',
+  // Phase 15.4 / D-08 — friendly-UI parity for the 7 D-12 + newSeasonAirDate +
+  // couchPing keys. uiKey === serverKey (no rename needed — these are all
+  // post-Phase-12 keys with already-friendly names; the alias map exists only to
+  // bridge the 6 Phase-12 keys whose friendly-UI names diverged from server keys).
+  flowAPick:           'flowAPick',
+  flowAVoteOnPick:     'flowAVoteOnPick',
+  flowARejectMajority: 'flowARejectMajority',
+  flowBNominate:       'flowBNominate',
+  flowBCounterTime:    'flowBCounterTime',
+  flowBConvert:        'flowBConvert',
+  intentExpiring:      'intentExpiring',
+  newSeasonAirDate:    'newSeasonAirDate',
+  couchPing:           'couchPing'
 });
 
 // BRAND-voice copy per CONTEXT.md D-06. Sentence-case labels;
@@ -195,7 +208,20 @@ const NOTIF_UI_LABELS = Object.freeze({
   intentRsvpRequested:    { label: 'Tonight RSVP request',      hint: 'When someone proposes a watch tonight at a time.' },
   inviteReceived:         { label: 'Family invite',             hint: 'When someone invites you to a couch.' },
   vetoCapReached:         { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row. Owner-leaning, default off.' },
-  tonightPickChosen:      { label: "Tonight's pick chosen",     hint: 'When the spinner lands on a movie.' }
+  tonightPickChosen:      { label: "Tonight's pick chosen",     hint: 'When the spinner lands on a movie.' },
+  // Phase 15.4 / D-08 — friendly-UI parity. Copy mirrors NOTIFICATION_EVENT_LABELS
+  // verbatim (single source of voice; Phase 14-09 + Phase 15 + Phase 15.5 audited
+  // each label individually). The 9 new entries close DR-3 dual-Settings collision
+  // by ensuring both Settings UI surfaces expose the same set of toggles.
+  flowAPick:           { label: "Tonight's pick chosen",      hint: "When someone on your couch picks a movie." },
+  flowAVoteOnPick:     { label: "Couch voted on your pick",   hint: "When someone responds to a pick you made." },
+  flowARejectMajority: { label: "Your pick was passed on",    hint: "When the couch asks you to pick again." },
+  flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
+  flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
+  flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." },
+  couchPing:           { label: "Couch nudges",               hint: "When someone on your couch wants you on the couch tonight." }
 });
 
 const NOTIF_UI_DEFAULTS = Object.freeze({
@@ -204,7 +230,20 @@ const NOTIF_UI_DEFAULTS = Object.freeze({
   intentRsvpRequested:   true,
   inviteReceived:        true,
   vetoCapReached:        false,
-  tonightPickChosen:     true
+  tonightPickChosen:     true,
+  // Phase 15.4 / D-08 — friendly-UI parity defaults. All 9 new entries match the
+  // server-side NOTIFICATION_DEFAULTS values verbatim (Plan 14-09 D-12 keys: all
+  // true; Plan 15 / TRACK-15-09: newSeasonAirDate true; Plan 15.4 / D-09:
+  // couchPing true).
+  flowAPick:           true,
+  flowAVoteOnPick:     true,
+  flowARejectMajority: true,
+  flowBNominate:       true,
+  flowBCounterTime:    true,
+  flowBConvert:        true,
+  intentExpiring:      true,
+  newSeasonAirDate:    true,
+  couchPing:           true
 });
 
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
