@@ -223,6 +223,28 @@ Backlog only; not user-impacting at couch-scale.
 
 ---
 
+### TD-8. Dual-Settings-screen consolidation (DR-3 collision proper)
+
+**Severity:** low · **Effort:** ~1 plan / ~2 tasks (pick winning surface, remove loser, update Settings nav copy) · **Risk:** low (surface choice; either works because parity is real now)
+
+**Source:** Phase 15.4 / D-10. Plan 15.4-02 took the "mirror approach" (Path 1 of DR-3) — added 9 push keys (7 D-12 + newSeasonAirDate + couchPing) to the Phase 12 friendly-UI maps (`NOTIF_UI_TO_SERVER_KEY` / `NOTIF_UI_LABELS` / `NOTIF_UI_DEFAULTS` at js/app.js:181-247) so the friendly-UI Settings surface now exposes EVERY push category the legacy `NOTIFICATION_EVENT_LABELS` Settings surface does. This closes the immediate parity gap (POL-01: partial → satisfied) but leaves the underlying architectural decision deferred: which Settings surface wins (legacy vs friendly-UI) long-term?
+
+**Status:** ⏸ DEFERRED — chose mirror approach over removal at /gsd-discuss-phase 15.4 (D-08). Mirror is reversible: a future polish phase can pick a winner and remove the loser without re-litigating the parity question.
+
+**Trigger:** Next plan that touches Settings UI rendering (e.g., a Settings redesign, an Account-tab restructure, or a new push-category addition that has to decide where to surface). At that point, choose ONE surface and remove the other.
+
+**Considerations for the eventual decision:**
+- Legacy `NOTIFICATION_EVENT_LABELS` Settings UI is the one users actually see today (per Phase 14-09 SUMMARY: the 7 D-12 keys "surface ONLY in the legacy Settings UI" prior to 15.4). Surface real estate, navigation depth.
+- Phase 12 friendly-UI Settings is newer, has BRAND voice tightened, has the 6 Phase-12 keys with renamed friendly aliases. May be more discoverable.
+- 9-key parity (this plan) means EITHER surface can be the winner without losing coverage.
+
+**Pointer:** RESEARCH §5 of the Phase 15-tracking-layer plan flagged the dual-Settings-screen collision risk originally. `.planning/phases/15.4-integration-polish/15.4-CONTEXT.md` D-10 records the deferral decision. `.planning/phases/14-decision-ritual-core/14-09-SUMMARY.md` "Polish backlog" row "DR-3 friendly-UI parity" was the predecessor follow-up item — closed by Plan 15.4-02, but the meta-decision (which surface wins) re-deferred under TD-8.
+
+**When to revisit**
+Next time anyone touches Settings UI for any reason — pick a surface and remove the other. Not before; the mirror is functional and doing no harm.
+
+---
+
 ## Closed
 
 *(none yet — this is the first iteration of the register)*
