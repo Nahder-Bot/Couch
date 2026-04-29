@@ -566,6 +566,34 @@ service cloud.firestore {
 
 
       // ========================================================
+      // Couch pings — Phase 15.4 / F-W-1 path A
+      // ========================================================
+      // Ephemeral mailbox: client (V5 roster long-press in js/app.js sendCouchPing) writes a
+      // doc here; the onCouchPingFire CF (queuenight/functions/index.js) fans out a single
+      // push to the recipient via sendToMembers + then admin-SDK deletes the doc. Doc shape:
+      //   { senderId, senderName, recipientId, createdAt, ...writeAttribution() fields }
+      // Rules: family member can CREATE their own ping (senderId == self via validAttribution +
+      // recipientId anchored to '^m_[A-Za-z0-9_-]+$' to defang regex meta). Family members
+      // can READ (so a future "you got pinged" inbox UI is reachable) but cannot UPDATE or
+      // DELETE — the CF owns lifecycle. Mirrors the SEC-15-1-02 anchor pattern from
+      // validAttribution for the new recipientId field which is NOT covered by the helper.
+
+      match /couchPings/{pingId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create: if attributedWrite(familyCode)
+          && request.resource.data.senderId is string
+          && request.resource.data.senderId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.recipientId is string
+          && request.resource.data.recipientId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.senderId == request.resource.data.memberId;
+        // No client update path — single-shot doc, deleted by CF after fan-out.
+        allow update: if false;
+        // No client delete — CF (admin SDK) bypasses rules to clean up after delivery.
+        allow delete: if false;
+      }
+
+
+      // ========================================================
       // Intents — Phase 8 Watch-Intent Flows + Phase 14 Decision Ritual (D-09 / DR-1)
       // ========================================================
       // Four flow types share this subcollection (DR-1: extend, do not fork):
