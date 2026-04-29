@@ -358,7 +358,10 @@ Plans:
   6. Visual: amber tint on roster surface when active (per BRAND.md warm/restraint); subtle, not theatrical.
   7. Per-title parent override: a "show this anyway" link on a tier-blocked title's detail modal (parent-only — checked via isCurrentUserParent()) applies for the current kids-on-the-couch session only. Resets on session.
   8. `sw.js` CACHE bumped (likely `couch-v36.1-kid-mode` since 18 already took v36).
-**Plans**: TBD — finalized at `/gsd-plan-phase 19`. Audit recommendation is 2-3 plans (no cross-repo, single deploy day).
+**Plans**: 3 plans across 3 waves (planned 2026-04-29 via /gsd-plan-phase 19 — sequential because all 3 plans modify js/app.js and/or sw.js):
+- [ ] 19-01-PLAN.md — state slots + getEffectiveTierCap helper + 7 filter call-site splices + V5 roster Kid-mode toggle row + showScreen/couchClearAll reset hooks + scripts/smoke-kid-mode.cjs contract [Wave 1, autonomous]
+- [ ] 19-02-PLAN.md — per-title parent override on detail modal + state.kidModeOverrides Set wiring + Sentry breadcrumb [Wave 2, autonomous, depends on 19-01]
+- [ ] 19-03-PLAN.md — sw.js CACHE bump to couch-v36.1-kid-mode + couch-only deploy + 8-UAT walkthrough on real device [Wave 3, non-autonomous, depends on 19-01 + 19-02]
 
 **UI hint**: yes (V5 roster surface + parent override on detail modal) + minimal (no Settings change required for v1 — kid-mode is session-scoped, not per-member configurable yet)
 
