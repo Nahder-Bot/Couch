@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-29T22:50:41.000Z"
+status: Phase 18 shipped 2026-04-29 (code-level approved; UAT tracked; 3 phases + cross-AI audit across 2 calendar days)
+last_updated: "2026-04-29T23:00:00.000Z"
 progress:
   total_phases: 16
-  completed_phases: 12
+  completed_phases: 14
   total_plans: 79
-  completed_plans: 76
-  percent: 96
+  completed_plans: 79
+  percent: 100
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 18 — availability-notifications
-**Active milestone:** v1 Commercial Release (Phases 3-15.5) — slug: `v1-commercial-release`
+**Current focus:** Phase 18 SHIPPED 2026-04-29 — next-up TBD (15.3 logo deferred to App Store milestone; kid mode + custom lists + decision-explanation in queue from cross-AI audit)
+**Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 18 (availability-notifications) — EXECUTING
-Plan: 4 of 4
+Phase: 18 (availability-notifications) — SHIPPED 2026-04-29 (cache `couch-v36-availability-notifs` live; providerRefreshTick CF in us-central1; 7 device-UAT items tracked in 18-HUMAN-UAT.md; user approved code-level acceptance)
+Plan: 4 of 4 complete
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
@@ -46,6 +46,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 | Phase | Status | Reference |
 |---|---|---|
+| 18 — Availability Notifications | SHIPPED 2026-04-29 (v36-availability-notifs; 12 commits across couch+queuenight; daily providerRefreshTick CF live in us-central1; 7 device-UAT items tracked; cross-AI ranked highest-value moat play not yet committed) | .planning/phases/18-availability-notifications/18-HUMAN-UAT.md |
 | 15.4 — Integration polish | SHIPPED 2026-04-29 (v35.6-integration-polish; 13 commits across couch+queuenight; 6 device-UAT items tracked; user scheduled 1-week soak check) | .planning/phases/15.4-integration-polish/15.4-HUMAN-UAT.md |
 | 15.5 — Wait Up flex | SHIPPED 2026-04-28 (v35.5-wait-up-flex; 26 commits; verifier human_needed; user approved; 6 device-UAT items tracked) | .planning/phases/15.5-wait-up-flex/15.5-VERIFICATION.md + 15.5-HUMAN-UAT.md |
 | 12 — Pre-launch polish | SHIPPED 2026-04-25, 8/8 smoke tests | .planning/phases/12-pre-launch-polish/12-VERIFICATION.md |
