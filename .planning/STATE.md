@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase 15.4 shipped 2026-04-29 (code-level approved; UAT tracked; user scheduled 1-week soak check)
-last_updated: "2026-04-29T06:30:00.000Z"
+status: Executing Phase 18
+last_updated: "2026-04-29T22:29:45.270Z"
 progress:
-  total_phases: 15
-  completed_phases: 13
-  total_plans: 75
-  completed_plans: 75
-  percent: 100
+  total_phases: 16
+  completed_phases: 12
+  total_plans: 79
+  completed_plans: 74
+  percent: 94
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.4 SHIPPED 2026-04-29 — next-up TBD (15.3 logo / availability notifs / kid mode all in queue)
+**Current focus:** Phase 18 — availability-notifications
 **Active milestone:** v1 Commercial Release (Phases 3-15.5) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 15.4 (integration-polish) — SHIPPED 2026-04-29 (cache `couch-v35.6-integration-polish` live; 6 device-UAT items tracked in 15.4-HUMAN-UAT.md; user scheduled 1-week soak check)
-Plan: 3 of 3 complete
+Phase: 18 (availability-notifications) — EXECUTING
+Plan: 2 of 4
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
@@ -87,3 +87,5 @@ See RUNBOOK §M for the full inventory (Firebase project, Sentry org/project/DSN
 | Manual UAT | Trigger account-deletion flow E2E from a real signed-in user | — |
 | Tech debt | TD-1 (firebase-functions SDK 4→7), TD-2 (Variant-B storage rules), TD-4 (CSP audit window 2 weeks then enforcement flip), TD-6 (Sentry Replay re-enable +30 days), TD-7 (Firestore index spec record-only), TD-8 (dual-Settings-screen consolidation — added 2026-04-29 by Plan 15.4-02) | .planning/TECH-DEBT.md |
 | Scheduled | 1-week follow-up agent on 2026-05-02 to check HUMAN-VERIFY progress | trig_015twvB1JTH1zEFvyeQhTmnj |
+| Two-repo discipline | ✓ COMMITTED 2026-04-29 (Plan 18-01) — queuenight commit `d622dc6` on `main` (`feat(18-01): add providerRefreshTick CF + titleAvailable in NOTIFICATION_DEFAULTS`). Local-only, deploy gated to Plan 18-04 cross-repo ritual (queuenight functions FIRST, then couch hosting per D-21). | .planning/phases/18-availability-notifications/18-01-SUMMARY.md |
+| Pre-deploy gate | TMDB_KEY env var must be set in `queuenight/functions/.env` before Plan 18-04 deploy (use same key as couch `js/constants.js`). If missing, providerRefreshTick logs warning + short-circuits on every tick. Verify via `cat ~/queuenight/functions/.env \| grep TMDB_KEY` before `firebase deploy --only functions`. | .planning/phases/18-availability-notifications/18-01-SUMMARY.md |
