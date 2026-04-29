@@ -80,6 +80,24 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
   } catch(e){}
   return out;
 }
+
+// === Phase 19 / D-04..D-06 — Kid-mode session state ===
+// Both slots are session-only (NOT persisted to Firestore or localStorage).
+// Resets on showScreen-away-from-Tonight + couchClearAll.
+// state.kidModeOverrides is a Set of titleIds for per-title parent overrides
+// (D-10..D-13; surface lives in Plan 19-02). Initialized once at module load
+// using Phase 14/15 precedent (state.couchMemberIds, state.selectedMoods).
+if (state.kidMode == null) state.kidMode = false;
+if (state.kidModeOverrides == null) state.kidModeOverrides = new Set();
+
+// === Phase 19 / D-09 — single source of truth for kid-mode tier ceiling ===
+// Returns 2 (TIER_PG) when state.kidMode is active, else null (no cap from
+// kid-mode; existing per-member tier-cap logic still runs). Cheap helper
+// called inside 7 filter functions — keep it pure + branch-free.
+function getEffectiveTierCap() {
+  return state.kidMode ? 2 : null;
+}
+
 // Escape user-provided strings before interpolating into HTML
 // Local notifications. We don't need a backend — Firestore already pushes watchparty
 // events to every tab in real time. We just surface those events as OS notifications
@@ -4808,6 +4826,12 @@ function renderAll() {
 }
 
 window.showScreen = function(name, btn) {
+  // Phase 19 / D-04 — kid-mode is Tonight-tab-scoped session state. Reset when
+  // navigating away. Direct setter (no UI re-render needed — about to switch tabs).
+  if (name !== 'tonight' && state.kidMode) {
+    state.kidMode = false;
+    state.kidModeOverrides = new Set();
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => { t.classList.remove('on'); t.setAttribute('aria-selected','false'); });
   document.getElementById('screen-'+name).classList.add('active');
@@ -5105,6 +5129,14 @@ function renderTonight() {
         if (!m) continue;
         const max = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
         if (tier > max) return false;
+      }
+    }
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
       }
     }
     return true;
@@ -5468,7 +5500,18 @@ function renderLibrary() {
   // 'myrequests', 'inprogress', 'toprated', 'scheduled', 'recent' are status-driven views
   // that must surface their full scope regardless of watch state — not couch-filtered.
   const couchForLib = getCouchOrSelfIds();
-  if (state.filter === 'unwatched') list = list.filter(t => !isWatchedByCouch(t, couchForLib));
+  if (state.filter === 'unwatched') list = list.filter(t => {
+    if (isWatchedByCouch(t, couchForLib)) return false;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
+    return true;
+  });
   if (state.filter === 'watched') list = list.filter(t => t.watched);
   if (state.filter === 'forme') {
     // Everything the current user can actually watch, unwatched, approved.
@@ -5483,6 +5526,15 @@ function renderLibrary() {
         if (t.approvalStatus === 'pending' || t.approvalStatus === 'declined') return false;
         const tier = tierFor(t.rating);
         if (tier && myMax && tier > myMax) return false;
+        // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+        // Tightens existing per-member cap — both must pass.
+        const _kidCap = getEffectiveTierCap();
+        if (_kidCap !== null) {
+          const _tier = tierFor(t.rating);
+          if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+            return false;
+          }
+        }
         return true;
       });
     }
@@ -6195,6 +6247,19 @@ function isCurrentUserParent() {
   return isParent(me);
 }
 
+// Phase 19 / D-02 — visibility gate for the kid-mode toggle. Returns true when
+// ANY non-archived non-expired-guest member has effectiveMaxTier ≤ 3 (PG-13
+// cap or below). Re-evaluated on every renderCouchViz call — no caching (D-03).
+function familyHasKids() {
+  const nowTs = Date.now();
+  return (state.members || []).some(m => {
+    if (m.archived) return false;
+    if (m.temporary && (!m.expiresAt || m.expiresAt <= nowTs)) return false;
+    const eff = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
+    return eff <= 3;
+  });
+}
+
 window.setMaxTier = async function(id, val) {
   if (!isCurrentUserParent()) { flashToast('Only parents can change this', { kind: 'warn' }); return; }
   try { await updateDoc(doc(membersRef(), id), { maxTier: parseInt(val) }); }
@@ -6801,6 +6866,14 @@ function getNeedsVoteTitles() {
   return state.titles.filter(t => {
     if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
     const v = (t.votes || {})[state.me.id];
     return !v;
   });
@@ -7768,6 +7841,14 @@ function getCurrentMatches() {
         if (tier > max) return false;
       }
     }
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
     return true;
   });
 }
@@ -8106,6 +8187,14 @@ function getTierOneRanked(couchMemberIds, opts) {
     // Intersection requirement: ALL couch members must have a rank for this title.
     const ranks = couchMemberIds.map(mid => t.queues[mid]);
     if (ranks.some(r => r == null)) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
     const meanRank = ranks.reduce((a,b) => a + b, 0) / ranks.length;
     out.push({ title: t, meanRank, ratingTie: parseFloat(t.rating) || 0 });
   });
@@ -8131,6 +8220,14 @@ function getTierTwoRanked(couchMemberIds, opts) {
     // Must have ≥1 couch presence AND NOT all (else it's T1).
     if (presentRanks.length === 0) return;
     if (presentRanks.length === couchMemberIds.length) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
     const meanPresentRank = presentRanks.reduce((a,b) => a + b, 0) / presentRanks.length;
     out.push({
       title: t,
@@ -8166,6 +8263,14 @@ function getTierThreeRanked(couchMemberIds, opts) {
     const couchPresent = queueingMids.filter(mid => couchSet.has(mid));
     if (couchPresent.length > 0) return;
     if (offCouchPresent.length === 0) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
     const meanOffCouchRank = offCouchPresent
       .map(mid => t.queues[mid])
       .reduce((a,b) => a + b, 0) / offCouchPresent.length;
@@ -14654,6 +14759,13 @@ async function couchClearAll() {
       cit[mid] = next;
     }
   });
+  // Phase 19 / D-04 — clearing the couch ALSO clears kid-mode (ambient cleanup —
+  // no kids on the couch means no need for the toggle). Must happen BEFORE the
+  // renderCouchViz / renderTonight calls below so the UI reflects cleared state.
+  if (state.kidMode) {
+    state.kidMode = false;
+    state.kidModeOverrides = new Set();
+  }
   state.couchMemberIds = couchInTonightToMemberIds(cit);
   state.selectedMembers = state.couchMemberIds.slice();
   renderCouchViz();
@@ -14662,6 +14774,25 @@ async function couchClearAll() {
   haptic('light');
   await persistCouchInTonight();
 }
+
+// Phase 19 / D-05 — flip kid-mode + clear overrides on transition + re-render
+// V5 roster + Tonight + Library. Per D-04, kid-mode is session-only — no
+// Firestore write. flashToast confirms the state change.
+window.toggleKidMode = function() {
+  if (!state.me) { flashToast('Sign in to use kid mode', { kind: 'warn' }); return; }
+  state.kidMode = !state.kidMode;
+  // Clear per-title overrides on EVERY transition (covers both directions per
+  // D-13 — "parent toggling kid-mode off + back on clears overrides").
+  state.kidModeOverrides = new Set();
+  renderCouchViz();
+  if (typeof renderTonight === 'function') renderTonight();
+  if (typeof renderLibrary === 'function') renderLibrary();
+  haptic('light');
+  flashToast(
+    state.kidMode ? 'Kid mode on — hiding R + PG-13' : 'Kid mode off — full pool back',
+    { kind: 'info' }
+  );
+};
 
 // V5 — bulk action: send push to every out-state member.
 function couchPushRest() {
