@@ -7120,8 +7120,11 @@ window.toggleMyService = async function(brandId) {
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
 
-// Manual refresh button on the detail modal — re-fetch TMDB providers for one title
-// right now, instead of waiting for the background migration to reach it.
+// Phase 18 / D-17 + D-18 + D-19: detail-modal manual refresh affordance.
+// Refetches TMDB providers + writes back including lastProviderRefreshAt
+// so the daily providerRefreshTick CF (Plan 18-01) round-robin stays accurate
+// (won't re-refresh a title the user just manually refreshed). Manual refresh
+// does NOT trigger a push fan-out (D-19) — only the scheduled CF fires pushes.
 window.refreshProviders = async function(id) {
   const t = state.titles.find(x => x.id === id);
   if (!t) return;
@@ -7134,14 +7137,21 @@ window.refreshProviders = async function(id) {
       rentProviders: extras.rentProviders || [],
       buyProviders: extras.buyProviders || [],
       providersChecked: true,
-      providersSchemaVersion: 3
+      providersSchemaVersion: 3,
+      // Phase 18 / D-18: stamp the timestamp so the CF round-robin treats
+      // this title as freshly-refreshed (won't re-fetch on the next tick).
+      lastProviderRefreshAt: Date.now()
     };
     await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update });
     haptic('success');
-    // Re-open the detail to show the fresh data
+    // Phase 18 / D-18 verbatim toast copy.
+    flashToast('Availability refreshed.', { kind: 'info' });
+    // Re-open the detail to show the fresh data.
     setTimeout(() => openDetailModal(id), 150);
   } catch(e) {
-    alert('Refresh failed: ' + e.message);
+    // Phase 18 — replace alert() with flashToast (BRAND-aligned warm restraint).
+    console.warn('[18/refreshProviders] failed:', e && e.message);
+    flashToast('Refresh failed. Try again.', { kind: 'warn' });
   }
 };
 
@@ -7550,12 +7560,16 @@ function renderDetailShell(t) {
   const buyStrip = provStrip(t.buyProviders, 'Buy');
   const anyAvail = streamStrip || rentStrip || buyStrip;
   const refreshBtn = (t.id && t.id.startsWith('tmdb_') && !t.isManual)
-    ? `<button class="pill" onclick="refreshProviders('${t.id}')" style="margin-top:var(--s2);font-size:var(--t-micro);" title="Refetch availability from TMDB">↻ Refresh</button>`
+    ? `<button class="pill" onclick="refreshProviders('${t.id}')" style="margin-top:var(--s2);font-size:var(--t-micro);" title="Refetch availability from TMDB">↻ Refresh availability</button>`
     : '';
+  // Phase 18 / D-16: confidence/source attribution. Push body itself doesn't
+  // carry "via TMDB" (too verbose for a push); the affordance lives here in
+  // the detail surface where users dig in to verify availability.
+  const providerAttribution = `<div class="detail-prov-attribution" style="margin-top:var(--s1);font-size:var(--t-micro);font-style:italic;opacity:0.6;">Provider data via TMDB</div>`;
   const providersHtml = anyAvail
-    ? `<div class="detail-section"><h4>Where to watch</h4>${streamStrip}${rentStrip}${buyStrip}${refreshBtn}</div>`
+    ? `<div class="detail-section"><h4>Where to watch</h4>${streamStrip}${rentStrip}${buyStrip}${refreshBtn}${providerAttribution}</div>`
     : (t.providersChecked
-        ? `<div class="detail-section"><h4>Where to watch</h4><div class="detail-prov-empty">Not on subscription streaming or rent. ${refreshBtn}</div></div>`
+        ? `<div class="detail-section"><h4>Where to watch</h4><div class="detail-prov-empty">Not on subscription streaming or rent. ${refreshBtn}</div>${providerAttribution}</div>`
         : '');
   const similarHtml = (t.similar && t.similar.length) ? `<div class="detail-section"><h4>You might also like</h4><div class="similar-row">${t.similar.map(s => {
     const inLib = state.titles.find(x => x.id === s.id);
