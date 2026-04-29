@@ -7650,6 +7650,20 @@ function renderDetailShell(t) {
   }).join('')}</div></div>` : '';
   const loadingHtml = (!t.detailsCached && !t.isManual) ? '<div class="detail-section" aria-hidden="true"><div class="sk sk-line" style="width:30%;margin-bottom:10px;"></div><div class="sk-row-posters"><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div></div></div>' : '';
   const moodsHtml = renderDetailMoodsSection(t);
+  // Phase 19 / D-10..D-12 — Per-title parent override. Surfaces only when ALL
+  // three conditions hold: kid-mode active + title tier > 2 (i.e., currently
+  // blocked) + current user has parent privileges. Session-scoped — clears
+  // when toggleKidMode flips (D-13).
+  let kidModeOverrideHtml = '';
+  if (state.kidMode && tier !== null && tier > 2 && typeof isCurrentUserParent === 'function' && isCurrentUserParent()) {
+    // Already-overridden state — surface a quiet "active" hint instead of the link
+    // so re-opening the modal doesn't make it look re-clickable.
+    if (state.kidModeOverrides && state.kidModeOverrides.has && state.kidModeOverrides.has(t.id)) {
+      kidModeOverrideHtml = `<p class="kid-mode-override-active">Showing this for tonight (kid-mode override)</p>`;
+    } else {
+      kidModeOverrideHtml = `<p class="kid-mode-override-row"><a href="#" class="kid-mode-override-link" onclick="kidModeOverrideTitle('${escapeHtml(t.id)}'); return false;">Show this anyway for tonight</a></p>`;
+    }
+  }
   return `<div class="detail-backdrop" style="background-image:url('${backdrop}')">
     <button class="detail-close" aria-label="Close" onclick="closeDetailModal()">✕</button>
   </div>
@@ -7660,6 +7674,7 @@ function renderDetailShell(t) {
     ${moodsHtml}
     <div class="detail-overview">${escapeHtml(t.overview||'No description available.')}</div>
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
+    ${kidModeOverrideHtml}
     ${renderTvProgressSection(t)}
     ${trailerHtml}
     ${providersHtml}
@@ -7720,6 +7735,47 @@ window.addSimilar = async function(id) {
   const merged = state.titles.find(x => x.id === detailTitleId);
   if (merged) document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
   if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
+};
+
+// Phase 19 / D-11 — parent override: bypass kid-mode cap for this title in this
+// session. Adds titleId to state.kidModeOverrides Set, re-renders affected
+// surfaces, closes the detail modal, writes Sentry breadcrumb for analytics
+// ("kids excluded but parents watch anyway" frequency signal — Claude's
+// discretion per CONTEXT.md recommendation).
+window.kidModeOverrideTitle = function(titleId) {
+  if (!titleId) return;
+  if (typeof isCurrentUserParent === 'function' && !isCurrentUserParent()) {
+    // Defense in depth — render-side gate already hides the link for non-parents,
+    // but a non-parent invoking the handler via DevTools should still be denied.
+    flashToast('Only parents can do this', { kind: 'warn' });
+    return;
+  }
+  if (!state.kidModeOverrides || typeof state.kidModeOverrides.add !== 'function') {
+    state.kidModeOverrides = new Set();
+  }
+  state.kidModeOverrides.add(titleId);
+  // Sentry breadcrumb — surfaces frequency of "kids excluded but parents watch
+  // anyway" so we can re-evaluate the cap if the override fires constantly.
+  try {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      const t = (state.titles || []).find(x => x.id === titleId);
+      Sentry.addBreadcrumb({
+        category: 'kid-mode-override',
+        message: `parent override applied for ${titleId}`,
+        level: 'info',
+        data: {
+          titleId,
+          rating: t ? t.rating : null,
+          by: state.me ? state.me.id : null
+        }
+      });
+    }
+  } catch (e) { /* never let analytics block UX */ }
+  flashToast('Showing this for tonight', { kind: 'info' });
+  // Close the detail modal so the re-rendered Tonight tab is visible.
+  if (typeof closeDetailModal === 'function') closeDetailModal();
+  if (typeof renderTonight === 'function') renderTonight();
+  if (typeof renderLibrary === 'function') renderLibrary();
 };
 
 // Phase 3 (Mood Tags): inline detail-view mood editing

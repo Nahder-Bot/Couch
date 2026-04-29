@@ -3660,6 +3660,51 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   }
 }
 
+/* === Phase 19 / D-10..D-12 — Kid-mode parent override on detail modal === */
+/* Inline italic-serif link surfaced inside the detail-body when ALL three
+   conditions hold: state.kidMode active + tier > 2 + isCurrentUserParent.
+   Dim by default (BRAND.md §6 warm-restraint — does not compete with primary
+   detail content), warms to amber on hover/focus. Already-overridden state
+   shows the quiet "active" hint instead of the re-clickable link. */
+
+.kid-mode-override-row {
+  margin: var(--s2) 0 var(--s3);
+  text-align: left;
+}
+
+.kid-mode-override-link {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color var(--duration-fast) var(--easing-standard);
+}
+
+.kid-mode-override-link:hover,
+.kid-mode-override-link:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent-deep);
+}
+
+.kid-mode-override-active {
+  margin: var(--s2) 0 var(--s3);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--accent-deep);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kid-mode-override-link {
+    transition: none;
+  }
+}
+
 /* Phone-tighter: smaller pill on narrow viewports (matches sketch line 288-296). */
 @media (max-width: 480px) {
   .pill { padding: 6px 12px 6px 6px; }
