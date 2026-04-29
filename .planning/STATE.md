@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase complete — ready for verification
-last_updated: "2026-04-29T06:23:17.332Z"
+status: Phase 15.4 shipped 2026-04-29 (code-level approved; UAT tracked; user scheduled 1-week soak check)
+last_updated: "2026-04-29T06:30:00.000Z"
 progress:
   total_phases: 15
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 75
-  completed_plans: 73
-  percent: 97
+  completed_plans: 75
+  percent: 100
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.4 — integration-polish
+**Current focus:** Phase 15.4 SHIPPED 2026-04-29 — next-up TBD (15.3 logo / availability notifs / kid mode all in queue)
 **Active milestone:** v1 Commercial Release (Phases 3-15.5) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 15.4 (integration-polish) — EXECUTING
-Plan: 3 of 3
+Phase: 15.4 (integration-polish) — SHIPPED 2026-04-29 (cache `couch-v35.6-integration-polish` live; 6 device-UAT items tracked in 15.4-HUMAN-UAT.md; user scheduled 1-week soak check)
+Plan: 3 of 3 complete
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
@@ -46,6 +46,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 | Phase | Status | Reference |
 |---|---|---|
+| 15.4 — Integration polish | SHIPPED 2026-04-29 (v35.6-integration-polish; 13 commits across couch+queuenight; 6 device-UAT items tracked; user scheduled 1-week soak check) | .planning/phases/15.4-integration-polish/15.4-HUMAN-UAT.md |
 | 15.5 — Wait Up flex | SHIPPED 2026-04-28 (v35.5-wait-up-flex; 26 commits; verifier human_needed; user approved; 6 device-UAT items tracked) | .planning/phases/15.5-wait-up-flex/15.5-VERIFICATION.md + 15.5-HUMAN-UAT.md |
 | 12 — Pre-launch polish | SHIPPED 2026-04-25, 8/8 smoke tests | .planning/phases/12-pre-launch-polish/12-VERIFICATION.md |
 | 11 — Feature refresh & streamline | CODE-COMPLETE 2026-04-24 (deploys bundled, pending Blaze + Storage enablement) | .planning/phases/11-feature-refresh-and-streamline/11-COMPLETION.md |
@@ -55,7 +56,7 @@ Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up 
 
 ## sw.js cache version
 
-Current source: `couch-v35.5-wait-up-flex` (Plan 15.5-07 — Wave 3 close-out **DEPLOYED 2026-04-28** via STANDARD cross-repo deploy ritual: queuenight `firebase deploy --only functions` first at 15:33Z, then couch `bash scripts/deploy.sh 35.5-wait-up-flex` at 15:36Z). Live on couchtonight.app: `couch-v35.5-wait-up-flex` (curl-verified). Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13/13-01 account deletion) → v33.1 (P13/13-02 Sentry) → v33.2 (P13/13-05 CSP) → v33.3-sentry-dsn (P13/post-merge DSN substitution) → v34.0-decision-ritual (P14 / 14-09 — superseded mid-deploy by 14-10) → v34.1-roster-control (P14 / 14-10 — DEPLOYED 2026-04-26) → v35.0-tracking-layer (P15 / 15-08 — DEPLOYED 2026-04-27) → v35.0.1-stale-fix (post-15 hotfix) → v35.1-security-hardening (P15.1 / 15.1-03 — DEPLOYED 2026-04-27) → v35.5-wait-up-flex (P15.5 / 15.5-07 — **DEPLOYED 2026-04-28**).
+Current source: `couch-v35.6-integration-polish` (Plan 15.4-03 — Wave 2 close-out **DEPLOYED 2026-04-29** via STANDARD cross-repo deploy ritual: queuenight `firebase deploy --only functions,firestore:rules` first at 06:17Z, then couch `bash scripts/deploy.sh 35.6-integration-polish` at 06:17Z). Live on couchtonight.app: `couch-v35.6-integration-polish` (curl-verified). Bumped via `bash scripts/deploy.sh <short-tag>`. Phase progression: v29 (P11 final) → v32 (P12) → v33 (P13) → v34.0/v34.1 (P14) → v35.0/v35.0.1 (P15) → v35.1-security-hardening (P15.1 / 15.1-03) → v35.5-wait-up-flex (P15.5 / 15.5-07 — DEPLOYED 2026-04-28; followed by 5 same-day Tonight-surface hotfixes 35.5.1-35.5.5) → v35.6-integration-polish (P15.4 / 15.4-03 — **DEPLOYED 2026-04-29**; closes F-W-1 sendCouchPing real-fan-out + D-3 friendly-UI Settings parity).
 
 ## Production services
 
