@@ -760,6 +760,60 @@ async function run() {
     });
   });
 
+  // === Phase 15.4 — Integration polish — couch-ping ephemeral collection ===
+  // F-W-1 path A: families/{code}/couchPings/{pingId} is an ephemeral mailbox.
+  // Tests #41 (happy-path create), #42 (senderId-spoof DENIED), #43 (regex injection DENIED).
+  await describe('Phase 15.4 — couchPings ephemeral collection', async () => {
+    await it('#41 authed member writes own couchPing → ALLOWED (F-W-1 / D-04)', async () => {
+      // senderId == memberId == auth.uid (validAttribution passes).
+      // recipientId is a valid m_-anchored memberId.
+      await assertSucceeds(
+        member.doc('families/fam1/couchPings/p_test_41').set({
+          senderId: 'm_UID_MEMBER',
+          senderName: 'Member',
+          recipientId: 'm_UID_OWNER',
+          createdAt: 1234567890,
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+    await it('#42 authed member spoofs senderId != memberId → DENIED (F-W-1 / senderId == memberId clause)', async () => {
+      // The senderId == memberId rule clause blocks Member A from writing a ping
+      // claiming to be from Member B (which would surface as a fake "B wants you"
+      // push to the recipient). Without this clause, attribution alone would only
+      // verify memberId == auth.uid — it would not prevent senderId forgery.
+      await assertFails(
+        member.doc('families/fam1/couchPings/p_test_42').set({
+          senderId: 'm_UID_OWNER',
+          senderName: 'Owner',
+          recipientId: 'm_UID_MEMBER',
+          createdAt: 1234567890,
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+    await it("#43 forged recipientId='.*' regex injection → DENIED (SEC-15-1-02 anchor extended)", async () => {
+      // recipientId.matches('^m_[A-Za-z0-9_-]+$') rejects '.' and '*' because
+      // they're not in the allowed character class. Mirrors test #35 which
+      // covers the same anchor on memberId.
+      await assertFails(
+        member.doc('families/fam1/couchPings/p_test_43').set({
+          senderId: 'm_UID_MEMBER',
+          senderName: 'Member',
+          recipientId: '.*',
+          createdAt: 1234567890,
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);
