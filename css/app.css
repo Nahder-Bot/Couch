@@ -3586,6 +3586,80 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   .pill .ping-hint, .pill.pinging .ping-hint { transition: none; }
 }
 
+/* === Phase 19 / D-14..D-17 — Kid-mode toggle === */
+/* Pill-button toggle below the action row when familyHasKids() returns true.
+   Idle: dashed amber outline, transparent background, ink-warm text.
+   Active: amber-filled, dark text, deeper amber border on hover.
+   Roster surface gets subtle amber tint when active (D-15, ≤ 0.05 opacity per
+   BRAND.md §6 "warm restraint" — no theatrical wash). */
+
+.kid-mode-row {
+  margin-top: var(--s2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.kid-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--ink-warm);
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-base) var(--easing-standard),
+              color var(--duration-base) var(--easing-standard),
+              border-color var(--duration-base) var(--easing-standard);
+  min-height: 44px; /* iOS PWA tap target per CLAUDE.md */
+}
+
+.kid-mode-toggle:hover {
+  border-color: var(--accent-deep);
+  color: var(--ink);
+}
+
+.kid-mode-toggle.on {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.kid-mode-toggle.on:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+.kid-mode-hint {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+/* D-15 — subtle amber tint on roster surface when kid-mode is active. */
+.roster.kid-mode-on {
+  background: rgba(232, 160, 74, 0.05);
+  border-radius: var(--r-md);
+  padding: var(--s2);
+  transition: background var(--duration-deliberate) var(--easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kid-mode-toggle,
+  .roster.kid-mode-on {
+    transition: none;
+  }
+}
+
 /* Phone-tighter: smaller pill on narrow viewports (matches sketch line 288-296). */
 @media (max-width: 480px) {
   .pill { padding: 6px 12px 6px 6px; }

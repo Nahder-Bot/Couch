@@ -14538,7 +14538,9 @@ function renderCouchViz() {
   html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
   html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
   html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
-  html.push(`<div class="roster" role="group" aria-label="Family roster — tap to flip in or out">`);
+  // Phase 19 / D-15 — subtle amber tint on roster surface when kid-mode active.
+  const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
+  html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
   roster.forEach(m => {
     const isIn = cit[m.id] && cit[m.id].in === true;
     const isMe = meId && m.id === meId;
@@ -14567,6 +14569,18 @@ function renderCouchViz() {
   if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
   html.push(`</div>`);
   html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  // Phase 19 / D-01..D-03 — Kid-mode toggle row. Visibility gated on familyHasKids()
+  // (re-evaluated each render per D-03). Idle = dashed border; active = amber-filled.
+  // Helper hint copy locked at D-17.
+  if (typeof familyHasKids === 'function' && familyHasKids()) {
+    const onCls = state.kidMode ? 'on' : '';
+    const label = state.kidMode ? 'Kid mode on' : 'Kid mode';
+    const hint = state.kidMode ? '' : 'Hide R + PG-13 from tonight\'s pool';
+    html.push(`<div class="kid-mode-row">`);
+    html.push(`<button type="button" class="kid-mode-toggle ${onCls}" data-act="toggle-kid-mode" aria-pressed="${state.kidMode ? 'true' : 'false'}">${label}</button>`);
+    if (hint) html.push(`<p class="kid-mode-hint">${hint}</p>`);
+    html.push(`</div>`);
+  }
   container.innerHTML = html.join('');
 
   // Wire pill interactions (delegated per-pill listeners — variant-5 sketch lines 392-427).
@@ -14615,6 +14629,9 @@ function renderCouchViz() {
   if (actMarkAll) actMarkAll.onclick = () => couchMarkAllIn();
   if (actClearAll) actClearAll.onclick = () => couchClearAll();
   if (actPushRest) actPushRest.onclick = () => couchPushRest();
+  // Phase 19 — wire the new Kid-mode toggle button (when rendered).
+  const actToggleKidMode = container.querySelector('[data-act="toggle-kid-mode"]');
+  if (actToggleKidMode) actToggleKidMode.onclick = () => window.toggleKidMode();
 
   // 14-09 / D-10 — anchor onboarding tooltip on the FIRST out-state pill (was .seat-cell.empty
   // before V5; now anchored to the equivalent V5 affordance). Same maybeShowTooltip key
