@@ -80,6 +80,21 @@ for f in js/*.js sw.js scripts/stamp-build-date.cjs; do
   node --check "$f" || { echo "ERROR: node --check failed on $f" >&2; exit 1; }
 done
 
+# 2.5. Pure-function smoke gate -- contract tests for matches/considerable filters
+# (Phase 15.5.5+) and positionToSeconds transform (Phase 15.5-02). Fast (~50ms)
+# and runs without Firestore/auth/browser. Catches regressions in core matching
+# logic before they reach production -- introduced after the v35.5.1->v35.5.5
+# deploy ping-pong on the same surface.
+if [ -f scripts/smoke-position-transform.cjs ]; then
+  node scripts/smoke-position-transform.cjs > /dev/null \
+    || { echo "ERROR: smoke-position-transform failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-tonight-matches.cjs ]; then
+  node scripts/smoke-tonight-matches.cjs > /dev/null \
+    || { echo "ERROR: smoke-tonight-matches failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable)."
+
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
   echo "ERROR: ${COUCH_DEPLOY_ROOT}/public missing -- is the sibling repo at the right path?" >&2
