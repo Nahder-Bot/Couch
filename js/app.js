@@ -128,7 +128,12 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   // Mirror of queuenight NOTIFICATION_DEFAULTS in 15.4-01. Default ON: this fires
   // only when another family member has actively long-pressed your pill — intent-
   // rich engagement signal; user expects it.
-  couchPing: true
+  couchPing: true,
+  // Phase 18 / D-12 + D-20 — titleAvailable: daily provider-refresh CF push fan-out.
+  // Mirror of queuenight NOTIFICATION_DEFAULTS in Plan 18-01. Default ON: low-volume
+  // high-signal channel — fires only when a title in someone's queue becomes newly
+  // watchable on a brand they own. Users opt out via Settings if noisy.
+  titleAvailable: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -171,7 +176,13 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // plan's Task 3 (D-08 mirror approach), so it appears in BOTH the legacy
   // NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
   // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
-  couchPing:           { label: 'Couch nudges', hint: 'When someone on your couch wants you on the couch tonight.' }
+  couchPing:           { label: 'Couch nudges', hint: 'When someone on your couch wants you on the couch tonight.' },
+  // Phase 18 / D-20 — titleAvailable legacy Settings UI label.
+  // BRAND-voice copy. NOTE: this surface is mirrored to friendly-UI maps in this
+  // plan's Task 2 (D-20 + Phase-15.4 mirror approach), so it appears in BOTH the
+  // legacy NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
+  // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
+  titleAvailable: { label: 'Newly watchable', hint: 'When a title in your queue lands on a service in your pack.' }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
