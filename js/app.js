@@ -208,7 +208,10 @@ const NOTIF_UI_TO_SERVER_KEY = Object.freeze({
   flowBConvert:        'flowBConvert',
   intentExpiring:      'intentExpiring',
   newSeasonAirDate:    'newSeasonAirDate',
-  couchPing:           'couchPing'
+  couchPing:           'couchPing',
+  // Phase 18 / D-20 — friendly-UI parity for titleAvailable. uiKey === serverKey
+  // (no rename needed — post-Phase-12 keys keep server names).
+  titleAvailable:      'titleAvailable'
 });
 
 // BRAND-voice copy per CONTEXT.md D-06. Sentence-case labels;
@@ -232,7 +235,10 @@ const NOTIF_UI_LABELS = Object.freeze({
   flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
   intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
   newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." },
-  couchPing:           { label: "Couch nudges",               hint: "When someone on your couch wants you on the couch tonight." }
+  couchPing:           { label: "Couch nudges",               hint: "When someone on your couch wants you on the couch tonight." },
+  // Phase 18 / D-20 — friendly-UI parity for titleAvailable. Copy mirrors
+  // NOTIFICATION_EVENT_LABELS verbatim (single source of voice).
+  titleAvailable:      { label: "Newly watchable",            hint: "When a title in your queue lands on a service in your pack." }
 });
 
 const NOTIF_UI_DEFAULTS = Object.freeze({
@@ -254,7 +260,10 @@ const NOTIF_UI_DEFAULTS = Object.freeze({
   flowBConvert:        true,
   intentExpiring:      true,
   newSeasonAirDate:    true,
-  couchPing:           true
+  couchPing:           true,
+  // Phase 18 / D-20 — friendly-UI parity default. Matches server-side
+  // NOTIFICATION_DEFAULTS.titleAvailable = true (Plan 18-01).
+  titleAvailable:      true
 });
 
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
