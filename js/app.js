@@ -5040,9 +5040,11 @@ function renderTonight() {
     return true;
   }
 
-  // Tonight's picks: pure couch consensus, untainted by off-couch interest.
-  //   - All couch members yes-voted
-  //   - No off-couch member yes-voted (off-couch abstaining is fine)
+  // Tonight's picks: couch interest, no off-couch interest, no couch dissent.
+  //   - At least one couch member yes-voted
+  //   - No off-couch member yes-voted
+  //   - Couch abstainers OK ("too bad for them, didn't vote in time" — per user spec)
+  //   - Off-couch abstainers OK
   // passesBaseFilter already removes anything a couch member said 'no' or 'seen' to
   // (via isWatchedByCouch), so couch dissent is handled upstream. Off-couch no/seen
   // votes do not disqualify (per user 2026-04-28 spec).
@@ -5050,18 +5052,15 @@ function renderTonight() {
   const matches = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
     const votes = t.votes || {};
-    // Every couch member must have yes-voted.
-    for (const mid of state.selectedMembers) {
-      if (votes[mid] !== 'yes') return false;
-    }
     // No off-couch member may have yes-voted (off-couch yes routes to Worth considering).
     for (const mid in votes) {
       if (votes[mid] === 'yes' && !couchSet.has(mid)) return false;
     }
-    return true;
+    // At least one couch member must have yes-voted (no zero-couch-interest titles).
+    return state.selectedMembers.some(mid => votes[mid] === 'yes');
   }).sort((a,b) => {
-    // All matches share the same couch yes-count (=couch size) and zero off-couch yes.
-    // Sort is effectively a no-op but kept for any future tie-break ordering.
+    // Order by couch yes-count (more couch interest -> higher rank). Off-couch yes
+    // is always zero in matches, so total yes-count == couch yes-count here.
     const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
     const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
