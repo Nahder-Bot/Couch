@@ -5040,31 +5040,46 @@ function renderTonight() {
     return true;
   }
 
-  // Tonight's picks: at least one couch member yes-voted. Couch abstainers don't
-  // disqualify (per user 2026-04-28 — "if someone didn't vote yet too bad for them").
-  // passesBaseFilter already excludes movies any couch member said 'no' or 'seen' to
-  // (via isWatchedByCouch), so couch dissent is handled upstream.
+  // Tonight's picks: pure couch consensus, untainted by off-couch interest.
+  //   - All couch members yes-voted
+  //   - No off-couch member yes-voted (off-couch abstaining is fine)
+  // passesBaseFilter already removes anything a couch member said 'no' or 'seen' to
+  // (via isWatchedByCouch), so couch dissent is handled upstream. Off-couch no/seen
+  // votes do not disqualify (per user 2026-04-28 spec).
+  const couchSet = new Set(state.selectedMembers);
   const matches = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
-    return state.selectedMembers.some(mid => (t.votes||{})[mid] === 'yes');
+    const votes = t.votes || {};
+    // Every couch member must have yes-voted.
+    for (const mid of state.selectedMembers) {
+      if (votes[mid] !== 'yes') return false;
+    }
+    // No off-couch member may have yes-voted (off-couch yes routes to Worth considering).
+    for (const mid in votes) {
+      if (votes[mid] === 'yes' && !couchSet.has(mid)) return false;
+    }
+    return true;
   }).sort((a,b) => {
-    const aY = Object.values(a.votes||{}).filter(v=>v==='yes').length;
-    const bY = Object.values(b.votes||{}).filter(v=>v==='yes').length;
+    // All matches share the same couch yes-count (=couch size) and zero off-couch yes.
+    // Sort is effectively a no-op but kept for any future tie-break ordering.
+    const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
+    const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
   });
 
-  // "Worth considering": no couch member yes-voted, but at least one non-couch family
-  // member yes-voted (per user 2026-04-28 — "third person wanted to see it but we are
-  // ok watching it without them"). Excludes titles already in matches (which would mean
-  // a couch member yes-voted). passesBaseFilter already excludes couch no/seen votes.
+  // Worth considering: at least one couch member yes-voted, but missing the strict
+  // alignment that Tonight's picks requires — either a couch member abstained, OR an
+  // off-couch member also yes-voted. Excludes anything already in matches.
+  // passesBaseFilter already excludes couch no/seen votes (per user spec —
+  // "if someone voted no we don't list it"; off-couch no-votes do not disqualify).
   const matchIds = new Set(matches.map(t => t.id));
   const considerable = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
     if (matchIds.has(t.id)) return false;
     const votes = t.votes || {};
-    return Object.entries(votes).some(([mid, v]) => v === 'yes' && !state.selectedMembers.includes(mid));
+    return state.selectedMembers.some(mid => votes[mid] === 'yes');
   }).sort((a,b) => {
-    // Order by total family yes-count (more family enthusiasm → higher rank).
+    // Order by total yes-count across the whole group (more enthusiasm → higher rank).
     const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
     const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
@@ -5102,7 +5117,7 @@ function renderTonight() {
           <div class="t-section-title">Worth considering</div>
           <div class="t-section-meta">${considerable.length} pending</div>
         </div>
-        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">Family wishlist — nobody on the couch picked these tonight.</p>
+        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">At least one of you picked these — couch isn't unanimous.</p>
         ${considerable.map(t => card(t)).join('')}
       </div>`
     : '';
