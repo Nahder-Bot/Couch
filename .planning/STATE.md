@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-29T22:37:19.040Z"
+last_updated: "2026-04-29T22:43:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 12
   total_plans: 79
-  completed_plans: 75
-  percent: 95
+  completed_plans: 76
+  percent: 96
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 18 (availability-notifications) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
@@ -90,3 +90,4 @@ See RUNBOOK §M for the full inventory (Firebase project, Sentry org/project/DSN
 | Two-repo discipline | ✓ COMMITTED 2026-04-29 (Plan 18-01) — queuenight commit `d622dc6` on `main` (`feat(18-01): add providerRefreshTick CF + titleAvailable in NOTIFICATION_DEFAULTS`). Local-only, deploy gated to Plan 18-04 cross-repo ritual (queuenight functions FIRST, then couch hosting per D-21). | .planning/phases/18-availability-notifications/18-01-SUMMARY.md |
 | Pre-deploy gate | TMDB_KEY env var must be set in `queuenight/functions/.env` before Plan 18-04 deploy (use same key as couch `js/constants.js`). If missing, providerRefreshTick logs warning + short-circuits on every tick. Verify via `cat ~/queuenight/functions/.env \| grep TMDB_KEY` before `firebase deploy --only functions`. | .planning/phases/18-availability-notifications/18-01-SUMMARY.md |
 | Phase 18 progress | ✓ COMMITTED 2026-04-29 (Plan 18-02) — couch commits `5a86045` + `7f04d2f` + `416ab32` on `main`. DR-3 client mirror complete in 5 maps (DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS + NOTIF_UI_TO_SERVER_KEY + NOTIF_UI_LABELS + NOTIF_UI_DEFAULTS); detail-modal manual-refresh affordance polished (button label `↻ Refresh availability` D-17, `lastProviderRefreshAt: Date.now()` write D-18, `flashToast('Availability refreshed.')` success + `flashToast('Refresh failed. Try again.')` failure replacing alert(), `'Provider data via TMDB'` italic attribution footnote D-16). Local-only, deploy gated to Plan 18-04. | .planning/phases/18-availability-notifications/18-02-SUMMARY.md |
+| Phase 18 progress | ✓ COMMITTED 2026-04-29 (Plan 18-03) — couch commits `c5fb713` (test) + `fac3d71` (chore) on `main`. scripts/smoke-availability.cjs (185 lines / 23 assertions / ~344ms live) regression-locks Plan 18-01's pure helpers via cross-repo require with graceful skip; scripts/deploy.sh §2.5 third smoke if-block + echo update; package.json adds smoke:availability + extends chained smoke to all 3 contracts. `npm run smoke` end-to-end verified ALL ASSERTIONS PASSED across position + tonight + availability. Wave 1 of Phase 18 closed. Next: Plan 18-04 cross-repo deploy ritual + UAT. | .planning/phases/18-availability-notifications/18-03-SUMMARY.md |
