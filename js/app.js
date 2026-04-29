@@ -123,7 +123,12 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   newSeasonAirDate: true,
   // Phase 15.5 / D-05 + REQ-7: reactionPosted — server fans out reaction pushes;
   // body stripped per receiver reactionDelay. Mirror of queuenight NOTIFICATION_DEFAULTS.
-  reactionPosted: true
+  reactionPosted: true,
+  // Phase 15.4 / D-09 — couchPing: V5 roster long-press push fan-out (F-W-1 path A).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS in 15.4-01. Default ON: this fires
+  // only when another family member has actively long-pressed your pill — intent-
+  // rich engagement signal; user expects it.
+  couchPing: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -160,7 +165,13 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // Phase 15.5 / D-05 + REQ-7: legacy Settings UI label — friend-voice, no banned words.
   // NOTE: NOTIF_UI_TO_SERVER_KEY (friendly-UI map below) intentionally NOT updated —
   // friendly-UI parity tracked as polish backlog item (Phase 15.4 / DR-3 follow-up).
-  reactionPosted:      { label: 'Someone reacts in a watchparty', hint: 'When someone in your family reacts during a watchparty.' }
+  reactionPosted:      { label: 'Someone reacts in a watchparty', hint: 'When someone in your family reacts during a watchparty.' },
+  // Phase 15.4 / D-09 — couchPing legacy Settings UI label.
+  // BRAND-voice copy. NOTE: this surface is mirrored to friendly-UI maps in this
+  // plan's Task 3 (D-08 mirror approach), so it appears in BOTH the legacy
+  // NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
+  // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
+  couchPing:           { label: 'Couch nudges', hint: 'When someone on your couch wants you on the couch tonight.' }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
