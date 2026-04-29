@@ -321,6 +321,26 @@ Plans:
 **UI hint**: yes (watchparty live UI — slider + chips + custom picker modal) + minimal (push template body — copy-only on the queuenight side)
 
 
+### Phase 18: Availability Notifications
+**Goal**: Daily-cadence scheduled CF watches each family's queued titles for newly-added streaming providers, fans out push notifications to members whose subscriptions intersect the new brand. Push body voice: "Dune just hit Max for your household." Brand-fit: low-volume, high-signal — matches "warm restraint" principle from BRAND.md. Couch's unique combo of group-scoped queues + per-member subscription packs + Trakt history makes this surface different from JustWatch's per-user availability tracker (which is what TMDB / JustWatch already does individually).
+**Depends on**: Phase 6 (push infrastructure), Phase 7+ (titles + queues populated), Phase 9 (provider schema v3 — already shipped), Phase 14 (per-member services pack), Phase 15.4 (push catalog + friendly-UI Settings parity pattern). Cross-repo: queuenight new scheduled CF (`providerRefreshTick`) + push event type `titleAvailable` in NOTIFICATION_DEFAULTS.
+**Requirements**: Scoped 2026-04-29 from cross-AI review 2026-04-28 + provider-data audit 2026-04-29 (confirmed feasibility as small phase). Closes the "Couch is purely reactive" gap surfaced in cross-AI synthesis — gives the app a reason to open on a Tuesday when the user wasn't planning a movie night.
+**Success Criteria** (what must be TRUE):
+  1. New scheduled CF `providerRefreshTick` runs daily, iterates families → titles where `t.queues` is populated (yes-voted by ≥1 member), refreshes `t.providers[]` from TMDB `watch/providers`, diffs against stored state.
+  2. When a new provider brand appears for a queued title, the CF fans out a push to family members whose `m.services[]` includes that brand. Members without the matching service receive no push (per-pack opt-in is implicit).
+  3. Push body includes confidence/source attribution per Codex review ("seen on {brand} via TMDB"); a "refresh availability" affordance exists on the title detail surface for manual force-refresh.
+  4. New event type `titleAvailable` lands in NOTIFICATION_DEFAULTS (queuenight) + NOTIFICATION_EVENT_LABELS (couch legacy Settings) + NOTIF_UI_TO_SERVER_KEY + NOTIF_UI_LABELS + NOTIF_UI_DEFAULTS (couch friendly-UI Settings) in lockstep — mirrors Phase 15.4 pattern.
+  5. Per-member opt-out via existing Settings UI suppresses pushes server-side (`sendToMembers` eventType-gate).
+  6. Self-echo guard: a member's own subscription change (if any) does not push to themselves.
+  7. Quiet-hours respected via existing `isInQuietHours` helper.
+  8. TMDB rate limit respected — pacing caps per-tick title count; back off on 429.
+  9. `sw.js` CACHE bumped (likely `couch-v36-availability-notifs` or similar) so installed PWAs invalidate on activation.
+  10. Cross-repo deploy ritual followed per RUNBOOK §H — queuenight functions deploy precedes couch hosting deploy (mirrors Phase 15.4 + 15.5 pattern).
+**Plans**: TBD — finalized at `/gsd-plan-phase 18`. Audit recommendation is 4 plans across 2 waves (mirrors Phase 15.4 shape).
+
+**UI hint**: minimal (one new toggle in Settings; one "refresh availability" affordance on title detail; push body copy)
+
+
 ## Progress
 
 **Execution Order:**
@@ -349,7 +369,8 @@ Phases 5 (Auth) and 6 (Push) are sequential foundation work — 6 depends on 5 f
 | 15.4. Integration polish — push fan-out + Settings parity | 3/3 | Complete   | 2026-04-29 |
 | 15.5. Wait Up — flexible delay UX + push template hygiene | 7/7 | **SHIPPED 2026-04-28** — All 7 plans across 3 waves deployed to production: 26 commits on couch main + 2 commits on queuenight. Wave 1 (15.5-01: storage-layer 86400 clamp + dvrReadoutText hour formatting + 'Live' zero-state). Wave 2 sequential due to js/app.js overlap (15.5-02 sport-mode slider step ramp via positionToSeconds; 15.5-03 movie-mode 8-chip ladder + sub-line + +5 min nudge; 15.5-04 Custom… picker bottom sheet with iOS numeric keypad; 15.5-05 cross-repo CF reaction-content stripping per receiver delay; 15.5-06 5h Tonight cutoff + Past parties tall-sheet surface). Wave 3 (15.5-07: sw.js CACHE bump + cross-repo deploy ritual: queuenight functions 15:33Z → couch hosting 15:36Z, R-8 ordering enforced). Live cache: `couch-v35.5-wait-up-flex` (curl-verified). Automated UAT via Playwright + node smoke + curl: 17/17 positionToSeconds assertions, 11/11 dvrReadoutText cases, all DOM scaffolds + window functions live, REQ-8 helper line verbatim live, 0 console errors. Verifier returned `human_needed`: 11/11 must-haves verified at deployed-code level; 6 device-UAT items (Scripts A/B/E in-watchparty visual + C/D two-device push delivery + 24h Sentry soak) tracked in 15.5-HUMAN-UAT.md. **User approved deployed-code-level acceptance 2026-04-28.** REQ-1..REQ-11 all closed. **Inserted as decimal phase post-v33.3 milestone audit, NOT a slot reassignment.** | shipped 2026-04-28 |
 | 16. Calendar Layer | 0/? | **SCOPED, awaiting kickoff** — recurring + multi-future watchparty scheduling ("Wife and daughter watch American Idol every Monday"). New `watchpartySeries` doc primitive + week-view planning surface + edit/pause/cancel. Scope in `.planning/seeds/decision-ritual-locked-scope.md` Phase-16 section. **Originally tagged Phase 15.** | - |
-| 17. App Store Launch Readiness | 0/? | **SCOPED, awaiting kickoff** — native wrapper (Capacitor or PWABuilder) for iOS App Store + Google Play; Apple Sign-In wiring (gated on $99/yr Apple Developer account); App Store Connect listings + categories + age rating + App Privacy declarations; privacy policy + ToS authoring. Scope notes in `.planning/seeds/phase-roadmap-2026-04-25-audit.md`. **NEW PROPOSAL** from 2026-04-25 audit (was originally suggested as Phase 16 in the audit; renumbered to 17 after Phase 13 slot reassignment.) | - |
+| 17. App Store Launch Readiness | 0/? | **SCOPED, awaiting kickoff** — native wrapper (Capacitor or PWABuilder) for iOS App Store + Google Play; Apple Sign-In wiring (gated on $99/yr Apple Developer account); App Store Connect listings + categories + age rating + App Privacy declarations; privacy policy + ToS authoring. Scope notes in `.planning/seeds/phase-roadmap-2026-04-25-audit.md`. **NEW PROPOSAL** from 2026-04-25 audit (was originally suggested as Phase 16 in the audit; renumbered to 17 after Phase 13 slot reassignment.) Per cross-AI review 2026-04-28 + user 2026-04-29: this milestone defers App Store work to the next milestone. | - |
+| 18. Availability Notifications | 0/4 | **SCOPED 2026-04-29, awaiting kickoff** — TMDB-backed scheduled CF watches `t.providers[]` for new entries, fans out push to family members whose `m.services[]` intersect the new brand: "Dune just hit Max for your household." Cross-AI review 2026-04-28 ranked this the highest-value moat play not yet committed. Provider-data audit 2026-04-29 confirmed feasibility as small phase (no new integration needed; TMDB data + per-member subs + push CF infra all already wired). Scope in `.planning/seeds/phase-10x-availability-notifications.md` + `.planning/research/2026-04-29-provider-data-audit.md`. Cross-repo: queuenight new scheduled CF + couch client `titleAvailable` event type + friendly-UI Settings parity + confidence/refresh UX. | - |
 
 ---
 
