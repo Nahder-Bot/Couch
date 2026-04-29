@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase 15.5 shipped 2026-04-28 (verified human_needed; user approved)
-last_updated: "2026-04-28T15:50:00.000Z"
+status: Ready to execute
+last_updated: "2026-04-29T06:02:37.655Z"
 progress:
   total_phases: 15
-  completed_phases: 12
-  total_plans: 72
+  completed_phases: 11
+  total_plans: 75
   completed_plans: 71
-  percent: 99
+  percent: 95
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.5 SHIPPED 2026-04-28 — next-up phase TBD (no further phases queued in current milestone)
+**Current focus:** Phase 15.4 — integration-polish
 **Active milestone:** v1 Commercial Release (Phases 3-15.5) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 15.5 (wait-up-flex) — SHIPPED 2026-04-28 (cache `couch-v35.5-wait-up-flex` live; verifier human_needed → user approved; 6 device-UAT items tracked in 15.5-HUMAN-UAT.md)
-Plan: 7 of 7 complete
+Phase: 15.4 (integration-polish) — EXECUTING
+Plan: 2 of 3
 Phase: 15 (Tracking Layer) shipped 2026-04-27 (v35.0-tracking-layer); follow-up holistic security audit (15-SECURITY.md + 15-REVIEW.md) surfaced 2 HIGH + 2 MEDIUM open findings → Phase 15.1 hardening pass shipped same day.
 **Phase 13 — Compliance & Ops Sprint:** SHIPPED 2026-04-25 (5/5 plans, 33 commits squash-merged via PR #1 db03573 + 1 cleanup commit via PR #2 3b6082c).
 
