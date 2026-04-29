@@ -336,7 +336,11 @@ Plans:
   8. TMDB rate limit respected — pacing caps per-tick title count; back off on 429.
   9. `sw.js` CACHE bumped (likely `couch-v36-availability-notifs` or similar) so installed PWAs invalidate on activation.
   10. Cross-repo deploy ritual followed per RUNBOOK §H — queuenight functions deploy precedes couch hosting deploy (mirrors Phase 15.4 + 15.5 pattern).
-**Plans**: TBD — finalized at `/gsd-plan-phase 18`. Audit recommendation is 4 plans across 2 waves (mirrors Phase 15.4 shape).
+**Plans**: 4 plans across 2 waves (locked at `/gsd-plan-phase 18` 2026-04-29):
+- [ ] 18-01-PLAN.md — providerRefreshTick scheduled CF + titleAvailable in NOTIFICATION_DEFAULTS + addedBrandsFor + buildPushBody pure helpers + normalizeProviderName mirror [queuenight; Wave 1, autonomous]
+- [ ] 18-02-PLAN.md — couch client mirror in 5 places (DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS + 3 friendly-UI maps) + manual refresh affordance polish (button label + lastProviderRefreshAt write + via-TMDB attribution + flashToast) [couch; Wave 1, autonomous]
+- [ ] 18-03-PLAN.md — scripts/smoke-availability.cjs contract test + scripts/deploy.sh §2.5 wiring [couch; Wave 1, autonomous]
+- [ ] 18-04-PLAN.md — sw.js CACHE bump + cross-repo deploy ritual + UAT (Settings UI + manual refresh + simulated CF tick + opt-out) [Wave 2, non-autonomous]
 
 **UI hint**: minimal (one new toggle in Settings; one "refresh availability" affordance on title detail; push body copy)
 
