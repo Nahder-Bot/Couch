@@ -81,10 +81,11 @@ for f in js/*.js sw.js scripts/stamp-build-date.cjs; do
 done
 
 # 2.5. Pure-function smoke gate -- contract tests for matches/considerable filters
-# (Phase 15.5.5+) and positionToSeconds transform (Phase 15.5-02). Fast (~50ms)
-# and runs without Firestore/auth/browser. Catches regressions in core matching
-# logic before they reach production -- introduced after the v35.5.1->v35.5.5
-# deploy ping-pong on the same surface.
+# (Phase 15.5.5+), positionToSeconds transform (Phase 15.5-02), and provider-diff
+# + push-body builders (Phase 18-03). Fast (~50-100ms total) and runs without
+# Firestore/auth/browser. Catches regressions in core matching / push-voice logic
+# before they reach production -- introduced after the v35.5.1->v35.5.5 deploy
+# ping-pong on the same surface.
 if [ -f scripts/smoke-position-transform.cjs ]; then
   node scripts/smoke-position-transform.cjs > /dev/null \
     || { echo "ERROR: smoke-position-transform failed -- aborting deploy." >&2; exit 1; }
@@ -93,7 +94,11 @@ if [ -f scripts/smoke-tonight-matches.cjs ]; then
   node scripts/smoke-tonight-matches.cjs > /dev/null \
     || { echo "ERROR: smoke-tonight-matches failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable)."
+if [ -f scripts/smoke-availability.cjs ]; then
+  node scripts/smoke-availability.cjs > /dev/null \
+    || { echo "ERROR: smoke-availability failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
