@@ -287,7 +287,11 @@ Plans:
   3. POL-01 status flipped from partial to satisfied in audit re-run.
   4. `sw.js` CACHE bumped (likely `couch-v35.2-integration-polish` or similar) so installed PWAs invalidate on activation.
   5. Cross-repo deploy ritual followed per RUNBOOK §H + (if F-W-1 path A taken) `firebase deploy --only functions` from queuenight before couch hosting deploy.
-**Plans**: TBD — finalized at `/gsd-plan-phase 15.4`
+**Plans**: 3 plans across 2 waves (decisions D-01..D-12 locked at /gsd-discuss-phase 15.4 — Path A real push fan-out + mirror approach for friendly-UI parity)
+Plans:
+- [ ] 15.4-01-PLAN.md — queuenight onCouchPingFire CF + couchPing in NOTIFICATION_DEFAULTS + /couchPings rules branch + 3 rules-emulator tests (F-W-1 server side)
+- [ ] 15.4-02-PLAN.md — couch sendCouchPing Path A Firestore write + DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS + 9-key friendly-UI mirror in NOTIF_UI_TO_SERVER_KEY + NOTIF_UI_LABELS + NOTIF_UI_DEFAULTS + TD-8 entry (F-W-1 client side + D-3 closure)
+- [ ] 15.4-03-PLAN.md — sw.js CACHE bump to couch-v35.6-integration-polish + cross-repo deploy ritual (queuenight functions+rules FIRST, couch hosting SECOND) + 4-script two-device UAT (Settings UI parity + push delivery + opt-out + self-echo)
 **UI hint**: yes (Settings surface) + minimal (Couch viz copy only if F-W-1 path B)
 
 ### Phase 15.5: Wait Up — flexible delay UX + push template hygiene
