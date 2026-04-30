@@ -1611,6 +1611,19 @@ h3{font-size:var(--t-h3)}
   box-shadow:0 1px 4px rgba(0,0,0,0.3)}
 .spin-reason{font-size:var(--t-meta);color:var(--accent);margin-bottom:18px;
   font-style:italic;font-family:'Instrument Serif','Fraunces',serif}
+/* Phase 20 / D-07 — Decision explanation sub-line in spin result modal.
+   Sits below .spin-result-meta and above .spin-result-providers strip.
+   Italic Instrument Serif + ink-dim — informational, not celebratory. */
+.spin-explanation {
+  font-size: var(--t-meta);
+  font-style: italic;
+  font-family: var(--font-serif);
+  color: var(--ink-dim);
+  margin: 0 auto 10px;
+  max-width: 90%;
+  text-align: center;
+  line-height: 1.4;
+}
 .spin-actions{display:flex;gap:8px;flex-direction:column}
 .spin-actions button{padding:14px;border-radius:12px;font-family:inherit;font-weight:700;font-size:var(--t-body);cursor:pointer;border:none}
 .spin-accept{background:var(--good);color:white}

@@ -8136,10 +8136,15 @@ function showSpinResult(pick, meta) {
     confettiHtml += `<div class="spin-confetti-bit" style="left:${left}%;background:${color};width:${size}px;height:${size}px;animation-delay:${delay}s;"></div>`;
   }
   confettiHtml += '</div>';
+  // Phase 20 / D-07 — Decision explanation sub-line below title name (italic Instrument Serif, dim).
+  const _spinCouch20 = state.couchMemberIds || state.selectedMembers || [];
+  const _spinExpl20 = buildMatchExplanation(t, _spinCouch20);
+  const explHtml = _spinExpl20 ? `<div class="spin-explanation">${_spinExpl20}</div>` : '';
   content.innerHTML = `${confettiHtml}
     <div class="spin-result-poster" style="background-image:url('${t.poster||''}')"></div>
     <div class="spin-result-name">${escapeHtml(t.name)}</div>
     <div class="spin-result-meta">${escapeHtml(t.year||'')} · ${escapeHtml(t.kind||'')}${t.runtime?' · '+t.runtime+'m':''}</div>
+    ${explHtml}
     ${provHtml}
     <div class="spin-reason">✨ ${escapeHtml(pick.reason || 'A couch favorite')}</div>
     <div class="spin-actions">
