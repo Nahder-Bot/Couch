@@ -10238,6 +10238,11 @@ window.scheduleSportsWatchparty = async function(eventId) {
     startAt: game.startTime,
     createdAt: Date.now(),
     status: game.startTime <= Date.now() ? 'active' : 'scheduled',
+    // Phase 23 — set mode='game' on legacy sports wps so they share the full Game Mode
+    // pipeline (live scoreboard polling + score-delta amplified reactions + scoringPlays
+    // catch-me-up + team-flair picker). Was: legacy flow predated mode='game' and skipped
+    // these surfaces; only the rendered scoreboard chrome appeared (with stale seed values).
+    mode: 'game',
     sportEvent: {
       league: league ? league.label : sportsCurrentLeague.toUpperCase(),
       leagueKey: sportsCurrentLeague,
@@ -10979,12 +10984,19 @@ window.openWatchpartyLive = function(wpId) {
   state.activeWatchpartyId = wpId;
   renderWatchpartyLive();
   document.getElementById('wp-live-modal-bg').classList.add('on');
-  // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt
+  // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt.
+  // Phase 23 — gate widened: ALSO fire for legacy wp.sportEvent watchparties
+  // (created via scheduleSportsWatchparty before mode='game' was the canonical
+  // marker). Closes the "scoreboard renders but never updates" gap on legacy
+  // sports wps. team-flair picker stays gated on mode='game' since the legacy
+  // flow predates that surface.
   const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
-  if (wp && wp.mode === 'game') {
+  if (wp && (wp.mode === 'game' || wp.sportEvent)) {
     startSportsScorePolling(wp);
-    const mine = myParticipation(wp);
-    maybeShowTeamFlairPicker(wp, mine);
+    if (wp.mode === 'game') {
+      const mine = myParticipation(wp);
+      maybeShowTeamFlairPicker(wp, mine);
+    }
   }
 };
 
