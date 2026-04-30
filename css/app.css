@@ -2498,6 +2498,20 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 /* — Hidden offscreen input (emoji picker target) — */
 .input-offscreen{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 
+/* === v36.4 — Twemoji rendering ===
+   Brand-consistent emoji glyphs for curated mood + reaction pickers.
+   Replaces OS-rendered emojis (Apple Color / Google Noto / Microsoft Segoe)
+   which render wildly differently across family members' devices.
+   Only used in 9 mood-icon render sites + WP reaction picker — free-text
+   emoji elsewhere stays platform-native. */
+.twemoji{display:inline-block;width:1.25em;height:1.25em;vertical-align:-0.2em;user-select:none}
+.twemoji--md{width:1.5em;height:1.5em;vertical-align:-0.3em}
+.twemoji--lg{width:2em;height:2em;vertical-align:-0.4em}
+/* Compact 3-icon dot row on tile cards (.tc-mood-dots context) */
+.tc-mood-dots .twemoji{width:1em;height:1em;vertical-align:-0.15em;margin-right:1px}
+/* WP reaction picker buttons — slightly larger for tap target comfort */
+.wp-emoji-btn .twemoji{width:1.5em;height:1.5em;vertical-align:-0.2em}
+
 /* === Phase 15 — Tracking Layer === */
 /* All Phase 15 selectors prefixed .cv15- per UI-SPEC §Integration. Zero new
    color/spacing/type tokens — bound to existing :root scale. Reuses
