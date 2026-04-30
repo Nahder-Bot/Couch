@@ -321,6 +321,29 @@ Plans:
 **UI hint**: yes (watchparty live UI — slider + chips + custom picker modal) + minimal (push template body — copy-only on the queuenight side)
 
 
+### Phase 15.6: Audit-trail backfill 2 + STATE.md repair
+**Goal**: Close the documentation-debt accumulated across Phases 18 / 19 / 20 (three new-REQ phases shipped without REQUIREMENTS.md traceability), reconcile the Phase 19 ROADMAP table row + plan-checkbox drift (table shows `2/3 In Progress` but disk shipped + footnote says closed-out 2026-04-29), refresh the Phase 18 ROADMAP narrative (table cell still says "DEPLOYED — UAT PENDING" but UAT was deferred to user-pattern), and repair STATE.md body-text drift (CLI's STATE updater silently fails on the current STATE.md format — `Last Activity` field warning on Phase 20 close). Mirrors Phase 15.2 pattern: pure documentation/audit-trail closure, no source-code changes, no deploy. Inserted as decimal phase post-Phase-20 close (mirrors 03.5 + 15.1 + 15.2 + 15.3 + 15.4 + 15.5 precedent), NOT a slot reassignment.
+**Depends on**: Nothing — pure planning-doc work; references existing PLANs + SUMMARYs + commits + production code as evidence. References Phase 15.2 prior work as the canonical pattern.
+**Requirements**: Closes audit-trail gaps for REQ-18-01..18-10 (10 IDs), REQ-19-01..19-08 (Kid Mode REQs — extract from 19-01/02/03 PLAN frontmatter), REQ-20-01..20-11 (11 IDs, all pre-declared in Phase 20 plans). Closes Phase 19 ROADMAP-table drift (table row + 19-03-PLAN.md checkbox). Repairs STATE.md body-text format so future `phase complete` runs don't silently fail on `Last Activity` field. Refreshes Phase 18 ROADMAP narrative.
+**Success Criteria** (what must be TRUE):
+  1. `REQUIREMENTS.md` contains REQ-18-01..18-10 traceability rows (with phase + plan + commit references derived from 18-01..04 SUMMARYs).
+  2. `REQUIREMENTS.md` contains REQ-19-01..19-08 (or whatever final count Plan 19-01..03 frontmatter declares) traceability rows.
+  3. `REQUIREMENTS.md` contains REQ-20-01..20-11 traceability rows (planner declared all 11 — extract from 20-01/02/03 PLAN frontmatter; mark all Complete with phase 20 + commit refs from the 16-commit Phase 20 sequence).
+  4. `REQUIREMENTS.md` Coverage line refreshed to reflect new total (29 new REQs added across 18/19/20).
+  5. Phase 19 ROADMAP table row updated from `2/3 In Progress` to `3/3 Complete 2026-04-29` with brief inline narrative referencing v36.1-kid-mode deploy.
+  6. Phase 19 plan checkbox `[ ] 19-03-PLAN.md` flipped to `[x]` in the Phase 19 heading section's Plans block.
+  7. Phase 18 ROADMAP table row narrative refreshed from "DEPLOYED — UAT PENDING" to "SHIPPED 2026-04-29" with code-level acceptance language matching Phase 15.4 / 15.5 pattern; UAT pending tracked in `18-HUMAN-UAT.md` only.
+  8. STATE.md body text refreshed: `## Current Position` block updated to reflect Phase 20 complete + next phase ready (15.3 / 16 / 17 remain scoped); legacy "Phase 15 (Tracking Layer) shipped..." narrative pruned (it's already in ROADMAP).
+  9. STATE.md format normalized so future `phase complete` runs don't warn on `Last Activity` / `Last Activity Description` fields — either add the missing fields OR document the format choice in CLAUDE.md so future runs don't surprise.
+  10. STATE.md frontmatter `status` field set to `In progress` if more phases scoped (15.3 / 16 / 17), NOT `Milestone complete` (which is incorrect — phases keep shipping).
+  11. ROADMAP-table reconciliation footnote appended at the bottom of ROADMAP documenting the Phase 15.6 close-out date and the 3 reconciliation items it closed (Phase 18 narrative refresh, Phase 19 table-row + checkbox flip, REQUIREMENTS.md REQ-18/19/20 backfill).
+  12. **No source code changes.** No `js/app.js`, no `css/app.css`, no `sw.js`, no `scripts/`, no `package.json` changes. Pure planning-doc work — same as Phase 15.2.
+  13. **No deploy.** No `bash scripts/deploy.sh ...` invocation, no Firebase commands. Documentation-only phase.
+**Plans**: TBD — locked at `/gsd-plan-phase 15.6`.
+
+**UI hint**: none — pure documentation phase, mirrors Phase 15.2.
+
+
 ### Phase 18: Availability Notifications
 **Goal**: Daily-cadence scheduled CF watches each family's queued titles for newly-added streaming providers, fans out push notifications to members whose subscriptions intersect the new brand. Push body voice: "Dune just hit Max for your household." Brand-fit: low-volume, high-signal — matches "warm restraint" principle from BRAND.md. Couch's unique combo of group-scoped queues + per-member subscription packs + Trakt history makes this surface different from JustWatch's per-user availability tracker (which is what TMDB / JustWatch already does individually).
 **Depends on**: Phase 6 (push infrastructure), Phase 7+ (titles + queues populated), Phase 9 (provider schema v3 — already shipped), Phase 14 (per-member services pack), Phase 15.4 (push catalog + friendly-UI Settings parity pattern). Cross-repo: queuenight new scheduled CF (`providerRefreshTick`) + push event type `titleAvailable` in NOTIFICATION_DEFAULTS.
