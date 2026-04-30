@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1-commercial-release
-milestone_name: v1 Commercial Release
-sw_cache_version: couch-v36.2-decision-explanation
-status: In progress
-last_updated: "2026-04-30T03:32:15.439Z"
+milestone: v33.3
+milestone_name: milestone
+status: "Mid-milestone (v1 Commercial Release) — 3 phases scoped + awaiting kickoff (15.3 / 16 / 17). Recent close-out cluster: Phases 18 (Availability Notifications) + 19 (Kid Mode) + 20 (Decision Explanation) shipped 2026-04-29 + 2026-04-30; Phase 15.6 (Audit-trail backfill 2) closed-out 2026-04-30."
+last_updated: "2026-04-30T14:50:20.974Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 23
-  completed_phases: 22
-  total_plans: 109
-  completed_plans: 108
-  percent: 99
+  total_phases: 27
+  completed_phases: 16
+  total_plans: 88
+  completed_plans: 88
+  percent: 100
 ---
 
 # Project State
