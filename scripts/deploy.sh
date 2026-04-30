@@ -110,7 +110,11 @@ if [ -f scripts/smoke-conflict-aware-empty.cjs ]; then
   node scripts/smoke-conflict-aware-empty.cjs > /dev/null \
     || { echo "ERROR: smoke-conflict-aware-empty failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty)."
+if [ -f scripts/smoke-sports-feed.cjs ]; then
+  node scripts/smoke-sports-feed.cjs > /dev/null \
+    || { echo "ERROR: smoke-sports-feed failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
