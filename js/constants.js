@@ -127,7 +127,13 @@ export const MOODS = [
   { id:'action',    label:'Action',    icon:'\u{1F4A5}' },
   { id:'comfort',   label:'Comfort',   icon:'\u2615' },
   { id:'short',     label:'Short',     icon:'\u23F1' },
-  { id:'datenight', label:'Date night',icon:'\u{1F56F}' }
+  { id:'datenight',    label:'Date night',    icon:'\u{1F56F}' },
+  { id:'documentary',  label:'Documentary',   icon:'\u{1F4FA}' },
+  { id:'feelgood',     label:'Feel-good',     icon:'\u{1F31E}' },
+  { id:'nostalgic',    label:'Nostalgic',     icon:'\u{1F4FC}' },
+  { id:'weird',        label:'Weird',         icon:'\u{1F3AD}' },
+  { id:'edgeofseat',   label:'Edge-of-seat',  icon:'\u{1F3A2}' },
+  { id:'slowburn',     label:'Slow burn',     icon:'\u{1F40C}' }
 ];
 export function moodById(id) { return MOODS.find(m => m.id === id); }
 export function suggestMoods(tmdbGenreIds, runtimeMins) {
@@ -143,6 +149,8 @@ export function suggestMoods(tmdbGenreIds, runtimeMins) {
   if (has(12, 'Adventure') || has(10752, 'War') || has(14, 'Fantasy') || has(37, 'Western')) out.add('epic');
   if (has(18, 'Drama')) out.add('tearjerker');
   if (runtimeMins && runtimeMins > 0 && runtimeMins < 90) out.add('short');
+  if (has(99, 'Documentary')) out.add('documentary');
+  if (has(80, 'Crime')) out.add('edgeofseat');
   return Array.from(out);
 }
 
