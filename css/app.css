@@ -2512,6 +2512,15 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 /* WP reaction picker buttons — slightly larger for tap target comfort */
 .wp-emoji-btn .twemoji{width:1.5em;height:1.5em;vertical-align:-0.2em}
 
+/* === Phase 21 — Conflict-aware empty state ===
+   Diagnoses why the matches list is empty when titles exist (vetoes, kid-mode,
+   tier cap, mood filter, provider intersection). Replaces the generic
+   "Nothing's matching" copy with a structured headline + reason chips. */
+.empty-conflict-aware{display:flex;flex-direction:column;gap:var(--s2);align-items:center;text-align:center}
+.empty-reasons{display:flex;flex-wrap:wrap;gap:var(--s1);justify-content:center;margin-top:var(--s2)}
+.empty-reason-chip{display:inline-block;padding:var(--s1) var(--s2);background:var(--surface);color:var(--ink-dim);font-size:var(--t-meta);border-radius:var(--r-sm);border:1px solid var(--ink-dim-2,rgba(255,255,255,0.08))}
+.empty-consider-hint{margin-top:var(--s2);font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;font-family:var(--font-serif)}
+
 /* === Phase 15 — Tracking Layer === */
 /* All Phase 15 selectors prefixed .cv15- per UI-SPEC §Integration. Zero new
    color/spacing/type tokens — bound to existing :root scale. Reuses
