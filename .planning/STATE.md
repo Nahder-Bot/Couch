@@ -4,7 +4,8 @@ milestone: v1-commercial-release
 milestone_name: v1 Commercial Release
 sw_cache_version: couch-v36.2-decision-explanation
 status: In progress
-last_updated: "2026-04-30T03:27:03.000Z"
+last_updated: "2026-04-30T03:30:07.000Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 23
   completed_phases: 22
