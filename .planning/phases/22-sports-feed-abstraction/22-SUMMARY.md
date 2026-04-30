@@ -97,6 +97,23 @@ This phase **deviated from the standard GSD chain** (CONTEXT.md → discuss → 
 
 Phase 23 — Live scoreboard surface (renders `scoringPlays[]` + `lastScore` Firestore fields during sports watchparties; currently written but never displayed) + consolidate the two parallel sports flows (`openSportsPicker` + `openGamePicker`) into one. Closes the tech-debt gap from the v2 review.
 
+## v2 watchparty/sports milestone — revised 6-phase plan (2026-04-30)
+
+Original 9-phase scoping was conservative; honest count is 6 features. Three pairs combined per user direction:
+
+```
+Phase 23 — Live scoreboard + consolidate two sports flows
+Phase 24 — Native video player (iframe + HTML5)             [merges old Phase 24 + 25]
+Phase 26 — Position-anchored reactions + async-replay       [unchanged; depends on 24]
+Phase 27 — Guest RSVP                                       [unchanged; independent]
+Phase 28 — Social pick'em + leaderboards                    [merges old Phase 28 + 29]
+Phase 30 — Couch groups + affiliate hooks                   [merges old Phase 30 + 31]
+```
+
+Phase numbers 25, 29, 31 intentionally skipped — leaving gaps is cleaner than renumbering downstream references. Combined phases ship as bigger atomic deploys (≥5 commits + smoke gate) but map honestly to user-facing capabilities.
+
+Voice/video chat in watchparty deferred to v3 post-launch (`.planning/seeds/v3-voice-video-chat-watchparty.md`).
+
 ---
 
 *Phase: 22-sports-feed-abstraction*
