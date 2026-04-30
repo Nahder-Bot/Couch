@@ -7749,6 +7749,23 @@ function renderDetailShell(t) {
       kidModeOverrideHtml = `<p class="kid-mode-override-row"><a href="#" class="kid-mode-override-link" onclick="kidModeOverrideTitle('${escapeHtml(t.id)}'); return false;">Show this anyway for tonight</a></p>`;
     }
   }
+  // Phase 20 / D-09 — "Why this is in your matches" section.
+  // Gated on t.id being currently in matches list (per D-09); section is omitted
+  // when title was opened from Library, History, or considerable list.
+  // Italic Instrument Serif h4 + dim p — same humility register as Phase 18 attribution.
+  let whyMatchHtml = '';
+  const _detailMatches20 = (typeof getCurrentMatches === 'function') ? getCurrentMatches() : [];
+  const _isInMatches20 = _detailMatches20.some(m => m.id === t.id);
+  if (_isInMatches20) {
+    const _detailCouch20 = state.couchMemberIds || state.selectedMembers || [];
+    const _whyStr20 = buildMatchExplanation(t, _detailCouch20);
+    if (_whyStr20) {
+      whyMatchHtml = `<div class="detail-why-match">
+        <h4>Why this is in your matches</h4>
+        <p class="detail-why-match-text">${_whyStr20}</p>
+      </div>`;
+    }
+  }
   return `<div class="detail-backdrop" style="background-image:url('${backdrop}')">
     <button class="detail-close" aria-label="Close" onclick="closeDetailModal()">✕</button>
   </div>
@@ -7760,6 +7777,7 @@ function renderDetailShell(t) {
     <div class="detail-overview">${escapeHtml(t.overview||'No description available.')}</div>
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
     ${kidModeOverrideHtml}
+    ${whyMatchHtml}
     ${renderTvProgressSection(t)}
     ${trailerHtml}
     ${providersHtml}

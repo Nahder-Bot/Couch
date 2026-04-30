@@ -1574,6 +1574,31 @@ h3{font-size:var(--t-h3)}
 .detail-prov-label{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;min-width:40px}
 .detail-prov-empty{font-size:var(--fs-meta);color:var(--ink-dim);font-style:italic}
 .detail-section .provider-logo.mine{box-shadow:0 0 0 2px var(--accent);border-color:var(--accent)}
+/* Phase 20 / D-09 — "Why this is in your matches" section in detail modal.
+   Italic Instrument Serif h4 + dim p — same humility register as Phase 18
+   "Provider data via TMDB" attribution and Phase 19 kid-mode-override-link.
+   Section is conditionally rendered (only when t.id is in getCurrentMatches()). */
+.detail-why-match {
+  padding: var(--s3) 0 var(--s2);
+  border-top: 1px solid var(--border);
+  margin-top: var(--s3);
+}
+.detail-why-match h4 {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-body);
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 var(--s2);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.detail-why-match-text {
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin: 0;
+  line-height: 1.5;
+}
 .cast-row{display:flex;gap:var(--s3);overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .cast-row::-webkit-scrollbar{display:none}
 .cast-card{flex-shrink:0;width:80px;text-align:center}
