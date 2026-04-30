@@ -99,27 +99,47 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 
 ### 1. Live-modal player slot (the new surface)
 
-**DOM placement:** Inside `#wp-live-content` (`app.html:1177`), rendered by `renderWatchpartyLive()` (`js/app.js:11115`) ABOVE the existing `wp-live-header`. When `wp.videoUrl` is set AND the title is not DRM-restricted:
+> **REVIEWS H1 refinement (2026-04-30):** This section was revised after cross-AI review (24-REVIEWS.md) flagged a catastrophic player-reset issue with the original DOM placement. The original v1 placed the player as a direct child of `.wp-live-modal`, which landed inside `#wp-live-content` — a target that `renderWatchpartyLive` repaints via `el.innerHTML = ...` on every reaction post, timer tick, or wp record snapshot. The player would be destroyed and recreated continuously. The fix splits `#wp-live-content` into two siblings: `#wp-video-surface` (persistent — player lives here) and `#wp-live-coordination` (re-renderable — header/body/footer live here). The player-replaces-poster-header semantic is preserved via the `.wp-live-header--has-player` class on the coordination header. Component contracts (radius, sizing, error overlay) are unchanged.
+
+**DOM placement (REVIEWS H1 — current contract):** `#wp-live-content` is split into two siblings inside `.wp-live-modal`. `attachVideoPlayer` writes to `#wp-video-surface`; `renderWatchpartyLive` writes to `#wp-live-coordination`. When `wp.videoUrl` is set AND the title is not DRM-restricted:
 
 ```
-.wp-live-modal
-├── .wp-video-frame  ← NEW: player wrapper, 16:9 aspect-ratio
-│     └── <iframe class="trailer-frame wp-video-frame--youtube" ...>  // YouTube branch
-│         OR
-│         <video class="wp-video-frame--mp4" controls playsinline preload="metadata" ...>  // MP4 branch
-├── .wp-live-header        ← UNCHANGED placement, but the .wp-live-poster + .wp-live-titlename
-│                            inside it become REDUNDANT (the player replaces poster identity).
-│                            Decision: HIDE the .wp-live-poster element when the player is shown
-│                            (set display:none via a `.wp-live-header--has-player` parent class
-│                            on the header). Keep the .wp-live-titlename + .wp-live-status +
-│                            .wp-live-timer visible — they are coordination data, not poster identity.
-├── .wp-live-body          ← UNCHANGED (reactions feed, participants strip)
-└── .wp-live-footer        ← UNCHANGED (emoji row + controls)
+.wp-live-modal (id="wp-live-content")
+├── #wp-video-surface  ← NEW (REVIEWS H1): persistent surface, owned by attach/teardown
+│     └── .wp-video-frame  ← player wrapper, 16:9 aspect-ratio
+│           └── <div id="wp-yt-player" data-video-id="...">  // YouTube branch (REVIEWS H3 — div placeholder, NOT iframe; YouTube IFrame API replaces the div)
+│               OR
+│               <video id="wp-mp4-player" controls playsinline preload="metadata" ...>  // MP4 branch
+│     ── (empty when wp.videoUrl unset OR DRM-only — silent dead-end per D-03; CSS rule .wp-video-surface:empty{display:none} collapses it)
+└── #wp-live-coordination  ← NEW (REVIEWS H1): re-renderable surface, owned by renderWatchpartyLive
+      ├── .wp-live-header        ← UNCHANGED placement, with optional `.wp-live-header--has-player` class
+      │                            when player is active. The .wp-live-poster + .wp-live-titlename
+      │                            are inside it; the poster becomes REDUNDANT (the player replaces
+      │                            poster identity) and is hidden via the parent class. Keep
+      │                            .wp-live-titlename + .wp-live-status + .wp-live-timer visible —
+      │                            they are coordination data, not poster identity.
+      ├── .wp-live-body          ← UNCHANGED (reactions feed, participants strip)
+      └── .wp-live-footer        ← UNCHANGED (emoji row + controls)
 ```
+
+**Why the split — `#wp-video-surface` (persistent) + `#wp-live-coordination` (re-renderable):** The watchparty live modal is a HIGHLY re-rendered surface (every reaction, every timer tick, every Firestore snapshot triggers a coordination repaint). Embedding the player in a re-rendered region would destroy and recreate the iframe / `<video>` element on each repaint, causing playback resets and missing-element races. The split surface preserves the player across all coordination repaints; the player's DOM is touched ONLY by the explicit `attachVideoPlayer` / `teardownVideoPlayer` lifecycle pair. The user-visible result: smooth playback that survives reactions, timer ticks, and Firestore snapshot updates.
 
 **`.wp-video-frame` style contract (NEW):**
 
 ```css
+.wp-video-surface {
+  flex-shrink: 0;
+}
+.wp-video-surface:empty {
+  display: none;             /* DRM-hide branch / no-URL branch — surface collapses to zero */
+}
+.wp-live-coordination {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;             /* allow inner flex children to scroll without overflowing modal */
+  overflow: hidden;
+}
 .wp-video-frame {
   width: 100%;
   aspect-ratio: 16/9;
@@ -136,9 +156,9 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
   border: none;
   display: block;
 }
-/* When the player is the modal's first child, kill its top radius so the player flushes
-   to the modal's top edge cleanly. Modal owns the rounded chrome. */
-.wp-live-modal > .wp-video-frame:first-child {
+/* When the player is the modal's first effective child (via #wp-video-surface), kill its top
+   radius so the player flushes to the modal's top edge cleanly. Modal owns the rounded chrome. */
+.wp-live-modal > #wp-video-surface .wp-video-frame:first-child {
   border-radius: 24px 24px 0 0;
 }
 ```
@@ -146,33 +166,39 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 **Reuse signal:** `.trailer-frame` (css/app.css:1608) already implements 99% of this shape (`width:100%;aspect-ratio:16/9;border-radius:var(--r-md);border:none;background:#000`). Phase 24 introduces `.wp-video-frame` as a SIBLING class (not a replacement) because the live-modal context wants `border-radius: 0` flush-to-top and the trailer-frame context wants `var(--r-md)` 14px. Don't over-DRY; the two contexts have distinct radius semantics.
 
 **Poster swap behavior (player-only when URL is set):**
-- When `wp.videoUrl` is set + title is not DRM-restricted → render `.wp-video-frame` AS THE TOP ELEMENT, hide `.wp-live-poster` via the parent class. The player IS the visual identity.
+- When `wp.videoUrl` is set + title is not DRM-restricted → `attachVideoPlayer` writes `.wp-video-frame` into `#wp-video-surface`, AND `renderWatchpartyLive` adds the `.wp-live-header--has-player` class to the header inside `#wp-live-coordination` → the `.wp-live-poster` is hidden via the parent class. The player IS the visual identity.
 - The `.wp-live-titlename` (italic-serif title) remains in `.wp-live-header` directly below the player — provides a textual anchor of "what we're watching" once the player is rolling.
 - First-paint: the player iframe / `<video>` starts on a black frame (matches its own background) — there is NO "show poster while video loads" intermediate state. The user sees: black frame → iframe-rendered YouTube poster (YouTube's own thumbnail) OR `<video>` poster attribute (if author set one) OR pure black until first frame. Phase 24 does NOT render Couch's `wp.titlePoster` on top of the player — that would create a flash-flicker on transition.
 
 ### 2. Schedule-modal Video URL field (the optional input)
 
-**DOM placement:** Inserted into `#schedule-modal` (`app.html:957-973`) BETWEEN the existing `Date & time` field and `Note (optional)` field. Same insertion logic in `scheduleSportsWatchparty` (`js/app.js:10199`).
+**DOM placement:** Inserted into THREE distinct watchparty-creation modals per REVIEWS M3 (distinct IDs to prevent `document.getElementById` ambiguity):
+
+- `#wp-start-modal-bg` (movie flow, app.html:1149-1175) — input id `#wp-video-url-movie`
+- `#game-picker-modal-bg` (modern Game Mode flow, app.html:1129-1147) — input id `#wp-video-url-game`
+- `#sports-picker-bg` (legacy sports flow, app.html:1106-1123) — input id `#wp-video-url-sport` (label slightly different: "Video URL (optional, set before picking a game)" because legacy flow has no submit button — field is read at game-tile-click time)
 
 ```html
 <div class="field">
-  <label for="schedule-video-url">Video URL (optional)</label>
+  <label for="wp-video-url-{flow}">Video URL (optional)</label>
   <input
     type="url"
     inputmode="url"
-    id="schedule-video-url"
+    id="wp-video-url-{flow}"
     placeholder="YouTube link or .mp4 URL"
     autocomplete="off"
     spellcheck="false"
   />
-  <div class="field-help" id="schedule-video-url-help">
+  <div class="field-help" id="wp-video-url-{flow}-help">
     Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
   </div>
-  <div class="field-error" id="schedule-video-url-error" role="alert" hidden>
+  <div class="field-error" id="wp-video-url-{flow}-error" role="alert" hidden>
     That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
   </div>
 </div>
 ```
+
+Where `{flow}` ∈ `{movie, game, sport}`.
 
 **`.field-help` + `.field-error` style contract (NEW utility classes):**
 
@@ -193,8 +219,8 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
   margin-top: 6px;
   line-height: 1.4;
 }
-.schedule-modal input.field-invalid {
-  border-color: var(--bad);              /* the BORDER signals invalid */
+input.field-invalid {
+  border-color: var(--bad);              /* the BORDER signals invalid; scope widened in REVIEWS revision since the class now applies across 3 modals */
 }
 ```
 
@@ -202,18 +228,20 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 
 ### 3. DRM-hide branch (the silent dead-end)
 
-**Behavior:** When `wp.videoUrl` is unset OR the title's TMDB providers indicate DRM-restricted (Netflix / Disney+ / Max / Prime / Apple TV+ — flat-rate streamer providers per existing `t.providerBucket` / `t.providers` schema), the player slot renders **nothing**. Zero DOM contribution. The watchparty live modal is byte-for-byte the existing pre-Phase-24 shape:
+**Behavior:** When `wp.videoUrl` is unset OR the title's TMDB providers indicate DRM-restricted (Netflix / Disney+ / Max / Prime / Apple TV+ — flat-rate streamer providers per existing `t.providerBucket` / `t.providers` schema), the `#wp-video-surface` stays empty. CSS rule `.wp-video-surface:empty{display:none}` collapses it. The watchparty live modal is byte-for-byte the existing pre-Phase-24 shape:
 
 ```
-.wp-live-modal
-├── .wp-live-header        ← .wp-live-poster + .wp-live-titlename + .wp-live-timer (UNCHANGED)
-├── .wp-live-body          ← reactions feed (UNCHANGED)
-└── .wp-live-footer        ← emoji row + controls (UNCHANGED)
+.wp-live-modal (id="wp-live-content")
+├── #wp-video-surface (collapsed via :empty)
+└── #wp-live-coordination
+      ├── .wp-live-header        ← .wp-live-poster + .wp-live-titlename + .wp-live-timer (UNCHANGED — no --has-player class)
+      ├── .wp-live-body          ← reactions feed (UNCHANGED)
+      └── .wp-live-footer        ← emoji row + controls (UNCHANGED)
 ```
 
 **No "we couldn't show the player" copy. No "play on Netflix" CTA. No empty placeholder.** Per CONTEXT.md `<specifics>`: "user prefers silent / minimal UX over explanatory UX on dead-end branches." The watchparty modal looks identical to today; the absence of the player is itself the signal.
 
-**Detection helper (planning to wire — semantic only here):** a `titleHasDrmRestrictedProvider(t)` helper reading from existing `t.providerBucket === 'flat'` + provider IDs (Netflix=8, Disney+=337, Max=1899, Prime=9, Apple TV+=350 — TMDB watch-provider IDs). The detection threshold is "ALL providers are DRM-restricted" — if even ONE provider is rent/buy/free-with-ads (where a direct MP4 paste is plausible), the player surface still shows up if the user provided a URL.
+**Detection helper (per Plan 02):** `titleHasNonDrmPath(t)` reading from existing `t.providers` / `t.rentProviders` / `t.buyProviders` schema. The detection threshold is "ALL providers are DRM-restricted" — if even ONE provider is rent/buy/free-with-ads (where a direct MP4 paste is plausible), the player surface still shows up if the user provided a URL.
 
 ---
 
@@ -223,32 +251,35 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 
 | State | Trigger | Visual behavior |
 |-------|---------|-----------------|
-| **Hidden (default — no URL set)** | `wp.videoUrl` unset | `.wp-video-frame` not rendered. Modal looks pre-Phase-24. |
+| **Hidden (default — no URL set)** | `wp.videoUrl` unset | `#wp-video-surface` empty → CSS `:empty{display:none}` collapses it. Modal looks pre-Phase-24. |
 | **Hidden (DRM-restricted title)** | Title's providers all DRM-restricted | Same as above. **Silent — no message.** |
-| **Loading (first paint)** | YouTube iframe `src` pointed at embed URL / `<video>` `src` pointed at MP4 + `preload="metadata"` | Black frame visible until iframe / `<video>` paints first frame. NO Couch-rendered spinner overlay — let the embed/native chrome show its own. |
-| **Playing** | User taps native play affordance | Native iframe / `<video>` controls handle it. Couch host writes `currentTime` to Firestore at chosen cadence (cadence locked in planning, default 5s leaning per CONTEXT.md). |
-| **Paused** | User taps native pause | Native chrome handles it. Couch records pause state on wp record but does NOT actively sync to other members at v2.0 (per CONTEXT.md Claude's-Discretion default). |
-| **Fullscreen** | User taps native fullscreen affordance | Native iframe / `<video>` fullscreen behavior. Couch does NOT add a custom fullscreen orchestrator. **iOS PWA caveat:** mobile Safari `<video>` fullscreen on iPhone uses Apple's full-screen player overlay — exits the PWA shell visually but returns cleanly on close. YouTube iframe on iOS may use the YouTube native app handoff; acceptable. **Test both during UAT.** |
-| **Error (player-side failure)** | Iframe `onerror` fires OR `<video>` `error` event fires (network 404, malformed URL that passed parser but failed at decode) | Black frame stays. A small inline message at the BOTTOM of the player wrapper renders: italic-serif `<em>Player couldn't load that link.</em>` + a `.link-like` "Try again" affordance that re-issues the load. No alert, no blocking modal. |
-| **Re-loaded (after error)** | User taps "Try again" | Iframe `src` re-set / `<video>.load()` called. Returns to Loading state. |
+| **Loading (first paint)** | YouTube IFrame API replaces the `#wp-yt-player` div with its own iframe / `<video>` `src` pointed at MP4 + `preload="metadata"` | Black frame visible until iframe / `<video>` paints first frame. NO Couch-rendered spinner overlay. |
+| **Playing** | User taps native play affordance | Native iframe / `<video>` controls handle it. Couch host writes `currentTime` to Firestore at chosen cadence (5s per CONTEXT.md). |
+| **Paused** | User taps native pause | Native chrome handles it. Couch records pause state on wp record but does NOT actively sync to other members at v2.0. |
+| **Late-join (REVIEWS M1)** | Non-host opens live modal AFTER host started playing | Player initializes → `seekToBroadcastedTime` reads `wp.currentTimeMs` (within `STALE_BROADCAST_MAX_MS`) and seeks to host's position. User enters at ≈ host's current time, NOT 0:00. |
+| **Fullscreen** | User taps native fullscreen affordance | Native iframe / `<video>` fullscreen behavior. Couch does NOT add a custom fullscreen orchestrator. **iOS PWA caveat:** see UAT scripts. |
+| **Error (player-side failure)** | YouTube `onError` event fires OR `<video>` `error` event fires | Black frame stays. A small inline message at the BOTTOM of the player wrapper renders: italic-serif `<em>Player couldn't load that link.</em>` + a `.link-like` "Try again" link wired via delegated click handler on `[data-action="retry-video"]` (REVIEWS H4). No alert, no blocking modal. |
+| **Re-loaded (after error)** | User taps "Try again" | `reloadWatchpartyPlayer()` runs `teardownVideoPlayer()` then `attachVideoPlayer(wp)`. Returns to Loading state. |
+| **Persistent across re-renders (REVIEWS H1)** | Reactions posted, timer ticks, Firestore snapshots | Player keeps playing — `#wp-video-surface` is owned by attach/teardown only; `renderWatchpartyLive` only repaints `#wp-live-coordination`. |
 
 ### Schedule-modal Video URL field
 
 | State | Trigger | Visual behavior |
 |-------|---------|-----------------|
-| **Empty (default)** | First open of schedule modal | Field shows placeholder text in `--ink-dim`. `.field-help` text below at `--t-meta` 13px. |
+| **Empty (default)** | First open of the wp-creation modal | Field shows placeholder text in `--ink-dim`. `.field-help` text below at `--t-meta` 13px. |
 | **Focused** | User taps / tabs into the input | Border becomes `--accent` (existing focus rule at css/app.css:684). `.field-help` text remains. |
-| **Validating (on submit)** | User taps `Save / Send invites` | URL parser runs synchronously: extract YouTube ID OR confirm `.mp4` extension on path. **Validation timing is on-submit, not on-blur** — typing is forgiving; submitting is the gate. |
-| **Submit-blocked (invalid URL)** | URL fails both parsers | Input gets `.field-invalid` class (red border). `.field-help` swapped for `.field-error` ("That link doesn't look like YouTube or an .mp4 file. Skip it or try another."). The field shakes briefly via existing motion patterns OR renders error text only — preference: **error text only, no shake** (restraint). Modal does NOT close; user can correct or clear the field. Empty field is allowed and silent — skipping is normal. |
-| **Submit-passed** | URL parses successfully | Modal closes, field value persists to `wp.videoUrl` + parser result persists to `wp.videoSource: 'youtube' \| 'mp4'`. |
-| **Pre-filled (editing existing wp)** | User opens schedule modal for an already-scheduled wp that has a `wp.videoUrl` | Field pre-fills with existing value. `.field-help` reads "Paste a YouTube link or a direct .mp4 URL. We'll play it together." (same as empty state — no need for "currently set" copy). |
+| **Validating (on submit)** | User taps submit-equivalent button (Send invites / Use this game / game tile click) | URL parser runs synchronously: extract YouTube ID OR confirm `.mp4` extension on path. **Validation timing is on-submit, not on-blur** — typing is forgiving; submitting is the gate. |
+| **Submit-blocked (invalid URL)** | URL fails both parsers | Input gets `.field-invalid` class (red border). `.field-help` stays; `.field-error` div is unhidden ("That link doesn't look like YouTube or an .mp4 file. Skip it or try another."). Modal does NOT close. |
+| **Submit-passed** | URL parses successfully | Modal closes, field value persists to `wp.videoUrl` + `wp.videoSource: 'youtube' | 'mp4'`. |
+| **Mixed-content warning (REVIEWS C1)** | URL parses successfully AND scheme is `http://` AND source is `mp4` | Modal proceeds (NOT blocked) but a non-blocking `flashToast` appears: "Note: HTTP links may be blocked by the browser. Use https if available." |
+| **Pre-filled (editing existing wp)** | User reopens schedule modal for an already-scheduled wp | (Not in v2.0 scope — wp edit-after-create is deferred.) |
 
 ### Live-modal entrance (when player IS rendered)
 
 | State | Trigger | Visual behavior |
 |-------|---------|-----------------|
-| **Modal open animation** | `openWatchpartyLive` fires | Existing modal sheet-slide at `--duration-deliberate` (300ms) + `--easing-cinema`. The player surface participates in the slide — no separate animation. |
-| **Player init** | After modal-slide settles | Iframe / `<video>` `src` is set. First-frame paint is on the embed's own timeline. No Couch-orchestrated reveal animation. |
+| **Modal open animation** | `openWatchpartyLive` fires | Existing modal sheet-slide at `--duration-deliberate` (300ms) + `--easing-cinema`. The `#wp-video-surface` participates in the slide — no separate animation. |
+| **Player init** | After modal-slide settles | `attachVideoPlayer(wp)` runs. YouTube branch: load IFrame API → `new YT.Player('wp-yt-player', { videoId, playerVars, events })`. MP4 branch: `<video src>` already set; named handlers attached. First-frame paint is on the embed's own timeline. |
 
 ---
 
@@ -258,19 +289,22 @@ All copy follows BRAND.md §6: warm, restrained, sentence-case, no exclamation m
 
 | Element | Copy | Notes |
 |---------|------|-------|
-| URL field label | `Video URL (optional)` | Sentence-case. Eyebrow style applied via CSS `text-transform: uppercase` — source string is mixed-case. |
+| URL field label (movie + game) | `Video URL (optional)` | Sentence-case. Eyebrow style applied via CSS `text-transform: uppercase`. |
+| URL field label (legacy sport) | `Video URL (optional, set before picking a game)` | Slightly extended for the no-submit-button legacy sports flow. |
 | URL field placeholder | `YouTube link or .mp4 URL` | No verb; just the shape of what's expected. |
-| URL field help (below input) | `Paste a YouTube link or a direct .mp4 URL. We'll play it together.` | Brand-voice: "We'll play it together" — first-person plural, warm. |
-| URL field validation error | `That link doesn't look like YouTube or an .mp4 file. Skip it or try another.` | Acknowledges the user has agency to skip — doesn't force resolution. Per BRAND.md voice rule: "speak like a friend handing you the remote." |
-| Player load-failure inline | `<em>Player couldn't load that link.</em>` + `Try again` link | Italic-serif `<em>` for the message (brand voice — Instrument Serif handles the lived-in tone). The "Try again" link is `.link-like` (accent underline). |
-| DRM-hidden empty state | **(none — the surface is hidden, no copy)** | Per CONTEXT.md D-03 + `<specifics>`: silent UX wins over explanatory UX on dead-end branches. |
-| Primary CTA (schedule modal) | `Send invites` (existing — UNCHANGED) | Phase 24 does not touch the existing Send-invites CTA. |
-| Destructive confirmations | n/a | Phase 24 introduces no destructive actions. Clearing the URL field is a normal edit (set to empty), not a destructive flow. |
+| URL field help (below input) | `Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.` | Brand-voice: "We'll play it together" — first-person plural, warm. |
+| URL field validation error | `That link doesn't look like YouTube or an .mp4 file. Skip it or try another.` | Acknowledges the user has agency to skip — doesn't force resolution. |
+| Mixed-content warning toast (REVIEWS C1) | `Note: HTTP links may be blocked by the browser. Use https if available.` | Non-blocking — surfaces at submit time. |
+| Player load-failure inline | `<em>Player couldn't load that link.</em>` + `Try again` link | Italic-serif `<em>` for the message. The "Try again" link is `.link-like` AND functional via delegated click handler (REVIEWS H4). |
+| DRM-hidden empty state | **(none — the surface is hidden, no copy)** | Per CONTEXT.md D-03 + `<specifics>`: silent UX wins on dead-end branches. |
+| Primary CTA (modal-specific) | `Send invites` / `Use this game` (existing — UNCHANGED) | Phase 24 does not touch existing CTAs. |
+| Destructive confirmations | n/a | Phase 24 introduces no destructive actions. |
 
 **Tone audit examples:**
 - DO: "Paste a YouTube link or a direct .mp4 URL. We'll play it together." DON'T: "Optional: provide a streaming URL for in-player playback."
 - DO: "That link doesn't look like YouTube or an .mp4 file. Skip it or try another." DON'T: "Invalid URL format. Please enter a valid YouTube watch URL or .mp4 file path."
 - DO (for player failure): *"Player couldn't load that link."* + Try again. DON'T: "ERROR: Video failed to load. (HTTP 404)"
+- DO (for mixed-content warning): "Note: HTTP links may be blocked by the browser. Use https if available." DON'T: "Mixed-content security violation."
 
 ---
 
@@ -281,9 +315,9 @@ Phase 24 honors the existing single breakpoint at `@media (min-width: 900px)` (c
 | Breakpoint | Live modal | Player wrapper | Schedule modal |
 |------------|------------|----------------|----------------|
 | **Mobile (< 900px) — primary surface** | `max-width: 520px`, `max-height: 90vh` (existing) | Width: 100% of `.wp-live-modal` inner = up to 520px. 16:9 aspect ratio gives ~292px player height at full width. | `max-width` constrained by the phone-shell + modal padding; URL field stretches `width: 100%`. |
-| **Desktop (≥ 900px)** | `max-width: 800px`, `max-height: 85vh` (existing at css/app.css:2745) | 16:9 at 800px = ~450px player height. Reactions feed gets the remaining ~415px (85vh ≈ 765px on a typical 900px-tall viewport). | `.schedule-modal` widens to 480px (existing at css/app.css:2754); URL field follows. |
+| **Desktop (≥ 900px)** | `max-width: 800px`, `max-height: 85vh` (existing at css/app.css:2745) | 16:9 at 800px = ~450px player height. Reactions feed gets the remaining ~415px (85vh ≈ 765px on a typical 900px-tall viewport). | Modal widens; URL field follows. |
 
-**iOS PWA standalone (`@media (display-mode: standalone)`)**: no special handling — the live modal already accounts for safe-area insets via existing rules. The player iframe / `<video>` controls render at native iOS chrome height; Couch does not adjust.
+**iOS PWA standalone (`@media (display-mode: standalone)`)**: no special handling.
 
 ---
 
@@ -293,24 +327,24 @@ Phase 24 introduces NO third-party UI dependencies.
 
 | Registry | Blocks Used | Safety Gate |
 |----------|-------------|-------------|
-| (none) | (none — vanilla HTML / CSS / native browser elements: `<iframe>`, `<video>`) | not applicable — no shadcn, no third-party components, no npm packages added |
+| (none) | (none — vanilla HTML / CSS / native browser elements: `<iframe>`, `<video>`, `<div>` placeholder for YT API) | not applicable — no shadcn, no third-party components, no npm packages added |
 
-**Iframe-source safety note:** The YouTube embed URL is constructed from `encodeURIComponent(wp.videoUrl-extracted-id)` — same hardening as the existing `.trailer-frame` pattern at `js/app.js:7838`. No allowlist mechanism is needed at v2 launch because YouTube is the ONLY iframe source supported (D-01). When v2.1 expands to Twitch / Vimeo, an allowlist + parent-frame check + CSP audit must precede that phase per CLAUDE.md's "no generic iframe-allowlist at v2" gate (also captured in CONTEXT.md `<deferred>`).
+**YouTube embed safety note (REVIEWS H3):** Plan 03 renders a `<div id="wp-yt-player" data-video-id="...">` placeholder; the YouTube IFrame API replaces the div with its own iframe. The video ID is wrapped in `encodeURIComponent` before being placed in `data-video-id` AND consumed by `new YT.Player(divId, { videoId })` as a parameter (not URL interpolation). Same hardening posture as the existing `.trailer-frame` pattern at `js/app.js:7838`, with a more API-correct binding.
 
-**`<video>` MP4 source safety note:** The MP4 URL is set as `<video src>` with no preload of bytes beyond `metadata`. The browser's Same-Origin Policy + the `<video>` element's own sandboxing handle the security model. No CORS proxy is needed — Plex / Jellyfin transcoded URLs work natively per their web-share design (CONTEXT.md D-02).
+**`<video>` MP4 source safety note:** The MP4 URL is wrapped in `escapeHtml` before being set as `<video src>` with no preload of bytes beyond `metadata`. The browser's Same-Origin Policy + the `<video>` element's own sandboxing handle the security model.
 
 ---
 
 ## Checker Sign-Off
 
 - [x] Dimension 1 Copywriting: PASS
-- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 2 Visuals: PASS (revised 2026-04-30 — REVIEWS H1 surface split + REVIEWS H3 div-placeholder binding documented inline)
 - [x] Dimension 3 Color: PASS
 - [x] Dimension 4 Typography: PASS (revised 2026-04-30 — consolidated to 4 sizes / 2 weights, dropped `--t-micro`, routed help+error to `--t-meta` 13px / 400)
 - [x] Dimension 5 Spacing: PASS
 - [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** approved 2026-04-30 (gsd-ui-checker, agentId a199aa49d1b4fd7b0; revision iteration 1/2)
+**Approval:** approved 2026-04-30 (gsd-ui-checker, agentId a199aa49d1b4fd7b0; revision iteration 1/2). Re-affirmed 2026-04-30 after REVIEWS H1/H3 inline contract refinement (no checker re-run needed — refinement preserves all 6 dimensions).
 
 ---
 
@@ -321,19 +355,21 @@ Phase 24 introduces NO third-party UI dependencies.
 | Spacing scale | `BRAND.md §4` + `css/app.css :root` — no new tokens |
 | Typography scale | `BRAND.md §3` + `css/app.css :root` — no new sizes/weights; revised 2026-04-30 to consolidate to `--t-eyebrow` / `--t-meta` / `--t-body` (introduced) + `--t-h3` (preserved) |
 | Color tokens | `BRAND.md §2` + `css/app.css :root` — no new colors; reuses existing `--accent` / `--bad` / `--ink-warm` / `--bg` |
-| Live-modal layout | `css/app.css:737-773` (`.wp-live-modal` family) + `js/app.js:11115` (`renderWatchpartyLive`) + `app.html:1176-1177` (DOM scaffold) |
-| Schedule-modal field pattern | `css/app.css:675-689` (`.schedule-modal .field`) + `app.html:957-973` (existing fields) |
-| Player frame reuse | `css/app.css:1608` (`.trailer-frame`) + `js/app.js:7838` / `:13667` (YouTube iframe pattern) |
+| Live-modal layout | `css/app.css:737-773` (`.wp-live-modal` family) + `js/app.js:11115` (`renderWatchpartyLive`) + `app.html:1176-1177` (DOM scaffold; SPLIT in REVIEWS H1 revision into `#wp-video-surface` + `#wp-live-coordination`) |
+| Schedule-modal field pattern | `css/app.css:675-689` (`.schedule-modal .field`) + `app.html` lines 1106 / 1129 / 1149 (three watchparty-creation modals — REVIEWS M3 distinct IDs) |
+| Player frame reuse | `css/app.css:1608` (`.trailer-frame`) + `js/app.js:7838` / `:13667` (YouTube iframe pattern; REVIEWS H3 refines to div-placeholder + videoId-param binding) |
 | Source coverage (YouTube + MP4 only) | `CONTEXT.md` D-01, D-02 (locked) |
 | DRM-hide branch (no message) | `CONTEXT.md` D-03 + `<specifics>` (locked + signal) |
 | URL-on-creation only | `CONTEXT.md` D-04 (locked) |
-| Player slot placement (top of live modal, replacing poster) | `CONTEXT.md` Claude's-Discretion default, locked here |
+| Player slot placement (persistent surface, replacing poster) | `CONTEXT.md` Claude's-Discretion default + `REVIEWS H1` refinement |
 | Native fullscreen (no custom orchestrator) | `CONTEXT.md` Claude's-Discretion default, locked here |
 | Reactions stay in existing position | `CONTEXT.md` Claude's-Discretion default + Phase 26 deferral |
+| Late-join seek (REVIEWS M1) | `24-REVIEWS.md` M1 — non-host seekToBroadcastedTime on player init |
+| Mixed-content warning toast (REVIEWS C1) | `24-REVIEWS.md` C1 — non-blocking submit-time warning |
 | Brand voice for copy | `BRAND.md §6` |
 | Single 900px breakpoint | `css/app.css:2739-2763` |
 
-**User input collected during this session:** none — all design contract questions were answered by upstream artifacts (CONTEXT.md, BRAND.md, css/app.css, app.html).
+**User input collected during this session:** none — all design contract questions were answered by upstream artifacts (CONTEXT.md, BRAND.md, css/app.css, app.html, REVIEWS.md).
 
 ---
 
@@ -343,9 +379,11 @@ Phase 24 introduces NO third-party UI dependencies.
 |------|----------|--------|
 | 2026-04-30 | Initial draft | gsd-ui-researcher first pass |
 | 2026-04-30 | Typography consolidation | gsd-ui-checker flagged Dimension 4 over-cap (5 sizes / 3 weights). Applied option-2 fix: dropped `--t-micro` (10px) entirely, re-routed `.field-help` to `--t-meta` (13px / 400), confirmed `.field-error` already uses `--t-meta`, marked `--t-h3` heading row as preserved (not introduced this phase). Final: 4 sizes (eyebrow 11 / meta 13 / body 15 / heading 17-preserved), 2 weights (400 / 600). |
+| 2026-04-30 | REVIEWS H1 + H3 + H4 + M1 + C1 + M3 inline contract refinement | Cross-AI review (24-REVIEWS.md by gemini + codex) flagged: (H1) catastrophic player-reset on coordination re-renders → split `#wp-live-content` into `#wp-video-surface` (persistent) + `#wp-live-coordination` (re-renderable); (H3) YT.Player iframe binding is timing-fragile → refined to div-placeholder + videoId-param binding; (H4) Try-again link was decorative → wired via delegated click handler on `.wp-video-frame`; (M1) no late-join seek → seekToBroadcastedTime helper added in Plan 02 + called for non-hosts in Plan 03; (C1) mixed-content HTTP MP4 needed submit-time warning → flashToast with verbatim copy; (M3) schedule-modal duplicate IDs → distinct `wp-video-url-{movie|game|sport}` IDs across 3 watchparty-creation modals. All 6 checker dimensions preserved (refinement, not redesign). UI-SPEC remains APPROVED. |
 
 ---
 
 *Phase: 24-native-video-player*
 *UI-SPEC drafted: 2026-04-30*
-*UI-SPEC revised: 2026-04-30 (Dimension 4 typography consolidation)*
+*UI-SPEC revised: 2026-04-30 (Dimension 4 typography consolidation + REVIEWS H1/H3/H4/M1/C1/M3 inline contract refinement)*
+</content>
