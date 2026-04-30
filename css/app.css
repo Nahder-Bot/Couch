@@ -2548,6 +2548,11 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   line-height: 1;
   border-radius: var(--r-sm);
   transition: color var(--t-quick);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .cv15-tuple-rename:hover { color: var(--ink); }
 .cv15-tuple-rename:focus-visible {
@@ -2556,7 +2561,7 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 .cv15-tuple-rename-input {
   font-family: 'Inter', sans-serif;
-  font-size: var(--t-body);
+  font-size: 16px;
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--accent);
