@@ -2,7 +2,8 @@
 phase: 20-decision-explanation
 plan: "03"
 type: human-uat
-status: pending
+status: partial
+code_level_accepted: "2026-04-29"
 created: "2026-04-30"
 live_cache: couch-v36.2-decision-explanation
 live_url: https://couchtonight.app
