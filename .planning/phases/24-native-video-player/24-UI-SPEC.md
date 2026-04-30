@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-04-30
+revised: 2026-04-30
 ---
 
 # Phase 24 — UI Design Contract
@@ -50,14 +51,16 @@ Phase 24 inherits the project's existing semantic spacing tokens (BRAND.md §4).
 
 ## Typography
 
-Phase 24 reuses existing tokens — no new sizes or weights.
+Phase 24 introduces **4 sizes, 2 weights** — and only 3 of those sizes are introduced by this phase (the 4th, `--t-h3`, is the existing live-modal title role and is preserved untouched).
 
 | Role | Token / Size | Family / Weight | Line Height | Usage in this phase |
 |------|--------------|-----------------|-------------|---------------------|
-| Body | `--t-body` 15px | `var(--font-sans)` (Inter) / 400 | 1.5 | Validation error copy, video-load fallback message, input value text |
-| Label (eyebrow) | `--t-eyebrow` 11px | Inter / 600, uppercase, letter-spacing 0.14em | 1.2 | "VIDEO URL" / "VIDEO URL (OPTIONAL)" field label — matches the existing `.schedule-modal label` pattern at css/app.css:676 |
-| Heading (live-modal title — unchanged) | `--t-h3` 17px | `'Instrument Serif','Fraunces',serif` italic / 400 | 1.2 | The existing `.wp-live-titlename` (css/app.css:741). Preserved verbatim when the player is shown above it inside the live header. |
-| Meta / micro | `--t-micro` 10px | Inter / 500, uppercase, letter-spacing 0.12em | 1.2 | Secondary cue copy under the player on first load (e.g., "LOADING...") if a transient state is shown |
+| Eyebrow / label | `--t-eyebrow` 11px | Inter / 600, uppercase, letter-spacing 0.14em | 1.2 | "VIDEO URL" / "VIDEO URL (OPTIONAL)" field label — matches the existing `.schedule-modal label` pattern at css/app.css:676 |
+| Meta / help / error | `--t-meta` 13px | Inter / 400 | 1.4 | URL-field help copy under the input; URL-field validation-error copy; secondary cue copy under the player on first load if a transient state is shown |
+| Body | `--t-body` 15px | Inter / 400 | 1.5 | Input value text; player load-failure message body; any inline narrative copy on the player surface |
+| Heading (preserved, not introduced this phase) | `--t-h3` 17px | `'Instrument Serif','Fraunces',serif` italic / 400 | 1.2 | The existing `.wp-live-titlename` (css/app.css:741). Preserved verbatim when the player is shown above it inside the live header. Counts against the project-wide type system, NOT this phase's introduced-sizes budget. |
+
+**Phase-introduced budget:** 3 sizes (`--t-eyebrow`, `--t-meta`, `--t-body`) × 2 weights (400, 600). Combined with the preserved `--t-h3` role, the effective on-surface scale is 4 sizes / 2 weights — at the cap.
 
 **Voice constraints (per BRAND.md §6):**
 - Sentence-case for input labels (`Video URL (optional)`).
@@ -176,15 +179,16 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 ```css
 .field-help {
   font-family: var(--font-sans);
-  font-size: var(--t-micro);             /* 10px */
+  font-size: var(--t-meta);              /* 13px */
+  font-weight: 400;
   color: var(--ink-dim);                 /* #847868 */
   margin-top: 4px;
   line-height: 1.4;
-  letter-spacing: 0.02em;
 }
 .field-error {
   font-family: var(--font-sans);
   font-size: var(--t-meta);              /* 13px */
+  font-weight: 400;
   color: var(--ink-warm);                /* NOT --bad — restraint */
   margin-top: 6px;
   line-height: 1.4;
@@ -194,7 +198,7 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 }
 ```
 
-**Why `.field-help` + `.field-error` are NEW utility classes (not phase-local):** these cover a real gap — the project lacks generic input-validation classes. Adding them here unlocks future phases (e.g., Phase 27 RSVP form, Phase 30 group-creation) without re-inventing.
+**Why `.field-help` + `.field-error` are NEW utility classes (not phase-local):** these cover a real gap — the project lacks generic input-validation classes. Adding them here unlocks future phases (e.g., Phase 27 RSVP form, Phase 30 group-creation) without re-inventing. Both share the `--t-meta` (13px / 400) role to keep the typography scale tight.
 
 ### 3. DRM-hide branch (the silent dead-end)
 
@@ -232,7 +236,7 @@ Phase 24 reuses the warm-dark palette and the existing 47-alias semantic layer. 
 
 | State | Trigger | Visual behavior |
 |-------|---------|-----------------|
-| **Empty (default)** | First open of schedule modal | Field shows placeholder text in `--ink-dim`. `.field-help` text below in micro-size. |
+| **Empty (default)** | First open of schedule modal | Field shows placeholder text in `--ink-dim`. `.field-help` text below at `--t-meta` 13px. |
 | **Focused** | User taps / tabs into the input | Border becomes `--accent` (existing focus rule at css/app.css:684). `.field-help` text remains. |
 | **Validating (on submit)** | User taps `Save / Send invites` | URL parser runs synchronously: extract YouTube ID OR confirm `.mp4` extension on path. **Validation timing is on-submit, not on-blur** — typing is forgiving; submitting is the gate. |
 | **Submit-blocked (invalid URL)** | URL fails both parsers | Input gets `.field-invalid` class (red border). `.field-help` swapped for `.field-error` ("That link doesn't look like YouTube or an .mp4 file. Skip it or try another."). The field shakes briefly via existing motion patterns OR renders error text only — preference: **error text only, no shake** (restraint). Modal does NOT close; user can correct or clear the field. Empty field is allowed and silent — skipping is normal. |
@@ -302,7 +306,7 @@ Phase 24 introduces NO third-party UI dependencies.
 - [ ] Dimension 1 Copywriting: PASS
 - [ ] Dimension 2 Visuals: PASS
 - [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
+- [ ] Dimension 4 Typography: PASS (revised 2026-04-30 — consolidated to 4 sizes / 2 weights, dropped `--t-micro`, routed help+error to `--t-meta` 13px / 400)
 - [ ] Dimension 5 Spacing: PASS
 - [ ] Dimension 6 Registry Safety: PASS
 
@@ -315,7 +319,7 @@ Phase 24 introduces NO third-party UI dependencies.
 | Field | Source |
 |-------|--------|
 | Spacing scale | `BRAND.md §4` + `css/app.css :root` — no new tokens |
-| Typography scale | `BRAND.md §3` + `css/app.css :root` — no new sizes/weights |
+| Typography scale | `BRAND.md §3` + `css/app.css :root` — no new sizes/weights; revised 2026-04-30 to consolidate to `--t-eyebrow` / `--t-meta` / `--t-body` (introduced) + `--t-h3` (preserved) |
 | Color tokens | `BRAND.md §2` + `css/app.css :root` — no new colors; reuses existing `--accent` / `--bad` / `--ink-warm` / `--bg` |
 | Live-modal layout | `css/app.css:737-773` (`.wp-live-modal` family) + `js/app.js:11115` (`renderWatchpartyLive`) + `app.html:1176-1177` (DOM scaffold) |
 | Schedule-modal field pattern | `css/app.css:675-689` (`.schedule-modal .field`) + `app.html:957-973` (existing fields) |
@@ -333,5 +337,15 @@ Phase 24 introduces NO third-party UI dependencies.
 
 ---
 
+## Revision Log
+
+| Date | Revision | Reason |
+|------|----------|--------|
+| 2026-04-30 | Initial draft | gsd-ui-researcher first pass |
+| 2026-04-30 | Typography consolidation | gsd-ui-checker flagged Dimension 4 over-cap (5 sizes / 3 weights). Applied option-2 fix: dropped `--t-micro` (10px) entirely, re-routed `.field-help` to `--t-meta` (13px / 400), confirmed `.field-error` already uses `--t-meta`, marked `--t-h3` heading row as preserved (not introduced this phase). Final: 4 sizes (eyebrow 11 / meta 13 / body 15 / heading 17-preserved), 2 weights (400 / 600). |
+
+---
+
 *Phase: 24-native-video-player*
 *UI-SPEC drafted: 2026-04-30*
+*UI-SPEC revised: 2026-04-30 (Dimension 4 typography consolidation)*
