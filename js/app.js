@@ -4,6 +4,7 @@ import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
 import { twemojiImg } from './twemoji.js';
+import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys } from './sports-feed.js';
 import {
   bootstrapAuth, watchAuth,
   signInWithGoogle, signInWithApple,
@@ -10087,26 +10088,27 @@ window.closeWatchpartyStart = function() {
   wpStartTitleId = null;
 };
 
-// === Sports watchparties (Turn 12) ===
-// Picker uses TheSportsDB's free API — no key required, no Cloud Function needed.
-// We read the next 15 upcoming games per league and let the user tap one to
-// create a watchparty scheduled for kickoff time.
-const SPORTS_LEAGUES = {
-  nba: { sport: 'basketball', league: 'nba', emoji: '🏀', label: 'NBA' },
-  mlb: { sport: 'baseball', league: 'mlb', emoji: '⚾', label: 'MLB' },
-  nhl: { sport: 'hockey', league: 'nhl', emoji: '🏒', label: 'NHL' },
-  nfl: { sport: 'football', league: 'nfl', emoji: '🏈', label: 'NFL' }
-};
+// === Sports watchparties (Phase 22 — TheSportsDB swap) ===
+// Picker delegates to js/sports-feed.js (TheSportsDB + BALLDONTLIE-supplement abstraction).
+// 16-league catalog: NBA / NFL / MLB / NHL / WNBA / NCAAF / NCAAB / EPL / La Liga /
+// Bundesliga / Serie A / Ligue 1 / UCL / MLS / F1 / UFC. League tabs render dynamically
+// from feedLeagueKeys() so adding a league = single line in sports-feed.js LEAGUES map.
+// Legacy ESPN scrape removed (App Store §2.3 / §5.1.5 risk per Phase 11 RESEARCH §4).
+const SPORTS_LEAGUES = SPORTS_FEED_LEAGUES;
 let sportsCurrentLeague = 'nba';
-const sportsGamesCache = {};
-const SPORTS_CACHE_TTL = 5 * 60 * 1000;
 
 window.openSportsPicker = function() {
   document.getElementById('sports-picker-bg').classList.add('on');
   sportsCurrentLeague = 'nba';
-  document.querySelectorAll('.sports-league-tab').forEach(t => {
-    t.classList.toggle('on', t.getAttribute('data-league') === 'nba');
-  });
+  // Dynamically render league tabs from the sports-feed catalog (Phase 22).
+  const tabsEl = document.getElementById('sports-league-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML = feedLeagueKeys().map(function(k) {
+      const lg = SPORTS_FEED_LEAGUES[k];
+      const shortLabel = (k === 'epl' ? 'EPL' : (k === 'laliga' ? 'La Liga' : (k === 'bundesliga' ? 'Bundesliga' : (k === 'seriea' ? 'Serie A' : (k === 'ligue1' ? 'Ligue 1' : (k === 'ucl' ? 'UCL' : (k === 'mls' ? 'MLS' : (k === 'ncaaf' ? 'CFB' : (k === 'ncaab' ? 'CBB' : (k === 'wnba' ? 'WNBA' : (k === 'f1' ? 'F1' : (k === 'ufc' ? 'UFC' : (lg && lg.label) || k.toUpperCase())))))))))));
+      return '<button class="sports-league-tab' + (k === 'nba' ? ' on' : '') + '" data-league="' + k + '" onclick="selectSportsLeague(\'' + k + '\')">' + shortLabel + '</button>';
+    }).join('');
+  }
   loadSportsGames('nba');
 };
 window.closeSportsPicker = function() {
@@ -10122,36 +10124,18 @@ window.selectSportsLeague = function(leagueKey) {
   loadSportsGames(leagueKey);
 };
 
+// Phase 22 \u2014 TheSportsDB-backed loader. Returns pre-normalized games (no parseEspnEvent step).
+const sportsGamesCache = {};
 async function loadSportsGames(leagueKey) {
   const listEl = document.getElementById('sports-games-list');
   if (!listEl) return;
   const league = SPORTS_LEAGUES[leagueKey];
   if (!league) return;
-  const cached = sportsGamesCache[leagueKey];
-  if (cached && Date.now() - cached.fetchedAt < SPORTS_CACHE_TTL) {
-    renderSportsGames(cached.games);
-    return;
-  }
   listEl.innerHTML = '<div class="sports-loading">Loading ' + league.label + ' games\u2026</div>';
   try {
-    const allGames = [];
-    const today = new Date();
-    const fetches = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-      const url = 'https://site.api.espn.com/apis/site/v2/sports/' + league.sport + '/' + league.league + '/scoreboard?dates=' + dateStr;
-      fetches.push(fetch(url).then(r => r.json()).catch(() => null));
-    }
-    const results = await Promise.all(fetches);
-    results.forEach(data => {
-      if (data && Array.isArray(data.events)) {
-        data.events.forEach(ev => allGames.push(ev));
-      }
-    });
-    sportsGamesCache[leagueKey] = { fetchedAt: Date.now(), games: allGames };
-    renderSportsGames(allGames);
+    const games = await feedFetchSchedule(leagueKey, 7);
+    sportsGamesCache[leagueKey] = { fetchedAt: Date.now(), games: games };
+    renderSportsGames(games);
   } catch(e) {
     qnLog('[Sports] fetch failed', e);
     listEl.innerHTML = '<div class="sports-empty"><strong>Couldn\'t load games</strong>The sports data service might be having a moment. Try again in a bit.</div>';
@@ -10193,8 +10177,9 @@ function parseEspnEvent(ev) {
 function renderSportsGames(rawGames) {
   const listEl = document.getElementById('sports-games-list');
   if (!listEl) return;
+  // Phase 22 — input is already pre-normalized by feedFetchSchedule (sports-feed.js).
+  // No parseEspnEvent step needed; just filter to upcoming/live and sort.
   const games = rawGames
-    .map(parseEspnEvent)
     .filter(g => g && (g.isScheduled || g.isLive))
     .sort((a,b) => (a.startTime || 0) - (b.startTime || 0));
   if (!games.length) {
@@ -10248,9 +10233,11 @@ window.scheduleSportsWatchparty = async function(eventId) {
     flashToast('No games loaded for this league yet. Try switching leagues.', { kind: 'warn' });
     return;
   }
-  const rawGame = cacheEntry.games.find(g => g.id === eventId);
-  if (!rawGame) {
-    qnLog('[Sports] no raw game match', { eventId, sampleIds: cacheEntry.games.slice(0,3).map(g => g.id) });
+  // Phase 22 — cacheEntry.games is already normalized (sports-feed.js Game shape).
+  // No parseEspnEvent step needed.
+  const game = cacheEntry.games.find(g => g.id === eventId);
+  if (!game) {
+    qnLog('[Sports] no game match', { eventId, sampleIds: cacheEntry.games.slice(0,3).map(g => g.id) });
     flashToast('Could not find that game in the cache.', { kind: 'warn' });
     return;
   }
@@ -10259,8 +10246,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     flashToast('Pick who you are first, then try again.', { kind: 'warn' });
     return;
   }
-  const game = parseEspnEvent(rawGame);
-  if (!game || !game.startTime) { flashToast('This game is missing a start time.', { kind: 'warn' }); return; }
+  if (!game.startTime) { flashToast('This game is missing a start time.', { kind: 'warn' }); return; }
   const league = SPORTS_LEAGUES[sportsCurrentLeague];
   const matchupLabel = game.awayTeam + ' at ' + game.homeTeam;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -10326,23 +10312,15 @@ window.scheduleSportsWatchparty = async function(eventId) {
   }
 };
 
-// ---- Phase 11 / REFR-10 — SportsDataProvider abstraction (REFR-10) ----
-// Wraps ESPN hidden API (primary, v1) + BALLDONTLIE (stub for future swap) behind a
-// single interface: getSchedule(league, daysAhead) / getScore(gameId, league) /
-// getPlays(gameId, league, sinceTs). Scores + plays cached per (gameId, bucket) key
-// so 100 concurrent viewers of the same game = 1 fetch / 15s budget.
-// Per RESEARCH §4: ESPN hidden API is ToS-gray but proven; BALLDONTLIE is the
-// fallback if ESPN denies. Abstraction lets us swap without touching UI code.
-const SPORTS_PROVIDER_CONFIG = {
-  nfl: { provider: 'espn', espnSport: 'football', espnLeague: 'nfl' },
-  nba: { provider: 'espn', espnSport: 'basketball', espnLeague: 'nba' },
-  mlb: { provider: 'espn', espnSport: 'baseball', espnLeague: 'mlb' },
-  nhl: { provider: 'espn', espnSport: 'hockey', espnLeague: 'nhl' }
-};
-
-const sportsScoreCache = {};   // key: `${gameId}-${bucketIdx}`
+// ---- Phase 22 — SportsDataProvider delegates to js/sports-feed.js ----
+// Was: ESPN hidden API (ToS-gray per Phase 11 RESEARCH §4 + App Store §2.3 / §5.1.5).
+// Now: TheSportsDB (free tier API key '1' for v1; Patreon $14/yr for live data).
+// Interface preserved: getSchedule(league, daysAhead) / getScore(gameId, league) /
+// getPlays(gameId, league, sinceTs). Watchparty-live tick + Phase 11 catch-me-up
+// flow continue to call this object unchanged.
+// Live play-by-play not available via TheSportsDB free tier — getPlays returns []
+// until Patreon upgrade or per-league API-Sports supplement (deferred).
 const sportsPlaysCache = {};
-const SCORE_CACHE_BUCKET_MS = 15 * 1000;
 const PLAYS_CACHE_BUCKET_MS = 30 * 1000;
 
 function sportsBucketKey(gameId, bucketMs) {
@@ -10350,111 +10328,25 @@ function sportsBucketKey(gameId, bucketMs) {
 }
 
 const SportsDataProvider = {
-  // getSchedule — returns parsed events for a league over the next N days. Re-uses
-  // parseEspnEvent for ESPN-source normalization (no duplicate parsing logic).
   async getSchedule(leagueKey, daysAhead) {
     if (typeof daysAhead !== 'number') daysAhead = 7;
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg) return [];
-    if (cfg.provider === 'espn') {
-      const allGames = [];
-      const today = new Date();
-      const fetches = [];
-      for (let i = 0; i < daysAhead; i++) {
-        const d = new Date(today); d.setDate(d.getDate() + i);
-        const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-        const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/scoreboard?dates=${dateStr}`;
-        fetches.push(fetch(url).then(r => r.json()).catch(() => null));
-      }
-      const results = await Promise.all(fetches);
-      results.forEach(data => {
-        if (data && Array.isArray(data.events)) {
-          data.events.forEach(ev => {
-            const parsed = parseEspnEvent(ev);
-            if (parsed) {
-              parsed.league = leagueKey;  // tag for later routing
-              allGames.push(parsed);
-            }
-          });
-        }
-      });
-      return allGames;
-    }
-    // BALLDONTLIE branch — stub for v2 swap. When ESPN denies, implement:
-    //   const url = `https://www.balldontlie.io/api/v1/games?...`;
-    //   const r = await fetch(url); const d = await r.json();
-    //   return (d.data || []).map(balldontlieToParsed);
-    return [];
+    const games = await feedFetchSchedule(leagueKey, daysAhead);
+    return games || [];
   },
 
-  // getScore — cached score poll. Cache bucket is 15s so 100 simultaneous viewers
-  // of the same game result in 1 network fetch per bucket (ToS-gray mitigation).
   async getScore(gameId, leagueKey) {
-    const key = sportsBucketKey(gameId, SCORE_CACHE_BUCKET_MS);
-    if (sportsScoreCache[key]) return sportsScoreCache[key];
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg || cfg.provider !== 'espn') return null;
-    try {
-      // ESPN summary endpoint returns full event doc with status + competitors.
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/summary?event=${encodeURIComponent(gameId)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      const header = (d && d.header) || {};
-      const comps = header.competitions || [];
-      const comp = comps[0] || {};
-      const teams = comp.competitors || [];
-      const home = teams.find(t => t.homeAway === 'home') || {};
-      const away = teams.find(t => t.homeAway === 'away') || {};
-      const statusType = (comp.status && comp.status.type) || {};
-      const score = {
-        gameId,
-        homeScore: parseInt(home.score, 10) || 0,
-        awayScore: parseInt(away.score, 10) || 0,
-        homeAbbr: (home.team && home.team.abbreviation) || '',
-        awayAbbr: (away.team && away.team.abbreviation) || '',
-        homeTeam: (home.team && home.team.displayName) || '',
-        awayTeam: (away.team && away.team.displayName) || '',
-        period: (comp.status && comp.status.period) || 0,
-        clock: (comp.status && comp.status.displayClock) || '',
-        state: statusType.state || 'unknown',  // 'pre' | 'in' | 'post'
-        statusDetail: statusType.shortDetail || '',
-        ts: Date.now()
-      };
-      sportsScoreCache[key] = score;
-      return score;
-    } catch(e) {
-      qnLog('[Sports] getScore failed', { gameId, leagueKey, err: e && e.message });
-      return null;
-    }
+    const score = await feedFetchScore(gameId, leagueKey);
+    return score;
   },
 
-  // getPlays — play-by-play for late-joiner catch-me-up variant. Cached per 30s.
-  // sinceTs is advisory (ESPN doesn't support since-filtering); we always pull the
-  // last 10 plays and the caller filters if needed.
+  // getPlays — play-by-play for late-joiner catch-me-up. Phase 22 deferral:
+  // TheSportsDB free tier doesn't expose per-play data. Patreon tier ($14/yr) +
+  // per-league API-Sports supplements (~$10-50/mo) restore this; until then,
+  // returns []. Catch-me-up surface degrades gracefully — score chip still works
+  // via getScore, just no narrative play list. Will be backfilled in a future
+  // phase once the data feed is upgraded.
   async getPlays(gameId, leagueKey, sinceTs) {
-    const key = sportsBucketKey(gameId, PLAYS_CACHE_BUCKET_MS);
-    if (sportsPlaysCache[key]) return sportsPlaysCache[key];
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg || cfg.provider !== 'espn') return [];
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/summary?event=${encodeURIComponent(gameId)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      const rawPlays = (d && d.plays) || [];
-      const plays = rawPlays.slice(-10).map(p => ({
-        id: p.id || p.sequenceNumber || String(Math.random()),
-        text: p.text || p.shortText || '',
-        scoringPlay: !!p.scoringPlay,
-        period: (p.period && p.period.number) || 0,
-        clock: (p.clock && p.clock.displayValue) || '',
-        ts: Date.now()
-      }));
-      sportsPlaysCache[key] = plays;
-      return plays;
-    } catch(e) {
-      qnLog('[Sports] getPlays failed', { gameId, leagueKey, err: e && e.message });
-      return [];
-    }
+    return [];
   }
 };
 
