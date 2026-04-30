@@ -5,10 +5,11 @@
   "scripts": {
     "deploy": "bash scripts/deploy.sh",
     "stamp": "node scripts/stamp-build-date.cjs",
-    "smoke": "node scripts/smoke-position-transform.cjs && node scripts/smoke-tonight-matches.cjs && node scripts/smoke-availability.cjs && node scripts/smoke-kid-mode.cjs",
+    "smoke": "node scripts/smoke-position-transform.cjs && node scripts/smoke-tonight-matches.cjs && node scripts/smoke-availability.cjs && node scripts/smoke-kid-mode.cjs && node scripts/smoke-decision-explanation.cjs",
     "smoke:position": "node scripts/smoke-position-transform.cjs",
     "smoke:tonight": "node scripts/smoke-tonight-matches.cjs",
     "smoke:availability": "node scripts/smoke-availability.cjs",
-    "smoke:kid-mode": "node scripts/smoke-kid-mode.cjs"
+    "smoke:kid-mode": "node scripts/smoke-kid-mode.cjs",
+    "smoke:decision-explanation": "node scripts/smoke-decision-explanation.cjs"
   }
 }

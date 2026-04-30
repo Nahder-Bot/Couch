@@ -102,7 +102,11 @@ if [ -f scripts/smoke-kid-mode.cjs ]; then
   node scripts/smoke-kid-mode.cjs > /dev/null \
     || { echo "ERROR: smoke-kid-mode failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode)."
+if [ -f scripts/smoke-decision-explanation.cjs ]; then
+  node scripts/smoke-decision-explanation.cjs > /dev/null \
+    || { echo "ERROR: smoke-decision-explanation failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
