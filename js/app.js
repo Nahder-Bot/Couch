@@ -98,6 +98,83 @@ function getEffectiveTierCap() {
   return state.kidMode ? 2 : null;
 }
 
+// === Phase 20 / D-01..D-06 + D-10 — Decision explanation phrase builder ===
+// Pure helper — no state mutation, no Firestore writes, render-time only.
+// buildMatchExplanation(t, couchMemberIds, opts) -> string
+//   t              — title document (reads: t.votes, t.providers, t.runtime)
+//   couchMemberIds — array of member ids currently on the couch
+//   opts           — optional { considerableVariant: false }; when true the
+//                    1-voter case reads "Some of you said yes" instead of the
+//                    member's name (D-10 — used for the considerable list).
+// Returns a ≤3-phrase dot-separated string ("X said yes · Available on Y · 1 hr 38 min").
+// Returns '' when title null/missing or couch empty.
+// Drop priority on overflow: voters > provider > runtime (D-06).
+function buildMatchExplanation(t, couchMemberIds, opts) {
+  if (!t || !Array.isArray(couchMemberIds) || !couchMemberIds.length) return '';
+  const votes = t.votes || {};
+  const considerableVariant = !!(opts && opts.considerableVariant);
+  const phrases = [];
+
+  // D-03 / D-10 — Voter phrase
+  const yesVoters = couchMemberIds.filter(mid => votes[mid] === 'yes');
+  if (yesVoters.length > 0) {
+    let votersPhrase;
+    if (yesVoters.length === 1) {
+      if (considerableVariant) {
+        votersPhrase = 'Some of you said yes';
+      } else {
+        const m = state.members.find(x => x.id === yesVoters[0]);
+        votersPhrase = escapeHtml(m ? m.name : yesVoters[0]) + ' said yes';
+      }
+    } else if (yesVoters.length === 2) {
+      const n1 = state.members.find(x => x.id === yesVoters[0]);
+      const n2 = state.members.find(x => x.id === yesVoters[1]);
+      votersPhrase = escapeHtml(n1 ? n1.name : yesVoters[0]) + ' + ' + escapeHtml(n2 ? n2.name : yesVoters[1]) + ' said yes';
+    } else if (yesVoters.length === couchMemberIds.length) {
+      votersPhrase = 'All of you said yes';
+    } else {
+      votersPhrase = yesVoters.length + ' of you said yes';
+    }
+    phrases.push(votersPhrase);
+  }
+
+  // D-04 — Provider phrase: prefer couch-services intersection, fallback to first brand.
+  const providers = Array.isArray(t.providers) ? t.providers : [];
+  if (providers.length) {
+    const couchServices = new Set();
+    for (const mid of couchMemberIds) {
+      const m = state.members.find(x => x.id === mid);
+      if (m && Array.isArray(m.services)) m.services.forEach(s => couchServices.add(s));
+    }
+    let matchedBrand = null;
+    for (const p of providers) {
+      const brand = normalizeProviderName(p && p.name);
+      if (brand && couchServices.has(brand)) { matchedBrand = brand; break; }
+    }
+    if (matchedBrand) {
+      phrases.push('Available on ' + matchedBrand);
+    } else {
+      const firstBrand = normalizeProviderName(providers[0] && providers[0].name);
+      if (firstBrand) phrases.push('Streaming on ' + firstBrand);
+    }
+  }
+
+  // D-05 — Runtime phrase. Skip when null OR 0 (RESEARCH Pitfall 5 — guard 0).
+  if (t.runtime != null && t.runtime > 0) {
+    const mins = t.runtime;
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      phrases.push(m === 0 ? (h + ' hr') : (h + ' hr ' + m + ' min'));
+    } else {
+      phrases.push(mins + ' min');
+    }
+  }
+
+  // D-06 — Cap at 3 phrases. Phrases were appended in priority order so slice keeps voters > provider > runtime.
+  return phrases.slice(0, 3).join(' · ');
+}
+
 // Escape user-provided strings before interpolating into HTML
 // Local notifications. We don't need a backend — Firestore already pushes watchparty
 // events to every tab in real time. We just surface those events as OS notifications
