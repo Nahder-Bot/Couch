@@ -702,24 +702,26 @@ Phase 20 is purely additive read-only display text. No new data entry, no new Fi
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **D-10 considerable variant scope: cards only, or detail modal too?**
+> All four questions resolved during planning (2026-04-29) and encoded into Plan 02 acceptance criteria.
+
+1. **D-10 considerable variant scope: cards only, or detail modal too?** — RESOLVED: cards only (Plan 02 Task 3 acceptance criterion verifies `considerableVariant` flag is NOT propagated into `renderDetailShell`; detail-modal section is gated on `getCurrentMatches().some(m => m.id === t.id)` per D-09).
    - What we know: D-10 says "Same explanation but voters phrase reads `'Some of you said yes'` for the 1-of-N case." It specifies "list surface" but doesn't mention the detail modal.
    - What's unclear: If a user opens the detail modal for a considerable (not a match) title, should the "Why this is in your matches" section use the considerable variant phrase, or be omitted entirely?
    - Recommendation: Omit the detail modal section for considerable titles (D-09 says section only renders when `t.id is currently in matches list`). The considerable variant is only for card footers.
 
-2. **Does `buildMatchExplanation` receive the full title doc `t` or just selected fields?**
+2. **Does `buildMatchExplanation` receive the full title doc `t` or just selected fields?** — RESOLVED: full title doc `t` (Plan 01 Task 1 helper signature `buildMatchExplanation(t, couchMemberIds, opts = {})`; smoke contract constructs minimal title objects per assertion).
    - What we know: CONTEXT.md D-01 says `buildMatchExplanation(title, couchMemberIds)` — first param is `title` not `t`.
    - What's unclear: Whether `title` is the full title doc or a projection.
    - Recommendation: Accept the full title doc `t` (call it `t` internally). All call sites in app.js have the full title object available. Smoke tests construct minimal title objects with only the needed fields.
 
-3. **Should the explanation appear on the considerable section header too?**
+3. **Should the explanation appear on the considerable section header too?** — RESOLVED: per-card footer on considerable cards (Plan 02 Task 2 — `considerable.map(t => card(t, { considerableVariant: true }))` propagates the flag).
    - What we know: D-08 says match cards get the footer. D-10 says considerable cards get a variant. The considerable section header currently reads "At least one of you picked these — couch isn't unanimous."
    - What's unclear: Whether the per-card considerable footer is redundant given the section-level copy already sets context.
    - Recommendation: Add per-card footer on considerable cards per D-10. The section header is generic context; the per-card explanation adds specific detail (who voted, which service, runtime) that has real signal.
 
-4. **`pick.reason` vs `buildMatchExplanation` in spin modal — which is primary?**
+4. **`pick.reason` vs `buildMatchExplanation` in spin modal — which is primary?** — RESOLVED: keep `.spin-reason` AND add explanation alongside (Plan 02 Task 1 acceptance criterion explicitly verifies `.spin-reason` is preserved; `.spin-explanation` inserted between `.spin-result-meta` and `${provHtml}`).
    - What we know: Current `.spin-reason` div shows `"✨ A couch favorite"` from `pick.reason`. D-07 adds an explanation sub-line. CONTEXT.md says "below the picked title's name."
    - What's unclear: Whether the explanation replaces `.spin-reason` or sits alongside it.
    - Recommendation: Keep `.spin-reason` (it has celebration ✨ and scoring context) and add the explanation as a separate dim italic line between `.spin-result-meta` and `.spin-result-providers`. The two serve different registers: `.spin-reason` = celebratory/affinity; explanation = factual summary.
