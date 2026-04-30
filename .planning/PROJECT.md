@@ -45,6 +45,7 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 - ✓ **Phase 15.4 — Integration polish — push fan-out + Settings parity:** F-W-1 sendCouchPing real-fan-out via new onCouchPingFire CF (was UX lie since 14-10) + D-3 9-key friendly-UI Settings parity. POL-01 partial → satisfied — Validated 2026-04-29.
 - ✓ **Phase 15.5 — Wait Up flex:** 0-24hr reaction-delay range via storage-layer 86400 clamp + sport-mode slider step ramp via positionToSeconds + movie-mode 8-chip ladder + Custom… picker bottom sheet + cross-repo CF reaction-content stripping per receiver + Tonight 5h cutoff + Past parties tall-sheet — Validated 2026-04-28.
 - ✓ **Phase 18 — Availability Notifications:** daily-cadence scheduled `providerRefreshTick` CF watches t.providers[] for queued unwatched titles, fans out push to family members whose m.services intersects newly-added brands. "Dune just hit Max for your household." Manual "↻ Refresh availability" affordance + "Provider data via TMDB" attribution — Validated 2026-04-29.
+- ✓ **Phase 20 — Decision Explanation:** humility-voiced explanation layer answering "why did it pick this?" via pure helper `buildMatchExplanation(t, couchMemberIds, opts)` surfaced on 3 read-only places (spin-pick result modal italic Instrument Serif sub-line / tonight match-card dim-text footer / detail-modal "Why this is in your matches" section gated on title-in-matches). Considerable variant uses "Some of you said yes" for 1-of-N. Composes from existing `t.votes` / `t.providers` ∩ `m.services` / `t.runtime` — no new data, no persistence, no Firestore writes. Single-repo couch only. New scripts/smoke-decision-explanation.cjs (15 assertions) wired into 5-contract smoke gate. Live: `couch-v36.2-decision-explanation` at couchtonight.app. REQ-20-01..11 closed at code level — Validated 2026-04-30 (5 device-UAT items pending in 20-HUMAN-UAT.md per Phase 18/19 precedent).
 
 ### Active
 
@@ -56,7 +57,6 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 ### Backlog (cross-AI flagged 2026-04-28; ranked by Tier)
 
 - [ ] **Kid mode / age-gating** (Tier 2 — flagged by Gemini + Codex independently as P0 for the "family" brand): global "Kids on the couch" toggle that filters Tonight to G/PG; parent-approved pools; bedtime/runtime limits. Today the per-member age-tier rating cap exists but no global mode.
-- [ ] **Decision explanation** (Tier 2 — Codex): "why did the spin pick this?" — small explanation layer ("Ashley + Nahder said yes, on Hulu, 112 min") to reduce distrust on the matches/spin surface.
 - [ ] **Conflict-aware empty state** (Tier 2 — Codex): when Tonight matches is empty, surface WHY (no overlap / provider unavailable / runtime / rating-filtered) instead of generic "No matches yet".
 - [ ] **Custom lists as family memory** (Tier 2 — Codex): "Dad's picks", "Holiday queue", "Movies the kids can watch". Reframed from Letterboxd feature to family-memory primitive.
 - [ ] **Async-replay** (Tier 3 — natural follow-on to 15.5 if Wait Up earns its keep): "Red Wedding" use case — feel original group's reactions days/weeks/years later. Risk: emotionally creepy if reactions appear out of context.
@@ -129,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 — refreshed after a 9-day burst (Phases 4 / 5 / 6 / 7 / 8 / 9 / 11 / 12 / 13 / 14 / 15 / 15.1 / 15.2 / 15.4 / 15.5 / 18 all shipped to production). Backlog populated from cross-AI feature audit 2026-04-28 (Gemini + Codex). v1 milestone now sits at 14/16 phases shipped (100% of currently-scoped plans complete); 15.3 / 16 / 17 remain scoped-but-deferred per stated priorities.*
+*Last updated: 2026-04-30 — Phase 20 (Decision Explanation) shipped to production via /gsd-plan-phase 20 --auto --chain. Composes humility-voiced "why did it pick this?" strings from existing data; surfaced on spin-pick / matches-card / detail-modal. Decision-explanation backlog item closed; remaining backlog (kid-mode shipped Phase 19, conflict-aware empty-state + custom-lists + async-replay + solo-mode + YIR remain). v1 milestone: 17 phases shipped (3-9, 11-15, 15.1, 15.2, 15.4, 15.5, 18, 19, 20); 15.3 / 16 / 17 remain scoped-but-deferred per stated priorities.*
