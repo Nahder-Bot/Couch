@@ -126,7 +126,7 @@ function buildMatchExplanation(t, couchMemberIds, opts) {
         const m = state.members.find(x => x.id === yesVoters[0]);
         votersPhrase = escapeHtml(m ? m.name : yesVoters[0]) + ' said yes';
       }
-    } else if (yesVoters.length === 2) {
+    } else if (yesVoters.length === 2 && yesVoters.length === couchMemberIds.length) {
       const n1 = state.members.find(x => x.id === yesVoters[0]);
       const n2 = state.members.find(x => x.id === yesVoters[1]);
       votersPhrase = escapeHtml(n1 ? n1.name : yesVoters[0]) + ' + ' + escapeHtml(n2 ? n2.name : yesVoters[1]) + ' said yes';
