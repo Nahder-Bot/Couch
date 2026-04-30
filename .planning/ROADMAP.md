@@ -366,6 +366,29 @@ Plans:
 **UI hint**: yes (V5 roster surface + parent override on detail modal) + minimal (no Settings change required for v1 — kid-mode is session-scoped, not per-member configurable yet)
 
 
+### Phase 20: Decision Explanation
+**Goal**: Add a humility-voiced explanation layer that answers "why did it pick this?" or "why is this in our matches?" on three surfaces (spin-pick result, tonight matches list, detail modal). Builds a single composable helper `buildMatchExplanation(t, couchMemberIds)` that returns a human-readable dot-separated string composed from existing data — yes-voters on couch, available providers intersected with family services, runtime. Voice: warm/restraint per BRAND.md, italic Instrument Serif on hero placements. Examples: "Nahder + Zoey said yes · Available on Max · 165 min" / "Both of you said yes · Hulu · 1 hr 38 min" / "Some of you said yes" (considerable variant). No new data, no persistence, no Firestore writes — pure render-time composition.
+**Depends on**: Phase 4 (veto + voting — t.votes), Phase 5 (members + state.members for name lookup), Phase 9 (provider schema v3 — t.providers), Phase 14 (per-member services pack — m.services), Phase 18 (normalizeProviderName brand-matching helper). No cross-repo work; couch single-repo only.
+**Requirements**: Scoped 2026-04-29 from cross-AI feature audit `.planning/reviews/2026-04-28-feature-audit.md` § "Features both AIs flagged that I missed" item #8 — Codex pitch: families ask "why did it pick this?", a small explanation layer reduces distrust on matches/spin-pick. Surfaces are read-only — purely additive text, no new modals, no behavior changes, no surface restyling.
+**Success Criteria** (what must be TRUE):
+  1. Pure helper `buildMatchExplanation(t, couchMemberIds)` exists at module top of `js/app.js` near other display helpers; returns a string; does not mutate state.
+  2. Voters phrase generation handles 1, 2, 3+ yes-voters per D-03: `"{Name} said yes"` / `"{Name1} + {Name2} said yes"` / `"All of you said yes"` (count == couch.length) or `"{count} of you said yes"`.
+  3. Provider phrase prefers a brand from `t.providers[]` that intersects ANY couch member's `m.services[]`; fallback `"Streaming on {firstProvider}"` if no intersection but providers exist; omitted if `t.providers` empty.
+  4. Runtime phrase formatted `"{H} hr {M} min"` for ≥60 min, else `"{M} min"`. Skipped when `t.runtime` is null.
+  5. Output capped at 3 phrases joined with dot separator. Drop priority on overflow: voters > provider > runtime.
+  6. Considerable list variant uses `"Some of you said yes"` for the 1-of-N case to match the not-unanimous framing (D-10).
+  7. Surface 1 (spin-pick result modal) — explanation rendered as italic Instrument Serif sub-line below picked title's name. Always visible.
+  8. Surface 2 (tonight matches list) — explanation rendered as a single-line dim-text footer on each match card (under tile content, before action buttons). Always visible per Codex feedback.
+  9. Surface 3 (detail modal) — new "Why this is in your matches" section, rendered only when `t.id` is currently in matches list. Section omitted otherwise (e.g. opened from Library).
+  10. Voice respects BRAND.md and Phase 15.4/15.5/18 banned-word sweep: no "buffer", "delay", "queue" in queue-UX context; no marketing language; no exclamation marks.
+  11. New smoke contract `scripts/smoke-decision-explanation.cjs` exercises the pure helper across the voter / provider / runtime / overflow / considerable cases. Wired into `scripts/deploy.sh` Step 2.5 alongside existing smoke contracts.
+  12. `sw.js` CACHE bumped to `couch-v36.2-decision-explanation` so installed PWAs invalidate on activation.
+  13. No persistence: nothing written to Firestore, no new state slots on `state.X`. Computation is render-time only (D-13/14/15).
+**Plans**: TBD — locked at `/gsd-plan-phase 20`.
+
+**UI hint**: minimal (additive text only — no new modals, no new sections beyond detail-modal "Why this is in your matches", no restyling)
+
+
 ## Progress
 
 **Execution Order:**
