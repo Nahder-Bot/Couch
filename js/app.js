@@ -3,6 +3,7 @@ import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
+import { twemojiImg } from './twemoji.js';
 import {
   bootstrapAuth, watchAuth,
   signInWithGoogle, signInWithApple,
@@ -5106,7 +5107,7 @@ function renderMoodFilter() {
   const chips = shown.map(m => {
     const on = state.selectedMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleMood('${m.id}')">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   });
   if (hasActive) {
@@ -5359,7 +5360,7 @@ function updateFiltersBar() {
       const html = state.selectedMoods.map(id => {
         const m = moodById(id);
         if (!m) return '';                            // ASVS V5: silently skip any id not in MOODS[]
-        return `<div class="mood-chip on" role="group" aria-label="${escapeHtml(m.label)} filter active"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}<button class="mood-chip-remove" onclick="removeMoodFilter('${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)} filter">×</button></div>`;
+        return `<div class="mood-chip on" role="group" aria-label="${escapeHtml(m.label)} filter active"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}<button class="mood-chip-remove" onclick="removeMoodFilter('${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)} filter">×</button></div>`;
       }).join('');
       // Pitfall 4: avoid flicker — only write innerHTML when content actually changes.
       if (activeRow.innerHTML !== html) activeRow.innerHTML = html;
@@ -5421,7 +5422,7 @@ function card(t, opts) {
   const statusInfo = tvStatusBadge(t, meId);
   if (statusInfo) metaParts.push(`<span class="tv-status-badge ${statusInfo.kind}">${escapeHtml(statusInfo.text)}</span>`);
   if (t.moods && t.moods.length) {
-    const moodChars = t.moods.slice(0,3).map(id => { const m = moodById(id); return m?m.icon:''; }).join('');
+    const moodChars = t.moods.slice(0,3).map(id => { const m = moodById(id); return m ? twemojiImg(m.icon, m.label) : ''; }).join('');
     if (moodChars) metaParts.push(`<span class="tc-mood-dots">${moodChars}</span>`);
   }
   const metaHtml = metaParts.join('<span class="dot">·</span>');
@@ -6700,7 +6701,7 @@ function renderManualMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = manualMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleManualMood('${m.id}');return false;">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
@@ -7674,13 +7675,13 @@ function renderDetailMoodsSection(t) {
   const existingChipsHtml = existingMoods.map(id => {
     const m = moodById(id);
     if (!m) return '';
-    return `<button class="mood-chip" onclick="removeDetailMood('${escapeHtml(t.id)}','${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)}"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`;
+    return `<button class="mood-chip" onclick="removeDetailMood('${escapeHtml(t.id)}','${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)}"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}</button>`;
   }).join('');
   const addChipHtml = `<button class="mood-chip mood-chip--add${detailMoodPaletteOpen ? ' mood-chip--add-active' : ''}" onclick="${detailMoodPaletteOpen ? 'closeDetailMoodPalette' : 'openDetailMoodPalette'}()">+ add mood</button>`;
   const paletteHtml = detailMoodPaletteOpen
     ? `<div class="detail-moods-palette" role="group" aria-label="Add mood">${
         MOODS.filter(m => !existingMoods.includes(m.id)).map(m =>
-          `<button class="mood-chip mood-chip--palette" onclick="addDetailMood('${escapeHtml(t.id)}','${escapeHtml(m.id)}')"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`
+          `<button class="mood-chip mood-chip--palette" onclick="addDetailMood('${escapeHtml(t.id)}','${escapeHtml(m.id)}')"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}</button>`
         ).join('')
       }</div>`
     : '';
@@ -9724,7 +9725,7 @@ function renderEditMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = editMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleEditMood('${m.id}');return false;">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
@@ -11095,7 +11096,8 @@ function renderWatchpartyBanner() {
 }
 
 // Live view — full implementation
-const WP_QUICK_EMOJIS = ['😂','😱','😭','🤯','👀','🔥','💀','❤️','🤔','🙌'];
+// v36.4: expanded 10 → 16 reactions; rendered as Twemoji <img> for cross-device consistency.
+const WP_QUICK_EMOJIS = ['😂','😱','😭','🤯','👀','🔥','💀','❤️','🤔','🙌','🎉','👏','😴','🥰','🤡','🙄'];
 
 function memberColor(memberId) {
   const m = state.members.find(x => x.id === memberId);
@@ -11502,7 +11504,7 @@ function renderWatchpartyFooter(wp, mine) {
   const paused = !!mine.pausedAt;
   // Phase 7 Plan 03: '+ more' button opens the iOS native emoji keyboard via hidden-input focus.
   // Keeps palette familiar while unlocking unlimited emoji choice without a JS picker library.
-  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')">${e}</button>`).join('')
+  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')" aria-label="React with ${e}">${twemojiImg(e, e, 'twemoji--md')}</button>`).join('')
     + `<button class="wp-emoji-btn wp-emoji-more" onclick="openEmojiPicker()" aria-label="More emoji">+</button>`;
   // Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Only meaningful in elapsed mode
   // — wallclock ignores delay by design (shows everything as-posted) and hidden renders nothing
@@ -12578,7 +12580,7 @@ function renderYearInReview(stats) {
       ${g.memberRanked.length > 0 ? `<div class="yir-stat wide"><span class="yir-stat-label">Most active</span><span class="yir-stat-value small">${topMemberLabel}</span><span class="yir-stat-sub">${g.memberRanked.slice(1, 4).map(m => `${escapeHtml(m.name)} (${m.count})`).join(' · ') || 'Runs the couch'}</span></div>` : ''}
       ${g.topGenre ? `<div class="yir-stat"><span class="yir-stat-label">Group genre</span><span class="yir-stat-value small">${escapeHtml(g.topGenre.name)}</span><span class="yir-stat-sub">${g.topGenre.count} watches</span></div>` : ''}
       ${g.topProvider ? `<div class="yir-stat"><span class="yir-stat-label">Most-used service</span><span class="yir-stat-value small">${escapeHtml(g.topProvider.name)}</span><span class="yir-stat-sub">${g.topProvider.count} ${g.topProvider.count===1?'title':'titles'}</span></div>` : ''}
-      ${g.topMood ? `<div class="yir-stat"><span class="yir-stat-label">Group mood</span><span class="yir-stat-value small">${(moodById(g.topMood.id)||{}).icon||''} ${(moodById(g.topMood.id)||{}).label||escapeHtml(g.topMood.id)}</span><span class="yir-stat-sub">The vibe this year</span></div>` : ''}
+      ${g.topMood ? `<div class="yir-stat"><span class="yir-stat-label">Group mood</span><span class="yir-stat-value small">${twemojiImg((moodById(g.topMood.id)||{}).icon, (moodById(g.topMood.id)||{}).label)} ${(moodById(g.topMood.id)||{}).label||escapeHtml(g.topMood.id)}</span><span class="yir-stat-sub">The vibe this year</span></div>` : ''}
       ${g.groupTopRated ? `<div class="yir-stat wide"><span class="yir-stat-label">Highest-rated pick</span><span class="yir-stat-value small">${escapeHtml(g.groupTopRated.t.name)}</span><span class="yir-stat-sub">${formatScore(g.groupTopRated.avg)}/10 average · ${g.groupTopRated.count} ratings</span></div>` : ''}
       ${g.topDisagreement ? `<div class="yir-stat wide"><span class="yir-stat-label">Biggest split</span><span class="yir-stat-value small">${escapeHtml(g.topDisagreement.t.name)}</span><span class="yir-stat-sub">Ratings ranged from ${Math.min(...g.topDisagreement.stars)}★ to ${Math.max(...g.topDisagreement.stars)}★</span></div>` : ''}
       ${g.bestPair ? `<div class="yir-stat wide"><span class="yir-stat-label">Most in sync</span><div class="yir-pair-row"><div class="yir-pair-avatars"><div class="who-avatar" style="background:${g.bestPair.a.color};">${avatarContent(g.bestPair.a)}</div><div class="who-avatar" style="background:${g.bestPair.b.color};">${avatarContent(g.bestPair.b)}</div></div><div style="flex:1;"><strong>${escapeHtml(g.bestPair.a.name)} & ${escapeHtml(g.bestPair.b.name)}</strong><div style="font-size:var(--t-meta);color:var(--ink-dim);">${g.bestPair.diff.toFixed(1)} point average gap across ${g.bestPair.sharedCount} shared watches</div></div></div></div>` : ''}
@@ -13528,7 +13530,7 @@ function renderAddMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = currentAddMood === m.id;
     return `<button class="mood-chip ${on?'on':''}" onclick="selectAddMood('${m.id}')">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
