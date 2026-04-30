@@ -10142,37 +10142,8 @@ async function loadSportsGames(leagueKey) {
   }
 }
 
-function parseEspnEvent(ev) {
-  if (!ev) return null;
-  const comp = (ev.competitions && ev.competitions[0]) || {};
-  const teams = comp.competitors || [];
-  const home = teams.find(t => t.homeAway === 'home') || {};
-  const away = teams.find(t => t.homeAway === 'away') || {};
-  const broadcast = comp.broadcasts && comp.broadcasts[0] && comp.broadcasts[0].names
-    ? comp.broadcasts[0].names[0] : null;
-  const statusName = ev.status && ev.status.type ? ev.status.type.name : '';
-  const statusDetail = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
-  return {
-    id: ev.id || '',
-    shortName: ev.shortName || '',
-    startTime: ev.date ? new Date(ev.date).getTime() : null,
-    homeTeam: home.team ? home.team.displayName : 'TBD',
-    homeAbbrev: home.team ? home.team.abbreviation : '',
-    homeLogo: home.team ? home.team.logo : '',
-    homeScore: home.score || null,
-    awayTeam: away.team ? away.team.displayName : 'TBD',
-    awayAbbrev: away.team ? away.team.abbreviation : '',
-    awayLogo: away.team ? away.team.logo : '',
-    awayScore: away.score || null,
-    venue: comp.venue ? comp.venue.fullName : null,
-    broadcast: broadcast,
-    statusName: statusName,
-    statusDetail: statusDetail,
-    isFinal: statusName === 'STATUS_FINAL',
-    isLive: statusName === 'STATUS_IN_PROGRESS',
-    isScheduled: statusName === 'STATUS_SCHEDULED'
-  };
-}
+// Phase 22 — parseEspnEvent removed (dead code after sports-feed.js abstraction).
+// Game shape now produced by sports-feed.js normalizeTsdEvent — see commit d0fa183.
 
 function renderSportsGames(rawGames) {
   const listEl = document.getElementById('sports-games-list');
@@ -10320,12 +10291,8 @@ window.scheduleSportsWatchparty = async function(eventId) {
 // flow continue to call this object unchanged.
 // Live play-by-play not available via TheSportsDB free tier — getPlays returns []
 // until Patreon upgrade or per-league API-Sports supplement (deferred).
-const sportsPlaysCache = {};
-const PLAYS_CACHE_BUCKET_MS = 30 * 1000;
-
-function sportsBucketKey(gameId, bucketMs) {
-  return `${gameId}-${Math.floor(Date.now() / bucketMs)}`;
-}
+// Phase 22 — sportsBucketKey + sportsPlaysCache + PLAYS_CACHE_BUCKET_MS removed
+// (dead code; getPlays now stub-returns []; getScore caches inside sports-feed.js).
 
 const SportsDataProvider = {
   async getSchedule(leagueKey, daysAhead) {
