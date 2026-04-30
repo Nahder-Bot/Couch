@@ -384,7 +384,12 @@ Plans:
   11. New smoke contract `scripts/smoke-decision-explanation.cjs` exercises the pure helper across the voter / provider / runtime / overflow / considerable cases. Wired into `scripts/deploy.sh` Step 2.5 alongside existing smoke contracts.
   12. `sw.js` CACHE bumped to `couch-v36.2-decision-explanation` so installed PWAs invalidate on activation.
   13. No persistence: nothing written to Firestore, no new state slots on `state.X`. Computation is render-time only (D-13/14/15).
-**Plans**: TBD — locked at `/gsd-plan-phase 20`.
+**Plans**: 3 plans across 3 waves (locked 2026-04-29 via /gsd-plan-phase 20).
+
+Plans:
+- [ ] 20-01-PLAN.md — Wave 1: buildMatchExplanation pure helper at js/app.js module top + scripts/smoke-decision-explanation.cjs (15 assertions A1-A15) + deploy.sh §2.5 5th smoke if-block + package.json smoke chain extension. Covers REQ-20-01..06 + REQ-20-11.
+- [ ] 20-02-PLAN.md — Wave 2: 3 surface integrations in js/app.js (D-07 spin-pick italic serif sub-line in showSpinResult / D-08 + D-10 dim-text card footer in card(t, opts) with considerable variant flag plumbed via renderTonight / D-09 conditional 'Why this is in your matches' section in renderDetailShell gated on getCurrentMatches.some) + 3 CSS class blocks in css/app.css. Covers REQ-20-07..09.
+- [ ] 20-03-PLAN.md — Wave 3: sw.js CACHE bump to couch-v36.2-decision-explanation + bash scripts/deploy.sh 36.2-decision-explanation (single-repo couch-only deploy ritual per D-16; 5-smoke gate + firebase deploy --only hosting + curl verify) + multi-condition device UAT covering all 4 surfaces. Covers REQ-20-10 + REQ-20-11.
 
 **UI hint**: minimal (additive text only — no new modals, no new sections beyond detail-modal "Why this is in your matches", no restyling)
 
