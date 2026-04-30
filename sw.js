@@ -5,7 +5,7 @@
 // Bump CACHE whenever you ship user-visible app changes so installed PWAs invalidate and
 // re-fetch the shell. Version naming convention: couch-v{N}-{milestone-or-fix-shorthand}.
 
-const CACHE = 'couch-v36.6-sports-feed-swap';
+const CACHE = 'couch-v36.7-live-scoreboard';
 // Post-Phase-9 routing: landing.html at /, app.html at /app (via Firebase Hosting rewrites).
 // Pre-cache the app shell (primary PWA entry) + core CSS/JS so offline cold-launch works.
 // Other JS modules (js/firebase.js, js/constants.js, etc.) populate the cache via the
