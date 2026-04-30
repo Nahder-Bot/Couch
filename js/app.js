@@ -176,6 +176,131 @@ function buildMatchExplanation(t, couchMemberIds, opts) {
   return phrases.slice(0, 3).join(' · ');
 }
 
+// === Phase 21 / D-01..D-12 — Conflict-aware empty-state diagnosis ===
+// Pure helper — no state mutation, render-time only. Mirrors Phase 20 shape.
+// diagnoseEmptyMatches(titles, couchMemberIds) -> { headline, reasons[] }
+//   titles         — array of titles (full universe; helper skips already-no/seen-voted)
+//   couchMemberIds — array of member ids on couch
+// Returns:
+//   headline (string)  — single warm/restraint sentence summarising dominant cause
+//   reasons (array)    — up to 3 chips: { kind, count, copy }
+// Detects (D-04 priority order): all-vetoed -> kid-mode-filtered -> per-member-tier-filtered
+//   -> mood-filtered -> provider-unavailable -> no-yes-votes.
+// Edges: empty titles -> { 'No titles yet', [] }. Empty couch -> { "No one's on the couch.", [] }.
+// Null/undefined inputs -> graceful no-op.
+function diagnoseEmptyMatches(titles, couchMemberIds) {
+  if (!Array.isArray(titles) || titles.length === 0) {
+    return { headline: 'No titles yet', reasons: [] };
+  }
+  if (!Array.isArray(couchMemberIds) || couchMemberIds.length === 0) {
+    return { headline: 'No one’s on the couch.', reasons: [] };
+  }
+  const vetoesByMember = {};
+  let vetoedTotal = 0;
+  let kidModeFilteredCount = 0;
+  let tierFilteredCount = 0;
+  let moodFilteredCount = 0;
+  let providerUnavailableCount = 0;
+  let yesVotedAny = false;
+  let countedTotal = 0;
+  const kidCap = (typeof getEffectiveTierCap === 'function') ? getEffectiveTierCap() : null;
+  const selectedMoods = Array.isArray(state.selectedMoods) ? state.selectedMoods : [];
+  const moodFilterActive = selectedMoods.length > 0;
+  const couchServices = new Set();
+  let lowestMemberTierCap = null;
+  for (const mid of couchMemberIds) {
+    const m = state.members.find(x => x.id === mid);
+    if (!m) continue;
+    if (Array.isArray(m.services)) m.services.forEach(s => couchServices.add(s));
+    const memberCap = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
+    if (memberCap != null && (lowestMemberTierCap == null || memberCap < lowestMemberTierCap)) {
+      lowestMemberTierCap = memberCap;
+    }
+  }
+  const hasAnyCouchServices = couchServices.size > 0;
+  for (const t of titles) {
+    const votes = t.votes || {};
+    // Skip titles where any couch-member voted 'no' or 'seen' — already excluded upstream;
+    // not part of the diagnosis universe.
+    if (couchMemberIds.some(mid => votes[mid] === 'no' || votes[mid] === 'seen')) continue;
+    countedTotal++;
+    if (couchMemberIds.some(mid => votes[mid] === 'yes')) yesVotedAny = true;
+    // Vetoes — exclusive (vetoed titles don't get other reasons counted)
+    const vetoes = t.vetoes || {};
+    let titleVetoed = false;
+    for (const mid of couchMemberIds) {
+      if (vetoes[mid]) { vetoesByMember[mid] = (vetoesByMember[mid] || 0) + 1; titleVetoed = true; }
+    }
+    if (titleVetoed) { vetoedTotal++; continue; }
+    const titleTier = tierFor(t.rating);
+    if (lowestMemberTierCap != null && titleTier != null && titleTier > lowestMemberTierCap) {
+      tierFilteredCount++; continue;
+    }
+    if (kidCap != null && titleTier != null && titleTier > kidCap) {
+      kidModeFilteredCount++; continue;
+    }
+    if (moodFilterActive) {
+      const titleMoods = Array.isArray(t.moods) ? t.moods : [];
+      if (!titleMoods.some(mid => selectedMoods.includes(mid))) {
+        moodFilteredCount++; continue;
+      }
+    }
+    if (hasAnyCouchServices) {
+      const titleProviders = Array.isArray(t.providers) ? t.providers : [];
+      const ok = titleProviders.some(p => {
+        const brand = normalizeProviderName(p && p.name);
+        return brand && couchServices.has(brand);
+      });
+      if (!ok) { providerUnavailableCount++; continue; }
+    }
+  }
+  const reasons = [];
+  if (vetoedTotal > 0) {
+    const vetoers = Object.entries(vetoesByMember).sort((a, b) => b[1] - a[1]);
+    if (vetoers.length === 1) {
+      const m = state.members.find(x => x.id === vetoers[0][0]);
+      const name = m ? m.name : vetoers[0][0];
+      reasons.push({ kind: 'veto', count: vetoedTotal, copy: escapeHtml(name) + ' vetoed ' + vetoedTotal });
+    } else {
+      reasons.push({ kind: 'veto', count: vetoedTotal, copy: vetoedTotal + ' vetoed across the couch' });
+    }
+  }
+  if (kidModeFilteredCount > 0) reasons.push({ kind: 'kidmode', count: kidModeFilteredCount, copy: 'Kid Mode hides ' + kidModeFilteredCount });
+  if (tierFilteredCount > 0)    reasons.push({ kind: 'tier',    count: tierFilteredCount,    copy: tierFilteredCount + ' over the rating cap' });
+  if (moodFilteredCount > 0)    reasons.push({ kind: 'mood',    count: moodFilteredCount,    copy: 'No matching mood' });
+  if (providerUnavailableCount > 0) {
+    const topBrands = Array.from(couchServices).slice(0, 3).join(' / ');
+    reasons.push({ kind: 'provider', count: providerUnavailableCount, copy: topBrands ? 'Off ' + topBrands : 'No matching service' });
+  }
+  if (!yesVotedAny && reasons.length === 0) {
+    return { headline: 'No one’s said yes to anything yet.', reasons: [] };
+  }
+  const capped = reasons.slice(0, 3);
+  let headline;
+  const dominant = capped[0];
+  if (!dominant) {
+    headline = 'Nothing’s matching tonight.';
+  } else if (dominant.kind === 'veto' && capped.length === 1 && Object.keys(vetoesByMember).length === 1) {
+    const onlyVetoerId = Object.keys(vetoesByMember)[0];
+    const m = state.members.find(x => x.id === onlyVetoerId);
+    const name = m ? m.name : onlyVetoerId;
+    headline = 'All ' + countedTotal + ' titles are out — ' + escapeHtml(name) + ' vetoed every one of them.';
+  } else if (dominant.kind === 'kidmode') {
+    headline = 'Kid Mode’s tight tonight — most titles are over the cap.';
+  } else if (dominant.kind === 'mood') {
+    headline = 'Try unchecking a mood — those filters are tight tonight.';
+  } else if (dominant.kind === 'provider') {
+    headline = 'Everything’s on services no one subscribes to.';
+  } else if (dominant.kind === 'tier') {
+    headline = 'Everything’s over the rating cap tonight.';
+  } else if (capped.length > 1) {
+    headline = 'All ' + countedTotal + ' titles are out — vetoes + filters caught most of them.';
+  } else {
+    headline = 'Nothing’s matching tonight.';
+  }
+  return { headline: headline, reasons: capped };
+}
+
 // Escape user-provided strings before interpolating into HTML
 // Local notifications. We don't need a backend — Firestore already pushes watchparty
 // events to every tab in real time. We just surface those events as OS notifications
@@ -5305,9 +5430,21 @@ function renderTonight() {
     el.innerHTML = `<div class="empty"><strong>No matches yet</strong>Add titles and vote so we have something to watch.</div>`;
     return;
   }
+  // Phase 21 — replace generic "Nothing's matching" with conflict-aware diagnosis
+  // when titles exist but matches list is empty. D-09 + D-12. Considerable-fallback
+  // (D-12) preserves the "options below" hint after the helper output.
+  let emptyHtml = '';
+  if (matches.length === 0) {
+    const diag = diagnoseEmptyMatches(state.titles, couch);
+    const chipsHtml = diag.reasons.length
+      ? `<div class="empty-reasons">${diag.reasons.map(r => `<span class="empty-reason-chip">${escapeHtml(r.copy)}</span>`).join('')}</div>`
+      : '';
+    const considerHint = considerable.length ? `<div class="empty-consider-hint">But there are still options below.</div>` : '';
+    emptyHtml = `<div class="empty empty-conflict-aware"><strong>${escapeHtml(diag.headline)}</strong>${chipsHtml}${considerHint}</div>`;
+  }
   const matchesHtml = matches.length
     ? matches.map(t => card(t)).join('')
-    : `<div class="empty"><strong>Nothing's matching</strong>${considerable.length ? 'But there are still options below.' : 'Try adjusting filters, or add more titles.'}</div>`;
+    : emptyHtml;
   el.innerHTML = matchesHtml + considerHtml + vetoedHtml;
   // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
   // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
