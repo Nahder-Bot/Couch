@@ -5296,7 +5296,7 @@ function renderTonight() {
           <div class="t-section-meta">${considerable.length} pending</div>
         </div>
         <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">At least one of you picked these — couch isn't unanimous.</p>
-        ${considerable.map(t => card(t)).join('')}
+        ${considerable.map(t => card(t, { considerableVariant: true })).join('')}
       </div>`
     : '';
 
@@ -5371,7 +5371,7 @@ function updateFiltersBar() {
   }
 }
 
-function card(t) {
+function card(t, opts) {
   const votes = t.votes || {};
   const yesCount = Object.values(votes).filter(v=>v==='yes').length;
   const tier = tierFor(t.rating);
@@ -5538,6 +5538,13 @@ function card(t) {
     ? `<a class="tc-trailer-btn" href="https://www.youtube.com/watch?v=${encodeURIComponent(t.trailerKey)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" aria-label="Watch trailer for ${escapeHtml(t.name)}">▶ Trailer</a>`
     : '';
 
+  // Phase 20 / D-08 + D-10 — Card explanation footer (dim-text, single line).
+  // Considerable variant flag (D-10) flows from renderTonight via opts.considerableVariant.
+  const _cardCouch20 = state.couchMemberIds || state.selectedMembers || [];
+  const _cardOpts20 = { considerableVariant: !!(opts && opts.considerableVariant) };
+  const _cardExpl20 = buildMatchExplanation(t, _cardCouch20, _cardOpts20);
+  const cardExplHtml = _cardExpl20 ? `<div class="tc-explanation">${_cardExpl20}</div>` : '';
+
   return `<div class="tc${blockedClass}${vetoedClass}${approvalClass}" role="button" tabindex="0" aria-label="${escapeHtml(t.name)}${t.year?', '+escapeHtml(t.year):''}" onclick="openTileActionSheet('${t.id}',event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTileActionSheet('${t.id}',event);}">
     <div class="tc-poster" style="${posterStyle(t)}" aria-hidden="true">${posterFallbackLetter(t)}</div>
     <div class="tc-body">
@@ -5549,6 +5556,7 @@ function card(t) {
       ${vetoNote}
       ${approvalNote}
       ${voteChips && !isPending && !isDeclined ? `<div class="tc-vote-strip">${voteChips}</div>` : ''}
+      ${cardExplHtml}
       <div class="tc-footer">
         ${primaryBtn}
         ${trailerBtnHtml}

@@ -1502,6 +1502,16 @@ h3{font-size:var(--t-h3)}
 .tc-note.veto .veto-who{color:var(--ink)}
 .tc-note.pending{background:rgba(100,140,220,0.12);color:#8fb3f0;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .tc-note.declined{background:rgba(120,120,120,0.1);color:var(--ink-dim);font-style:italic}
+/* Phase 20 / D-08 — Decision explanation footer on Tonight match cards.
+   Single-line dim-text — informational, sits between vote-strip and tc-footer.
+   NOT italic, NOT serif (D-08 calls for plain dim only — italic serif is reserved
+   for D-07 spin-pick + D-09 detail modal hero placements). */
+.tc-explanation {
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  margin: var(--s1) 0 var(--s2);
+  line-height: 1.4;
+}
 .tc-approve-inline,.tc-decline-inline{font-family:inherit;font-size:var(--t-eyebrow);padding:3px 10px;border-radius:var(--r-pill);border:1px solid transparent;cursor:pointer;margin-left:auto}
 .tc-approve-inline{background:var(--good);color:var(--bg);font-weight:600}
 .tc-decline-inline{background:transparent;color:var(--ink-dim);border-color:var(--border)}
