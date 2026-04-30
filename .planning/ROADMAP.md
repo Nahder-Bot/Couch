@@ -339,7 +339,10 @@ Plans:
   11. ROADMAP-table reconciliation footnote appended at the bottom of ROADMAP documenting the Phase 15.6 close-out date and the 3 reconciliation items it closed (Phase 18 narrative refresh, Phase 19 table-row + checkbox flip, REQUIREMENTS.md REQ-18/19/20 backfill).
   12. **No source code changes.** No `js/app.js`, no `css/app.css`, no `sw.js`, no `scripts/`, no `package.json` changes. Pure planning-doc work — same as Phase 15.2.
   13. **No deploy.** No `bash scripts/deploy.sh ...` invocation, no Firebase commands. Documentation-only phase.
-**Plans**: TBD — locked at `/gsd-plan-phase 15.6`.
+**Plans**: 3 plans across 2 waves (locked 2026-04-30 via /gsd-plan-phase 15.6 — pure documentation phase mirroring Phase 15.2 pattern; Wave 1 parallel-safe between Plans 01 + 02 due to zero file-overlap; Wave 2 STATE.md repair gates on the now-clean ROADMAP + REQUIREMENTS state from Wave 1):
+- [ ] 15.6-01-PLAN.md — REQUIREMENTS.md backfill: 29 new traceability rows (REQ-18-01..10 from Phase 18 + KID-19-01..08 from Phase 19 + REQ-20-01..11 from Phase 20) + Coverage line refresh 107->136 / 87->116 + dated trailer [Wave 1, autonomous; touches REQUIREMENTS.md only]
+- [ ] 15.6-02-PLAN.md — ROADMAP-table reconciliation: Phase 19 row `2/3 In Progress`->`3/3 SHIPPED 2026-04-29` + Plan 19-03 checkbox flip + Phase 18 row narrative compaction (DEPLOYED-PENDING->SHIPPED matching 15.4/15.5 pattern) + Phase 15.6 close-out footnote at bottom [Wave 1, autonomous; touches ROADMAP.md only]
+- [ ] 15.6-03-PLAN.md — STATE.md repair: frontmatter `status: Milestone complete`->`In progress` + milestone slug normalization + new `sw_cache_version: couch-v36.2-decision-explanation` field + body Current Position freeform refresh + `**Last Activity:** 2026-04-30` line silencing CLI warning + Phase 15 + Phase 13 legacy paragraph prune + Open follow-ups compaction (26->13 rows) + new Resolved follow-ups section (8 rows) + sw.js cache section update [Wave 2, autonomous, depends on 15.6-01 + 15.6-02; touches STATE.md only]
 
 **UI hint**: none — pure documentation phase, mirrors Phase 15.2.
 
