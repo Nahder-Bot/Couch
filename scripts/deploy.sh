@@ -106,7 +106,11 @@ if [ -f scripts/smoke-decision-explanation.cjs ]; then
   node scripts/smoke-decision-explanation.cjs > /dev/null \
     || { echo "ERROR: smoke-decision-explanation failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation)."
+if [ -f scripts/smoke-conflict-aware-empty.cjs ]; then
+  node scripts/smoke-conflict-aware-empty.cjs > /dev/null \
+    || { echo "ERROR: smoke-conflict-aware-empty failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
