@@ -328,6 +328,82 @@ function notContains(label, hay, needle) {
     truthy('firestore.rules: Phase 24 M2 currentTime denylist still present (sanity for RPLY-26-19)', hasCurrentTimeDenylist);
   }
 
+  // ---- Inline mirror of replay-feed SELECTION RULE (smoke verifies the predicate logic) ----
+  // (Mirrors only the filter + sort, not the full HTML render — Plan 02 already CSS-asserts
+  // the wrapper class names; Plan 03 helper-behavior asserts the predicate.)
+  const DRIFT_TOLERANCE_MS = 2000;
+  function selectVisibleReactions(allReactions, localReplayPositionMs, shownIdsSet) {
+    for (const r of allReactions) {
+      if (r && r.runtimePositionMs != null
+          && r.runtimePositionMs <= (localReplayPositionMs + DRIFT_TOLERANCE_MS)
+          && r.runtimeSource !== 'live-stream') {
+        if (r.id) shownIdsSet.add(r.id);
+      }
+    }
+    return allReactions
+      .filter(r => r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream')
+      .filter(r => r.id && shownIdsSet.has(r.id))
+      .sort((a, b) => a.runtimePositionMs - b.runtimePositionMs);
+  }
+
+  // ===== Plan 03 helper-behavior assertions (RPLY-26-06) =====
+  const fixtureReactions = [
+    { id: 'r1', runtimePositionMs: 5000,  runtimeSource: 'broadcast' },
+    { id: 'r2', runtimePositionMs: 10000, runtimeSource: 'broadcast' },
+    { id: 'r3', runtimePositionMs: 11500, runtimeSource: 'elapsed' },   // within +2s drift of 10000
+    { id: 'r4', runtimePositionMs: 13000, runtimeSource: 'broadcast' }, // beyond +2s drift of 10000
+    { id: 'r5', runtimePositionMs: null,  runtimeSource: 'live-stream' },
+    { id: 'r6', /* pre-Phase-26: no runtime fields */ },
+    { id: 'r7', runtimePositionMs: 8000,  runtimeSource: 'replay' }     // replay-sourced is replay-able
+  ];
+  // Clock at 10000ms — should show r1 (5000), r2 (10000), r3 (11500), r7 (8000); not r4 (13000), not r5 (live-stream), not r6 (undefined)
+  let shownSet = new Set();
+  let visible = selectVisibleReactions(fixtureReactions, 10000, shownSet);
+  eq('renderReplayReactionsFeed selection at clock=10000ms returns 4 visible (RPLY-26-06)', visible.length, 4);
+  deep('renderReplayReactionsFeed sorts ascending by runtimePositionMs',
+    visible.map(r => r.id), ['r1', 'r7', 'r2', 'r3']);
+  // Clock at 4000ms — should show only r1 if anything (r1 is at 5000, drift window upper is 6000 — r1 IN; r7 at 8000 OUT)
+  let shownSet2 = new Set();
+  let visible2 = selectVisibleReactions(fixtureReactions, 4000, shownSet2);
+  eq('renderReplayReactionsFeed selection at clock=4000ms returns 1 visible (only r1 within drift)', visible2.length, 1);
+  eq('renderReplayReactionsFeed visible[0].id at clock=4000', visible2[0] && visible2[0].id, 'r1');
+  // Persistence (Pitfall 5): reuse shownSet from clock=10000 then move clock back to 4000 → r1+r2+r3+r7 stay visible
+  let visiblePersist = selectVisibleReactions(fixtureReactions, 4000, shownSet);
+  eq('renderReplayReactionsFeed persistence — scrub-back keeps previously-shown reactions (Pitfall 5)', visiblePersist.length, 4);
+
+  // ===== Plan 03 production-code sentinels =====
+  if (appJs) {
+    // RPLY-26-DRIFT — constant literal in production
+    truthy('js/app.js declares const DRIFT_TOLERANCE_MS = 2000 (RPLY-26-DRIFT)',
+      /const\s+DRIFT_TOLERANCE_MS\s*=\s*2000/.test(appJs));
+
+    // RPLY-26-06 — selection rule literals in renderReplayReactionsFeed body
+    const replayFeedIdx = appJs.indexOf('window.renderReplayReactionsFeed');
+    truthy('js/app.js has window.renderReplayReactionsFeed declaration', replayFeedIdx > -1);
+    if (replayFeedIdx > -1) {
+      // Capture the function body up to a likely terminator (next `};\n` after the assignment)
+      const slice = appJs.slice(replayFeedIdx, replayFeedIdx + 4000);
+      truthy('renderReplayReactionsFeed contains runtimePositionMs != null check (RPLY-26-06 part 1)',
+        /runtimePositionMs\s*!=\s*null/.test(slice));
+      truthy('renderReplayReactionsFeed contains drift-window check (RPLY-26-06 part 2)',
+        /runtimePositionMs\s*<=\s*[\s\S]*?DRIFT_TOLERANCE_MS/.test(slice));
+      truthy('renderReplayReactionsFeed contains ascending sort by runtimePositionMs (RPLY-26-06 part 3)',
+        /sort\(\(a,\s*b\)\s*=>\s*a\.runtimePositionMs\s*-\s*b\.runtimePositionMs\)/.test(slice));
+      contains('renderReplayReactionsFeed contains "Nothing yet at this moment." empty-state copy', slice, 'Nothing yet at this moment.');
+
+      // RPLY-26-14 — Wait Up filter NOT applied in replay variant
+      notContains('renderReplayReactionsFeed body does NOT reference reactionDelay (RPLY-26-14 negative sentinel)', slice, 'reactionDelay');
+    }
+
+    // Plan 03 clock + handler real implementations
+    truthy('js/app.js has window.toggleReplayClock real impl (replaces Plan 02 stub)',
+      /window\.toggleReplayClock\s*=\s*function\(\)\s*\{[\s\S]{50,}/.test(appJs));
+    truthy('js/app.js has _replayClockTick rAF loop',
+      /requestAnimationFrame\s*\(\s*_replayClockTick\s*\)/.test(appJs));
+    truthy('js/app.js has playing-state aria-label "Pause where you are"',
+      /Pause where you are/.test(appJs));
+  }
+
   // ===== Final report =====
   console.log('---');
   console.log('Total assertions: ' + total + '; Failures: ' + fails);
