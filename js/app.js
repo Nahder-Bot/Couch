@@ -11173,11 +11173,22 @@ function memberColor(memberId) {
 }
 
 function renderWatchpartyLive() {
-  const el = document.getElementById('wp-live-content');
+  // Phase 24 / REVIEWS H1 — Render coordination only; never touch #wp-video-surface.
+  // The player is owned by attachVideoPlayer / teardownVideoPlayer and survives re-renders.
+  const el = document.getElementById('wp-live-coordination');
   if (!el) return;
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) { el.innerHTML = '<div style="padding:24px;">Watchparty not found.</div>'; return; }
   const isSport = !!wp.sportEvent;
+  // Phase 24 — When player is active in #wp-video-surface, hide the redundant
+  // .wp-live-poster via parent class. Player IS the visual identity.
+  let headerExtraClass = '';
+  if (wp.videoUrl && wp.videoSource) {
+    const _t = state.titles && state.titles.find(x => x.id === wp.titleId);
+    if (titleHasNonDrmPath(_t)) {
+      headerExtraClass = ' wp-live-header--has-player';
+    }
+  }
   // Header title block — matchup format for sports, regular title otherwise
   const liveTitleHtml = isSport
     ? `<div class="wp-live-titlename" style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;">${escapeHtml(wp.sportEvent.awayTeam || 'Away')} <span style="color:var(--ink-dim);font-family:'Inter',sans-serif;font-style:normal;font-size:var(--t-meta);letter-spacing:0.06em;text-transform:uppercase;">at</span> ${escapeHtml(wp.sportEvent.homeTeam || 'Home')}</div>`
@@ -11188,7 +11199,7 @@ function renderWatchpartyLive() {
     : `<div class="wp-live-poster" style="background-image:url('${wp.titlePoster||''}')"></div>`;
   // If cancelled, show a dedicated end state
   if (wp.status === 'cancelled') {
-    el.innerHTML = `<div class="wp-live-header">
+    el.innerHTML = `<div class="wp-live-header${headerExtraClass}">
       ${livePosterHtml}
       <div class="wp-live-titleinfo">
         ${liveTitleHtml}
@@ -11218,7 +11229,7 @@ function renderWatchpartyLive() {
   const statusText = preStart
     ? (isSport ? `Kickoff ${formatStartTime(wp.startAt)}` : `Starts ${formatStartTime(wp.startAt)}`)
     : `Started ${formatStartTime(wp.startAt)}`;
-  const header = `<div class="wp-live-header">
+  const header = `<div class="wp-live-header${headerExtraClass}">
     ${livePosterHtml}
     <div class="wp-live-titleinfo">
       ${liveTitleHtml}
