@@ -118,7 +118,11 @@ if [ -f scripts/smoke-native-video-player.cjs ]; then
   node scripts/smoke-native-video-player.cjs > /dev/null \
     || { echo "ERROR: smoke-native-video-player failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed + native-video-player)."
+if [ -f scripts/smoke-position-anchored-reactions.cjs ]; then
+  node scripts/smoke-position-anchored-reactions.cjs > /dev/null \
+    || { echo "ERROR: smoke-position-anchored-reactions failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed + native-video-player + position-anchored-reactions)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then

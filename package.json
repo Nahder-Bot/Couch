@@ -5,7 +5,7 @@
   "scripts": {
     "deploy": "bash scripts/deploy.sh",
     "stamp": "node scripts/stamp-build-date.cjs",
-    "smoke": "node scripts/smoke-position-transform.cjs && node scripts/smoke-tonight-matches.cjs && node scripts/smoke-availability.cjs && node scripts/smoke-kid-mode.cjs && node scripts/smoke-decision-explanation.cjs && node scripts/smoke-conflict-aware-empty.cjs && node scripts/smoke-sports-feed.cjs && node scripts/smoke-native-video-player.cjs",
+    "smoke": "node scripts/smoke-position-transform.cjs && node scripts/smoke-tonight-matches.cjs && node scripts/smoke-availability.cjs && node scripts/smoke-kid-mode.cjs && node scripts/smoke-decision-explanation.cjs && node scripts/smoke-conflict-aware-empty.cjs && node scripts/smoke-sports-feed.cjs && node scripts/smoke-native-video-player.cjs && node scripts/smoke-position-anchored-reactions.cjs",
     "smoke:position": "node scripts/smoke-position-transform.cjs",
     "smoke:tonight": "node scripts/smoke-tonight-matches.cjs",
     "smoke:availability": "node scripts/smoke-availability.cjs",
@@ -13,6 +13,7 @@
     "smoke:decision-explanation": "node scripts/smoke-decision-explanation.cjs",
     "smoke:conflict-aware-empty": "node scripts/smoke-conflict-aware-empty.cjs",
     "smoke:native-video-player": "node scripts/smoke-native-video-player.cjs",
+    "smoke:replay": "node scripts/smoke-position-anchored-reactions.cjs",
     "smoke:sports-feed": "node scripts/smoke-sports-feed.cjs"
   }
 }
