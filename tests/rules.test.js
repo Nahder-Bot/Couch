@@ -96,6 +96,27 @@ async function seed() {
       titleId: 't_1',
       createdAt: now,
     });
+
+    // Phase 24 — seed a watchparty doc owned by UID_OWNER (host).
+    // Used by the Phase 24 wp rules-tests to assert host-can / non-host-cannot.
+    // Per REVIEWS M2: the watchparties rule allows attributedWrite() for any
+    // family member — we verify whether this lets non-hosts spoof currentTimeMs.
+    await db.doc('families/fam1/watchparties/wp_phase24_test').set({
+      id: 'wp_phase24_test',
+      titleId: 't_1',
+      titleName: 'Test Title',
+      titlePoster: '',
+      hostId: 'm_UID_OWNER',
+      hostName: 'Owner',
+      hostUid: UID_OWNER,
+      startAt: now,
+      createdAt: now,
+      status: 'active',
+      participants: { 'm_UID_OWNER': { name: 'Owner', joinedAt: now, rsvpStatus: 'in' } },
+      reactions: [],
+      videoUrl: null,
+      videoSource: null,
+    });
   });
 }
 
@@ -809,6 +830,84 @@ async function run() {
           actingUid: UID_MEMBER,
           memberId: 'm_UID_MEMBER',
           memberName: 'Member',
+        })
+      );
+    });
+  });
+
+  // === Phase 24 — watchparty video fields (REVIEWS M2) ===
+  // Verifies host-can / non-host-cannot for the new wp video fields:
+  //   videoUrl, videoSource, currentTimeMs, currentTimeUpdatedAt,
+  //   currentTimeSource, durationMs, isLiveStream
+  // Per REVIEWS M2, the existing watchparties rule (firestore.rules:561-565)
+  // allows attributedWrite() for any family member, which means non-hosts
+  // technically CAN write currentTimeMs at the rules layer today. The client
+  // gate `state.me.id === wp.hostId` (Plan 03 Task 3.4) is the only barrier.
+  // These tests verify that gap and trigger the firestore.rules tightening
+  // if test #wp3 fails.
+  await describe('Phase 24 — watchparty video fields (REVIEWS M2)', async () => {
+    const wpRef = (db) => db.doc('families/fam1/watchparties/wp_phase24_test');
+    const att = (uid, mid) => ({
+      actingUid: uid,
+      memberId: mid,
+      memberName: 'name',
+      actingAt: Date.now(),
+    });
+
+    await it('#wp1 host updates wp.videoUrl + wp.videoSource → ALLOWED', async () => {
+      await assertSucceeds(
+        wpRef(owner).update({
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoSource: 'youtube',
+          ...att(UID_OWNER, 'm_UID_OWNER'),
+        })
+      );
+    });
+
+    await it('#wp2 host updates wp.currentTimeMs + extended schema → ALLOWED', async () => {
+      await assertSucceeds(
+        wpRef(owner).update({
+          currentTimeMs: 12345,
+          currentTimeUpdatedAt: Date.now(),
+          currentTimeSource: 'youtube',
+          durationMs: 240000,
+          isLiveStream: false,
+          ...att(UID_OWNER, 'm_UID_OWNER'),
+        })
+      );
+    });
+
+    await it('#wp3 non-host member updates wp.currentTimeMs → REJECTED (REVIEWS M2)', async () => {
+      // This is the threat — non-host trying to spoof position.
+      // If the watchparties rule is too permissive (allow update: attributedWrite())
+      // this assertion will FAIL today. That signal triggers the firestore.rules
+      // tightening with a host-only branch for the host-only fields.
+      await assertFails(
+        wpRef(member).update({
+          currentTimeMs: 999999,
+          currentTimeUpdatedAt: Date.now(),
+          ...att(UID_MEMBER, 'm_UID_MEMBER'),
+        })
+      );
+    });
+
+    await it('#wp4 non-host member updates wp.reactions → ALLOWED (member-write field)', async () => {
+      // Confirms the tightening doesn't over-restrict. Reactions remain a
+      // member-write — anyone in the family can post reactions to the wp.
+      await assertSucceeds(
+        wpRef(member).update({
+          reactions: [{ emoji: 'tada', actingUid: UID_MEMBER, memberId: 'm_UID_MEMBER', actingAt: Date.now() }],
+          ...att(UID_MEMBER, 'm_UID_MEMBER'),
+        })
+      );
+    });
+
+    await it('#wp5 stranger (not in family) updates wp.videoUrl → REJECTED', async () => {
+      await assertFails(
+        wpRef(stranger).update({
+          videoUrl: 'https://malicious.example.com/video.mp4',
+          videoSource: 'mp4',
+          ...att(UID_STRANGER, 'm_UID_STRANGER'),
         })
       );
     });

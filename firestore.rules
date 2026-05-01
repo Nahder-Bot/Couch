@@ -558,9 +558,47 @@ service cloud.firestore {
       // Watchparties
       // ========================================================
 
+      // Phase 24 / REVIEWS M2 — host-only fields on the watchparty doc.
+      // The host-only fields below are written by the broadcaster + the
+      // attach/teardown lifecycle pair; non-hosts must NOT be able to spoof
+      // currentTimeMs or change videoUrl. The existing attributedWrite() rule
+      // alone permits any family member to update any field (it only validates
+      // attribution + family membership, not host-ness). The split below adds
+      // a host-only branch via `resource.data.hostUid == request.auth.uid` for
+      // the host-only fields, while keeping the open member-write branch for
+      // everything else (reactions, participants, rsvp, etc.).
+      //
+      // Legacy wps without `hostUid` set: Path A's check fails (missing field
+      // != request.auth.uid), so non-host attempts to write host-only fields
+      // on legacy wps will be rejected — safer floor than today's
+      // attributedWrite-only state. New wps stamp hostUid at creation per
+      // Plan 03 (js/app.js confirmStartWatchparty + confirmGamePicker +
+      // scheduleSportsWatchparty all set hostUid: state.auth.uid).
       match /watchparties/{wpId} {
         allow read: if isMemberOfFamily(familyCode);
-        allow create, update: if attributedWrite(familyCode);
+        allow create: if attributedWrite(familyCode);
+        allow update: if attributedWrite(familyCode) && (
+          // Path A: caller is the wp host — any field allowed.
+          (
+            'hostUid' in resource.data
+            && resource.data.hostUid == request.auth.uid
+          )
+          ||
+          // Path B: caller is a non-host family member — must NOT touch
+          // host-only fields. Reactions, participants, etc. remain writable.
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentTimeMs',
+            'currentTimeUpdatedAt',
+            'currentTimeSource',
+            'durationMs',
+            'isLiveStream',
+            'videoUrl',
+            'videoSource',
+            'hostId',
+            'hostUid',
+            'hostName'
+          ])
+        );
         allow delete: if isOwner(familyCode) || (isMemberOfFamily(familyCode) && graceActive());
       }
 
