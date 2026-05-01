@@ -10680,6 +10680,18 @@ function showAmplifiedReactionPicker(wp) {
 
 window.postBurstReaction = async function(wpId, emoji) {
   if (!state.me) return;
+  // Phase 26 / RPLY-26-01 — look up wp from wpId so we can derive position-anchored fields.
+  // Sports-mode amplified bursts (Phase 23) typically have wp.isLiveStream === true → helper
+  // returns { null, 'live-stream' } per D-03 (sports replay surface filters these out, which
+  // is the correct behavior — live broadcasts have no re-watchable timeline).
+  const wp = state.watchparties.find(x => x.id === wpId);
+  const { runtimePositionMs, runtimeSource } = derivePositionForReaction({
+    wp: wp || {},
+    mine: null,
+    elapsedMs: 0,
+    isReplay: state.activeWatchpartyMode === 'revisit',
+    localReplayPositionMs: state.replayLocalPositionMs
+  });
   try {
     const reaction = {
       memberId: state.me.id,
@@ -10687,7 +10699,9 @@ window.postBurstReaction = async function(wpId, emoji) {
       kind: 'emoji',
       emoji,
       at: Date.now(),
-      amplified: true
+      amplified: true,
+      runtimePositionMs,
+      runtimeSource
     };
     await updateDoc(watchpartyRef(wpId), {
       reactions: arrayUnion(reaction),
@@ -11990,11 +12004,26 @@ async function postReaction(payload) {
   if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
   if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
   const elapsedMs = computeElapsed(mine, wp);
+
+  // Phase 26 / RPLY-26-01 + RPLY-26-07 — derive position-anchored fields for the reaction.
+  // isReplay path is reachable when Plan 02 ships state.activeWatchpartyMode = 'revisit' on
+  // the replay-mode entry path; until then this stays false and live-mode reactions land
+  // on broadcast/elapsed/live-stream per D-01..D-03.
+  const { runtimePositionMs, runtimeSource } = derivePositionForReaction({
+    wp,
+    mine,
+    elapsedMs,
+    isReplay: state.activeWatchpartyMode === 'revisit',
+    localReplayPositionMs: state.replayLocalPositionMs
+  });
+
   const reaction = {
     id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
     ...writeAttribution(),
     elapsedMs,
     at: Date.now(),
+    runtimePositionMs,
+    runtimeSource,
     ...payload
   };
   try {
