@@ -6,6 +6,14 @@ import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLO
 import { twemojiImg } from './twemoji.js';
 import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys } from './sports-feed.js';
 import {
+  parseVideoUrl,
+  titleHasNonDrmPath,
+  makeIntervalBroadcaster,
+  seekToBroadcastedTime,
+  VIDEO_BROADCAST_INTERVAL_MS,
+  STALE_BROADCAST_MAX_MS
+} from './native-video-player.js';
+import {
   bootstrapAuth, watchAuth,
   signInWithGoogle, signInWithApple,
   sendEmailLink, completeEmailLinkIfPresent,
@@ -10218,6 +10226,11 @@ window.scheduleSportsWatchparty = async function(eventId) {
     return;
   }
   if (!game.startTime) { flashToast('This game is missing a start time.', { kind: 'warn' }); return; }
+  // Phase 24 / REVIEWS M3 — Video URL field (legacy sports flow). Reads from #wp-video-url-sport.
+  // Field is set BEFORE user taps a game tile; we read it at tile-click time.
+  const _videoCheck = readAndValidateVideoUrl('sport');
+  if (!_videoCheck.ok) return;
+  const parsedVideoUrl = _videoCheck.parsed;
   const league = SPORTS_LEAGUES[sportsCurrentLeague];
   const matchupLabel = game.awayTeam + ' at ' + game.homeTeam;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -10265,7 +10278,9 @@ window.scheduleSportsWatchparty = async function(eventId) {
         pausedOffset: 0
       }
     },
-    reactions: []
+    reactions: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -10404,6 +10419,10 @@ window.selectGame = function(gameId, encodedJson) {
 window.confirmGamePicker = async function() {
   if (!_gamePickerSelected || !state.me) return;
   if (guardReadOnlyWrite()) return;
+  // Phase 24 / REVIEWS M3 — Video URL field. Reads from #wp-video-url-game.
+  const _videoCheck = readAndValidateVideoUrl('game');
+  if (!_videoCheck.ok) return;
+  const parsedVideoUrl = _videoCheck.parsed;
   const game = _gamePickerSelected;
   const leagueEmojis = { nfl: '🏈', nba: '🏀', mlb: '⚾', nhl: '🏒' };
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -10453,7 +10472,9 @@ window.confirmGamePicker = async function() {
       }
     },
     reactions: [],
-    scoringPlays: []
+    scoringPlays: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -10842,6 +10863,39 @@ window.setUserTeamFlair = async function(wpId, allegiance, hexColor) {
   if (overlay) overlay.remove();
 };
 
+// Phase 24 — shared video-URL validation for the 3 wp-creation flows.
+// Reads from {flow}-prefixed DOM ids per REVIEWS M3 (distinct ids per modal).
+// On invalid + non-empty: returns { ok: false }; caller bails out with .field-invalid + unhide error div.
+// On valid: returns { ok: true, parsed: { source, id?, url } | null } — null means user left it empty.
+// On valid mp4 with http:// scheme: also surfaces the REVIEWS C1 mixed-content warning toast.
+function readAndValidateVideoUrl(flow /* 'movie' | 'game' | 'sport' */) {
+  const inputId = 'wp-video-url-' + flow;
+  const errorId = 'wp-video-url-' + flow + '-error';
+  const inputEl = document.getElementById(inputId);
+  const errEl = document.getElementById(errorId);
+  const raw = inputEl ? inputEl.value.trim() : '';
+  if (!raw) {
+    if (inputEl) inputEl.classList.remove('field-invalid');
+    if (errEl) errEl.setAttribute('hidden', '');
+    return { ok: true, parsed: null };
+  }
+  const parsed = parseVideoUrl(raw);
+  if (!parsed) {
+    if (inputEl) inputEl.classList.add('field-invalid');
+    if (errEl) errEl.removeAttribute('hidden');
+    return { ok: false, parsed: null };
+  }
+  // Clear any prior error state
+  if (inputEl) inputEl.classList.remove('field-invalid');
+  if (errEl) errEl.setAttribute('hidden', '');
+  // REVIEWS C1: non-blocking warning when MP4 scheme is HTTP (mixed content on https Couch).
+  // Don't reject — Plex/Jellyfin LAN URLs may work in some PWA contexts. Just warn.
+  if (parsed.source === 'mp4' && raw.toLowerCase().startsWith('http://')) {
+    try { flashToast('Note: HTTP links may be blocked by the browser. Use https if available.', { kind: 'warn' }); } catch (e) { /* flashToast may not exist in some boot states */ }
+  }
+  return { ok: true, parsed };
+}
+
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
@@ -10850,6 +10904,10 @@ window.confirmStartWatchparty = async function() {
   const startAt = computeWpStartAt();
   if (!startAt) { alert('Pick a start time.'); return; }
   if (startAt < Date.now() - 60*1000) { alert("That's in the past. Pick a future time."); return; }
+  // Phase 24 / REVIEWS M3 — Video URL field (D-04). Reads from #wp-video-url-movie.
+  const _videoCheck = readAndValidateVideoUrl('movie');
+  if (!_videoCheck.ok) return; // submit-blocked: inline error already surfaced
+  const parsedVideoUrl = _videoCheck.parsed;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   // Phase 7 Plan 5 (PARTY-06): capture the creator's IANA timezone at write-time so
   // the onWatchpartyCreate CF can render startAt in their local zone in the push body
@@ -10881,7 +10939,9 @@ window.confirmStartWatchparty = async function() {
         pausedOffset: 0
       }
     },
-    reactions: []
+    reactions: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
