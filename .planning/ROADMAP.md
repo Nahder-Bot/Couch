@@ -478,8 +478,14 @@ Plans:
 ### Phase 26: Position-anchored reactions + async-replay
 **Goal**: Reactions become **runtime-indexed** (capture `runtimePositionMs` alongside the existing `serverTimestamp`) so a later viewer can "replay" the original group's reactions aligned to *their* playback position. The "Red Wedding" hero use case captured in `seeds/phase-async-replay.md`: watch a show the next day at minute 25 → see what the group said when they were at minute 25, so you feel like you were part of it. Schema-level change to the reactions doc + a rejoin / replay UX flow on top.
 **Depends on**: **Phase 24** (hard ordering — `currentTime` broadcast is the data source for `runtimePositionMs`). Also Phase 7 (reactions doc shape), Phase 15.5 (Wait Up flex — established the live-ish foundation that runtime-indexing extends).
-**Requirements**: Re-targeted scope from `seeds/phase-async-replay.md` (Sub-request B, originally seeded 2026-04-21 / re-confirmed 2026-04-28 as the natural follow-on to Phase 15.5; further re-targeted 2026-04-30 as Phase 26 in the v2 plan). Gray areas to surface in `/gsd-discuss-phase 26`: retroactive reaction migration (older wall-clock-only reactions — leave or backfill?), replay UX shape (timeline scrubber? auto-play with reactions overlaid?), rejoin flow (separate "Replay" surface vs join-as-replay on existing watchparty?).
-**Plans**: TBD — kickoff via `/gsd-discuss-phase 26` once Phase 24 ships.
+**Requirements**: 24 IDs locked — see REQUIREMENTS.md § RPLY-26-* (RPLY-26-01..20 + RPLY-26-PAGE/DATE/DRIFT/SNAP). Locked via the `/gsd-discuss-phase 26` → `/gsd-research-phase 26` → `/gsd-ui-phase 26` → `/gsd-plan-phase 26` chain on 2026-05-01. 11 user decisions captured in `26-CONTEXT.md` (D-01..D-11). All Claude's Discretion items closed in `26-UI-SPEC.md`. Single-repo couch-only deploy per D-07.
+**Plans:** 5 plans across 5 waves (sequential due to js/app.js neighborhood overlap on Plans 02/03/04 + deploy gate on Plan 05).
+Plans:
+- [ ] 26-01-PLAN.md — Foundation: state slots + derivePositionForReaction + replayableReactionCount helpers + STALE_BROADCAST_MAX_MS import + postReaction/postBurstReaction integration + smoke contract scaffold + deploy.sh + package.json wiring
+- [ ] 26-02-PLAN.md — Replay-modal chrome: openWatchpartyLive(opts) + closeWatchpartyLive flag-clear + renderWatchpartyLive replay branch + scrubber strip + getScrubberDurationMs + REVISITING/together-again banner copy + ~80 lines CSS + smoke extends
+- [ ] 26-03-PLAN.md — Replay-feed render + local clock + compound-write: DRIFT_TOLERANCE_MS const + renderReplayReactionsFeed real impl + toggleReplayClock + onReplayScrubberInput/Change rAF clock + Wait Up off in replay + smoke extends
+- [ ] 26-04-PLAN.md — Past parties surface expansion + Tonight inline-link gating + title-detail bifurcation + new section: friendlyPartyDate + allReplayableArchivedCount + renderPastWatchpartiesForTitle + renderPastParties refactor + ~50 lines CSS + smoke extends
+- [ ] 26-05-PLAN.md — Smoke floor lock + production deploy + 26-HUMAN-UAT.md scaffold: RPLY-26-17 floor meta-assertion + bash scripts/deploy.sh 38-async-replay + curl-verification + 10 device-UAT scripts + STATE.md updates
 
 **UI hint**: medium (reactions overlay positioning + a new "Replay" entry surface; brand voice continuity with Phase 15.5 banners)
 

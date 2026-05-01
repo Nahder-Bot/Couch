@@ -238,6 +238,35 @@ Promoted to ROADMAP from `seeds/v2-watchparty-sports-milestone.md` 2026-04-30. v
 - [x] **VID-24-17**: Submit-time `flashToast("Note: HTTP links may be blocked by the browser. Use https if available.")` on `http://` MP4 URL submit per REVIEWS C1 (consensus across reviewers)
 - [x] **VID-24-18**: Firestore rules verification — 5 rules-tests in `tests/rules.test.js` covering host-write success + non-host-write spoof rejection on `wp.currentTimeMs`; conditional `firestore.rules` tightening + cross-repo deploy reminder for `queuenight/` mirror per REVIEWS M2
 
+### RPLY-26-* — Position-anchored reactions / async-replay (Phase 26)
+
+Locked via the `/gsd-discuss-phase 26` → `/gsd-research-phase 26` → `/gsd-ui-phase 26` → `/gsd-plan-phase 26` chain on 2026-05-01. Built on Phase 24's host-only `currentTime` broadcast (D-01..D-03 hybrid capture) + Phase 7's `wp.reactions[]` array primitive + Phase 15.5's Past parties surface. Single-repo couch-only deploy per CONTEXT D-07 (no queuenight CF or rules changes — Phase 24 / REVIEWS M2 denylist already scoped to top-level wp.* fields per RPLY-26-19 sentinel). Behavior column descriptions match VALIDATION.md per-task verification map verbatim.
+
+- **RPLY-26-01**: `derivePositionForReaction(ctx)` returns correct shape across 4 cases — fresh-broadcast (`'broadcast'` + extrapolated ms), stale-broadcast (`'elapsed'` + elapsedMs fallback per D-02), no-player (`'elapsed'` + elapsedMs), live-stream (`null` + `'live-stream'` per D-03), plus replay-mode override (`'replay'` + localReplayPositionMs per D-05)
+- **RPLY-26-02**: `STALE_BROADCAST_MAX_MS` import from `js/native-video-player.js` appears in `js/app.js` production source (Phase 24 module reuse per D-02)
+- **RPLY-26-03**: `runtimeSource` enum closure — exactly `'broadcast' | 'elapsed' | 'live-stream' | 'replay'` (4 values) appear as literals in production source
+- **RPLY-26-04**: Replay-modal variant render branch in `renderWatchpartyLive` gated on `state.activeWatchpartyMode === 'revisit'` with `wp.status === 'archived'` eligibility gate (per D-04 + D-06)
+- **RPLY-26-05**: `getScrubberDurationMs(wp)` precedence — TMDB `t.runtime` (movies) → `t.episode_run_time` (TV) → `wp.durationMs` (Phase 24 broadcast capture) → max observed `runtimePositionMs` + 30s cushion → 60min floor (UI-SPEC §2 lock)
+- **RPLY-26-06**: Replay reactions feed selection rule — skip `r.runtimePositionMs == null` (loose-equality catches both null AND undefined for pre-Phase-26 reactions per D-11 + RESEARCH Pitfall 2); show `r.runtimePositionMs <= localReplayPositionMs + DRIFT_TOLERANCE_MS`; sort ascending by `runtimePositionMs`
+- **RPLY-26-07**: Replay-mode reactions COMPOUND — `runtimeSource: 'replay'` literal appears at `postReaction` compound-write site; `runtimePositionMs = state.replayLocalPositionMs` per D-05 recursive-family-memory contract
+- **RPLY-26-08**: `mode: 'revisit'` literal appears in ≥2 `openWatchpartyLive(...)` call sites (Past parties row tap + Past watchparties for title row tap per D-08 dual entry points)
+- **RPLY-26-09**: `renderPastParties` query expanded from 5h-25h `WP_STALE_MS` window to all-time-paginated archived parties — both `archivedWatchparties()` AND `replayableReactionCount` filter applied (per D-08 + D-09 + D-10)
+- **RPLY-26-10**: `replayableReactionCount(wp)` helper — `r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'` predicate; appears in production source (per D-10)
+- **RPLY-26-11**: `renderPastWatchpartiesForTitle(t)` function defined and invoked in `renderDetailShell` immediately after the bifurcated active-only `renderWatchpartyHistoryForTitle` block (per D-08 + UI-SPEC §5)
+- **RPLY-26-12**: `renderWatchpartyHistoryForTitle` query narrowed to `activeWatchparties().filter(wp => wp.titleId === t.id)` (D-08 bifurcation; `activeWatchparties()` literal appears inside the function body)
+- **RPLY-26-13**: `state.activeWatchpartyMode` slot — exists in `js/state.js` initializer; assigned in `openWatchpartyLive` (set to `'revisit'` or `'live'`); cleared (`= null`) in `closeWatchpartyLive` (per RESEARCH Pitfall 9)
+- **RPLY-26-14**: Wait Up filter `mine.reactionDelay` is NOT applied in replay variant — negative-match sentinel proves the replay-feed filter expression doesn't reference `reactionDelay` (per D-Discretion + UI-SPEC §Wait Up × replay)
+- **RPLY-26-15**: Replay banner copy — `REVISITING` (eyebrow inside `.wp-live-status`) AND `together again` (italic Instrument Serif sub-line in `.wp-live-titleinfo`) appear as production-source literals (per UI-SPEC §Copywriting)
+- **RPLY-26-16**: Auto-play of `wp.videoUrl` in replay modal renders the player but does NOT auto-start — NO `autoplay` attribute / `playerVars.autoplay` in production source outside comments (UI-SPEC §6 + RESEARCH Pitfall 4 negative sentinel)
+- **RPLY-26-17**: Smoke contract `scripts/smoke-position-anchored-reactions.cjs` ships ≥13 assertions (UI-SPEC §7 floor; researcher recommends ≥25 with helper-behavior + production-code sentinels + replay-list filter coverage)
+- **RPLY-26-18**: `sw.js` CACHE bumped to `couch-v38-async-replay` on Phase 26 ship via `bash scripts/deploy.sh 38-async-replay` (auto-bump per CLAUDE.md deploy convention)
+- **RPLY-26-19**: `firestore.rules` verification sentinel — Phase 24 / REVIEWS M2 currentTime denylist allowlist scoped to top-level `wp.*` field names; `reactions` is NOT in the denylist (D-07 single-repo couch-only deploy assertion; smoke regex-greps `firestore.rules` and asserts `reactions` token absent from the `affectedKeys().hasAny([...])` list)
+- **RPLY-26-20**: Tonight tab inline `Past parties (N) ›` link gating — only renders when `allReplayableArchivedCount > 0` (first-week-after-deploy framing per CONTEXT specifics; D-10 silent-UX preference; renamed from Phase 15.5's `staleWps.length > 0` gate)
+- **RPLY-26-PAGE**: Past parties pagination — `state.pastPartiesShownCount` slot used in `renderPastParties` slice + `Show older parties ›` copy appears at end of list when `allArchived.length > shownCount` (D-09 page size 20 lock + UI-SPEC §4)
+- **RPLY-26-DATE**: `friendlyPartyDate(startAt)` helper returns correct string for 5 fixture inputs — today (`Started N hr ago` preserved from 15.5), 36h (`Last night`), 4d (weekday name), 10d (`Last ` + weekday), cross-year (`Month Day, Year`); date-format ladder per UI-SPEC §Copywriting
+- **RPLY-26-DRIFT**: `DRIFT_TOLERANCE_MS = 2000` literal in production source (UI-SPEC §2 lock — ±2s window for replay-feed fade-in match)
+- **RPLY-26-SNAP**: `step="1000"` literal appears in scrubber `<input type="range">` HTML (UI-SPEC §2 lock — 1-sec snap granularity)
+
 ## Out of Scope
 
 | Feature | Reason |
