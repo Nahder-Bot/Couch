@@ -11474,6 +11474,12 @@ function renderWatchpartyBanner() {
 // v36.4: expanded 10 → 16 reactions; rendered as Twemoji <img> for cross-device consistency.
 const WP_QUICK_EMOJIS = ['😂','😱','😭','🤯','👀','🔥','💀','❤️','🤔','🙌','🎉','👏','😴','🥰','🤡','🙄'];
 
+// Phase 26 / RPLY-26-DRIFT — UI-SPEC §2 lock: ±2-second tolerance window for replay-feed
+// fade-in match. Matches the seed default + the family use case (1-2s human typing delay
+// when the original reactor posted, plus a similar tolerance for viewer scrubber-drag).
+// Sub-second precision is out of scope per CONTEXT § Deferred.
+const DRIFT_TOLERANCE_MS = 2000;
+
 function memberColor(memberId) {
   const m = state.members.find(x => x.id === memberId);
   return m && m.color ? m.color : '#888';
@@ -11527,19 +11533,46 @@ if (typeof window.onReplayScrubberInput !== 'function') {
 if (typeof window.onReplayScrubberChange !== 'function') {
   window.onReplayScrubberChange = function(v) { /* Phase 26 / Plan 03 implements */ };
 }
-// Phase 26 / Plan 03 implements — Plan 02 ships a temporary passthrough stub
-// so the replay-variant render path doesn't ReferenceError between Plan 02 + Plan 03.
-if (typeof window.renderReplayReactionsFeed !== 'function') {
-  window.renderReplayReactionsFeed = function(wp, localPosMs) {
-    // Plan 03 replaces this with the position-aligned subset.
-    // Plan 02 fallback: empty body so the feed area is visible-but-empty in replay.
+// Phase 26 / RPLY-26-06 — Replay-mode reactions feed (position-aligned subset).
+// Selection rule per UI-SPEC §3 (locked):
+//   skip if r.runtimePositionMs == null  (covers 'live-stream' AND pre-Phase-26)
+//   show if r.runtimePositionMs <= localReplayPositionMs + DRIFT_TOLERANCE_MS
+//   hide if r.runtimePositionMs > localReplayPositionMs + DRIFT_TOLERANCE_MS
+// Sort: ascending by runtimePositionMs.
+// Persistence (Pitfall 5): once a reaction has been shown this session, it stays visible
+// across scrub-backward. state.replayShownReactionIds tracks the session-set.
+// Wait Up (RPLY-26-14): NOT applied in replay variant — the `mine.reactionDelay` filter
+// from renderReactionsFeed is intentionally absent here.
+window.renderReplayReactionsFeed = function(wp, localReplayPositionMs) {
+  if (!state.replayShownReactionIds) {
+    state.replayShownReactionIds = new Set();
+  }
+  const all = (wp && Array.isArray(wp.reactions)) ? wp.reactions : [];
+  // Update the persistent visible-set: add any reaction newly within the drift window.
+  for (const r of all) {
+    if (r && r.runtimePositionMs != null
+        && r.runtimePositionMs <= (localReplayPositionMs + DRIFT_TOLERANCE_MS)
+        && r.runtimeSource !== 'live-stream') {
+      if (r.id) state.replayShownReactionIds.add(r.id);
+    }
+  }
+  // Render the union: anything in the session-set, sorted by runtimePositionMs ascending.
+  const visible = all
+    .filter(r => r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream')
+    .filter(r => r.id && state.replayShownReactionIds.has(r.id))
+    .sort((a, b) => a.runtimePositionMs - b.runtimePositionMs);
+  if (!visible.length) {
+    // Empty-state per UI-SPEC §3 — italic Instrument Serif, --ink-dim, no instruction copy.
     return '<div class="wp-live-body" id="wp-reactions-feed">' +
       '<div style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);padding:20px;">' +
-        '<em style="font-family:\'Instrument Serif\',serif;">Replay feed lands in Plan 03.</em>' +
+        '<em style="font-family:\'Instrument Serif\',serif;">Nothing yet at this moment.</em>' +
       '</div>' +
     '</div>';
-  };
-}
+  }
+  // Reuse the existing per-row renderReaction(r, mode) helper at js/app.js:11961.
+  const rows = visible.map(r => renderReaction(r, 'replay')).join('');
+  return '<div class="wp-live-body" id="wp-reactions-feed">' + rows + '</div>';
+};
 
 function renderWatchpartyLive() {
   // Phase 24 / REVIEWS H1 — Render coordination only; never touch #wp-video-surface.
