@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T03:20:59Z"
-last_activity: 2026-05-01
+last_updated: "2026-04-30T22:00:00Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 27
   completed_phases: 16
   total_plans: 92
-  completed_plans: 90
-  percent: 98
+  completed_plans: 91
+  percent: 99
 ---
 
 # Project State
@@ -26,13 +26,15 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 24 (native-video-player) — EXECUTING
-Plan: 01 of 4 — ✓ COMPLETE (Wave 2 — smoke contract shipped 2026-05-01)
-Next: Plan 03 (UI surface) — Wave 2 sibling, no file overlap with Plan 01; can ship next
+Plan: 03 of 4 — ✓ COMPLETE (Wave 2 — UI surface end-to-end shipped 2026-04-30)
+Next: Plan 04 (deploy + UAT) — Wave 3 sequential; sw.js CACHE bump → couch-v37-native-video-player + Firestore rules verification + couchtonight.app deploy + 24-HUMAN-UAT.md
 **Status:** Executing Phase 24
 
-**Last Activity:** 2026-05-01
+**Last Activity:** 2026-04-30
 
-**Most recent close-out:** Phase 24 / Plan 01 — production-module smoke contract shipped (`scripts/smoke-native-video-player.cjs` 286 lines, 46 assertions: 35 helper-behavior + 11 production-code sentinels). Smoke imports `js/native-video-player.js` via dynamic `await import(pathToFileURL(absolutePath).href)` (Windows-portable file-URL form) — REVIEWS H2 (test-mirror drift) fully closed at the smoke layer. 35 helper-behavior assertions all green standalone: parseVideoUrl 5 YT shapes + 2 MP4 + 6 rejections / titleHasNonDrmPath 4 cases / makeIntervalBroadcaster leading + trailing edge / seekToBroadcastedTime 4 cases per REVIEWS M1 (happy-path returns true with seekTo seconds + allowSeekAhead=true / stale skip / missing currentTimeMs skip / source mismatch skip) / YouTube embed URL XSS guards (`encodeURIComponent` round-trip + `enablejsapi=1` + `playsinline=1` iOS gate) / module-export sentinels (`VIDEO_BROADCAST_INTERVAL_MS=5000`, `STALE_BROADCAST_MAX_MS=60000`, `DRM_FLAT_RATE_PROVIDER_BRANDS` Set). 11 production-code sentinels grep js/app.js for REVIEWS C1/C2/H3/H4/H5/M1/M3/M4 patterns — fail loudly pre-Plan-03 by design (deterministic green/red signal Plan 24-03's verify uses). `scripts/deploy.sh` 8th smoke-gate `if`-block wired (lines 117-120) + recap echo extended (`+ native-video-player`); `package.json` `scripts.smoke` chain extended + `smoke:native-video-player` alphabetical alias added. 2 atomic commits: `0a0e3e8` (feat — smoke file) + `2fb5ae0` (chore — deploy.sh + package.json wire). VID-24-12 closed in REQUIREMENTS.md traceability.
+**Most recent close-out:** Phase 24 / Plan 03 — UI surface end-to-end shipped (4 atomic commits: `44d55a7` DOM scaffold + 3-flow URL fields + CSS rules / `c6de53e` module import + 3-flow validation + REVIEWS C1 mixed-content warning / `f58f186` renderWatchpartyLive retargets #wp-live-coordination + headerExtraClass / `90de0ad` lifecycle attach/teardown + broadcast + retry overlay). The defining change is REVIEWS H1: `#wp-live-content` split into `#wp-video-surface` (persistent — only attachVideoPlayer/teardownVideoPlayer touch it) + `#wp-live-coordination` (re-renderable — renderWatchpartyLive writes existing live-modal HTML here). Reactions, timer ticks, and Firestore snapshots no longer tear down the player. After Plan 03 lands, all 11 production-code sentinels in `scripts/smoke-native-video-player.cjs` flip from RED to GREEN — `npm run smoke:native-video-player` exits 0 with all 35 helper-behavior + 11 production-code sentinels OK; `npm run smoke` (full 8-contract chain) also exits 0. Closes 9 REVIEWS findings end-to-end (H1 + H3 + H4 + H5 + M1 + M3 + M4 + C1 + C2) and auto-mitigates L1 (host sync loop). VID-24-01/03/06/07/08/09/11/14/15/16/17 marked Complete in REQUIREMENTS.md; VID-24-05 escalated from Partial → Complete (titleHasNonDrmPath gate now wired in renderer + attach). One auto-fix during execution (Rule 3): M4 per-sample gate inlined `isFinite(_wpYtPlayer.getDuration()) && _wpYtPlayer.getDuration() > 0` to satisfy smoke regex `/isFinite\\([^)]*getDuration/`; functionally equivalent (calls getDuration twice instead of cached); folded into Task 3.4 commit. js/app.js delta: +329/-7 lines net; app.html delta: +47/-1; css/app.css delta: +18/0. No new files. UI-SPEC.md was already pre-revised for H1 split during planning chain (no Plan 03 edits needed).
+
+**Previous close-out:** Phase 24 / Plan 01 — production-module smoke contract shipped (`scripts/smoke-native-video-player.cjs` 286 lines, 46 assertions: 35 helper-behavior + 11 production-code sentinels). Smoke imports `js/native-video-player.js` via dynamic `await import(pathToFileURL(absolutePath).href)` (Windows-portable file-URL form) — REVIEWS H2 (test-mirror drift) fully closed at the smoke layer. 2 atomic commits: `0a0e3e8` (feat — smoke file) + `2fb5ae0` (chore — deploy.sh + package.json wire). VID-24-12 closed in REQUIREMENTS.md traceability.
 
 **Previous close-out:** Phase 24 / Plan 02 — pure-helpers ES module shipped (`js/native-video-player.js` 176 lines, 7 named exports: `parseVideoUrl` + `titleHasNonDrmPath` + `makeIntervalBroadcaster` + `seekToBroadcastedTime` + `VIDEO_BROADCAST_INTERVAL_MS` + `STALE_BROADCAST_MAX_MS` + `DRM_FLAT_RATE_PROVIDER_BRANDS`). Phase 22 module-creation precedent applied. Single commit `9c1f511` (feat). VID-24-02/04/05/10/15 implemented at the helper layer.
 
@@ -42,7 +44,7 @@ Next: Plan 03 (UI surface) — Wave 2 sibling, no file overlap with Plan 01; can
 
 **Next available work:**
 
-- Phase 24 — continue execution: Plan 03 (UI surface — depends on Plan 02 ✓; Wave 2 sibling of shipped Plan 01) is the next plan to ship. Plan 04 (deploy + UAT) is Wave 3 — depends on Plan 03 + Plan 01's 11 production-code sentinels flipping green when Plan 03 lands its js/app.js edits.
+- Phase 24 — continue execution: Plan 04 (deploy + UAT) is the LAST plan in the phase — Wave 3, sequential after Plan 03 ✓. Scope: sw.js CACHE bump → `couch-v37-native-video-player` (auto-via `bash scripts/deploy.sh 37-native-video-player`) + 5 Firestore rules-tests verifying host-only `currentTimeMs` writes (REVIEWS M2) + conditional `firestore.rules` tightening + cross-repo deploy reminder for queuenight mirror + 11-script 24-HUMAN-UAT.md (player-survives-reactions / late-join-seek / HTTP-MP4-warning / DRM-hide / iOS-playsinline). All 11 production-code sentinels are GREEN today — smoke gate will pass pre-deploy.
 - Phase 15.3 — DESIGN-01 (canonical SVG logo + wordmark sources) — SCOPED, awaiting kickoff. Closes the only genuinely unsatisfied requirement from v33.3 milestone audit.
 - Phase 16 — Calendar Layer (recurring + multi-future watchparty scheduling) — SCOPED, awaiting kickoff.
 - Phase 17 — App Store Launch Readiness (native wrapper + App Store / Play listings) — SCOPED, awaiting kickoff (next-milestone candidate per cross-AI review 2026-04-28).
