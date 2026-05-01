@@ -2933,6 +2933,15 @@ function archivedWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => wp.status === 'archived' || (now - wp.startAt) >= WP_ARCHIVE_MS);
 }
+// Phase 26 / RPLY-26-10 — D-10 hide-empty filter for Past parties surface + Tonight inline-link gating.
+// Loose-equality (!= null) catches BOTH null (live-stream sourced) AND undefined (pre-Phase-26 reactions).
+// Per RESEARCH Pitfall 2 + UI-SPEC §4.
+function replayableReactionCount(wp) {
+  if (!wp || !Array.isArray(wp.reactions)) return 0;
+  return wp.reactions.filter(r =>
+    r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'
+  ).length;
+}
 function wpForTitle(titleId) { return activeWatchparties().find(wp => wp.titleId === titleId && wp.status !== 'cancelled'); }
 function myParticipation(wp) {
   if (!wp || !state.me) return null;
@@ -11928,6 +11937,49 @@ window.postTextReaction = async function() {
   input.value = '';
   await postReaction({ kind: 'text', text });
 };
+
+// Phase 26 / RPLY-26-01..RPLY-26-03 — Position-derivation hybrid for the reactions schema additions.
+// Branch order LOCKED per CONTEXT D-01..D-05 + UI-SPEC enum closure (do NOT reorder):
+//   1. ctx.isReplay === true               → { localReplayPositionMs (default 0), 'replay' }
+//   2. ctx.wp.isLiveStream === true        → { null, 'live-stream' }
+//   3. broadcast fresh (within STALE_BROADCAST_MAX_MS) → { extrapolated, 'broadcast' }
+//   4. otherwise (no broadcast / stale)    → { ctx.elapsedMs, 'elapsed' }
+// Pure: no DOM reads, no Firestore writes; only reads its arguments.
+// Smoke mirrors this body inline per scripts/smoke-decision-explanation.cjs precedent.
+function derivePositionForReaction(ctx) {
+  const wp = ctx && ctx.wp ? ctx.wp : {};
+
+  // (1) Replay-mode compounding (D-05) — overrides everything; locked first.
+  if (ctx && ctx.isReplay === true) {
+    const pos = (typeof ctx.localReplayPositionMs === 'number' && isFinite(ctx.localReplayPositionMs))
+      ? Math.max(0, Math.round(ctx.localReplayPositionMs))
+      : 0;
+    return { runtimePositionMs: pos, runtimeSource: 'replay' };
+  }
+
+  // (2) Live-stream — D-03 (no re-watchable timeline).
+  if (wp.isLiveStream === true) {
+    return { runtimePositionMs: null, runtimeSource: 'live-stream' };
+  }
+
+  // (3) Fresh broadcast — D-01 primary path.
+  const ct = (typeof wp.currentTimeMs === 'number' && isFinite(wp.currentTimeMs)) ? wp.currentTimeMs : null;
+  const ctUpdatedAt = (typeof wp.currentTimeUpdatedAt === 'number' && isFinite(wp.currentTimeUpdatedAt))
+    ? wp.currentTimeUpdatedAt : null;
+  if (ct !== null && ctUpdatedAt !== null) {
+    const sinceUpdate = Date.now() - ctUpdatedAt;
+    if (sinceUpdate >= 0 && sinceUpdate < STALE_BROADCAST_MAX_MS) {
+      return {
+        runtimePositionMs: Math.max(0, Math.round(ct + sinceUpdate)),
+        runtimeSource: 'broadcast'
+      };
+    }
+  }
+
+  // (4) Fallback — D-02 (no player / stale broadcast → elapsedMs proxy).
+  const elapsed = (ctx && typeof ctx.elapsedMs === 'number' && isFinite(ctx.elapsedMs)) ? ctx.elapsedMs : 0;
+  return { runtimePositionMs: Math.max(0, Math.round(elapsed)), runtimeSource: 'elapsed' };
+}
 
 async function postReaction(payload) {
   if (!state.me || !state.activeWatchpartyId) return;
