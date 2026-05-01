@@ -531,6 +531,18 @@ function notContains(label, hay, needle) {
     contains('css/app.css contains .past-parties-show-older class (RPLY-26-PAGE)', cssApp, '.past-parties-show-older');
   }
 
+  // ===== Plan 05 — RPLY-26-17 floor meta-assertion =====
+  // UI-SPEC §7 locks the floor at 13 assertions (5 helper-behavior + 6 production-code
+  // sentinels + 2 replay-list filter). This meta-assertion fails the deploy gate if a
+  // future change accidentally drops the total below the floor.
+  const PHASE_26_ASSERTION_FLOOR = 13;
+  if (total < PHASE_26_ASSERTION_FLOOR) {
+    failMsg('Phase 26 smoke meets UI-SPEC §7 floor (>=' + PHASE_26_ASSERTION_FLOOR + ' assertions) (RPLY-26-17)',
+      'total=' + total + ' is below floor of ' + PHASE_26_ASSERTION_FLOOR);
+  } else {
+    pass('Phase 26 smoke meets UI-SPEC §7 floor (>=' + PHASE_26_ASSERTION_FLOOR + ' assertions) (RPLY-26-17) — total=' + total);
+  }
+
   // ===== Final report =====
   console.log('---');
   console.log('Total assertions: ' + total + '; Failures: ' + fails);
