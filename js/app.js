@@ -2942,6 +2942,23 @@ function replayableReactionCount(wp) {
     r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'
   ).length;
 }
+// Phase 26 / RPLY-26-20 — Tonight tab inline-link gating count source.
+// Replaces Phase 15.5's staleWps.length count source. Per CONTEXT specifics:
+// first-week-after-deploy framing — count is 0 for existing families on deploy day
+// because D-11 + D-10 combination filters out all pre-Phase-26 archived parties.
+function allReplayableArchivedCount(allWatchparties) {
+  const list = Array.isArray(allWatchparties) ? allWatchparties : [];
+  let n = 0;
+  for (const wp of list) {
+    if (!wp) continue;
+    // Match the same predicate logic as renderPastParties' filter for consistency.
+    const isArchived = wp.status === 'archived';
+    if (!isArchived) continue;
+    if (wp.status === 'cancelled') continue;
+    if (replayableReactionCount(wp) >= 1) n++;
+  }
+  return n;
+}
 function wpForTitle(titleId) { return activeWatchparties().find(wp => wp.titleId === titleId && wp.status !== 'cancelled'); }
 function myParticipation(wp) {
   if (!wp || !state.me) return null;
@@ -3015,6 +3032,35 @@ function formatStartTime(ts) {
   if (isToday) return `Today at ${timeStr}`;
   if (isTomorrow) return `Tomorrow at ${timeStr}`;
   return `${d.toLocaleDateString([], {month:'short', day:'numeric'})} at ${timeStr}`;
+}
+
+// Phase 26 / RPLY-26-DATE — Friend-voice date ladder for Past parties + Past watchparties
+// for title rows per UI-SPEC §Copywriting:
+//   < 24h → Started {N} hr ago (preserved from Phase 15.5)
+//   24-48h → Last night
+//   < 7d → {Weekday}
+//   7-13d → Last {Weekday}
+//   < 1y same year → {Month} {Day}
+//   cross-year → {Month} {Day}, {Year}
+// Hardcoded English per RESEARCH Open Question #4 (Couch is English-only at v2).
+function friendlyPartyDate(startAt) {
+  const now = Date.now();
+  const ageMs = now - startAt;
+  const hr = ageMs / (60 * 60 * 1000);
+  if (hr < 24) {
+    const hours = Math.max(1, Math.floor(hr));
+    return `Started ${hours} hr ago`;
+  }
+  if (hr < 48) return 'Last night';
+  const day = ageMs / (24 * 60 * 60 * 1000);
+  const d = new Date(startAt);
+  const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  if (day < 7) return weekdays[d.getDay()];
+  if (day < 14) return `Last ${weekdays[d.getDay()]}`;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthDay = `${months[d.getMonth()]} ${d.getDate()}`;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return sameYear ? monthDay : `${monthDay}, ${d.getFullYear()}`;
 }
 
 // Phase 26 / RPLY-26-05 — Scrubber duration source-of-truth precedence per UI-SPEC §2 lock:
@@ -12497,37 +12543,40 @@ window.openPastParties = function() {
 window.closePastParties = function() {
   const bg = document.getElementById('past-parties-bg');
   if (bg) bg.classList.remove('on');
+  // Phase 26 / Pitfall 10 — reset pagination cursor between sessions for cleanliness.
+  state.pastPartiesShownCount = null;
 };
 
 function renderPastParties() {
   const el = document.getElementById('past-parties-list');
   if (!el) return;
-  const now = Date.now();
-  // Use the same WP_STALE_MS boundary as renderWatchpartyBanner — single source of truth.
-  const stale = activeWatchparties().filter(wp =>
-    wp.status !== 'cancelled' &&
-    wp.startAt <= now &&
-    (now - wp.startAt) >= WP_STALE_MS
-  ).sort((a, b) => b.startAt - a.startAt); // most recent first
-  if (!stale.length) {
-    // Defensive — shouldn't happen because the inline link is hidden when staleWps.length === 0.
+  const PAST_PARTIES_PAGE_SIZE = 20;  // D-09 lock per UI-SPEC §4
+  // Phase 26 / RPLY-26-09 — switch query from 5h-25h WP_STALE_MS window to ALL archived
+  // parties with replay-able reactions. allArchived is the unsliced authoritative list.
+  const allArchived = archivedWatchparties()
+    .filter(wp => wp.status !== 'cancelled')
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .sort((a, b) => b.startAt - a.startAt);  // most-recent-first
+  if (!allArchived.length) {
+    // Defensive — shouldn't happen because the inline link is hidden when count is 0.
     el.innerHTML = '';
     return;
   }
-  el.innerHTML = stale.map(wp => {
-    const mine = (typeof myParticipation === 'function') ? myParticipation(wp) : (wp.participants && state.me ? wp.participants[state.me.id] : null);
-    const joined = !!mine;
-    const hoursAgo = Math.max(1, Math.floor((now - wp.startAt) / (60 * 60 * 1000)));
+  const shownCount = state.pastPartiesShownCount || PAST_PARTIES_PAGE_SIZE;
+  const visible = allArchived.slice(0, shownCount);
+  const rowsHtml = visible.map(wp => {
     const participantCount = wp.participants ? Object.keys(wp.participants).length : 0;
+    const reactionCount = replayableReactionCount(wp);
+    const reactionLabel = reactionCount === 1 ? '1 reaction' : (reactionCount + ' reactions');
     const titleNameSafe = escapeHtml(wp.titleName || 'Watchparty');
     const posterStyle = wp.titlePoster
       ? `background-image:url('${escapeHtml(wp.titlePoster)}')`
       : '';
     const wpIdSafe = escapeHtml(wp.id);
-    const actionFn = joined
-      ? `openWatchpartyLive('${wpIdSafe}')`
-      : `joinWatchparty('${wpIdSafe}')`;
-    const ariaLabel = `${titleNameSafe}, started ${hoursAgo} hour${hoursAgo === 1 ? '' : 's'} ago, ${participantCount} on the couch`;
+    const dateLine = friendlyPartyDate(wp.startAt);
+    const ariaLabel = `${titleNameSafe}, ${dateLine}, ${participantCount} on the couch, ${reactionLabel}`;
+    // Phase 26 / RPLY-26-08 part 1 — row tap enters replay variant.
+    const actionFn = `openWatchpartyLive('${wpIdSafe}', { mode: 'revisit' })`;
     return `<div class="past-parties-row" role="button" tabindex="0"
               onclick="closePastParties();${actionFn}"
               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closePastParties();${actionFn};}"
@@ -12535,12 +12584,23 @@ function renderPastParties() {
       <div class="past-parties-poster" style="${posterStyle}"></div>
       <div class="past-parties-body">
         <div class="past-parties-title">${titleNameSafe}</div>
-        <div class="past-parties-meta">Started ${hoursAgo} hr ago</div>
+        <div class="past-parties-meta">${escapeHtml(dateLine)}</div>
         <div class="past-parties-meta">${participantCount} on the couch</div>
+        <div class="past-parties-meta">${reactionLabel}</div>
       </div>
       <span class="past-parties-row-chevron" aria-hidden="true">›</span>
     </div>`;
   }).join('');
+  // Phase 26 / RPLY-26-PAGE — pagination affordance per UI-SPEC §4.
+  const showOlderHtml = allArchived.length > shownCount
+    ? `<div class="past-parties-show-older" role="button" tabindex="0"
+          onclick="state.pastPartiesShownCount = (state.pastPartiesShownCount || ${PAST_PARTIES_PAGE_SIZE}) + ${PAST_PARTIES_PAGE_SIZE}; renderPastParties();"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();state.pastPartiesShownCount = (state.pastPartiesShownCount || ${PAST_PARTIES_PAGE_SIZE}) + ${PAST_PARTIES_PAGE_SIZE}; renderPastParties();}"
+          aria-label="Show older parties">
+        Show older parties <span class="past-parties-chevron" aria-hidden="true">›</span>
+      </div>`
+    : '';
+  el.innerHTML = rowsHtml + showOlderHtml;
 }
 
 // Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
