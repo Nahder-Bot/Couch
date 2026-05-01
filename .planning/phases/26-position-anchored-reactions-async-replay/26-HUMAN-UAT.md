@@ -2,7 +2,7 @@
 phase: 26-position-anchored-reactions-async-replay
 type: human-uat
 status: pending-device-verification
-deployed: 2026-05-01  # update to actual deploy date during Task 5.3
+deployed: 2026-05-01  # production deploy 2026-05-01T18:32:30Z (curl-verified)
 cache: couch-v38-async-replay
 resume_signal: "uat passed"
 ---
