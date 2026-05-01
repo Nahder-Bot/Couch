@@ -404,6 +404,133 @@ function notContains(label, hay, needle) {
       /Pause where you are/.test(appJs));
   }
 
+  // ---- Inline mirrors for Plan 04 helpers ----
+  function friendlyPartyDate_smoke(startAt, nowMs) {
+    const now = (typeof nowMs === 'number') ? nowMs : Date.now();
+    const ageMs = now - startAt;
+    const hr = ageMs / (60 * 60 * 1000);
+    if (hr < 24) {
+      const hours = Math.max(1, Math.floor(hr));
+      return 'Started ' + hours + ' hr ago';
+    }
+    if (hr < 48) return 'Last night';
+    const day = ageMs / (24 * 60 * 60 * 1000);
+    const d = new Date(startAt);
+    const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    if (day < 7) return weekdays[d.getDay()];
+    if (day < 14) return 'Last ' + weekdays[d.getDay()];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const monthDay = months[d.getMonth()] + ' ' + d.getDate();
+    const sameYear = d.getFullYear() === new Date(now).getFullYear();
+    return sameYear ? monthDay : (monthDay + ', ' + d.getFullYear());
+  }
+  function allReplayableArchivedCount_smoke(allWatchparties) {
+    const list = Array.isArray(allWatchparties) ? allWatchparties : [];
+    let n = 0;
+    for (const wp of list) {
+      if (!wp) continue;
+      if (wp.status !== 'archived') continue;
+      // (Note: production helper checks status !== 'cancelled' — but archived implies non-cancelled in this fixture set)
+      const replayable = (wp.reactions || []).filter(r => r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream').length;
+      if (replayable >= 1) n++;
+    }
+    return n;
+  }
+
+  // ===== Plan 04 helper-behavior assertions (RPLY-26-DATE) — friendlyPartyDate 5-case ladder =====
+  const NOW_FIX = Date.now();
+  eq('friendlyPartyDate today (5h ago) → Started N hr ago',
+    friendlyPartyDate_smoke(NOW_FIX - 5 * 60 * 60 * 1000, NOW_FIX),
+    'Started 5 hr ago');
+  eq('friendlyPartyDate 36h ago → Last night',
+    friendlyPartyDate_smoke(NOW_FIX - 36 * 60 * 60 * 1000, NOW_FIX),
+    'Last night');
+  const fourDaysAgo = friendlyPartyDate_smoke(NOW_FIX - 4 * 24 * 60 * 60 * 1000, NOW_FIX);
+  truthy('friendlyPartyDate 4d ago → weekday name',
+    /^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)$/.test(fourDaysAgo));
+  const tenDaysAgo = friendlyPartyDate_smoke(NOW_FIX - 10 * 24 * 60 * 60 * 1000, NOW_FIX);
+  truthy('friendlyPartyDate 10d ago → Last + weekday',
+    /^Last (Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)$/.test(tenDaysAgo));
+  // Cross-year: pin a fixture date 400 days ago using the fixed NOW_FIX as the basis.
+  const crossYearFix = friendlyPartyDate_smoke(NOW_FIX - 400 * 24 * 60 * 60 * 1000, NOW_FIX);
+  truthy('friendlyPartyDate cross-year (400d ago) → Month Day, Year',
+    /^[A-Z][a-z]+ \d+, \d{4}$/.test(crossYearFix));
+
+  // ===== Plan 04 helper-behavior assertions (RPLY-26-20) — allReplayableArchivedCount =====
+  eq('allReplayableArchivedCount empty list → 0',
+    allReplayableArchivedCount_smoke([]), 0);
+  eq('allReplayableArchivedCount counts archived wps with replay-able reactions',
+    allReplayableArchivedCount_smoke([
+      { status: 'archived', reactions: [{ runtimePositionMs: 1000, runtimeSource: 'broadcast' }] },
+      { status: 'archived', reactions: [{ runtimePositionMs: null, runtimeSource: 'live-stream' }] },
+      { status: 'archived', reactions: [] },
+      { status: 'active', reactions: [{ runtimePositionMs: 1000, runtimeSource: 'broadcast' }] }
+    ]), 1);
+
+  // ===== Plan 04 production-code sentinels =====
+  if (appJs) {
+    // RPLY-26-DATE
+    truthy('js/app.js declares function friendlyPartyDate (RPLY-26-DATE)',
+      /function\s+friendlyPartyDate\s*\(/.test(appJs));
+
+    // RPLY-26-20 — Tonight inline-link gating uses new count source
+    truthy('js/app.js Tonight inline link uses allReplayableArchivedCount (RPLY-26-20)',
+      /allReplayableArchivedCount\(state\.watchparties\)/.test(appJs));
+    truthy('js/app.js declares function allReplayableArchivedCount',
+      /function\s+allReplayableArchivedCount\s*\(/.test(appJs));
+
+    // RPLY-26-09 — renderPastParties query expansion
+    const rppIdx = appJs.indexOf('function renderPastParties');
+    truthy('js/app.js has renderPastParties function', rppIdx > -1);
+    if (rppIdx > -1) {
+      const rppSection = appJs.slice(rppIdx, rppIdx + 3500);
+      truthy('renderPastParties uses archivedWatchparties() (RPLY-26-09 part 1)',
+        /archivedWatchparties\(\)/.test(rppSection));
+      truthy('renderPastParties applies replayableReactionCount filter (RPLY-26-09 part 2)',
+        /replayableReactionCount\(wp\)\s*>=\s*1/.test(rppSection));
+      truthy('renderPastParties uses friendlyPartyDate for row date line (RPLY-26-DATE wiring)',
+        /friendlyPartyDate\(wp\.startAt\)/.test(rppSection));
+      // RPLY-26-PAGE — pagination
+      truthy('renderPastParties uses state.pastPartiesShownCount slice (RPLY-26-PAGE part 1)',
+        /state\.pastPartiesShownCount/.test(rppSection));
+      contains('renderPastParties emits "Show older parties" copy (RPLY-26-PAGE part 2)', rppSection, 'Show older parties');
+      truthy('renderPastParties uses PAST_PARTIES_PAGE_SIZE = 20 (D-09 lock)',
+        /PAST_PARTIES_PAGE_SIZE\s*=\s*20/.test(rppSection));
+    }
+
+    // RPLY-26-12 — renderWatchpartyHistoryForTitle bifurcated to active-only
+    const histIdx = appJs.indexOf('function renderWatchpartyHistoryForTitle');
+    truthy('js/app.js has renderWatchpartyHistoryForTitle function', histIdx > -1);
+    if (histIdx > -1) {
+      const histSection = appJs.slice(histIdx, histIdx + 1500);
+      truthy('renderWatchpartyHistoryForTitle narrowed to activeWatchparties() (RPLY-26-12)',
+        /activeWatchparties\(\)\.filter\(wp\s*=>\s*wp\.titleId\s*===\s*t\.id/.test(histSection));
+    }
+
+    // RPLY-26-11 — renderPastWatchpartiesForTitle defined + invoked
+    truthy('js/app.js declares function renderPastWatchpartiesForTitle (RPLY-26-11 part 1)',
+      /function\s+renderPastWatchpartiesForTitle\s*\(/.test(appJs));
+    truthy('js/app.js renderDetailShell invokes renderPastWatchpartiesForTitle(t) (RPLY-26-11 part 2)',
+      /\$\{renderPastWatchpartiesForTitle\(t\)\}/.test(appJs));
+    contains('js/app.js contains "Past watchparties" h4 heading literal', appJs, '<h4>Past watchparties</h4>');
+    contains('js/app.js contains "Catch up on what the family said." sub-line literal', appJs, 'Catch up on what the family said.');
+
+    // RPLY-26-08 — mode: 'revisit' literal appears in ≥2 call sites (Past parties + Past watchparties for title)
+    const revisitMatches = (appJs.match(/mode:\s*'revisit'/g) || []).length;
+    truthy('js/app.js contains "mode: \'revisit\'" literal in ≥2 call sites (RPLY-26-08)', revisitMatches >= 2);
+
+    // closePastParties cursor reset (Pitfall 10)
+    truthy('closePastParties resets state.pastPartiesShownCount to null (Pitfall 10)',
+      /window\.closePastParties\s*=\s*function[\s\S]{0,400}state\.pastPartiesShownCount\s*=\s*null/.test(appJs));
+  }
+
+  // ===== Plan 04 CSS sentinels =====
+  if (cssApp) {
+    contains('css/app.css contains .past-watchparty-row class (UI-SPEC §5)', cssApp, '.past-watchparty-row');
+    contains('css/app.css contains .past-watchparty-poster class', cssApp, '.past-watchparty-poster');
+    contains('css/app.css contains .past-parties-show-older class (RPLY-26-PAGE)', cssApp, '.past-parties-show-older');
+  }
+
   // ===== Final report =====
   console.log('---');
   console.log('Total assertions: ' + total + '; Failures: ' + fails);
