@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T03:11:51Z"
+last_updated: "2026-05-01T03:20:59Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 27
   completed_phases: 16
   total_plans: 92
-  completed_plans: 89
-  percent: 97
+  completed_plans: 90
+  percent: 98
 ---
 
 # Project State
@@ -26,13 +26,15 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 ## Current Position
 
 Phase: 24 (native-video-player) — EXECUTING
-Plan: 02 of 4 — ✓ COMPLETE (Wave 1 — pure-helpers foundation shipped 2026-05-01)
-Next: Plan 01 (smoke contract) + Plan 03 (UI surface) — Wave 2 unblocked, can run in parallel
+Plan: 01 of 4 — ✓ COMPLETE (Wave 2 — smoke contract shipped 2026-05-01)
+Next: Plan 03 (UI surface) — Wave 2 sibling, no file overlap with Plan 01; can ship next
 **Status:** Executing Phase 24
 
 **Last Activity:** 2026-05-01
 
-**Most recent close-out:** Phase 24 / Plan 02 — pure-helpers ES module shipped (`js/native-video-player.js` 176 lines, 7 named exports: `parseVideoUrl` + `titleHasNonDrmPath` + `makeIntervalBroadcaster` + `seekToBroadcastedTime` + `VIDEO_BROADCAST_INTERVAL_MS` + `STALE_BROADCAST_MAX_MS` + `DRM_FLAT_RATE_PROVIDER_BRANDS`). Phase 22 module-creation precedent applied (sibling of `js/sports-feed.js`). REVIEWS H2 (test-mirror drift) closed at module layer — Plan 01 smoke can `await import('../js/native-video-player.js')` directly. REVIEWS M1 (seek-on-join) shipped as `seekToBroadcastedTime` with YouTube `seekTo` + MP4 one-shot `loadedmetadata` listener fallback + staleness gate. REVIEWS C2 closed via `STALE_BROADCAST_MAX_MS = 60_000` named export (Phase 26 forward-compat). 35 behavioral assertions verified inline (5 YT shapes / 2 MP4 shapes / 7 rejection cases / titleHasNonDrmPath null+missing+all-DRM+rent-escape+mixed / makeIntervalBroadcaster leading+trailing edge with last-value semantics / seekToBroadcastedTime YT-fresh+MP4-ready+MP4-not-ready+stale+zero+null gates). Single commit `9c1f511` (feat). VID-24-02 + VID-24-04 + VID-24-05 + VID-24-10 + VID-24-15 implemented at the helper layer (full closure pending Plan 03 wiring + Plan 01 smoke gate).
+**Most recent close-out:** Phase 24 / Plan 01 — production-module smoke contract shipped (`scripts/smoke-native-video-player.cjs` 286 lines, 46 assertions: 35 helper-behavior + 11 production-code sentinels). Smoke imports `js/native-video-player.js` via dynamic `await import(pathToFileURL(absolutePath).href)` (Windows-portable file-URL form) — REVIEWS H2 (test-mirror drift) fully closed at the smoke layer. 35 helper-behavior assertions all green standalone: parseVideoUrl 5 YT shapes + 2 MP4 + 6 rejections / titleHasNonDrmPath 4 cases / makeIntervalBroadcaster leading + trailing edge / seekToBroadcastedTime 4 cases per REVIEWS M1 (happy-path returns true with seekTo seconds + allowSeekAhead=true / stale skip / missing currentTimeMs skip / source mismatch skip) / YouTube embed URL XSS guards (`encodeURIComponent` round-trip + `enablejsapi=1` + `playsinline=1` iOS gate) / module-export sentinels (`VIDEO_BROADCAST_INTERVAL_MS=5000`, `STALE_BROADCAST_MAX_MS=60000`, `DRM_FLAT_RATE_PROVIDER_BRANDS` Set). 11 production-code sentinels grep js/app.js for REVIEWS C1/C2/H3/H4/H5/M1/M3/M4 patterns — fail loudly pre-Plan-03 by design (deterministic green/red signal Plan 24-03's verify uses). `scripts/deploy.sh` 8th smoke-gate `if`-block wired (lines 117-120) + recap echo extended (`+ native-video-player`); `package.json` `scripts.smoke` chain extended + `smoke:native-video-player` alphabetical alias added. 2 atomic commits: `0a0e3e8` (feat — smoke file) + `2fb5ae0` (chore — deploy.sh + package.json wire). VID-24-12 closed in REQUIREMENTS.md traceability.
+
+**Previous close-out:** Phase 24 / Plan 02 — pure-helpers ES module shipped (`js/native-video-player.js` 176 lines, 7 named exports: `parseVideoUrl` + `titleHasNonDrmPath` + `makeIntervalBroadcaster` + `seekToBroadcastedTime` + `VIDEO_BROADCAST_INTERVAL_MS` + `STALE_BROADCAST_MAX_MS` + `DRM_FLAT_RATE_PROVIDER_BRANDS`). Phase 22 module-creation precedent applied. Single commit `9c1f511` (feat). VID-24-02/04/05/10/15 implemented at the helper layer.
 
 **Previous close-out:** Phase 20 — Decision Explanation (3 plans / 3 waves shipped 2026-04-30 via /gsd-discuss-phase --auto → /gsd-plan-phase --auto → /gsd-execute-phase --auto chain. `buildMatchExplanation` pure helper at js/app.js:112 + 3 surface integrations (spin-pick italic serif sub-line / matches card dim footer / detail modal "Why this is in your matches" section gated on getCurrentMatches.some) + sw.js → `couch-v36.2-decision-explanation`. Live at couchtonight.app, curl-verified. 13 device-UAT items in 20-HUMAN-UAT.md user-pending. REQ-20-01..11 all Complete in REQUIREMENTS.md post-15.6).
 
@@ -40,7 +42,7 @@ Next: Plan 01 (smoke contract) + Plan 03 (UI surface) — Wave 2 unblocked, can 
 
 **Next available work:**
 
-- Phase 24 — continue execution: Plan 01 (smoke contract — depends on Plan 02 ✓) + Plan 03 (UI surface — depends on Plan 02 ✓) are Wave 2 and can run in parallel. Plan 04 (deploy + UAT) is Wave 3.
+- Phase 24 — continue execution: Plan 03 (UI surface — depends on Plan 02 ✓; Wave 2 sibling of shipped Plan 01) is the next plan to ship. Plan 04 (deploy + UAT) is Wave 3 — depends on Plan 03 + Plan 01's 11 production-code sentinels flipping green when Plan 03 lands its js/app.js edits.
 - Phase 15.3 — DESIGN-01 (canonical SVG logo + wordmark sources) — SCOPED, awaiting kickoff. Closes the only genuinely unsatisfied requirement from v33.3 milestone audit.
 - Phase 16 — Calendar Layer (recurring + multi-future watchparty scheduling) — SCOPED, awaiting kickoff.
 - Phase 17 — App Store Launch Readiness (native wrapper + App Store / Play listings) — SCOPED, awaiting kickoff (next-milestone candidate per cross-AI review 2026-04-28).
