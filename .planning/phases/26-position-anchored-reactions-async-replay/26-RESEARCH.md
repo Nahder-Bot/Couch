@@ -1055,32 +1055,39 @@ This section is intentionally short — Phase 26 is intra-codebase; "state of th
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All 5 open questions were absorbed by the planner during /gsd-plan-phase 26 (commit 1d963a9). Each `RESOLVED:` line below cites the plan + task that locks the answer.
 
 1. **Should `postBurstReaction` (sports-mode amplified reactions) ALSO get `runtimePositionMs` + `runtimeSource`?**
    - What we know: `postBurstReaction` at `js/app.js:10672` writes to the same `wp.reactions` array via `arrayUnion`. CONTEXT.md / UI-SPEC.md only references `sendReaction` (= `postReaction`).
    - What's unclear: Whether sports-watchparty amplified bursts should appear in the replay timeline.
    - Recommendation: **YES, wire them too.** Sports parties (Phase 23+) have `wp.isLiveStream === true` very often → bursts get `runtimePositionMs: null, runtimeSource: 'live-stream'` → filtered out of replay anyway. For non-live sports replay (rare but possible — a re-broadcast game), the burst behaves correctly. Cost is one additional integration site (~5 lines). **Planner finalizes during plan-phase.**
+   - **RESOLVED:** Plan 26-01 Task 1.3 wires `postBurstReaction` to `derivePositionForReaction` alongside `postReaction`, mirroring the same call signature.
 
 2. **Should `state.replayLocalPositionMs` be a state slot or scoped to a render closure?**
    - What we know: The local replay clock advances every animation frame and is read by `renderReplayScrubber` + `renderReplayReactionsFeed` + the compound `postReaction` write site.
    - What's unclear: Whether to attach it to `state` (simpler cross-call access) or to a module-level closure inside the replay-render code path (less global pollution).
    - Recommendation: **Attach to `state`.** Three distinct call sites need to read it (scrubber render, feed render, postReaction). Module-level closure would require pass-through plumbing through `renderWatchpartyLive`. State slot is consistent with `state.activeWatchpartyMode` and `state.pastPartiesShownCount`. **Planner finalizes.**
+   - **RESOLVED:** Plan 26-01 Task 1.1 adds `state.replayLocalPositionMs = null` to `js/state.js` initializer; Plans 26-02 / 26-03 wire the lifecycle (assign on open, advance via local clock, clear on close).
 
 3. **Does the empty-state copy `Nothing yet at this moment.` need a "drag the scrubber" hint?**
    - What we know: UI-SPEC §3 locks the copy as italic Instrument Serif `Nothing yet at this moment.` with NO instruction copy ("silent UX preference per CONTEXT specifics").
    - What's unclear: Whether a first-time-user signal would help discoverability (could become a deferred polish if UAT shows confusion).
    - Recommendation: **Trust the UI-SPEC lock.** First-week-after-deploy framing means the surface starts empty for everyone — onboarding moments could be added in a v2.1+ polish if UAT demands. **No action for Phase 26.**
+   - **RESOLVED:** Plan 26-03 Task 3.1 honors the UI-SPEC silent-UX lock — empty-state copy ships verbatim with no instructional hint; revisit only if HUMAN-UAT (Plan 26-05) surfaces discoverability friction.
 
 4. **Should `friendlyPartyDate` use the user's locale for weekday names?**
    - What we know: UI-SPEC §Copywriting locks English weekdays (`Last night`, `Tuesday`, `Last Tuesday`, `April 12`, `April 12, 2025`). Couch is English-only at v2.
    - What's unclear: Whether to use `Date#toLocaleString()` (which would respect browser locale) vs hardcoded English.
    - Recommendation: **Hardcoded English** — matches existing Couch copy posture (no i18n surface anywhere in the app). **No action for Phase 26.**
+   - **RESOLVED:** Plan 26-04 Task 4.1 implements `friendlyPartyDate` with hardcoded English weekday/month strings; smoke fixture `RPLY-26-DATE` covers 5 cases (today, last night, weekday, last weekday, cross-year) against literal expected outputs.
 
 5. **What is the exact line offset for the Phase 15.5 `Past parties (N) ›` inline link rendering?** (RPLY-26-20 needs precise location for the gating-condition extension.)
    - What we know: Phase 15.5 D-04 added it; it lives somewhere in the Tonight-tab render path; CONTEXT.md says "location TBD by researcher."
    - What's unclear: Exact Grep target.
    - Recommendation: **Planner Grep `Past parties \\(` in `js/app.js`** at plan-phase (researcher attempted but the string is dynamic via template literal — would need to grep `Past parties` + filter to render-context lines). The code path is reachable via `openPastParties()` (line 12134) callback; the link rendering is upstream of that. Likely in `renderWatchpartyBanner` (line 11319) area.
+   - **RESOLVED:** Plan 26-04 Task 4.2 `<read_first>` block instructs the executor to `Grep "Past parties" js/app.js` to pin the exact render site at execute-time, then extend the gating-condition with `allReplayableArchivedCount > 0`. RPLY-26-20 sentinel verifies the gate post-edit.
 
 ---
 
