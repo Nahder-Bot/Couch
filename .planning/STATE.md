@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1-commercial-release
-milestone_name: v1 Commercial Release
+milestone: v33.3
+milestone_name: milestone
 status: executing
-last_updated: "2026-04-30T16:56:55.912Z"
-last_activity: 2026-04-30
+last_updated: "2026-05-01T03:11:51Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 27
   completed_phases: 16
   total_plans: 92
-  completed_plans: 88
-  percent: 96
+  completed_plans: 89
+  percent: 97
 ---
 
 # Project State
@@ -20,21 +20,27 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.6 — audit-trail-backfill-2
+**Current focus:** Phase 24 — native-video-player
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-**Status:** Ready to execute
+Phase: 24 (native-video-player) — EXECUTING
+Plan: 02 of 4 — ✓ COMPLETE (Wave 1 — pure-helpers foundation shipped 2026-05-01)
+Next: Plan 01 (smoke contract) + Plan 03 (UI surface) — Wave 2 unblocked, can run in parallel
+**Status:** Executing Phase 24
 
-**Last Activity:** 2026-04-30
+**Last Activity:** 2026-05-01
 
-**Most recent close-out:** Phase 20 — Decision Explanation (3 plans / 3 waves shipped 2026-04-30 via /gsd-discuss-phase --auto → /gsd-plan-phase --auto → /gsd-execute-phase --auto chain. `buildMatchExplanation` pure helper at js/app.js:112 + 3 surface integrations (spin-pick italic serif sub-line / matches card dim footer / detail modal "Why this is in your matches" section gated on getCurrentMatches.some) + sw.js → `couch-v36.2-decision-explanation`. Live at couchtonight.app, curl-verified. 13 device-UAT items in 20-HUMAN-UAT.md user-pending. REQ-20-01..11 all Complete in REQUIREMENTS.md post-15.6).
+**Most recent close-out:** Phase 24 / Plan 02 — pure-helpers ES module shipped (`js/native-video-player.js` 176 lines, 7 named exports: `parseVideoUrl` + `titleHasNonDrmPath` + `makeIntervalBroadcaster` + `seekToBroadcastedTime` + `VIDEO_BROADCAST_INTERVAL_MS` + `STALE_BROADCAST_MAX_MS` + `DRM_FLAT_RATE_PROVIDER_BRANDS`). Phase 22 module-creation precedent applied (sibling of `js/sports-feed.js`). REVIEWS H2 (test-mirror drift) closed at module layer — Plan 01 smoke can `await import('../js/native-video-player.js')` directly. REVIEWS M1 (seek-on-join) shipped as `seekToBroadcastedTime` with YouTube `seekTo` + MP4 one-shot `loadedmetadata` listener fallback + staleness gate. REVIEWS C2 closed via `STALE_BROADCAST_MAX_MS = 60_000` named export (Phase 26 forward-compat). 35 behavioral assertions verified inline (5 YT shapes / 2 MP4 shapes / 7 rejection cases / titleHasNonDrmPath null+missing+all-DRM+rent-escape+mixed / makeIntervalBroadcaster leading+trailing edge with last-value semantics / seekToBroadcastedTime YT-fresh+MP4-ready+MP4-not-ready+stale+zero+null gates). Single commit `9c1f511` (feat). VID-24-02 + VID-24-04 + VID-24-05 + VID-24-10 + VID-24-15 implemented at the helper layer (full closure pending Plan 03 wiring + Plan 01 smoke gate).
+
+**Previous close-out:** Phase 20 — Decision Explanation (3 plans / 3 waves shipped 2026-04-30 via /gsd-discuss-phase --auto → /gsd-plan-phase --auto → /gsd-execute-phase --auto chain. `buildMatchExplanation` pure helper at js/app.js:112 + 3 surface integrations (spin-pick italic serif sub-line / matches card dim footer / detail modal "Why this is in your matches" section gated on getCurrentMatches.some) + sw.js → `couch-v36.2-decision-explanation`. Live at couchtonight.app, curl-verified. 13 device-UAT items in 20-HUMAN-UAT.md user-pending. REQ-20-01..11 all Complete in REQUIREMENTS.md post-15.6).
 
 **Most recent reconciliation:** Phase 15.6 — Audit-trail backfill 2 + STATE.md repair (3 plans / 2 waves; Plan 01 added 29 traceability rows for REQ-18-01..10 + KID-19-01..08 + REQ-20-01..11; Plan 02 reconciled ROADMAP Progress table for Phases 18 + 19; Plan 03 = this plan).
 
 **Next available work:**
 
+- Phase 24 — continue execution: Plan 01 (smoke contract — depends on Plan 02 ✓) + Plan 03 (UI surface — depends on Plan 02 ✓) are Wave 2 and can run in parallel. Plan 04 (deploy + UAT) is Wave 3.
 - Phase 15.3 — DESIGN-01 (canonical SVG logo + wordmark sources) — SCOPED, awaiting kickoff. Closes the only genuinely unsatisfied requirement from v33.3 milestone audit.
 - Phase 16 — Calendar Layer (recurring + multi-future watchparty scheduling) — SCOPED, awaiting kickoff.
 - Phase 17 — App Store Launch Readiness (native wrapper + App Store / Play listings) — SCOPED, awaiting kickoff (next-milestone candidate per cross-AI review 2026-04-28).
