@@ -3017,6 +3017,34 @@ function formatStartTime(ts) {
   return `${d.toLocaleDateString([], {month:'short', day:'numeric'})} at ${timeStr}`;
 }
 
+// Phase 26 / RPLY-26-05 — Scrubber duration source-of-truth precedence per UI-SPEC §2 lock:
+//   1. TMDB t.runtime (movies — minutes)
+//   2. TMDB t.episode_run_time (TV — minutes)
+//   3. Phase 24 wp.durationMs (host's player getDuration() × 1000)
+//   4. Max observed runtimePositionMs + 30s cushion
+//   5. 60-min floor (3,600,000 ms)
+function getScrubberDurationMs(wp) {
+  const t = state.titles && state.titles.find(x => x.id === wp.titleId);
+  if (t) {
+    if (typeof t.runtime === 'number' && t.runtime > 0) {
+      return t.runtime * 60 * 1000;
+    }
+    if (typeof t.episode_run_time === 'number' && t.episode_run_time > 0) {
+      return t.episode_run_time * 60 * 1000;
+    }
+  }
+  if (typeof wp.durationMs === 'number' && wp.durationMs > 0) {
+    return wp.durationMs;
+  }
+  const positions = (wp.reactions || [])
+    .map(r => r.runtimePositionMs)
+    .filter(p => typeof p === 'number' && p > 0);
+  if (positions.length > 0) {
+    return Math.max(...positions) + 30000;
+  }
+  return 60 * 60 * 1000;
+}
+
 // ===== Group mode helpers (Family / Crew / Duo) =====
 function currentMode() { return (state.group && state.group.mode) || 'family'; }
 function groupNoun() { return {family:'family', crew:'crew', duo:'duo'}[currentMode()]; }
@@ -11451,6 +11479,68 @@ function memberColor(memberId) {
   return m && m.color ? m.color : '#888';
 }
 
+// Phase 26 / RPLY-26-04 + RPLY-26-05 + RPLY-26-SNAP — Replay scrubber strip.
+// Container .wp-replay-scrubber-strip styled in css/app.css per UI-SPEC §2.
+// Plan 03 implements the local clock + the toggleReplayClock + onScrubberInput/onChange handlers.
+function formatScrubberTime(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec - h * 3600) / 60);
+  const s = totalSec - h * 3600 - m * 60;
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+}
+function renderReplayScrubber(wp) {
+  const totalMs = getScrubberDurationMs(wp);
+  const localMs = state.replayLocalPositionMs || 0;
+  const totalStr = formatScrubberTime(totalMs);
+  const currStr = formatScrubberTime(localMs);
+  // step="1000" — 1-sec snap per UI-SPEC §2 lock (RPLY-26-SNAP)
+  // aria-label, play/pause aria-label per UI-SPEC §Copywriting (banned-words ledger respected)
+  return '<div class="wp-replay-scrubber-strip" role="group" aria-label="Replay controls">' +
+    '<button class="wp-replay-playpause" type="button" id="wp-replay-playpause" ' +
+      'aria-label="Start watching from here" onclick="toggleReplayClock()">' +
+      '▶' +  // U+25B6 paused state; flips to U+23F8 when Plan 03 toggles play
+    '</button>' +
+    '<input type="range" class="wp-replay-scrubber-input" id="wp-replay-scrubber-input" ' +
+      'min="0" max="' + totalMs + '" step="1000" value="' + localMs + '" ' +
+      'aria-label="Move to where you are in the movie" ' +
+      'aria-valuemin="0" aria-valuemax="' + totalMs + '" aria-valuenow="' + localMs + '" ' +
+      'aria-valuetext="' + currStr + ' of ' + totalStr + '" ' +
+      'oninput="onReplayScrubberInput(this.value)" ' +
+      'onchange="onReplayScrubberChange(this.value)" />' +
+    '<span class="wp-replay-scrubber-readout" id="wp-replay-scrubber-readout">' +
+      currStr + ' / ' + totalStr +
+    '</span>' +
+  '</div>';
+}
+// Phase 02 stub — Plan 03 replaces these with the real local-clock + drag-end handlers.
+// Defined as no-ops on window so the inline onclick/oninput attrs in renderReplayScrubber
+// do not throw ReferenceError between Plan 02 ship and Plan 03 ship.
+if (typeof window.toggleReplayClock !== 'function') {
+  window.toggleReplayClock = function() { /* Phase 26 / Plan 03 implements */ };
+}
+if (typeof window.onReplayScrubberInput !== 'function') {
+  window.onReplayScrubberInput = function(v) { /* Phase 26 / Plan 03 implements */ };
+}
+if (typeof window.onReplayScrubberChange !== 'function') {
+  window.onReplayScrubberChange = function(v) { /* Phase 26 / Plan 03 implements */ };
+}
+// Phase 26 / Plan 03 implements — Plan 02 ships a temporary passthrough stub
+// so the replay-variant render path doesn't ReferenceError between Plan 02 + Plan 03.
+if (typeof window.renderReplayReactionsFeed !== 'function') {
+  window.renderReplayReactionsFeed = function(wp, localPosMs) {
+    // Plan 03 replaces this with the position-aligned subset.
+    // Plan 02 fallback: empty body so the feed area is visible-but-empty in replay.
+    return '<div class="wp-live-body" id="wp-reactions-feed">' +
+      '<div style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);padding:20px;">' +
+        '<em style="font-family:\'Instrument Serif\',serif;">Replay feed lands in Plan 03.</em>' +
+      '</div>' +
+    '</div>';
+  };
+}
+
 function renderWatchpartyLive() {
   // Phase 24 / REVIEWS H1 — Render coordination only; never touch #wp-video-surface.
   // The player is owned by attachVideoPlayer / teardownVideoPlayer and survives re-renders.
@@ -11458,6 +11548,13 @@ function renderWatchpartyLive() {
   if (!el) return;
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) { el.innerHTML = '<div style="padding:24px;">Watchparty not found.</div>'; return; }
+  // Phase 26 / RPLY-26-04 + RPLY-26-13 — replay-variant gating.
+  // Eligibility precondition: replay variant only renders when wp.status === 'archived'
+  // (per D-06). Defensive: even if state.activeWatchpartyMode === 'revisit' was
+  // somehow set on a non-archived wp (shouldn't happen — Plan 04 entry gates on
+  // archived), fall back to live-mode chrome.
+  const isArchived = wp.status === 'archived';
+  const isReplay = state.activeWatchpartyMode === 'revisit' && isArchived;
   const isSport = !!wp.sportEvent;
   // Phase 24 — When player is active in #wp-video-surface, hide the redundant
   // .wp-live-poster via parent class. Player IS the visual identity.
@@ -11505,16 +11602,25 @@ function renderWatchpartyLive() {
   const preStart = wp.startAt > now;
   const participants = Object.entries(wp.participants || {});
   // Header
-  const statusText = preStart
-    ? (isSport ? `Kickoff ${formatStartTime(wp.startAt)}` : `Starts ${formatStartTime(wp.startAt)}`)
-    : `Started ${formatStartTime(wp.startAt)}`;
+  // Phase 26 / RPLY-26-15 — Replay-variant eyebrow source string is 'Revisiting' (CSS
+  // .wp-live-status text-transform:uppercase displays it as 'REVISITING'). Live-mode
+  // statusText branch unchanged.
+  const statusText = isReplay
+    ? 'Revisiting'
+    : (preStart
+        ? (isSport ? `Kickoff ${formatStartTime(wp.startAt)}` : `Starts ${formatStartTime(wp.startAt)}`)
+        : `Started ${formatStartTime(wp.startAt)}`);
+  // Phase 26 / RPLY-26-04 + RPLY-26-15 — replay-variant scrubber strip + 'together again'
+  // italic-serif sub-line + Wait Up/participants/timer guards live in the same render body.
+  const scrubberStrip = isReplay ? renderReplayScrubber(wp) : '';
   const header = `<div class="wp-live-header${headerExtraClass}">
     ${livePosterHtml}
     <div class="wp-live-titleinfo">
       ${liveTitleHtml}
-      <div class="wp-live-status">${statusText}${mine && mine.pausedAt ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
+      ${isReplay ? '<div class="wp-live-revisit-subline">together again</div>' : ''}
+      <div class="wp-live-status">${statusText}${mine && mine.pausedAt && !isReplay ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
     </div>
-    ${mine && mine.startedAt ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine, wp))}</div>` : ''}
+    ${mine && mine.startedAt && !isReplay ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine, wp))}</div>` : ''}
     <button class="pill icon-only" aria-label="Close watchparty" onclick="closeWatchpartyLive()" style="margin-left:6px;">✕</button>
   </div>`;
 
@@ -11591,7 +11697,11 @@ function renderWatchpartyLive() {
       <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
       ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
     </div>`;
-    body = prompt + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine, 'wallclock');
+    body = prompt
+      + (!isReplay ? renderParticipantTimerStrip(wp) : '')
+      + (isReplay
+          ? window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0)
+          : renderReactionsFeed(wp, mine, 'wallclock'));
   } else {
     // Active watching — render reactions feed based on mode
     // Phase 7 Plan 03 (PARTY-03): advisory per-member timer strip sits above the reactions feed
@@ -11600,11 +11710,18 @@ function renderWatchpartyLive() {
     // Phase 11 / REFR-08: inject the late-joiner Catch-me-up card at the TOP of wp-live-body
     // so late joiners get a 30s reaction recap without breaking the per-user reaction-delay
     // moat. Empty state (< 3 pre-join reactions in window) hides the card entirely.
-    const catchupHtml = renderCatchupCard(wp, mine);
+    // Phase 26 — Replay variant suppresses Catch-me-up + participant strip + DVR slider; Plan 03's
+    // renderReplayReactionsFeed becomes the sole feed source when isReplay.
+    const catchupHtml = !isReplay ? renderCatchupCard(wp, mine) : '';
     // Phase 11 / REFR-10: DVR slider tail for sport-mode — per-user "I'm N seconds behind"
     // offset feeds the existing Phase 7 reactionDelay render filter. Movie mode unchanged.
-    const dvrHtml = (wp.mode === 'game') ? renderDvrSlider(wp, mine) : '';
-    body = catchupHtml + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine) + dvrHtml;
+    const dvrHtml = (!isReplay && wp.mode === 'game') ? renderDvrSlider(wp, mine) : '';
+    body = catchupHtml
+      + (!isReplay ? renderParticipantTimerStrip(wp) : '')
+      + (isReplay
+          ? window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0)
+          : renderReactionsFeed(wp, mine))
+      + dvrHtml;
   }
 
   // Footer
@@ -11642,7 +11759,9 @@ function renderWatchpartyLive() {
     body = renderSportsScoreStrip(wp) + body;
   }
 
-  el.innerHTML = header + body + footer;
+  // Phase 26 / RPLY-26-04 — replay-variant emits the scrubber strip ABOVE the header
+  // (still inside #wp-live-coordination per Phase 24 H1 split — never touches #wp-video-surface).
+  el.innerHTML = scrubberStrip + header + body + footer;
   // Restore compose input state
   const newInput = document.getElementById('wp-compose-input');
   if (newInput && savedText) newInput.value = savedText;
