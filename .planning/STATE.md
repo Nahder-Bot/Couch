@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T16:43:19.312Z"
+last_updated: "2026-05-01T17:47:25Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 27
   completed_phases: 17
   total_plans: 97
-  completed_plans: 92
-  percent: 95
+  completed_plans: 93
+  percent: 96
 ---
 
 # Project State
@@ -20,19 +20,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 24 — native-video-player
+**Current focus:** Phase 26 — position-anchored reactions + async-replay (Wave 1 of 5 shipped 2026-05-01)
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
 Phase: 26
-Plan: Not started
-Next: Phase 24 awaits real-device UAT (11 scripts in 24-HUMAN-UAT.md; resume signal `uat passed` → /gsd-verify-work 24) + cross-repo Firestore rules deploy (user-initiated; surfaced in 24-04-SUMMARY.md)
-**Status:** Ready to execute
+Plan: 01 complete; Plan 02 next (replay-modal chrome — Wave 2)
+Next: Plan 02 of Phase 26 — `openWatchpartyLive(opts)` extension + `closeWatchpartyLive` flag-clear + `renderWatchpartyLive` replay branch + scrubber strip + REVISITING/together-again banner copy + ~80 lines CSS + smoke extends. Foundation from Plan 01 (state slots + helpers + smoke contract) ready to build on.
+**Status:** Ready to execute Plan 26-02
 
 **Last Activity:** 2026-05-01
 
-**Most recent close-out:** Phase 24 / Plan 04 — deploy + Firestore rules verification + HUMAN-UAT scaffold (3 atomic commits: `a2fd4b0` rules-tests + firestore.rules tightening per REVIEWS M2 / `897e9ec` sw.js CACHE bump from couch-v36.7-live-scoreboard → couch-v37-native-video-player auto-via deploy.sh / `0d73576` 24-HUMAN-UAT.md scaffold with 11 device-UAT scripts). REVIEWS M2 Outcome 2 confirmed: first rules-tests run had 47 passing / 1 failing (#wp3 — non-host currentTimeMs spoof succeeded against the existing attributedWrite-only rule). Tightened firestore.rules /watchparties/{wpId} block: `allow update` split into Path A (host-only — `'hostUid' in resource.data && resource.data.hostUid == request.auth.uid`; any field allowed) + Path B (non-host — `!affectedKeys().hasAny([currentTimeMs, currentTimeUpdatedAt, currentTimeSource, durationMs, isLiveStream, videoUrl, videoSource, hostId, hostUid, hostName])`). 'hostUid' in resource.data guard handles legacy wps (Path A fails; Path B blocks host-only writes — safer floor than today). Post-tighten: 48 passing / 0 failing. Production deploy via `bash scripts/deploy.sh 37-native-video-player` succeeded — couchtonight.app live with `couch-v37-native-video-player` (curl-verified at 2026-05-01T03:47:39Z). 24-HUMAN-UAT.md scaffolds 11 device scripts including REVIEWS H1 (player survives reactions) + M1 (late-join seek) + C1 (HTTP MP4 mixed-content warning) + C2 (extended schema two-device verification) + DRM-hide silent dead-end + invalid URL submit-blocked + iOS playsinline both branches. VID-24-13 (sw.js CACHE bump) + VID-24-18 (Firestore rules verification) marked Complete in REQUIREMENTS.md — all 18 VID-24-* requirements now Complete. **14 of 14 REVIEWS findings closed** across the phase (H1/H2/H3/H4/H5 + M1/M2/M3/M4 + C1/C2 + L1 auto-mitigated + L2 deferred-noted + L3 frontmatter clarification). Cross-repo rules deploy is intentionally NOT automated — user-initiated ritual surfaced in 24-04-SUMMARY.md (queuenight/ mirror; defense-in-depth; client gate `state.me.id === wp.hostId` is primary defense).
+**Most recent close-out:** Phase 26 / Plan 01 — Foundation shipped (4 atomic commits: `dd06cec` state slots in js/state.js (activeWatchpartyMode + replayLocalPositionMs + pastPartiesShownCount, all default null) / `29dacbf` derivePositionForReaction + replayableReactionCount helpers in js/app.js (4-state hybrid LOCKED per CONTEXT D-01..D-05; STALE_BROADCAST_MAX_MS reused from existing Phase 24 import — no duplicate import added) / `0e77105` postReaction + postBurstReaction integration (both write sites stamp runtimePositionMs + runtimeSource as LITERAL keys on the reaction object) / `149e035` 9th smoke contract `scripts/smoke-position-anchored-reactions.cjs` (~249 lines, 33 assertions; 11 helper-behavior + 19 production-code sentinels + 3 firestore.rules sanity checks; wired into bash scripts/deploy.sh §2.5 + npm run smoke aggregate + new `npm run smoke:replay` alias). Every new live-mode reaction AND every sports-mode amplified-burst reaction now carries Phase 26 schema additions. RPLY-26-01..03/07/10/19 + RPLY-26-13 (slot-only — full assignment lands Plan 02) all codified at smoke layer. Foundation is invisible to users (additive schema only); the 'replay' enum branch is unreachable until Plan 02 sets state.activeWatchpartyMode = 'revisit'. Single-repo couch-only — no deploy in this plan; Plan 26-05 owns the deploy + sw.js CACHE bump (couch-v38-async-replay).
+
+**Previous close-out:** Phase 24 / Plan 04 — deploy + Firestore rules verification + HUMAN-UAT scaffold (3 atomic commits: `a2fd4b0` rules-tests + firestore.rules tightening per REVIEWS M2 / `897e9ec` sw.js CACHE bump from couch-v36.7-live-scoreboard → couch-v37-native-video-player auto-via deploy.sh / `0d73576` 24-HUMAN-UAT.md scaffold with 11 device-UAT scripts). REVIEWS M2 Outcome 2 confirmed: first rules-tests run had 47 passing / 1 failing (#wp3 — non-host currentTimeMs spoof succeeded against the existing attributedWrite-only rule). Tightened firestore.rules /watchparties/{wpId} block: `allow update` split into Path A (host-only — `'hostUid' in resource.data && resource.data.hostUid == request.auth.uid`; any field allowed) + Path B (non-host — `!affectedKeys().hasAny([currentTimeMs, currentTimeUpdatedAt, currentTimeSource, durationMs, isLiveStream, videoUrl, videoSource, hostId, hostUid, hostName])`). 'hostUid' in resource.data guard handles legacy wps (Path A fails; Path B blocks host-only writes — safer floor than today). Post-tighten: 48 passing / 0 failing. Production deploy via `bash scripts/deploy.sh 37-native-video-player` succeeded — couchtonight.app live with `couch-v37-native-video-player` (curl-verified at 2026-05-01T03:47:39Z). 24-HUMAN-UAT.md scaffolds 11 device scripts including REVIEWS H1 (player survives reactions) + M1 (late-join seek) + C1 (HTTP MP4 mixed-content warning) + C2 (extended schema two-device verification) + DRM-hide silent dead-end + invalid URL submit-blocked + iOS playsinline both branches. VID-24-13 (sw.js CACHE bump) + VID-24-18 (Firestore rules verification) marked Complete in REQUIREMENTS.md — all 18 VID-24-* requirements now Complete. **14 of 14 REVIEWS findings closed** across the phase (H1/H2/H3/H4/H5 + M1/M2/M3/M4 + C1/C2 + L1 auto-mitigated + L2 deferred-noted + L3 frontmatter clarification). Cross-repo rules deploy is intentionally NOT automated — user-initiated ritual surfaced in 24-04-SUMMARY.md (queuenight/ mirror; defense-in-depth; client gate `state.me.id === wp.hostId` is primary defense).
 
 **Previous close-out:** Phase 24 / Plan 03 — UI surface end-to-end shipped (4 atomic commits: `44d55a7` DOM scaffold + 3-flow URL fields + CSS rules / `c6de53e` module import + 3-flow validation + REVIEWS C1 mixed-content warning / `f58f186` renderWatchpartyLive retargets #wp-live-coordination + headerExtraClass / `90de0ad` lifecycle attach/teardown + broadcast + retry overlay). REVIEWS H1 split + 9 findings closed end-to-end; all 11 production-code sentinels green.
 
