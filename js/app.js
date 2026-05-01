@@ -11372,6 +11372,11 @@ window.closeWatchpartyLive = function() {
   // live-mode open does NOT render in replay variant.
   state.activeWatchpartyMode = null;
   state.replayLocalPositionMs = null;
+  // Phase 26 / Plan 03 — also tear down the local replay clock state + persistence set.
+  state.replayClockPlaying = false;
+  state.replayClockAnchorWallclock = null;
+  state.replayClockAnchorPosition = null;
+  state.replayShownReactionIds = null;
 };
 
 function renderWatchpartyBanner() {
@@ -11521,18 +11526,130 @@ function renderReplayScrubber(wp) {
     '</span>' +
   '</div>';
 }
-// Phase 02 stub — Plan 03 replaces these with the real local-clock + drag-end handlers.
-// Defined as no-ops on window so the inline onclick/oninput attrs in renderReplayScrubber
-// do not throw ReferenceError between Plan 02 ship and Plan 03 ship.
-if (typeof window.toggleReplayClock !== 'function') {
-  window.toggleReplayClock = function() { /* Phase 26 / Plan 03 implements */ };
+// Phase 26 / Plan 03 — Local replay clock + scrubber input handlers.
+// UI-SPEC §2 locks: 1× rate, requestAnimationFrame for smoothness, Date.now() deltas
+// for tab-blur correctness. oninput updates readout + CSS var only (no reaction re-mount
+// — Pitfall 6); onchange (drag-end) re-renders the feed via renderWatchpartyLive().
+
+function _replayCurrentWp() {
+  return state.watchparties && state.watchparties.find(x => x.id === state.activeWatchpartyId);
 }
-if (typeof window.onReplayScrubberInput !== 'function') {
-  window.onReplayScrubberInput = function(v) { /* Phase 26 / Plan 03 implements */ };
+function _replayUpdateReadoutDom(wp) {
+  const totalMs = getScrubberDurationMs(wp);
+  const localMs = state.replayLocalPositionMs || 0;
+  const readoutEl = document.getElementById('wp-replay-scrubber-readout');
+  if (readoutEl) {
+    readoutEl.textContent = formatScrubberTime(localMs) + ' / ' + formatScrubberTime(totalMs);
+  }
+  const inputEl = document.getElementById('wp-replay-scrubber-input');
+  if (inputEl) {
+    const pct = totalMs > 0 ? (localMs / totalMs * 100) : 0;
+    inputEl.style.setProperty('--scrubber-pct', String(pct));
+    inputEl.setAttribute('aria-valuenow', String(localMs));
+    inputEl.setAttribute('aria-valuetext', formatScrubberTime(localMs) + ' of ' + formatScrubberTime(totalMs));
+    // Keep the value attr in sync ONLY if the user is not currently dragging
+    // (browser handles the value attr while the user holds the thumb).
+    if (document.activeElement !== inputEl) {
+      inputEl.value = String(localMs);
+    }
+  }
 }
-if (typeof window.onReplayScrubberChange !== 'function') {
-  window.onReplayScrubberChange = function(v) { /* Phase 26 / Plan 03 implements */ };
+function _replayClockTick() {
+  if (!state.replayClockPlaying) return;
+  const wp = _replayCurrentWp();
+  if (!wp || state.activeWatchpartyMode !== 'revisit') {
+    state.replayClockPlaying = false;
+    return;
+  }
+  const totalMs = getScrubberDurationMs(wp);
+  const wall = Date.now();
+  const anchorWall = state.replayClockAnchorWallclock || wall;
+  const anchorPos = state.replayClockAnchorPosition || 0;
+  const next = Math.min(totalMs, Math.max(0, anchorPos + (wall - anchorWall)));
+  const prev = state.replayLocalPositionMs || 0;
+  state.replayLocalPositionMs = next;
+  _replayUpdateReadoutDom(wp);
+  // Re-render only when the clock crosses a reaction's runtimePositionMs (within drift).
+  // Cheap check: if any reaction in (prev+drift, next+drift] would newly enter the visible
+  // window, trigger a feed re-render.
+  const prevWindow = prev + DRIFT_TOLERANCE_MS;
+  const nextWindow = next + DRIFT_TOLERANCE_MS;
+  const reactions = (wp.reactions || []);
+  let crossed = false;
+  for (let i = 0; i < reactions.length; i++) {
+    const r = reactions[i];
+    if (r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'
+        && r.runtimePositionMs > prevWindow && r.runtimePositionMs <= nextWindow) {
+      crossed = true; break;
+    }
+  }
+  if (crossed) {
+    renderWatchpartyLive();
+  }
+  // Auto-pause at end of timeline
+  if (next >= totalMs) {
+    state.replayClockPlaying = false;
+    _replayUpdatePlayPauseButton(false);
+    return;
+  }
+  requestAnimationFrame(_replayClockTick);
 }
+function _replayUpdatePlayPauseButton(isPlaying) {
+  const btn = document.getElementById('wp-replay-playpause');
+  if (!btn) return;
+  btn.textContent = isPlaying ? '⏸' : '▶';
+  btn.setAttribute('aria-label', isPlaying ? 'Pause where you are' : 'Start watching from here');
+}
+
+// Override Plan 02 stubs with real implementations. Use plain assignments
+// (NOT the `if (typeof ...)` guard) so the real bodies always win.
+window.toggleReplayClock = function() {
+  if (state.activeWatchpartyMode !== 'revisit') return;  // safety guard
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const totalMs = getScrubberDurationMs(wp);
+  // If at end, pressing play restarts from 0 (per UI-SPEC §2 — no separate rewind affordance).
+  if (state.replayClockPlaying) {
+    state.replayClockPlaying = false;
+    _replayUpdatePlayPauseButton(false);
+  } else {
+    if ((state.replayLocalPositionMs || 0) >= totalMs) {
+      state.replayLocalPositionMs = 0;
+      _replayUpdateReadoutDom(wp);
+    }
+    state.replayClockAnchorWallclock = Date.now();
+    state.replayClockAnchorPosition = state.replayLocalPositionMs || 0;
+    state.replayClockPlaying = true;
+    _replayUpdatePlayPauseButton(true);
+    requestAnimationFrame(_replayClockTick);
+  }
+};
+
+window.onReplayScrubberInput = function(value) {
+  // oninput fires continuously during drag — update readout + CSS var ONLY (Pitfall 6).
+  // No reaction re-mount during drag.
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const v = parseInt(value, 10);
+  if (!isFinite(v)) return;
+  state.replayLocalPositionMs = Math.max(0, v);
+  _replayUpdateReadoutDom(wp);
+};
+
+window.onReplayScrubberChange = function(value) {
+  // onchange fires once at drag-end — re-render feed so position-aligned subset re-evaluates.
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const v = parseInt(value, 10);
+  if (!isFinite(v)) return;
+  state.replayLocalPositionMs = Math.max(0, v);
+  // Re-anchor the play clock so it continues smoothly from the new drop position.
+  if (state.replayClockPlaying) {
+    state.replayClockAnchorWallclock = Date.now();
+    state.replayClockAnchorPosition = state.replayLocalPositionMs;
+  }
+  renderWatchpartyLive();  // triggers renderReplayReactionsFeed re-evaluation
+};
 // Phase 26 / RPLY-26-06 — Replay-mode reactions feed (position-aligned subset).
 // Selection rule per UI-SPEC §3 (locked):
 //   skip if r.runtimePositionMs == null  (covers 'live-stream' AND pre-Phase-26)
