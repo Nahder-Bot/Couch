@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
-milestone: v33.3
-milestone_name: milestone
+milestone: v1-commercial-release
+milestone_name: v1 Commercial Release
 status: executing
 last_updated: "2026-04-30T16:56:55.912Z"
 last_activity: 2026-04-30

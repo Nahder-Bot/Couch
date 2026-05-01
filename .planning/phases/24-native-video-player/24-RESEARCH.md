@@ -734,7 +734,7 @@ function renderPlayerErrorOverlay(playerElementId) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`currentTime` semantics for sports watchparties (Phase 23 / `mode === 'game'`).**
    - What we know: Sports wps don't typically have a "video file" — they're live game broadcasts watched via the user's own TV / Sling / YouTube TV. The Video URL field on `scheduleSportsWatchparty` (D-04) means a user CAN paste a Twitch / YouTube-Live link.
