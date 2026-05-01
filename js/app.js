@@ -11304,8 +11304,11 @@ window.reloadWatchpartyPlayer = function() {
   attachVideoPlayer(wp);
 };
 
-window.openWatchpartyLive = function(wpId) {
+window.openWatchpartyLive = function(wpId, opts) {
   state.activeWatchpartyId = wpId;
+  // Phase 26 / RPLY-26-13 — mode flag set BEFORE first render so first paint is mode-correct.
+  // Default 'live' preserves backward compat for all existing call sites that pass (wpId) only.
+  state.activeWatchpartyMode = (opts && opts.mode === 'revisit') ? 'revisit' : 'live';
   renderWatchpartyLive();
   document.getElementById('wp-live-modal-bg').classList.add('on');
   // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt.
@@ -11337,6 +11340,10 @@ window.closeWatchpartyLive = function() {
   // Phase 11 / REFR-10 — stop any active score polling loop
   stopSportsScorePolling();
   state.activeWatchpartyId = null;
+  // Phase 26 / RPLY-26-13 + RESEARCH Pitfall 9 — clear replay flag + clock so the next
+  // live-mode open does NOT render in replay variant.
+  state.activeWatchpartyMode = null;
+  state.replayLocalPositionMs = null;
 };
 
 function renderWatchpartyBanner() {
