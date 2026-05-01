@@ -11040,6 +11040,247 @@ window.joinWatchparty = async function(wpId) {
   } catch(e) { alert('Could not join: ' + e.message); }
 };
 
+// === Phase 24 — Native video player runtime state + helpers ===
+// Co-located with openWatchpartyLive / closeWatchpartyLive lifecycle pair.
+// REVIEWS H1: player lives in #wp-video-surface (persistent across renders).
+// REVIEWS H3: YouTube branch uses div placeholder + new YT.Player(divId, {videoId,...}).
+// REVIEWS H5: <video> event handlers stored as module-scope refs for clean removeEventListener in teardown.
+// REVIEWS M1: late-joining non-host calls seekToBroadcastedTime after player init.
+// REVIEWS M4: per-sample live-stream gate inside broadcaster (NOT one-shot at onReady).
+// REVIEWS C2: extended schema fields written by broadcastCurrentTime.
+let _ytApiLoading = null;
+let _wpYtPlayer = null;             // YT.Player instance (null when no YouTube branch active)
+let _wpVideoBroadcaster = null;     // makeIntervalBroadcaster closure (host-only)
+let _wpVideoSampler = null;         // setInterval id for YouTube currentTime poll (host-only)
+let _wpVideoElement = null;         // <video> element ref for MP4 branch (for cleanup)
+// REVIEWS H5 — handler refs so teardownVideoPlayer can removeEventListener cleanly.
+let _wpVideoTimeHandler = null;     // 'timeupdate' on <video>
+let _wpVideoErrorHandler = null;    // 'error' on <video>
+let _wpRetryClickHandler = null;    // delegated 'click' on .wp-video-frame for [data-action="retry-video"] (REVIEWS H4)
+
+function ensureYouTubeApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (_ytApiLoading) return _ytApiLoading;
+  _ytApiLoading = new Promise(resolve => {
+    if (!document.getElementById('youtube-iframe-api-script')) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-iframe-api-script';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    // REVIEWS L2 (low / deferred risk): Couch has no other YT API consumer in 2026-04.
+    // Direct overwrite is acceptable. If a future phase adds a second YT integration,
+    // switch to chained-handler pattern.
+    window.onYouTubeIframeAPIReady = () => resolve();
+  });
+  return _ytApiLoading;
+}
+
+// REVIEWS C2 — Extended Phase 26 schema.
+// currentTimeMs / currentTimeUpdatedAt remain (Phase 26 anchor).
+// currentTimeSource: 'youtube' | 'mp4' — Phase 26 chooses replay strategy.
+// durationMs: number | null — null for live streams; finite for normal videos.
+// isLiveStream: boolean — hardens M4 gating; tells Phase 26 not to anchor reactions to runtime position.
+async function broadcastCurrentTime(wpId, currentTimeSeconds, source, durationSecondsOrNull, isLive) {
+  if (!wpId || typeof currentTimeSeconds !== 'number' || isNaN(currentTimeSeconds)) return;
+  try {
+    const payload = {
+      currentTimeMs: Math.round(currentTimeSeconds * 1000),
+      currentTimeUpdatedAt: Date.now(),
+      currentTimeSource: source || null,
+      durationMs: (typeof durationSecondsOrNull === 'number' && isFinite(durationSecondsOrNull) && durationSecondsOrNull > 0)
+        ? Math.round(durationSecondsOrNull * 1000)
+        : null,
+      isLiveStream: !!isLive,
+      ...writeAttribution()
+    };
+    await updateDoc(watchpartyRef(wpId), payload);
+  } catch (e) {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      Sentry.addBreadcrumb({ category: 'videoBroadcast.write.failed', level: 'warning', data: { wpId, error: String(e) } });
+    }
+  }
+}
+
+// REVIEWS H4 — delegated retry click handler (wires "Try again" link to reloadWatchpartyPlayer).
+// Attached once per attachVideoPlayer; removed in teardownVideoPlayer.
+function makeRetryClickHandler() {
+  return function (ev) {
+    const t = ev.target;
+    if (!t) return;
+    const action = t.getAttribute && t.getAttribute('data-action');
+    if (action === 'retry-video') {
+      ev.preventDefault();
+      if (typeof window.reloadWatchpartyPlayer === 'function') window.reloadWatchpartyPlayer();
+    }
+  };
+}
+
+async function attachVideoPlayer(wp) {
+  if (!wp || !wp.videoUrl || !wp.videoSource) return;
+  const t = state.titles && state.titles.find(x => x.id === wp.titleId);
+  if (!titleHasNonDrmPath(t)) return;
+  const surface = document.getElementById('wp-video-surface');
+  if (!surface) return; // modal not mounted
+
+  const isHost = !!(state.me && state.me.id === wp.hostId);
+
+  // Build the player HTML into the persistent surface.
+  // REVIEWS H3: YouTube uses a DIV placeholder, NOT an iframe. The IFrame API
+  // creates its own iframe by replacing the div, on its own controlled timeline.
+  const parsed = parseVideoUrl(wp.videoUrl);
+  let html = '';
+  if (wp.videoSource === 'youtube' && parsed && parsed.id) {
+    const safeId = encodeURIComponent(parsed.id);
+    html = '<div class="wp-video-frame">' +
+      '<div id="wp-yt-player" class="wp-video-frame--youtube" data-video-id="' + safeId + '"></div>' +
+    '</div>';
+  } else if (wp.videoSource === 'mp4') {
+    const safeUrl = escapeHtml(wp.videoUrl);
+    html = '<div class="wp-video-frame">' +
+      '<video id="wp-mp4-player" class="wp-video-frame--mp4" controls playsinline preload="metadata" src="' + safeUrl + '"></video>' +
+    '</div>';
+  }
+  if (!html) return;
+  surface.innerHTML = html;
+
+  // REVIEWS H4 — wire the delegated retry click handler ONCE on the .wp-video-frame.
+  const frame = surface.querySelector('.wp-video-frame');
+  if (frame) {
+    _wpRetryClickHandler = makeRetryClickHandler();
+    frame.addEventListener('click', _wpRetryClickHandler);
+  }
+
+  if (wp.videoSource === 'youtube') {
+    await ensureYouTubeApi();
+    const placeholder = document.getElementById('wp-yt-player');
+    if (!placeholder) return; // modal closed during load (RESEARCH Pitfall 6)
+    const videoId = placeholder.getAttribute('data-video-id') || '';
+    // REVIEWS H3 — Construct the player from the div placeholder + videoId,
+    // not from an existing iframe. This is the YouTube-recommended pattern.
+    _wpYtPlayer = new YT.Player('wp-yt-player', {
+      videoId: videoId,
+      playerVars: { playsinline: 1, enablejsapi: 1 },
+      events: {
+        onReady: () => {
+          // REVIEWS M1 — Late-join seek for non-hosts.
+          if (!isHost) {
+            seekToBroadcastedTime(_wpYtPlayer, wp, 'youtube');
+          }
+          if (!isHost) return;
+          // Host: arm the broadcaster + sampler. REVIEWS M4 gates per-sample.
+          _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+            let duration = null;
+            let isLive = false;
+            try {
+              // REVIEWS M4 — per-sample live-stream gate. Inline isFinite + getDuration
+              // so the gate is evaluated EVERY sample (NOT one-shot at onReady), matching
+              // the smoke contract's regex /isFinite\([^)]*getDuration/ for M4.
+              if (_wpYtPlayer && typeof _wpYtPlayer.getDuration === 'function' && isFinite(_wpYtPlayer.getDuration()) && _wpYtPlayer.getDuration() > 0) {
+                duration = _wpYtPlayer.getDuration();
+              } else {
+                isLive = true;
+                duration = null;
+              }
+            } catch (e) { duration = null; isLive = true; }
+            broadcastCurrentTime(wp.id, sec, 'youtube', duration, isLive);
+          });
+          _wpVideoSampler = setInterval(() => {
+            try {
+              if (_wpYtPlayer && typeof _wpYtPlayer.getCurrentTime === 'function') {
+                _wpVideoBroadcaster(_wpYtPlayer.getCurrentTime());
+              }
+            } catch (e) { /* ignore */ }
+          }, Math.max(1000, Math.floor(VIDEO_BROADCAST_INTERVAL_MS / 2)));
+        },
+        onError: () => renderPlayerErrorOverlay('wp-yt-player')
+      }
+    });
+  } else if (wp.videoSource === 'mp4') {
+    const video = document.getElementById('wp-mp4-player');
+    if (!video) return;
+    _wpVideoElement = video;
+    // REVIEWS M1 — Late-join seek for non-hosts on MP4 too.
+    if (!isHost) {
+      seekToBroadcastedTime(video, wp, 'mp4');
+    }
+    // REVIEWS H5 — Store handler refs so teardown can remove them.
+    if (isHost) {
+      _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+        const duration = (typeof video.duration === 'number' && isFinite(video.duration) && video.duration > 0) ? video.duration : null;
+        const isLive = duration === null;
+        broadcastCurrentTime(wp.id, sec, 'mp4', duration, isLive);
+      });
+      _wpVideoTimeHandler = function () {
+        if (_wpVideoBroadcaster && _wpVideoElement) _wpVideoBroadcaster(_wpVideoElement.currentTime);
+      };
+      video.addEventListener('timeupdate', _wpVideoTimeHandler);
+    }
+    _wpVideoErrorHandler = function () { renderPlayerErrorOverlay('wp-mp4-player'); };
+    video.addEventListener('error', _wpVideoErrorHandler);
+  }
+}
+
+function teardownVideoPlayer() {
+  if (_wpVideoSampler) { clearInterval(_wpVideoSampler); _wpVideoSampler = null; }
+  _wpVideoBroadcaster = null;
+  // REVIEWS H5 — Remove stored event handlers BEFORE nulling the element ref.
+  if (_wpVideoElement) {
+    if (_wpVideoTimeHandler) {
+      try { _wpVideoElement.removeEventListener('timeupdate', _wpVideoTimeHandler); } catch (e) { /* ignore */ }
+    }
+    if (_wpVideoErrorHandler) {
+      try { _wpVideoElement.removeEventListener('error', _wpVideoErrorHandler); } catch (e) { /* ignore */ }
+    }
+    try { _wpVideoElement.pause(); } catch (e) { /* ignore */ }
+  }
+  _wpVideoTimeHandler = null;
+  _wpVideoErrorHandler = null;
+  _wpVideoElement = null;
+  // REVIEWS H4 — Remove the delegated retry click handler.
+  if (_wpRetryClickHandler) {
+    const surface = document.getElementById('wp-video-surface');
+    const frame = surface ? surface.querySelector('.wp-video-frame') : null;
+    if (frame) {
+      try { frame.removeEventListener('click', _wpRetryClickHandler); } catch (e) { /* ignore */ }
+    }
+    _wpRetryClickHandler = null;
+  }
+  if (_wpYtPlayer && typeof _wpYtPlayer.destroy === 'function') {
+    try { _wpYtPlayer.destroy(); } catch (e) { /* ignore */ }
+  }
+  _wpYtPlayer = null;
+  // REVIEWS H1 — Clear the persistent surface so next attach starts fresh.
+  const surface = document.getElementById('wp-video-surface');
+  if (surface) surface.innerHTML = '';
+}
+
+// Per UI-SPEC Interaction States: italic-serif "Player couldn't load that link." + Try again link.
+// REVIEWS H4 — Try-again link is a real <a> with data-action="retry-video"; click is wired
+// via delegated handler on the .wp-video-frame parent (attached in attachVideoPlayer).
+function renderPlayerErrorOverlay(playerElementId) {
+  const player = document.getElementById(playerElementId);
+  if (!player) return;
+  const wrap = player.closest('.wp-video-frame');
+  if (!wrap) return;
+  let overlay = wrap.querySelector('.wp-video-error');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'wp-video-error';
+    wrap.appendChild(overlay);
+  }
+  overlay.innerHTML = "<em>Player couldn't load that link.</em>" +
+    ' <a class="link-like" href="#" data-action="retry-video">Try again</a>';
+}
+
+// window-scoped so the delegated retry handler (and any test/debug code) can reach it.
+window.reloadWatchpartyPlayer = function() {
+  const wp = state.watchparties && state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp) return;
+  teardownVideoPlayer();
+  attachVideoPlayer(wp);
+};
+
 window.openWatchpartyLive = function(wpId) {
   state.activeWatchpartyId = wpId;
   renderWatchpartyLive();
@@ -11058,9 +11299,17 @@ window.openWatchpartyLive = function(wpId) {
       maybeShowTeamFlairPicker(wp, mine);
     }
   }
+  // Phase 24 / REVIEWS H1 — Attach the persistent video player AFTER coordination paints.
+  // Player surface is independent of renderWatchpartyLive; safe to attach late.
+  if (wp && wp.videoUrl) {
+    attachVideoPlayer(wp);
+  }
 };
 
 window.closeWatchpartyLive = function() {
+  // Phase 24 — Tear down the player FIRST so timers/listeners die before
+  // anything else clears state. Idempotent if no player is attached.
+  teardownVideoPlayer();
   document.getElementById('wp-live-modal-bg').classList.remove('on');
   // Phase 11 / REFR-10 — stop any active score polling loop
   stopSportsScorePolling();
