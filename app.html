@@ -1116,6 +1116,18 @@
       <div class="sports-games-list" id="sports-games-list">
         <div class="sports-loading">Loading games…</div>
       </div>
+      <div class="field">
+        <label for="wp-video-url-sport">Video URL (optional, set before picking a game)</label>
+        <input type="url" inputmode="url" id="wp-video-url-sport"
+          placeholder="YouTube link or .mp4 URL"
+          autocomplete="off" spellcheck="false" />
+        <div class="field-help" id="wp-video-url-sport-help">
+          Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+        </div>
+        <div class="field-error" id="wp-video-url-sport-error" role="alert" hidden>
+          That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+        </div>
+      </div>
       <div class="modal-actions-row">
         <button class="pill" onclick="closeSportsPicker()">Close</button>
       </div>
@@ -1138,6 +1150,18 @@
       </div>
       <div id="game-picker-list" class="game-picker-list">
         <div class="game-picker-empty"><em>Pick a league to see games.</em></div>
+      </div>
+      <div class="field">
+        <label for="wp-video-url-game">Video URL (optional)</label>
+        <input type="url" inputmode="url" id="wp-video-url-game"
+          placeholder="YouTube link or .mp4 URL"
+          autocomplete="off" spellcheck="false" />
+        <div class="field-help" id="wp-video-url-game-help">
+          Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+        </div>
+        <div class="field-error" id="wp-video-url-game-error" role="alert" hidden>
+          That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+        </div>
       </div>
       <div class="modal-actions-row">
         <button class="pill" onclick="closeGamePicker()">Cancel</button>
@@ -1167,6 +1191,18 @@
           <input type="datetime-local" id="wp-schedule-input" class="form-input-block">
         </div>
         <div id="wp-start-preview" class="wp-start-preview"></div>
+        <div class="field">
+          <label for="wp-video-url-movie">Video URL (optional)</label>
+          <input type="url" inputmode="url" id="wp-video-url-movie"
+            placeholder="YouTube link or .mp4 URL"
+            autocomplete="off" spellcheck="false" />
+          <div class="field-help" id="wp-video-url-movie-help">
+            Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+          </div>
+          <div class="field-error" id="wp-video-url-movie-error" role="alert" hidden>
+            That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+          </div>
+        </div>
         <button class="modal-close" onclick="confirmStartWatchparty()">Send invites</button>
         <button class="pill modal-btn-block" onclick="closeWatchpartyStart()">Cancel</button>
       </div>
@@ -1174,7 +1210,18 @@
   </div>
 
   <div class="modal-bg" id="wp-live-modal-bg">
-    <div class="modal wp-live-modal" id="wp-live-content"></div>
+    <div class="modal wp-live-modal" id="wp-live-content">
+      <!-- Phase 24 / REVIEWS H1 — Persistent player surface (#wp-video-surface).
+           Only touched by attachVideoPlayer / teardownVideoPlayer.
+           renderWatchpartyLive MUST NOT touch #wp-video-surface. Empty by default;
+           player innerHTML is written here once on attach and stays put across
+           reaction/timer/snapshot re-renders. -->
+      <div id="wp-video-surface" class="wp-video-surface"></div>
+      <!-- Phase 24 / REVIEWS H1 — Re-renderable coordination surface (#wp-live-coordination).
+           renderWatchpartyLive writes the existing live-modal HTML (header,
+           reactions feed, footer) into #wp-live-coordination. Repaints freely on every state change. -->
+      <div id="wp-live-coordination" class="wp-live-coordination"></div>
+    </div>
   </div>
 
   <!-- Phase 11 / REFR-09 — Post-session modal: rating + photo upload + schedule-next.

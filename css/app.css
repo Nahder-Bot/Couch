@@ -683,6 +683,10 @@ h3{font-size:var(--t-h3)}
   transition:border-color var(--t-quick)}
 .schedule-modal input:focus,.schedule-modal textarea:focus{
   border-color:var(--accent);outline:none}
+/* Phase 24 — generic input-validation utility classes */
+.field-help{font-family:var(--font-sans);font-size:var(--t-meta);font-weight:400;color:var(--ink-dim);margin-top:4px;line-height:1.4}
+.field-error{font-family:var(--font-sans);font-size:var(--t-meta);font-weight:400;color:var(--ink-warm);margin-top:6px;line-height:1.4}
+input.field-invalid{border-color:var(--bad)}
 .schedule-modal textarea{resize:vertical;min-height:50px}
 .schedule-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .schedule-quick button{padding:8px 12px;background:var(--surface-2);border:none;border-radius:8px;color:var(--ink);font-family:inherit;font-size:var(--t-meta);cursor:pointer;font-weight:600}
@@ -1606,6 +1610,20 @@ h3{font-size:var(--t-h3)}
 .cast-name{font-family:'Inter',sans-serif;font-size:var(--fs-meta);font-weight:600;line-height:1.25;margin-bottom:2px}
 .cast-char{font-size:var(--fs-micro);color:var(--ink-dim);line-height:1.3}
 .trailer-frame{width:100%;aspect-ratio:16/9;border-radius:var(--r-md);border:none;background:#000;margin-bottom:var(--s2)}
+/* Phase 24 — Native video player surface inside watchparty live modal.
+   Persistent surface (REVIEWS H1): #wp-video-surface owns the player; never
+   re-rendered by renderWatchpartyLive. Coordination surface owns everything else. */
+.wp-video-surface{flex-shrink:0}
+.wp-video-surface:empty{display:none}
+.wp-live-coordination{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.wp-video-frame{width:100%;aspect-ratio:16/9;background:#000;border-radius:0;overflow:hidden;position:relative;flex-shrink:0}
+.wp-video-frame iframe,.wp-video-frame video{width:100%;height:100%;border:none;display:block}
+.wp-live-modal > #wp-video-surface .wp-video-frame:first-child,
+.wp-live-modal > .wp-video-surface .wp-video-frame:first-child{border-radius:24px 24px 0 0}
+.wp-live-header--has-player .wp-live-poster{display:none}
+.wp-video-error{position:absolute;left:0;right:0;bottom:0;padding:var(--s3) var(--s4);background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0.7) 100%);color:var(--ink);font-family:var(--font-sans);font-size:var(--t-meta);display:flex;align-items:center;gap:var(--s3);justify-content:space-between}
+.wp-video-error em{font-family:var(--font-serif);font-style:italic;color:var(--ink-warm)}
+.wp-video-error .link-like{font-size:var(--t-meta);color:var(--accent);cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
 .similar-row{display:flex;gap:var(--s3);overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .similar-row::-webkit-scrollbar{display:none}
 .similar-card{flex-shrink:0;width:100px;cursor:pointer}
