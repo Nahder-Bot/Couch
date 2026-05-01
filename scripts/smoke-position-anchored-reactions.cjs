@@ -91,6 +91,22 @@ function notContains(label, hay, needle) {
     ).length;
   }
 
+  // ---- Plan 02 — Inline mirror of getScrubberDurationMs (must match js/app.js verbatim) ----
+  // Smoke uses an injectable `state` arg since the helper reads global state.titles in production.
+  function getScrubberDurationMs_smoke(wp, fakeState) {
+    const t = fakeState && fakeState.titles && fakeState.titles.find(x => x.id === wp.titleId);
+    if (t) {
+      if (typeof t.runtime === 'number' && t.runtime > 0) return t.runtime * 60 * 1000;
+      if (typeof t.episode_run_time === 'number' && t.episode_run_time > 0) return t.episode_run_time * 60 * 1000;
+    }
+    if (typeof wp.durationMs === 'number' && wp.durationMs > 0) return wp.durationMs;
+    const positions = (wp.reactions || [])
+      .map(r => r.runtimePositionMs)
+      .filter(p => typeof p === 'number' && p > 0);
+    if (positions.length > 0) return Math.max(...positions) + 30000;
+    return 60 * 60 * 1000;
+  }
+
   // ===== Helper-behavior assertions (RPLY-26-01, 02, 03, 06, 10) =====
 
   // RPLY-26-01 case 1: live-stream branch
@@ -142,6 +158,18 @@ function notContains(label, hay, needle) {
     ] }), 2);
   eq('replayableReactionCount accepts replay-sourced reactions (D-05)',
     replayableReactionCount({ reactions: [{ runtimePositionMs: 5000, runtimeSource: 'replay' }] }), 1);
+
+  // ===== Plan 02 helper-behavior assertions (RPLY-26-05 — getScrubberDurationMs precedence) =====
+  eq('getScrubberDurationMs movie t.runtime -> 142x60x1000',
+    getScrubberDurationMs_smoke({ titleId: 'm1' }, { titles: [{ id: 'm1', runtime: 142 }] }), 8520000);
+  eq('getScrubberDurationMs TV t.episode_run_time -> 30x60x1000',
+    getScrubberDurationMs_smoke({ titleId: 't1' }, { titles: [{ id: 't1', episode_run_time: 30 }] }), 1800000);
+  eq('getScrubberDurationMs falls back to wp.durationMs when no title match',
+    getScrubberDurationMs_smoke({ titleId: 'unknown', durationMs: 7200000 }, { titles: [] }), 7200000);
+  eq('getScrubberDurationMs falls back to max observed + 30s cushion',
+    getScrubberDurationMs_smoke({ titleId: 'x', reactions: [{ runtimePositionMs: 1500000 }] }, { titles: [] }), 1530000);
+  eq('getScrubberDurationMs final 60-min floor when nothing else available',
+    getScrubberDurationMs_smoke({}, { titles: [] }), 3600000);
 
   // ===== Production-code sentinels (read js/app.js + js/state.js + firestore.rules) =====
   let appJs = '';
@@ -198,6 +226,74 @@ function notContains(label, hay, needle) {
       truthy('postBurstReaction body invokes derivePositionForReaction (RPLY-26-01 wiring)',
         /derivePositionForReaction\s*\(/.test(burstSection));
     }
+
+    // ===== Plan 02 production-code sentinels =====
+
+    // RPLY-26-04: replay-variant gating literals appear in renderWatchpartyLive context
+    const renderIdx = appJs.indexOf('function renderWatchpartyLive');
+    truthy('js/app.js has renderWatchpartyLive declaration', renderIdx > -1);
+    if (renderIdx > -1) {
+      const renderSection = appJs.slice(renderIdx, renderIdx + 6000);
+      truthy('renderWatchpartyLive contains isReplay flag (RPLY-26-04 part 1)',
+        /const\s+isReplay\s*=\s*state\.activeWatchpartyMode\s*===\s*['"]revisit['"]/.test(renderSection));
+      truthy('renderWatchpartyLive contains wp.status === "archived" eligibility gate (RPLY-26-04 part 2)',
+        /wp\.status\s*===\s*['"]archived['"]/.test(renderSection));
+    }
+
+    // RPLY-26-13 part 2: openWatchpartyLive assigns activeWatchpartyMode
+    const openIdx = appJs.indexOf('window.openWatchpartyLive');
+    truthy('js/app.js has window.openWatchpartyLive', openIdx > -1);
+    if (openIdx > -1) {
+      const openSection = appJs.slice(openIdx, openIdx + 800);
+      truthy('openWatchpartyLive assigns state.activeWatchpartyMode (RPLY-26-13 part 2)',
+        /state\.activeWatchpartyMode\s*=\s*\(opts\s*&&\s*opts\.mode\s*===\s*['"]revisit['"]\)/.test(openSection));
+    }
+
+    // RPLY-26-13 part 3: closeWatchpartyLive clears activeWatchpartyMode
+    const closeIdx = appJs.indexOf('window.closeWatchpartyLive');
+    truthy('js/app.js has window.closeWatchpartyLive', closeIdx > -1);
+    if (closeIdx > -1) {
+      const closeSection = appJs.slice(closeIdx, closeIdx + 800);
+      truthy('closeWatchpartyLive clears state.activeWatchpartyMode (RPLY-26-13 part 3)',
+        /state\.activeWatchpartyMode\s*=\s*null/.test(closeSection));
+      truthy('closeWatchpartyLive clears state.replayLocalPositionMs (Pitfall 9)',
+        /state\.replayLocalPositionMs\s*=\s*null/.test(closeSection));
+    }
+
+    // RPLY-26-15: banner copy literals
+    contains('js/app.js contains "Revisiting" banner eyebrow source string (RPLY-26-15 part 1)', appJs, "'Revisiting'");
+    contains('js/app.js contains "together again" italic-serif sub-line literal (RPLY-26-15 part 2)', appJs, 'together again');
+
+    // RPLY-26-SNAP: scrubber 1-sec snap
+    truthy('renderReplayScrubber emits step="1000" (RPLY-26-SNAP)',
+      /<input[^>]*step=['"]1000['"]/.test(appJs));
+    contains('renderReplayScrubber emits aria-label "Move to where you are in the movie"', appJs, 'Move to where you are in the movie');
+    contains('renderReplayScrubber play/pause aria-label "Start watching from here"', appJs, 'Start watching from here');
+
+    // RPLY-26-05 helper present
+    truthy('js/app.js declares function getScrubberDurationMs (RPLY-26-05)',
+      /function\s+getScrubberDurationMs\s*\(/.test(appJs));
+    truthy('js/app.js declares function renderReplayScrubber',
+      /function\s+renderReplayScrubber\s*\(/.test(appJs));
+
+    // RPLY-26-16: NO autoplay attribute / playerVars.autoplay outside comments (negative sentinel)
+    // Strip /* */ block comments and // line comments before checking.
+    const stripped = appJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*\n/g, '\n');
+    const autoplayHits = stripped.match(/autoplay/gi) || [];
+    eq('js/app.js has ZERO autoplay literals outside comments (RPLY-26-16 negative sentinel)', autoplayHits.length, 0);
+  }
+
+  // ===== Plan 02 CSS sentinels =====
+  let cssApp = '';
+  try {
+    cssApp = fs.readFileSync(path.resolve(__dirname, '..', 'css/app.css'), 'utf8');
+  } catch (e) { failMsg('read css/app.css for Phase 26 CSS sentinels', e.message); }
+  if (cssApp) {
+    contains('css/app.css contains .wp-replay-scrubber-strip class', cssApp, '.wp-replay-scrubber-strip');
+    contains('css/app.css contains .wp-replay-playpause class', cssApp, '.wp-replay-playpause');
+    contains('css/app.css contains .wp-replay-scrubber-input class', cssApp, '.wp-replay-scrubber-input');
+    contains('css/app.css contains .wp-replay-scrubber-readout class', cssApp, '.wp-replay-scrubber-readout');
+    contains('css/app.css contains .wp-live-revisit-subline class', cssApp, '.wp-live-revisit-subline');
   }
 
   if (stateJs) {
