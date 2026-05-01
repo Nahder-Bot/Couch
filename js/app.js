@@ -8018,12 +8018,15 @@ function renderDetailShell(t) {
     ${renderCv15TupleProgressSection(t)}
     ${renderTmdbReviewsForTitle(t)}
     ${renderWatchpartyHistoryForTitle(t)}
+    ${renderPastWatchpartiesForTitle(t)}
     ${loadingHtml}
   </div>`;
 }
 
 function renderWatchpartyHistoryForTitle(t) {
-  const related = state.watchparties.filter(wp => wp.titleId === t.id).sort((a,b) => b.startAt - a.startAt);
+  // Phase 26 / RPLY-26-12 — D-08 bifurcation: this function returns ACTIVE-ONLY
+  // watchparties for the title. The new renderPastWatchpartiesForTitle handles archived.
+  const related = activeWatchparties().filter(wp => wp.titleId === t.id).sort((a,b) => b.startAt - a.startAt);
   if (!related.length) return '';
   return `<div class="detail-section"><h4>Watchparties</h4>
     <div class="wp-history-list">
@@ -8044,6 +8047,51 @@ function renderWatchpartyHistoryForTitle(t) {
           <div class="wp-history-arrow">›</div>
         </div>`;
       }).join('')}
+    </div>
+  </div>`;
+}
+
+// Phase 26 / RPLY-26-11 — Past watchparties for this title section per UI-SPEC §5.
+// Renders a section listing ARCHIVED watchparties for this family that featured this title
+// AND have replay-able reactions. Hide-when-empty per D-10 (silent UX).
+function renderPastWatchpartiesForTitle(t) {
+  const past = archivedWatchparties()
+    .filter(wp => wp.titleId === t.id)
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .sort((a, b) => b.startAt - a.startAt)  // most-recent-first
+    .slice(0, 10);  // UI-SPEC §5 cap: 10 rows; full history via Past parties surface
+  if (!past.length) return '';  // D-10 silent-UX hide-when-empty (Pitfall 7)
+  const rowsHtml = past.map(wp => {
+    const count = Object.keys(wp.participants || {}).length;
+    const reactionCount = replayableReactionCount(wp);
+    const reactionLabel = reactionCount === 1 ? '1 reaction' : (reactionCount + ' reactions');
+    const dateLine = friendlyPartyDate(wp.startAt);
+    const titleNameSafe = escapeHtml(wp.titleName || 'Watchparty');
+    const posterStyle = wp.titlePoster
+      ? `background-image:url('${escapeHtml(wp.titlePoster)}')`
+      : '';
+    const wpIdSafe = escapeHtml(wp.id);
+    const ariaLabel = `${titleNameSafe}, ${dateLine}, ${count} on the couch, ${reactionLabel}`;
+    // Phase 26 / RPLY-26-08 part 2 — title-detail row tap enters replay variant.
+    const actionFn = `closeDetailModal();openWatchpartyLive('${wpIdSafe}', { mode: 'revisit' })`;
+    return `<div class="past-watchparty-row" role="button" tabindex="0"
+              onclick="${actionFn}"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${actionFn};}"
+              aria-label="${escapeHtml(ariaLabel)}">
+      <div class="past-watchparty-poster" style="${posterStyle}"></div>
+      <div class="past-watchparty-body">
+        <div class="past-watchparty-title">${titleNameSafe}</div>
+        <div class="past-watchparty-meta">${escapeHtml(dateLine)}</div>
+        <div class="past-watchparty-meta">${count} on the couch · ${reactionLabel}</div>
+      </div>
+      <span class="past-watchparty-chevron" aria-hidden="true">›</span>
+    </div>`;
+  }).join('');
+  return `<div class="detail-section">
+    <h4>Past watchparties</h4>
+    <p class="detail-section-subline" style="font-style:italic;font-family:'Instrument Serif',serif;color:var(--ink-dim);font-size:var(--t-meta);margin:0 0 var(--space-stack-sm,12px) 0;">Catch up on what the family said.</p>
+    <div class="past-watchparties-for-title-list">
+      ${rowsHtml}
     </div>
   </div>`;
 }
@@ -11507,14 +11555,17 @@ function renderWatchpartyBanner() {
       <button class="wp-banner-action" onclick="event.stopPropagation();${actionFn}">${actionLabel}</button>
     </div>`;
   }).join('');
-  // Phase 15.5 / D-04 + REQ-10: Past parties inline link. Renders ONLY when staleWps.length > 0.
-  const pastPartiesHtml = staleWps.length > 0
+  // Phase 26 / RPLY-26-20 — Tonight tab inline link gating. Renames Phase 15.5's
+  // staleWps.length count source to allReplayableArchivedCount; preserves hide-when-zero
+  // gating per first-week-after-deploy framing (silent UX per D-10).
+  const pastReplayableCount = allReplayableArchivedCount(state.watchparties);
+  const pastPartiesHtml = pastReplayableCount > 0
     ? `<div class="past-parties-link-row" role="button" tabindex="0"
           onclick="openPastParties()"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPastParties();}"
-          aria-label="Past parties, ${staleWps.length} watchpart${staleWps.length === 1 ? 'y' : 'ies'}">
+          aria-label="Past parties, ${pastReplayableCount} watchpart${pastReplayableCount === 1 ? 'y' : 'ies'}">
         Past parties
-        <span class="past-parties-count">(${staleWps.length})</span>
+        <span class="past-parties-count">(${pastReplayableCount})</span>
         <span class="past-parties-chevron" aria-hidden="true">›</span>
       </div>`
     : '';
