@@ -12149,6 +12149,28 @@ function renderReactionsFeed(wp, mine, modeOverride) {
   return `<div class="wp-live-body" id="wp-reactions-feed">${sorted.map(r => renderReaction(r, mode)).join('')}</div>`;
 }
 
+// === Phase 27 — Guest RSVP helpers ===
+// D-04: render-time (guest) suffix only when normalized name collides with a family member.
+function getFamilyMemberNamesSet() {
+  return new Set((state.members || []).map(m => (m.name || '').trim().toLowerCase()).filter(Boolean));
+}
+// D-04: returns "{name} (guest)" iff name collides; otherwise returns name verbatim.
+function displayGuestName(rawName, familyMemberNamesSet) {
+  const name = rawName || 'Guest';
+  const norm = name.trim().toLowerCase();
+  if (familyMemberNamesSet && familyMemberNamesSet.has(norm)) {
+    return name + ' (guest)';
+  }
+  return name;
+}
+// D-01: response label for guest chips. undefined/null/'invited' → 'Invited'.
+function guestResponseLabel(response) {
+  if (response === 'yes')   return 'Going';
+  if (response === 'maybe') return 'Maybe';
+  if (response === 'no')    return 'Not coming';
+  return 'Invited';
+}
+
 // Phase 7 Plan 03 — advisory per-member timer strip. Shows every participant's current
 // elapsedMs as a chip. Non-started participants show "Joined", paused ones show "Paused",
 // active ones show "X min in". Rendered inside the watchparty live body on every tick so
@@ -12202,7 +12224,29 @@ function renderParticipantTimerStrip(wp) {
       </div>
     </div>`;
   }).join('');
-  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}</div>`;
+  // === Phase 27 — append guest chips after member chips ===
+  const familyMemberNamesSet = getFamilyMemberNamesSet();
+  const visibleGuests = (Array.isArray(wp.guests) ? wp.guests : []).filter(g => g && !g.revoked);
+  const isHost = state.me && state.me.id === wp.hostId;
+  const guestChips = visibleGuests.map(guest => {
+    const safeGuestId = escapeHtml(guest.guestId || '');
+    const rawName = (guest.name || 'Guest').toString();
+    const display = displayGuestName(rawName, familyMemberNamesSet);
+    const initial = (display || '?')[0].toUpperCase();
+    const respLabel = guestResponseLabel(guest.response);
+    const kebab = isHost
+      ? `<button class="wp-guest-kebab" type="button" aria-label="Guest options for ${escapeHtml(display)}" onclick="event.stopPropagation();openGuestMenu('${safeGuestId}','${escapeHtml(wp.id)}',event)">&#8942;</button>`
+      : '';
+    return `<div class="wp-participant-chip guest" data-guest-id="${safeGuestId}" role="listitem">
+      <div class="wp-participant-av" style="background:#5a8a84;" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-info">
+        <div class="wp-participant-name">${escapeHtml(display)}<span class="chip-badge badge-guest">guest</span></div>
+        <div class="wp-participant-time" data-role="pt-time">${escapeHtml(respLabel)}</div>
+      </div>
+      ${kebab}
+    </div>`;
+  }).join('');
+  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}${guestChips}</div>`;
 }
 
 function renderReaction(r, mode) {
