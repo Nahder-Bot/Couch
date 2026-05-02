@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T18:33:00Z"
-last_activity: 2026-05-01
+last_updated: "2026-05-02T02:09:17.113Z"
+last_activity: 2026-05-02
 progress:
   total_phases: 27
   completed_phases: 18
-  total_plans: 98
+  total_plans: 102
   completed_plans: 97
-  percent: 99
+  percent: 95
 ---
 
 # Project State
@@ -20,16 +20,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 26 — position-anchored reactions + async-replay (ALL 5 WAVES SHIPPED 2026-05-01; awaiting device-UAT)
+**Current focus:** Phase 27 — Guest RSVP
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 26 / Plan: All 5 ready for /gsd-verify-work 26 after device-UAT
+Phase: 27 (Guest RSVP) — EXECUTING
+Plan: 1 of 5
 Next: Phase 26 fully shipped end-to-end (Plans 01-05 all committed + deployed). Awaits user device-UAT (10 scripts in 26-HUMAN-UAT.md; resume signal `uat passed` → `/gsd-verify-work 26`).
-**Status:** Awaiting device-UAT (HUMAN-VERIFY)
+**Status:** Executing Phase 27
 
-**Last Activity:** 2026-05-01
+**Last Activity:** 2026-05-02
 
 **Most recent close-out:** Phase 26 / Plan 05 — phase-close: smoke floor lock + HUMAN-UAT scaffold + production deploy (3 atomic commits: `01f31cc` test(26-05): RPLY-26-17 smoke floor meta-assertion (≥13) — fails the deploy gate when total < 13; total grows from 102 → 103; final-report block preserved verbatim / `df1752b` docs(26-05): scaffold 26-HUMAN-UAT.md (10 device-UAT scripts); 318 lines well above ≥80 minimum; covers replay-modal entry from both surfaces / scrubber drag + reaction fade-in / compound-reaction Firestore round-trip / deploy-day-empty silence / Wait Up off in replay / video player render-no-auto-start / drift tolerance feel / scrub-backward persistence / cache bump activation / `d9336cf` chore(26-05): bump sw.js CACHE → couch-v38-async-replay via `bash scripts/deploy.sh 38-async-replay` auto-bump; smoke gate green (9 contracts); rules tests 48/48 PASS; firebase deploy --only hosting succeeded; production curl-verified at couchtonight.app **2026-05-01T18:32:30Z**: `const CACHE = 'couch-v38-async-replay';` (D-07 single-repo proof: firestore.rules NOT touched in Phase 26; last commit `a2fd4b0` from Phase 24 / REVIEWS M2)). All 24 RPLY-26-* IDs now codified in production source. Phase 26 awaits device-UAT (10 scripts in 26-HUMAN-UAT.md; resume signal `uat passed` → `/gsd-verify-work 26`).
 
