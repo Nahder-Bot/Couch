@@ -575,6 +575,13 @@ service cloud.firestore {
       // Plan 03 (js/app.js confirmStartWatchparty + confirmGamePicker +
       // scheduleSportsWatchparty all set hostUid: state.auth.uid).
       match /watchparties/{wpId} {
+        // Phase 27 — wp.guests[], wp.guestCount, and wp.rsvpClosed are written
+        // exclusively by admin-SDK callable CFs (rsvpSubmit, rsvpRevoke). Admin
+        // SDK bypasses ALL Firestore rules — no rule changes are required to
+        // enable these writes. The existing attributedWrite() check denies any
+        // unauthenticated client from writing `guests` directly (verified by
+        // tests/rules.test.js Phase 27 describe block, RSVP-27-06).
+        // See .planning/phases/27-guest-rsvp/27-RESEARCH.md Q2.
         allow read: if isMemberOfFamily(familyCode);
         allow create: if attributedWrite(familyCode);
         allow update: if attributedWrite(familyCode) && (
