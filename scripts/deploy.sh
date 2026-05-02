@@ -69,6 +69,30 @@ fi
 
 TAG="${1:-}"
 
+# 0.5. Pre-flight: ensure port 8080 (Firestore emulator) is free.
+# Without this, the rules-tests step fails opaquely with "Could not start
+# Firestore Emulator, port taken" and the actual fix (kill the orphan Java
+# process) is buried under the firebase-tools output. Added 2026-05-02 after
+# a stuck emulator from a prior session blocked a couch-v40 deploy.
+node -e "
+const net = require('net');
+const s = net.createServer();
+s.once('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error('ERROR: port 8080 is in use; Firestore emulator cannot start.');
+    console.error('       Likely culprit: an orphan emulator from a prior session.');
+    console.error('       Find:   netstat -ano | findstr :8080      (Windows / git-bash)');
+    console.error('       Find:   lsof -ti:8080                     (Mac / Linux)');
+    console.error('       Kill:   taskkill /F /PID <pid>            (Windows)');
+    console.error('       Kill:   kill -9 <pid>                     (Mac / Linux)');
+    console.error('       Or close any local Firebase emulator UI / Java process and retry.');
+    process.exit(1);
+  }
+});
+s.once('listening', () => s.close());
+s.listen(8080, '127.0.0.1');
+" || exit 1
+
 # 1. Tests must pass (if a tests/ directory exists)
 if [ -d tests ]; then
   ( cd tests && npm test ) || { echo "ERROR: tests failed; aborting deploy." >&2; exit 1; }

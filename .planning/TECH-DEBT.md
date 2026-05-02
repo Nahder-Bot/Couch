@@ -11,6 +11,32 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-9. Smoke "deploy receipt" anti-pattern: hardcoded version literals
+
+**Severity:** low · **Effort:** trivial per occurrence · **Risk:** low (causes deploy-gate false-failures, not production bugs — but bad ones, see TD-10/TD-11)
+
+**Source:** 2026-05-02 — `couch-v40-tsd-key-fix` deploy was blocked because `scripts/smoke-guest-rsvp.cjs:195` hardcoded `"couch-v39-guest-rsvp"` as a "Phase 27 deploy receipt" sentinel. Every subsequent cache bump invalidated the literal. Relaxed to a convention check (`const CACHE = 'couch-v`) in commit `f3f3aec`. `scripts/smoke-pickem.cjs` Group 6 placeholder updated to steer Plan 28-06 toward the convention pattern (so the trap doesn't recur when 28-06 lands).
+
+**The anti-pattern:** "Freeze the current cache version literal as a smoke assertion to record the deploy." Feels right at write-time (you just shipped this exact version, capturing the literal proves the deploy happened) but inverts after the next cache bump — the literal is now wrong, the gate fails, and the failure message points at the wrong thing.
+
+**The right pattern:** convention-check.
+
+```js
+// WRONG (goes stale every cache bump):
+eqContains('10.1 sw.js CACHE = couch-v39-guest-rsvp', swJs, "couch-v39-guest-rsvp");
+
+// RIGHT (survives version bumps, still verifies sw.js edited + named correctly):
+eqContains('10.1 sw.js CACHE follows couch-v* convention', swJs, "const CACHE = 'couch-v");
+```
+
+The deploy receipt itself is preserved by git history (commit messages + cache bump commits) — the smoke contract's job is to verify the *contract*, not record the version.
+
+**Status:** ⏸ GUIDANCE — both known instances fixed (`smoke-guest-rsvp.cjs` relaxed; `smoke-pickem.cjs` placeholder updated). This entry exists to prevent recurrence in future smoke contracts.
+
+**Trigger:** any new `scripts/smoke-*.cjs` that wants to assert against `sw.js` cache version. Use the convention-check pattern above; do NOT capture a literal version.
+
+**Pointer:** `scripts/smoke-app-parse.cjs` (foundation gate, closes TD-10) and `scripts/smoke-guest-rsvp.cjs:193-195` (the relaxation comment block) are the canonical references for the right shape.
+
 ### TD-7. Firestore index spec in 13-01 was redundant (already-covered by single-field auto-index)
 
 **Severity:** trivial · **Effort:** 0 (already resolved) · **Risk:** none
@@ -247,7 +273,23 @@ Next time anyone touches Settings UI for any reason — pick a surface and remov
 
 ## Closed
 
-*(none yet — this is the first iteration of the register)*
+### TD-10. ES module parse foundation gate — closed 2026-05-02
+
+**What it was:** None of the 11 smoke contracts parsed `js/app.js` (the 17,500-line app shell entry point) as an ES module. Each contract validated a single feature module (`smoke-pickem` imports `js/pickem.js`, `smoke-native-video-player` imports `js/native-video-player.js`, etc.) but the foundation was untested.
+
+**How it bit:** Commit `3fd3f15b` (2026-04-30 sports refactor) introduced a 1-paren mismatch in `js/app.js:10343` — a 12-way nested ternary chain for league short labels with 14 opening parens but only 13 closing. The browser's ESM parser rejected it (`SyntaxError: Unexpected token ';'`), so every `import('/js/app.js')` threw before any screen rendered. Users hitting `couchtonight.app/app` saw only the static Privacy/Terms footer for ~3 days, including through the `couch-v38-async-replay` and `couch-v39-guest-rsvp` deploys — neither phase's smoke contract caught it because they tested phase features, not the foundation.
+
+**How it was closed:** `scripts/smoke-app-parse.cjs` (commit `89bf29f`) spawns `node --input-type=module --check` against the curated ES_MODULES list (10 modules including `app.js`, `firebase.js`, `state.js`, `pickem.js`, etc.). Any SyntaxError aborts the deploy gate with the offending line + caret. Wired into `scripts/deploy.sh §2.5` as the LAST contract in the gate (foundation check after all feature contracts) and into `package.json` smoke aggregate. Verified by deliberately reintroducing the line 10343 paren break: contract failed red with exit 1 + line/caret detail; restoration verified clean. Same-day hotfix `171c096` replaced the brittle 12-way ternary with a frozen `SHORT_LABELS` lookup table.
+
+### TD-11. Firebase Emulator port-8080 orphan pre-flight — closed 2026-05-02
+
+**What it was:** When the Firestore emulator (used by `tests/rules.test.js` during `deploy.sh §1`) didn't shut down cleanly from a prior session, port 8080 stayed held by an orphan Java process. `deploy.sh` would fail at the rules-tests step with `Could not start Firestore Emulator, port taken` — the actual fix (find + kill the orphan) buried under the firebase-tools output.
+
+**How it bit:** Today's `couch-v40-tsd-key-fix` deploy was blocked when a Java process from an 11:15 AM emulator session was still holding port 8080 four hours later. ~10 minutes lost to manual `Get-NetTCPConnection -LocalPort 8080 → Stop-Process -Id ... -Force` diagnosis.
+
+**How it was closed:** `deploy.sh §0.5` (this commit) runs a Node-based pre-flight that opens a probe socket on port 8080. If `EADDRINUSE`, it aborts with a clear remediation message including the cross-platform commands to find + kill the orphan. Cross-platform (no `lsof` / `netstat` dependency — uses Node which is already required by deploy.sh). Verified by holding port 8080 in a background Node process and re-running the pre-flight: aborts with exit 1 and the remediation message; passes when port released.
+
+---
 
 ---
 

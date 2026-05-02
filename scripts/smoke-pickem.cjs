@@ -8,7 +8,11 @@
  *   2. scorePick (all 4 pick types; partial-match edge cases per Pitfall 6)
  *   3. summarizeMemberSeason + compareMembers (OQ-8 tiebreaker arithmetic)
  *   4. Production-code sentinels (Firestore rules gameStartTime check;
- *      state === 'pending' guard; CACHE = couch-v40-pickem)
+ *      state === 'pending' guard; sw.js CACHE follows couch-v* convention
+ *      — Plan 28-06 fills in via convention-check, NOT a hardcoded literal,
+ *      because version-literal assertions go stale every subsequent cache bump.
+ *      See scripts/smoke-app-parse.cjs and the 2026-05-02 deploy-receipt fix
+ *      in scripts/smoke-guest-rsvp.cjs for the pattern.)
  *   5. Cross-repo lockstep grep for pickReminder/pickResults/pickemSeasonReset
  *      in BOTH js/app.js (DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS)
  *      and queuenight/functions/index.js (NOTIFICATION_DEFAULTS).
@@ -213,7 +217,14 @@ void QN_FUNCTIONS;
   eq('K2: PICK_TYPE_BY_LEAGUE.f1 = f1_podium', PICK_TYPE_BY_LEAGUE.f1, 'f1_podium');
 
   // === Group 5: Cross-repo lockstep (filled by Plan 28-03 — see PICK-28-17) ===
-  // === Group 6: sw.js CACHE bump sentinel (filled by Plan 28-06) ===
+  // === Group 6: sw.js CACHE convention sentinel (filled by Plan 28-06) ===
+  // IMPORTANT: assert the cache-naming CONVENTION ("const CACHE = 'couch-v"),
+  // NOT a specific literal like "couch-v40-pickem". Literal assertions go stale
+  // every subsequent cache bump and break the deploy gate (see scripts/smoke-
+  // guest-rsvp.cjs:193-195 for the relaxation done 2026-05-02 after this trap
+  // bit production). Pattern:
+  //   const swJs = readIfExists(path.join(COUCH_ROOT, 'sw.js'));
+  //   eqContains('6.X sw.js CACHE follows couch-v* convention', swJs, "const CACHE = 'couch-v");
 
   // === Group 7: Floor meta-assertion (locked by Plan 28-06) ===
   // Wave 1 placeholder — will tighten to FLOOR=13 in Plan 28-06 after
