@@ -128,7 +128,7 @@ export async function fetchSchedule(leagueKey, daysAhead) {
     for (let i = 0; i < daysAhead; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
-      const url = TSD_BASE + 'eventsday.php?d=' + isoDate(d) + '&l=' + encodeURIComponent(league.label);
+      const url = TSD_BASE + 'eventsday.php?d=' + isoDate(d) + '&l=' + league.id;
       fetches.push(fetch(url).then(function(r) { return r.json(); }).catch(function() { return null; }));
     }
     const results = await Promise.all(fetches);
