@@ -190,9 +190,12 @@ eqContains('9.7 js/app.js exposes window.revokeGuest',            appJs, 'window
 eqContains('9.8 js/app.js exposes window.closeRsvps',             appJs, 'window.closeRsvps');
 eqContains('9.9 js/app.js displayGuestName helper for collisions', appJs, 'function displayGuestName');
 
-// --- 10. sw.js cache bumped to couch-v39-guest-rsvp (Plan 05 deploy) ---
+// --- 10. sw.js cache follows convention (was: literal 'couch-v39-guest-rsvp'; relaxed
+//     2026-05-02 because every subsequent deploy bumps the cache and breaks a literal check.
+//     Phase 27 deploy receipt is preserved in git history at couch-v39-guest-rsvp. The
+//     deploy ritual still bumps the cache; this gate just stops false-failing on bumps.) ---
 const swJs = readIfExists(path.join(COUCH_ROOT, 'sw.js'));
-eqContains('10.1 sw.js CACHE = couch-v39-guest-rsvp',             swJs, "couch-v39-guest-rsvp");
+eqContains('10.1 sw.js CACHE follows couch-v* convention',        swJs, "const CACHE = 'couch-v");
 
 // --- 11. Floor meta-assertion (matches Phase 26 RPLY-26-17 pattern) ---
 {
