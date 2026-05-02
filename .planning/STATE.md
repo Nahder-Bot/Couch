@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-02T03:30:00Z"
+last_updated: "2026-05-02T04:30:00Z"
 last_activity: 2026-05-02
 progress:
-  total_phases: 27
+  total_phases: 28
   completed_phases: 19
   total_plans: 107
   completed_plans: 102
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 27 SHIPPED 2026-05-02 — Guest RSVP live in production (couch-v39-guest-rsvp); 10 device-UAT items pending in 27-HUMAN-UAT.md.
+**Current focus:** Phase 28 (Social pick'em + leaderboards) context captured 2026-05-02 via /gsd-discuss-phase 28 — 16 decisions locked across 4 gray areas (League scope / Surface entry & participation / Pick types & scoring & tiebreakers / Pick lock timing & season boundaries); 28-CONTEXT.md ready for `/gsd-plan-phase 28`. Phase 27 SHIPPED 2026-05-02 — Guest RSVP live in production (couch-v39-guest-rsvp); 10 device-UAT items pending in 27-HUMAN-UAT.md.
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
