@@ -52,24 +52,43 @@ standalone posture). Values must fall on the 4pt grid.
 
 Exceptions:
 - Touch targets on rsvp.html: minimum 44×44px on all tappable elements (existing `.rsvp-btn` is already 44px min-height via `min-height: 44px` on line 38 of rsvp.css). Push opt-in button must match.
-- The privacy footer link is small text (12px), NOT a tap target — it opens in the same tab via `<a href="/privacy">`.
+- The privacy footer link is small text (11px), NOT a tap target — it opens in the same tab via `<a href="/privacy">`.
 
 ---
 
 ## Typography
 
-Phase 27 uses the existing Couch type scale (BRAND.md §3). No new sizes introduced.
+Phase 27 uses the existing Couch type scale (BRAND.md §3). The Phase 27 scale is exactly 4 sizes:
+32px (display), 15px (body), 13px (meta/small), 11px (eyebrow/micro).
 
 | Role | Token | Size | Weight | Line Height | Typeface | Used where |
 |------|-------|------|--------|-------------|----------|-----------|
 | Confirmation display | `--t-h1` | 32px | 400 | 1.2 | Instrument Serif italic | "See you there." headline |
-| Confirmation eyebrow | `--t-eyebrow` | 11px | 600 | 1.0 | Inter uppercase | "CONFIRMED" label above headline |
-| Aggregate count | `--t-meta` | 13px | 600 | 1.4 | Inter | "3 going · 1 maybe" pill in confirmation |
 | Body / sub-copy | `--t-body` | 15px | 400 | 1.55 | Inter | Push opt-in copy, eviction body |
-| Small / meta | `--t-meta` | 13px | 400 | 1.4 | Inter | Push "not supported" inline message |
-| Privacy footer | `--t-micro` | 10px | 400 | 1.5 | Inter | "By tapping going/maybe/no..." |
+| Aggregate count / meta | `--t-meta` | 13px | 600 | 1.4 | Inter | "3 going · 1 maybe" pill in confirmation |
+| Small / meta body | `--t-meta` | 13px | 400 | 1.4 | Inter | Push post-tap state messages |
 | Guest chip name | `--t-meta` | 13px | 600 | 1.0 | Inter | Name in wp-participant-chip guest variant |
+| Eyebrow / micro labels | `--t-eyebrow` | 11px | 600 | 1.0 | Inter uppercase | "CONFIRMED" label, "RSVPs CLOSED" pill, privacy footer |
 | Closed-RSVPs pill | `--t-eyebrow` | 11px | 600 | 1.0 | Inter uppercase | "RSVPs CLOSED" pill label |
+
+**Phase 27 weight set: {400, 600}. Maximum 2 weights. No 700 in Phase 27 delta.**
+
+**Out-of-table size notes (stateful variants inherited from BRAND.md, not new Phase 27 sizes):**
+
+- `.rsvp-evicted-title` uses `22px` (`--t-h2`): this is a BRAND.md-defined scale step between `--t-h1`
+  (32px) and `--t-body` (15px). It is not a new size introduced by Phase 27 — it is the existing h2
+  token used for the eviction state's emotional weight (softer than the full `--t-h1` display, since
+  eviction is a quiet negative rather than a celebratory moment). Treated as "inherited from brand scale,
+  not a Phase 27 delta size."
+- Push success state (§1b State A) uses `15px` Instrument Serif italic (`--t-body`): the prior spec
+  noted `17px` for this element, which would have introduced a 5th size. This revision collapses it to
+  `15px` (`--t-body`) — still rendered in Instrument Serif italic for brand voice, but at the standard
+  body size. The italic + Instrument Serif is sufficient to distinguish it from Inter body copy without
+  requiring a new size step.
+- `.rsvp-confirm-btn` (the existing Phase 11 primary RSVP button) may use `font-weight: 700` in
+  css/rsvp.css — that rule is inherited from Phase 11 and is out of Phase 27 scope. The {400, 600}
+  weight count covers Phase 27 deltas only; the checker should not flag the inherited 700 on that element
+  as a Phase 27 violation.
 
 Source: BRAND.md §3 type scale, rsvp.css `.rsvp-confirmation-title` (line 47, 32px), `.rsvp-confirmation-eyebrow` (line 46, 11px).
 
@@ -87,7 +106,7 @@ rsvp.css duplicates the primitive token set in its own `:root` (lines 1–17) �
 | Tertiary surface | `--surface-2` | `#25201a` | Push opt-in button background, closed-RSVPs pill bg |
 | Primary text | `--ink` | `#f5ede0` | Confirmation headline, guest chip name |
 | Secondary text | `--ink-warm` | `#c9bca8` | Aggregate count, push opt-in sub-copy |
-| Muted text | `--ink-dim` | `#847868` | Eviction body copy, "push not supported" message |
+| Muted text | `--ink-dim` | `#847868` | Eviction body copy, push post-tap state messages |
 | Accent (10%) | `--accent` | `#e8a04a` | Push opt-in button border-focus, privacy link color |
 | Guest badge | `#7cb4a9` / `color: #0f1f1c` | — | `.badge-guest` `.chip-badge` pill (existing Phase 5 token, css/app.css line 2335) |
 | Destructive | `--bad` / `#c44536` | `#c44536` | "Remove guest" destructive confirmation only |
@@ -109,6 +128,8 @@ Source: css/rsvp.css `:root` lines 1–17, css/app.css `:root`, BRAND.md §2, BR
 ## Surface Specifications
 
 ### 1. rsvp.html — Post-RSVP confirmation state (extended for Phase 27)
+
+**Primary visual anchor:** inherited `.rsvp-confirmation-title` (existing Phase 11 32px Instrument Serif italic — Phase 27 additions cascade visually below it).
 
 The existing `renderConfirmation()` function (rsvp.html lines 72–90) is extended with three new blocks
 appended BELOW the existing `.rsvp-confirmation-sub` copy and ABOVE the `.rsvp-install-cta` button:
@@ -182,7 +203,7 @@ CSS class `.rsvp-push-btn`:
 - `border: 1px solid rgba(232,160,74,0.45)` (accent-tinted border — signals primary action)
 - `border-radius: 999px` (`--r-pill`)
 - `font-family: 'Inter', sans-serif`
-- `font-weight: 700`
+- `font-weight: 600`
 - `font-size: 15px`
 - `min-height: 44px` (touch target)
 - `cursor: pointer`
@@ -192,32 +213,42 @@ Post-tap states for push button (replace button with inline copy, no modal):
 
 State A — permission granted, subscription success:
 ```html
-<div class="rsvp-push-done"><em>You're on the list.</em></div>
+<div class="rsvp-push-done" role="status"><em>You're on the list.</em></div>
 ```
-- Instrument Serif italic, 17px, `--ink-warm`, text-align center
+- Instrument Serif italic, 15px (`--t-body`), `--ink-warm`, text-align center
 
 State B — permission denied:
 ```html
-<div class="rsvp-push-blocked">Notifications blocked in your browser settings.</div>
+<div class="rsvp-push-blocked" role="status">Notifications blocked in your browser settings.</div>
 ```
 - Inter 13px, `--ink-dim`, text-align center
 
 State C — push subscribe failed (network/VAPID error):
 ```html
-<div class="rsvp-push-err">Couldn't set up reminders. Ask {hostName} to message you directly.</div>
+<div class="rsvp-push-err" role="status">Couldn't set up reminders. Ask {hostName} to message you directly.</div>
 ```
 - Inter 13px, `--ink-dim`, text-align center (uses `.rsvp-push-copy` color, not `.rsvp-error` red — this is not an RSVP error)
 
+State D — API unavailable post-tap (defensive: push CTA appeared via `pushSupported === true` but the API call fails because push is unavailable or permissions error at the OS level):
+```html
+<div class="rsvp-push-unsupported" role="status">Reminders aren't supported on this device — ask the host to message you when the party starts.</div>
+```
+- Inter 13px, `--ink-dim`, text-align center
+- Triggered when: `requestPushOptIn()` is called but `Notification.requestPermission()` throws, returns `'default'` on an unsupported path, or `PushManager.subscribe()` rejects with a `NotSupportedError`. This is the D-06 "graceful Push not supported" state (CONTEXT.md D-06: "Render a graceful 'Push not supported on this device' state when notification permission API unavailable").
+- This state is ONLY reachable post-tap (the button was shown because `pushSupported` was true at render time but the API failed at call time — edge case, e.g. browser extension blocking, permissions revoked between render and tap). It does NOT appear proactively before the guest has tapped.
+
 ARIA: `<button type="button">` with explicit `aria-label="Get push reminders for this watchparty"`. When button is replaced by post-tap state, the replacement `<div>` gets `role="status"` so screen readers announce it (live region implicit via role=status).
 
-#### 1c. "Push not supported on this device" state
+#### 1c. "Push not supported on this device" — proactive render posture
 
-Do NOT render this as a fallback when `pushSupported === false`. Per RESEARCH.md Q1 risk analysis,
+Do NOT render this as a proactive fallback when `pushSupported === false`. Per RESEARCH.md Q1 risk analysis,
 iOS non-PWA guests (the majority) should see a clean, complete confirmation screen — not an error or
 fallback message. The absence of the push block IS the graceful degradation.
 
-Exception: if the user taps a push button that SOMEHOW appears (defensive coding edge case), and
-push then fails at the API call level (not feature-detect), show State C above inline.
+D-06 graceful degradation is satisfied at two layers:
+1. **Proactive (feature-detect === false):** Push block is absent entirely. Clean screen. No copy needed.
+2. **Reactive (post-tap API failure):** Show State D above inline. Covers the defensive edge case where the
+   API was apparently available at render time but failed at call time.
 
 #### 1d. Privacy footer (D-05)
 
@@ -233,7 +264,7 @@ HTML structure:
 
 CSS class `.rsvp-privacy-footer` (add to rsvp.css):
 - `font-family: 'Inter', sans-serif`
-- `font-size: 10px` (`--t-micro`)
+- `font-size: 11px` (`--t-eyebrow`)
 - `color: var(--ink-dim)` (`#847868`)
 - `text-align: center`
 - `margin-bottom: 20px`
@@ -267,7 +298,7 @@ CSS class `.rsvp-evicted` (mirrors `.rsvp-expired` in rsvp.css line 53):
 CSS class `.rsvp-evicted-title`:
 - `font-family: 'Instrument Serif', 'Fraunces', serif`
 - `font-style: italic`
-- `font-size: 22px` (`--t-h2`)
+- `font-size: 22px` (`--t-h2` — BRAND.md scale step, not a new Phase 27 size; see Typography note above)
 - `color: var(--ink-warm)` (`#c9bca8`) — warm neutral, not red (revocation is not a system error)
 - `margin-bottom: 12px`
 
@@ -423,7 +454,7 @@ HTML (appended into `.wp-banner-body`, after `.wp-banner-meta`):
 CSS class `.wp-rsvp-closed-pill` (add to app.css):
 - `display: inline-block`
 - `font-family: 'Inter', sans-serif`
-- `font-size: 10px` (`--t-eyebrow` / `--t-micro`)
+- `font-size: 11px` (`--t-eyebrow`)
 - `font-weight: 600`
 - `letter-spacing: 0.10em`
 - `text-transform: uppercase`
@@ -431,7 +462,7 @@ CSS class `.wp-rsvp-closed-pill` (add to app.css):
 - `background: var(--surface-2)` (`#25201a`)
 - `border: 1px solid var(--border)` (`rgba(245,237,224,0.10)`)
 - `border-radius: 999px` (`--r-pill`)
-- `padding: 2px 8px`
+- `padding: 4px 8px`
 - `margin-top: 4px`
 
 This is deliberately understated — the closed state is informational for the host, not alarming.
@@ -457,9 +488,10 @@ All copy follows BRAND.md §6 voice guide: warm, sentence-case, no exclamation m
 | Aggregate count (going + maybe) | "3 going · 1 maybe" | rsvp.html confirmation | D-01 |
 | Push opt-in CTA copy | "Get reminded when the party starts?" | rsvp.html | D-06 |
 | Push opt-in button | "Remind me" | rsvp.html | D-06 (derived) |
-| Push success | "*You're on the list.*" (Instrument Serif italic) | rsvp.html post-tap | —  |
+| Push success | "*You're on the list.*" (Instrument Serif italic) | rsvp.html post-tap | — |
 | Push permission blocked | "Notifications blocked in your browser settings." | rsvp.html inline | RESEARCH Q1 |
 | Push subscribe failed | "Couldn't set up reminders. Ask {hostName} to message you directly." | rsvp.html inline | RESEARCH Q1 |
+| Push API unavailable post-tap | "Reminders aren't supported on this device — ask the host to message you when the party starts." | rsvp.html inline post-tap | D-06 graceful degradation |
 | Privacy footer | "By tapping going/maybe/no, you agree to our Privacy Policy." | rsvp.html form + confirmation | D-05 |
 | Eviction title | "*Your RSVP was removed by the host.*" (italic) | rsvp.html | D-07 |
 | Eviction sub | "Reach out to them directly if you think this is a mistake." | rsvp.html | D-07 |
@@ -485,11 +517,15 @@ All copy follows BRAND.md §6 voice guide: warm, sentence-case, no exclamation m
 
 - Element type: `<button type="button">` (not `<a>`) — triggers an async JS action, not navigation
 - `aria-label`: "Get push reminders for this watchparty"
-- Post-tap state (success/blocked/fail): replaced `<div>` with `role="status"` — screen reader announces the replacement without focus trap or modal
+- Post-tap state (success/blocked/fail/unsupported): replaced `<div>` with `role="status"` — screen reader announces the replacement without focus trap or modal
 
-### Push not supported (iOS non-PWA)
+### Push not supported (iOS non-PWA — proactive)
 
 No announcement needed — the CTA block is simply absent. Nothing to announce. Static rendered confirmation page is complete. No live region, no hidden text. (RESEARCH.md Q1 recommendation: treat absence as the primary path.)
+
+### Push API failure post-tap (State D)
+
+The replacement `<div class="rsvp-push-unsupported" role="status">` announces via the live region role. No additional ARIA needed.
 
 ### Eviction state focus management
 
@@ -543,6 +579,7 @@ with the existing rsvp.html and app.html architecture.
 | Kebab vs long-press | 27-CONTEXT.md Claude's Discretion | + js/app.js line 6523 member-remove pattern |
 | Guest chip border tint | css/app.css line 769–772 | wp-participant-chip variants |
 | wp-banner-meta token | css/app.css line 733 | .wp-banner-meta |
+| D-06 post-tap push-unavailable state | 27-CONTEXT.md D-06 | "graceful Push not supported on this device" |
 
 ---
 
