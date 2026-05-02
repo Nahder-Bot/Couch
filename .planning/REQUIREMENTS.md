@@ -267,6 +267,26 @@ Locked via the `/gsd-discuss-phase 26` → `/gsd-research-phase 26` → `/gsd-ui
 - **RPLY-26-DRIFT**: `DRIFT_TOLERANCE_MS = 2000` literal in production source (UI-SPEC §2 lock — ±2s window for replay-feed fade-in match)
 - **RPLY-26-SNAP**: `step="1000"` literal appears in scrubber `<input type="range">` HTML (UI-SPEC §2 lock — 1-sec snap granularity)
 
+### RSVP-27-* — Guest RSVP (Phase 27)
+
+Locked via the `/gsd-discuss-phase 27` → `/gsd-research-phase 27` (run inline by `/gsd-plan-phase 27`) → `/gsd-ui-phase 27` → `/gsd-plan-phase 27` chain on 2026-05-01. Built on Phase 11's existing `/rsvp/<token>` zero-SDK page + `rsvpSubmit` admin-SDK CF + `rsvpReminderTick` scheduled CF; extends with `wp.guests[]` array schema (D-01) and a polling `rsvpStatus` CF for real-time eviction (RESEARCH Q4 — chose 30s polling over Firestore SDK injection to preserve rsvp.html zero-SDK cold-load posture). Cross-repo deploy (queuenight functions + couch hosting) per RUNBOOK §H. Behavior column descriptions match VALIDATION.md per-task verification map verbatim.
+
+- **RSVP-27-01**: `rsvpSubmit` CF accepts additive `{guestId, pushSub?}` params and runTransaction-upserts `wp.guests[]` array entry keyed on guestId — `arrayUnion` cannot mutate object elements per RESEARCH Q2 Risk 2; same-guestId resubmit UPDATES existing row instead of appending (D-01 + D-03)
+- **RSVP-27-02**: Token TTL = `wp.startAt + WP_ARCHIVE_MS` (25h, verified at js/app.js:1931); legacy `6 * 3600 * 1000` hardcode in `rsvpSubmit.js` removed in Plan 01 EDIT 2 — rsvpSubmit rejects post-TTL submits with `failed-precondition` (D-02)
+- **RSVP-27-03**: Guest name stored as raw `wp.guests[i].name = "Alex"` regardless of family-roster collision; D-04 `(guest)` suffix is render-time only (zero storage mutation)
+- **RSVP-27-04**: `wp.guestCount` denormalized field updated alongside `wp.guests[]` array in same runTransaction so wp banner can render aggregate without iterating array (D-01)
+- **RSVP-27-05**: `rsvpRevoke` CF host-gates via `permission-denied`; soft-deletes via `wp.guests[i].revoked = true` in runTransaction (preserves audit trail per D-07)
+- **RSVP-27-06**: `tests/rules.test.js` Phase 27 describe block — emulator tests verify anonymous + non-host writes to `wp.guests` / `wp.rsvpClosed` / `wp.guestCount` are denied; admin-SDK CF writes bypass cleanly (RESEARCH Q2)
+- **RSVP-27-07**: `rsvp.html` web push opt-in CTA gated on `'PushManager' in window` feature-detect — iOS Safari non-PWA shows graceful absence (block omitted entirely); post-tap failure shows State D inline ("Reminders aren't supported on this device — ask the host to message you when the party starts.") per D-06
+- **RSVP-27-08**: `rsvp.html` push subscribe → `rsvpRevoke({action:'attachPushSub', pushSub})` writes guestId-bound subscription to `wp.guests[i].pushSub` field; Plan 03 ships client surface, Plan 05 ships server-side `attachPushSub` action branch
+- **RSVP-27-09**: `rsvp.html` 30s polling via `rsvpStatus` CF detects `{revoked, rsvpClosed}` flips within one poll cycle — flips to evicted/closed render path on next tick (D-07 real-time eviction; UI-SPEC §1e + §1f)
+- **RSVP-27-10**: `rsvpReminderTick` CF expanded — second loop after existing `wp.participants` loop iterates `wp.guests[]` filtered to `pushSub != null && !revoked`; calls `webpush.sendNotification(gs.pushSub, payload)` directly (RESEARCH Q6); reminder cadence matches member asymmetric (Yes T-24h+T-1h, Maybe T-7d+T-24h+T-1h, NotResp T-48h+T-4h, No silent)
+- **RSVP-27-11**: Dead-subscription pruning — `webpush.sendNotification` 410 Gone / 404 Not Found responses set `wp.guests[i].pushSub = null` via runTransaction so future ticks skip the dead endpoint (T-27-22 quota-protection mitigation)
+- **RSVP-27-12**: `rsvpSubmit` enforces soft cap of 100 guests per wp at CF layer — over-cap submits return `resource-exhausted` (T-27-02 mass-spam mitigation; RESEARCH Q5 doc-size budget keeps wp doc < 500KB even with 100 guests + push subs + Phase 26 reactions)
+- **RSVP-27-13**: `rsvp.html` privacy footer link `<a href="/privacy" class="rsvp-privacy-link">Privacy Policy</a>` renders on both form and confirmation states; "By tapping going/maybe/no, you agree to our Privacy Policy." copy per D-05 (Phase 13 compliance posture satisfied — minimal collection, no email/phone)
+- **RSVP-27-14**: `app.html` watchparty roster guest chips render via `renderParticipantTimerStrip` extension — iterates `wp.guests[]` parallel to `wp.participants`; `displayGuestName(name, familyMemberNames)` returns `"{name} (guest)"` only on family-member collision, plain `"{name}"` otherwise; always-on `badge-guest` apricot pill (existing token at css/app.css:2335 from Phase 5 / DESIGN-03) per D-04
+- **RSVP-27-15**: `app.html` host-only kebab control on guest chip (44×44 touch target per UI-SPEC §2b) → `window.revokeGuest(wpId, guestId)` calls `rsvpRevoke`; `window.closeRsvps(wpId)` / `window.openRsvps(wpId)` toggle `wp.rsvpClosed: true|false` via direct Firestore write (host-gated client-side defense-in-depth; rules enforce server-side per RSVP-27-06); D-07 secondary close-RSVPs control via `wp.rsvpClosed` flag (NOT invite-doc deletion — token === wpId, no separate invite doc exists per RESEARCH)
+
 ## Out of Scope
 
 | Feature | Reason |
