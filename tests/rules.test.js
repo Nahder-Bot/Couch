@@ -117,6 +117,27 @@ async function seed() {
       videoUrl: null,
       videoSource: null,
     });
+
+    // Phase 27 seed — wp with guests[] + rsvpClosed=false for guest-RSVP rule tests.
+    // Used by the Phase 27 Guest RSVP rules describe block to assert that anon
+    // clients cannot write wp.guests / wp.rsvpClosed / wp.guestCount directly
+    // (admin-SDK CFs bypass rules — see firestore.rules /watchparties/{wpId}
+    // Phase 27 comment block; tests here verify the existing attributedWrite()
+    // floor still denies anon mutations of the new Phase 27 fields).
+    await db.doc('families/fam1/watchparties/wp_phase27_test').set({
+      hostId: 'UID_OWNER',
+      hostUid: 'UID_OWNER',
+      hostName: 'Test Host',
+      titleId: 't1',
+      titleName: 'Test Title',
+      startAt: now + 60 * 60 * 1000,
+      state: 'scheduled',
+      status: 'scheduled',
+      participants: {},
+      guests: [],
+      guestCount: 0,
+      rsvpClosed: false,
+    });
   });
 }
 
@@ -909,6 +930,45 @@ async function run() {
           videoSource: 'mp4',
           ...att(UID_STRANGER, 'm_UID_STRANGER'),
         })
+      );
+    });
+  });
+
+  // === Phase 27 — Guest RSVP rules ===
+  // Verifies the existing rules deny anonymous mutation of any new Phase 27
+  // field (wp.guests, wp.rsvpClosed, wp.guestCount) and that family members
+  // can still read the wp doc including the new fields. Admin-SDK CFs
+  // (rsvpSubmit, rsvpRevoke) bypass rules entirely — see firestore.rules
+  // /watchparties/{wpId} Phase 27 comment block; these tests are the
+  // anti-spoof floor that proves the bypass is the only write path.
+  // Closes RSVP-27-05 (admin-SDK bypass works because rules deny anon
+  // writes to new fields) and RSVP-27-06 (rules deny anon write to
+  // wp.guests).
+  await describe('Phase 27 Guest RSVP rules', async () => {
+    await it('#27-01 anon client write to wp.guests → DENIED', async () => {
+      await assertFails(
+        anon.doc('families/fam1/watchparties/wp_phase27_test')
+          .update({ guests: [{ guestId: 'fake-guest-id-aaaaaaaaaa', name: 'Hacker', response: 'yes' }] })
+      );
+    });
+
+    await it('#27-02 anon client write to wp.rsvpClosed → DENIED', async () => {
+      await assertFails(
+        anon.doc('families/fam1/watchparties/wp_phase27_test')
+          .update({ rsvpClosed: true })
+      );
+    });
+
+    await it('#27-03 family member can read wp doc including guests array → ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1/watchparties/wp_phase27_test').get()
+      );
+    });
+
+    await it('#27-04 anon client write to wp.guestCount → DENIED', async () => {
+      await assertFails(
+        anon.doc('families/fam1/watchparties/wp_phase27_test')
+          .update({ guestCount: 999 })
       );
     });
   });
