@@ -65,7 +65,14 @@ function normalizeTsdEvent(ev, leagueKey) {
     statusDetail: ev.strStatus || '',
     isFinal: isFinal,
     isLive: isLive,
-    isScheduled: isScheduled
+    isScheduled: isScheduled,
+    // Phase 28 — additive: surface strSeason for pick'em D-11 season tagging.
+    // Falls back to calendar year from startMs if TheSportsDB returns null/empty.
+    season: ev.strSeason || (startMs ? String(new Date(startMs).getFullYear()) : 'unknown'),
+    // Phase 28 — soccer domestic matchday round (intRound); null for non-soccer leagues.
+    round: ev.intRound ? String(ev.intRound) : null,
+    // Phase 28 — UCL stage label (strStage); null for non-UCL leagues.
+    stage: ev.strStage || null
   };
 }
 
@@ -157,6 +164,45 @@ checkPartial('F1 uppercase status normalised', r10, x => x.isLive === true);
 const evLowerFinal = Object.assign({}, evScheduled, { strStatus: 'final' });
 const r11 = normalizeTsdEvent(evLowerFinal, 'nba');
 checkPartial('F2 lowercase final detected', r11, x => x.isFinal === true);
+
+console.log('\n-- Scenario G: Phase 28 additive fields season/round/stage (PICK-28-01) ---');
+// G1: NBA-style with strSeason populated + intRound + empty strStage
+{
+  const out = normalizeTsdEvent({
+    idEvent: 'g1', strEvent: 'Lakers @ Bucks',
+    strHomeTeam: 'Bucks', strAwayTeam: 'Lakers',
+    strTimestamp: '2025-11-15T01:00:00+00:00',
+    strSeason: '2025-2026', intRound: '8', strStage: ''
+  }, 'nba');
+  check('G1.1 season populated from strSeason', out.season, '2025-2026');
+  check('G1.2 round populated from intRound (string)', out.round, '8');
+  check('G1.3 stage null when strStage empty', out.stage, null);
+}
+// G2: F1 fallback ladder — strSeason null, fall back to calendar year from startMs
+{
+  const out = normalizeTsdEvent({
+    idEvent: 'g2', strEvent: 'Race',
+    strTimestamp: '2025-11-15T13:00:00+00:00',
+    strSeason: null, intRound: null, strStage: null
+  }, 'f1');
+  check('G2.1 season fallback to calendar year when strSeason null', out.season, '2025');
+  check('G2.2 round null when intRound null', out.round, null);
+  check('G2.3 stage null when strStage null', out.stage, null);
+}
+// G3: UCL with strStage populated
+{
+  const out = normalizeTsdEvent({
+    idEvent: 'g3', strEvent: 'PSG v Real',
+    strTimestamp: '2025-11-15T20:00:00+00:00',
+    strSeason: '2025-2026', strStage: 'Round of 16 First Leg'
+  }, 'ucl');
+  check('G3.1 stage populated from strStage for UCL', out.stage, 'Round of 16 First Leg');
+}
+// G4: No startMs AND no strSeason → 'unknown' (per Pitfall 1 fallback ladder bottom)
+{
+  const out = normalizeTsdEvent({ idEvent: 'g4', strEvent: 'X', strTimestamp: '' }, 'mlb');
+  check('G4.1 season=unknown when no startMs and no strSeason', out.season, 'unknown');
+}
 
 // ---- Results ----
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');

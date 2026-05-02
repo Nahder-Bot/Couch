@@ -2,8 +2,9 @@
 // Replaces ESPN hidden API (ToS-gray per Phase 11 RESEARCH §4 — App Store §2.3 + 5.1.5
 // reject apps using undocumented APIs) with legitimate sources:
 //
-//   - TheSportsDB (free tier API key '1' for v1; Patreon $14/yr unlocks live data
-//     and faster updates — bump TSD_API_KEY when subscribed)
+//   - TheSportsDB (free tier API key '3' as of 2026-05-02 — legacy '1' was moved
+//     behind Premium; Patreon $14/yr unlocks live data and faster updates — bump
+//     TSD_API_KEY when subscribed)
 //   - BALLDONTLIE NBA-only supplement for realtime NBA scores (post-launch)
 //
 // Exports:
@@ -17,7 +18,12 @@
 //   - schedule cache: 5min TTL per (league, daysAhead)
 //   - score cache: 15s bucket per gameId (100 viewers of same game = 1 fetch / 15s)
 
-const TSD_API_KEY = '1'; // free test key — bump to Patreon key when $14/yr sub active
+// Phase 28 / Wave 0 verification (2026-05-02): TheSportsDB locked legacy free key '1'
+// behind Premium ("Invalid Premium API key" on every endpoint including the basic
+// all_leagues.php). Key '3' is the new free-tier key and returns structured payloads
+// with strSeason / intRound / strStage on eventsseason.php for EPL (verified 2026-05-02).
+// Bump to a Patreon key when $14/yr sub active.
+const TSD_API_KEY = '3'; // free-tier key (was '1'; '1' became Premium-only ~2026)
 const TSD_BASE = 'https://www.thesportsdb.com/api/v1/json/' + TSD_API_KEY + '/';
 
 // League catalog. TheSportsDB league IDs verified via all_leagues.php endpoint.
@@ -93,7 +99,14 @@ export function normalizeTsdEvent(ev, leagueKey) {
     statusDetail: ev.strStatus || '',
     isFinal: isFinal,
     isLive: isLive,
-    isScheduled: isScheduled
+    isScheduled: isScheduled,
+    // Phase 28 — additive: surface strSeason for pick'em D-11 season tagging.
+    // Falls back to calendar year from startMs if TheSportsDB returns null/empty.
+    season: ev.strSeason || (startMs ? String(new Date(startMs).getFullYear()) : 'unknown'),
+    // Phase 28 — soccer domestic matchday round (intRound); null for non-soccer leagues.
+    round: ev.intRound ? String(ev.intRound) : null,
+    // Phase 28 — UCL stage label (strStage); null for non-UCL leagues.
+    stage: ev.strStage || null
   };
 }
 
