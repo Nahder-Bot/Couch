@@ -3,10 +3,10 @@ phase: 28-social-pickem-leaderboards
 type: context
 created: 2026-05-02
 updated: 2026-05-02
-status: ready-for-research
+status: paused-pending-patreon-spike
 authored_via: /gsd-discuss-phase 28
 gray_areas_discussed: 4
-decisions_locked: 16
+decisions_locked: 17
 ---
 
 # Phase 28 — Social pick'em + leaderboards — CONTEXT
@@ -49,6 +49,26 @@ All 16 leagues from `js/sports-feed.js` LEAGUES catalog get pick'em at v2 launch
 **Always-on:** Whenever a `wp.mode === 'game'` watchparty exists OR the standalone Pick'em tab is opened, the pick'em surface is available. **NO** family-level or per-member toggle (would add settings UI without a clear win — families uninterested in pick'em simply don't open the tab).
 
 **Free TheSportsDB key (`'1'`):** v1 ships on the free tier (5-min schedule cache, 15-sec score bucket). Pick settlement runs async via `gameResultsTick` CF — latency between game-end and leaderboard-update is irrelevant for a season-long board. Patreon $14/yr upgrade stays a single-line bump in `js/sports-feed.js` if user demand for sub-minute live-leaderboard emerges. Doesn't block ship.
+
+> **Update 2026-05-02 (post Wave 0):** Free-tier key `'1'` was Premium-locked silently — Plan 28-01 bumped to key `'3'` (verified working). See 28-01-SUMMARY.md.
+
+### D-17 — F1/UFC roster source = TheSportsDB Patreon spike (PENDING — blocks Wave 2)
+
+Wave 0 verification (28-01) confirmed the free TheSportsDB tier exposes EPL `intRound` + team names + scores cleanly, but does **NOT** surface F1 driver names or UFC fighter names in structured fields. Without those, `f1_podium` and `ufc_winner_method` pickTypes cannot auto-settle and have no roster to populate the picker UI.
+
+**Decision:** Spike the TheSportsDB Patreon ($14/yr) endpoints for F1 driver data + UFC fighter data before re-planning Waves 2-4. If Patreon exposes the rosters cleanly, ship all 4 pickTypes per the original D-02 lock. If Patreon doesn't expose them either, fall back to the "defer F1/UFC to Phase 28.x" path.
+
+**Status:** Pending user execution of the spike on/after 2026-05-04 (user away from computer until then). Phase 28 execution paused after Plan 28-02. Plans 28-03 / 28-04 / 28-05 / 28-06 remain incomplete until D-17 resolves.
+
+**Spike scope (when user is back):**
+1. Sign up for TheSportsDB Patreon ($14/yr) → obtain Patreon API key
+2. `curl` test against the relevant endpoints to confirm:
+   - F1: race entry list with structured `Driver` field per position (or any structured driver name source)
+   - UFC: event card with structured `Fighter` field per bout (winner + loser names)
+3. If both confirmed: update `js/sports-feed.js` `TSD_API_KEY` to the Patreon key, then resume `/gsd-execute-phase 28` from Wave 2.
+4. If either fails: drop F1/UFC from v1 scope, replan 28-03 / 28-05 to skip those pickTypes, defer to Phase 28.x.
+
+**Why pause now rather than ship 14 leagues:** Avoids the wasted work of writing CF settlement + UI roster code twice (once for "team-only", once again when Patreon validates). The 2-day delay is cheaper than the rework.
 
 ### D-02 — Polymorphic pick schema with `pickType` discriminator
 

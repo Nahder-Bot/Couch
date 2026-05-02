@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-02T15:27:14.381Z"
+status: paused-pending-decision
+last_updated: "2026-05-02T15:35:00.000Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 27
@@ -25,10 +25,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 28 (social-pickem-leaderboards) — EXECUTING
-Plan: 3 of 6
-Next: Phase 27 fully shipped end-to-end (Plans 01-05 committed + deployed cross-repo: queuenight functions + couch hosting). Awaits user device-UAT (10 scripts in 27-HUMAN-UAT.md; resume signal `uat passed` → `/gsd-verify-work 27`). Possible next phases: 28 (Social pick'em + leaderboards) or 30 (Couch groups + affiliate hooks) per ROADMAP.
-**Status:** Ready to execute
+Phase: 28 (social-pickem-leaderboards) — PAUSED after Plan 28-02 pending TheSportsDB Patreon spike (D-17). User away from computer until 2026-05-04; spike cannot proceed without Patreon API key. Plans 28-01 + 28-02 shipped to couch repo only (no deploy yet — sw.js still couch-v39-guest-rsvp).
+Plan: 3 of 6 (Plans 01 + 02 complete; Plans 03 / 04 / 05 / 06 blocked on D-17)
+**Status:** Paused — pending Patreon spike on/after 2026-05-04
+
+**Resume signal:** After user runs the Patreon roster spike (CONTEXT.md § D-17 has the curl checklist), either re-run `/gsd-execute-phase 28` (if Patreon validates F1 driver + UFC fighter rosters — keeps original 4-pickType scope) OR drop F1/UFC from v1 and re-run `/gsd-plan-phase 28` to regenerate Plans 03-06 against a 14-league team-only scope.
 
 **Last Activity:** 2026-05-02
 
