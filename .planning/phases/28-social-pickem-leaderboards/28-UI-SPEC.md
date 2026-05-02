@@ -62,13 +62,15 @@ Phase 28 uses the existing semantic-spacing token layer from `css/app.css` Layer
 - Tiebreaker numeric input: 40px tall (single-line numeric, mirrors `.score-btn` pattern at `app.css:598`); compensated with the chip directly above/below being 44px.
 - Inline wp pick row chips inside the live-wp modal (D-07): 36px tall (these sit inside a denser modal context and are read-mostly — the inline row is informational, not a primary tap target). Mirrors `.pill.icon-only` recipe at `app.css:2225`.
 
-**Locked games collapsed section** uses `--space-stack-md` (20px) outer breathing + 14px between locked rows (denser than active picker cards by design — locked games are reference, not action).
+**Locked games collapsed section** uses `--space-stack-md` (20px) outer breathing + `--space-stack-sm` (12px) between locked rows (denser than active picker cards by design — locked games are reference, not action).
 
 ---
 
 ## Typography
 
 Phase 28 uses the existing semantic-typography token layer from `css/app.css` Layer 1 (lines 73-80) + the three font-family tokens at lines 176-178. **No new sizes introduced.**
+
+> **Brand-inheritance note:** The size set (32/22/17/15/13/11) and weight set (400/500/600) below exceed the Dimension 4 "max 4 sizes / max 2 weights" heuristic. These are inherited verbatim from BRAND.md §3, locked at Phase 9 / DESIGN-02..10, and applied across all post-Phase-9 phases. This is a system-level inheritance flag, not a Phase 28 violation — Phase 28 introduces zero new sizes or weights.
 
 | Role | Token | Size | Family | Weight | Line Height | Phase 28 Usage |
 |------|-------|------|--------|--------|-------------|----------------|
@@ -445,4 +447,5 @@ Phase 28 reuses or extends existing recipes — **no new visual primitives inven
 
 *Phase: 28-social-pickem-leaderboards*
 *UI-SPEC drafted: 2026-05-02 via /gsd-ui-phase 28*
+*UI-SPEC revision 1: 2026-05-02 — fixed Spacing § 14px → `--space-stack-sm` (12px) per UI-checker BLOCK; added Typography § brand-inheritance note*
 *Cache-bump target on deploy: `couch-v40-pickem` (per CONTEXT Specifics)*
