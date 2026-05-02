@@ -113,6 +113,100 @@ function visibleGuestCount(guests) {
 // Suppress unused-import warning for eqObj — exposed for Plan 05 sentinel additions.
 void eqObj;
 
+// =============================================================
+// === Production-code sentinels (Plan 05 extension) ===========
+// These grep-based assertions lock the Phase 27 production code
+// against drift. If any locked invariant is removed or renamed,
+// this smoke fails and blocks deploy.
+// =============================================================
+
+const path = require('path');
+const fs = require('fs');
+const COUCH_ROOT = path.resolve(__dirname, '..');
+const QN_FUNCTIONS = path.resolve(__dirname, '..', '..', '..', 'queuenight', 'functions');
+
+function readIfExists(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch (e) { return null; }
+}
+function eqContains(label, fileContent, needle) {
+  if (fileContent === null) {
+    console.log(`  skip ${label} (file not present in this checkout)`);
+    return;
+  }
+  if (fileContent.includes(needle)) { console.log(`  ok ${label}`); passed++; return; }
+  console.error(`  FAIL ${label}`);
+  console.error(`     missing substring: ${JSON.stringify(needle).slice(0, 120)}`);
+  failed++;
+}
+
+// --- 5. rsvpSubmit transaction + 25h TTL + closed/cap gates (Plan 01) ---
+const rsvpSubmitSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'rsvpSubmit.js'));
+eqContains('5.1 rsvpSubmit uses runTransaction',                  rsvpSubmitSrc, 'db.runTransaction');
+eqContains('5.2 rsvpSubmit reconciles WP_ARCHIVE_MS to 25h',     rsvpSubmitSrc, '25 * 60 * 60 * 1000');
+eqContains('5.3 rsvpSubmit checks rsvpClosed gate',               rsvpSubmitSrc, 'rsvpClosed === true');
+eqContains('5.4 rsvpSubmit caps at 100 non-revoked guests',      rsvpSubmitSrc, 'guestCapReached');
+eqContains('5.5 rsvpSubmit returns guestCounts',                  rsvpSubmitSrc, 'guestCounts');
+if (rsvpSubmitSrc !== null) {
+  if (!/6 \* 3600 \* 1000/.test(rsvpSubmitSrc)) { console.log('  ok 5.6 rsvpSubmit no longer hardcodes 6h TTL'); passed++; }
+  else { console.error('  FAIL 5.6 rsvpSubmit still hardcodes 6 * 3600 * 1000'); failed++; }
+}
+
+// --- 6. rsvpStatus is read-only, returns revoked/closed/guestCount (Plan 01) ---
+const rsvpStatusSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'rsvpStatus.js'));
+eqContains('6.1 rsvpStatus exists',                               rsvpStatusSrc, 'exports.rsvpStatus');
+eqContains('6.2 rsvpStatus returns revoked field',                rsvpStatusSrc, 'revoked:');
+eqContains('6.3 rsvpStatus uses CORS allowlist',                  rsvpStatusSrc, 'couchtonight.app');
+if (rsvpStatusSrc !== null) {
+  if (!/\.update\(/.test(rsvpStatusSrc)) { console.log('  ok 6.4 rsvpStatus is read-only (no .update calls)'); passed++; }
+  else { console.error('  FAIL 6.4 rsvpStatus contains a .update( call (must be read-only)'); failed++; }
+}
+
+// --- 7. rsvpRevoke supports revoke + close + attachPushSub (Plan 01 + Plan 05) ---
+const rsvpRevokeSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'rsvpRevoke.js'));
+eqContains('7.1 rsvpRevoke action revoke',                        rsvpRevokeSrc, "action === 'revoke'");
+eqContains('7.2 rsvpRevoke action close',                         rsvpRevokeSrc, "action === 'close'");
+eqContains('7.3 rsvpRevoke action attachPushSub (Plan 05)',       rsvpRevokeSrc, "action === 'attachPushSub'");
+eqContains('7.4 rsvpRevoke host gate via permission-denied',      rsvpRevokeSrc, 'permission-denied');
+
+// --- 8. rsvpReminderTick guest loop + direct webpush + dead-sub prune (Plan 05) ---
+const rsvpReminderSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'rsvpReminderTick.js'));
+eqContains('8.1 rsvpReminderTick requires web-push',              rsvpReminderSrc, "require('web-push')");
+eqContains('8.2 rsvpReminderTick iterates wp.guests',             rsvpReminderSrc, 'wp.guests');
+eqContains('8.3 rsvpReminderTick uses webpush.sendNotification',  rsvpReminderSrc, 'webpush.sendNotification(gs.pushSub');
+eqContains('8.4 rsvpReminderTick prunes 410 dead subs',           rsvpReminderSrc, '410');
+eqContains('8.5 rsvpReminderTick prunes 404 dead subs',           rsvpReminderSrc, '404');
+
+// --- 9. Client-side surfaces (Plan 03 rsvp.html + Plan 04 js/app.js) ---
+const rsvpHtml = readIfExists(path.join(COUCH_ROOT, 'rsvp.html'));
+eqContains('9.1 rsvp.html guestId localStorage',                  rsvpHtml, 'qn_guest_');
+eqContains('9.2 rsvp.html VAPID public key embedded',             rsvpHtml, 'VAPID_PUBLIC_KEY');
+eqContains('9.3 rsvp.html startStatusPoll declared',              rsvpHtml, 'function startStatusPoll');
+eqContains('9.4 rsvp.html requestPushOptIn handler',              rsvpHtml, 'window.requestPushOptIn');
+eqContains('9.5 rsvp.html privacy footer link',                   rsvpHtml, 'rsvp-privacy-link');
+
+const appJs = readIfExists(path.join(COUCH_ROOT, 'js', 'app.js'));
+eqContains('9.6 js/app.js renders guest chip class',              appJs, 'wp-participant-chip guest');
+eqContains('9.7 js/app.js exposes window.revokeGuest',            appJs, 'window.revokeGuest');
+eqContains('9.8 js/app.js exposes window.closeRsvps',             appJs, 'window.closeRsvps');
+eqContains('9.9 js/app.js displayGuestName helper for collisions', appJs, 'function displayGuestName');
+
+// --- 10. sw.js cache bumped to couch-v39-guest-rsvp (Plan 05 deploy) ---
+const swJs = readIfExists(path.join(COUCH_ROOT, 'sw.js'));
+eqContains('10.1 sw.js CACHE = couch-v39-guest-rsvp',             swJs, "couch-v39-guest-rsvp");
+
+// --- 11. Floor meta-assertion (matches Phase 26 RPLY-26-17 pattern) ---
+{
+  const FLOOR = 13;
+  const productionCodeAssertions = passed - 17; // 17 helper assertions in Plan 02 scaffold
+  if (productionCodeAssertions >= FLOOR) {
+    console.log(`  ok 11.1 production-code sentinel floor met (${productionCodeAssertions} >= ${FLOOR})`);
+    passed++;
+  } else {
+    console.error(`  FAIL 11.1 production-code sentinel floor NOT met (${productionCodeAssertions} < ${FLOOR})`);
+    failed++;
+  }
+}
+
 console.log('=================================================');
 console.log(`smoke-guest-rsvp: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
