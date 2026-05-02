@@ -1,10 +1,12 @@
 ---
 phase: 28
 slug: social-pickem-leaderboards
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-02
+reviewed_at: 2026-05-02
+checker_iterations: 2
 authored_via: /gsd-ui-phase 28
 upstream_inputs:
   - .planning/phases/28-social-pickem-leaderboards/28-CONTEXT.md (16 locked decisions)
