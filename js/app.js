@@ -11569,6 +11569,25 @@ window.closeWatchpartyLive = function() {
   state.replayShownReactionIds = null;
 };
 
+// === Phase 27 — banner guest-count + closed-pill helpers ===
+function buildWpBannerMetaSuffix(wp) {
+  const guestCount = (wp && typeof wp.guestCount === 'number') ? wp.guestCount : 0;
+  return guestCount > 0 ? ' &middot; ' + guestCount + ' guest' + (guestCount === 1 ? '' : 's') : '';
+}
+function buildWpClosedPillHtml(wp) {
+  return (wp && wp.rsvpClosed === true)
+    ? '<div class="wp-rsvp-closed-pill" role="status" aria-label="RSVPs closed">RSVPs CLOSED</div>'
+    : '';
+}
+function buildWpHostRsvpToggleHtml(wp) {
+  if (!state.me || !wp || state.me.id !== wp.hostId) return '';
+  const wpIdSafe = escapeHtml(wp.id || '');
+  if (wp.rsvpClosed === true) {
+    return `<button class="link-btn" type="button" onclick="openRsvps('${wpIdSafe}')">Open RSVPs</button>`;
+  }
+  return `<button class="link-btn" type="button" onclick="closeRsvps('${wpIdSafe}')">Close RSVPs</button>`;
+}
+
 function renderWatchpartyBanner() {
   const el = document.getElementById('wp-banner-tonight');
   if (!el) return;
@@ -11612,8 +11631,9 @@ function renderWatchpartyBanner() {
         ${posterHtml}
         <div class="wp-banner-body">
           ${titleHtml}
-          <div class="wp-banner-meta">${hostLabel} cancelled this watchparty</div>
+          <div class="wp-banner-meta">${hostLabel} cancelled this watchparty${buildWpBannerMetaSuffix(wp)}</div>
           <div class="wp-banner-status" style="color:var(--ink-dim);">Cancelled</div>
+          ${buildWpClosedPillHtml(wp)}${buildWpHostRsvpToggleHtml(wp)}
         </div>
       </div>`;
     }
@@ -11645,8 +11665,9 @@ function renderWatchpartyBanner() {
       ${posterHtml}
       <div class="wp-banner-body">
         ${titleHtml}
-        <div class="wp-banner-meta">${metaLine}</div>
+        <div class="wp-banner-meta">${metaLine}${buildWpBannerMetaSuffix(wp)}</div>
         <div class="wp-banner-status">${status}</div>
+        ${buildWpClosedPillHtml(wp)}${buildWpHostRsvpToggleHtml(wp)}
       </div>
       <button class="wp-banner-action" onclick="event.stopPropagation();${actionFn}">${actionLabel}</button>
     </div>`;

@@ -331,6 +331,11 @@
       <div class="picker-avatar" id="picker-avatar"></div>
     </div>
 
+    <!-- Phase 27: watchparty banner is JS-rendered; renderWatchpartyBanner in js/app.js
+         appends ' · {N} guest(s)' to .wp-banner-meta when wp.guestCount > 0, and injects
+         .wp-rsvp-closed-pill ('RSVPs CLOSED') + host-only Close/Open RSVPs .link-btn into
+         .wp-banner-body via buildWpBannerMetaSuffix / buildWpClosedPillHtml /
+         buildWpHostRsvpToggleHtml helpers. -->
     <div id="wp-banner-tonight"></div>
 
     <!-- Phase 8: Open intents strip. Populated by renderIntentsStrip() from onSnapshot handler. -->

@@ -770,6 +770,9 @@ input.field-invalid{border-color:var(--bad)}
 .wp-participant-chip.me{border-color:rgba(232,160,74,0.45);background:linear-gradient(135deg,rgba(232,160,74,0.08),transparent)}
 .wp-participant-chip.paused{opacity:0.55}
 .wp-participant-chip.joined{opacity:0.7}
+/* Phase 27 — Guest chip variant */
+.wp-participant-chip.guest{border-color:rgba(124,180,169,0.35)}
+.wp-participant-chip.guest .wp-participant-av{background:#5a8a84}
 .wp-participant-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:white;flex-shrink:0}
 .wp-participant-info{display:flex;flex-direction:column;gap:1px;line-height:1.1}
 .wp-participant-name{font-size:var(--t-meta);font-weight:600;color:var(--ink);white-space:nowrap}
@@ -2343,6 +2346,57 @@ input.field-invalid{border-color:var(--bad)}
 .subprofile-name { flex: 1; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
 .link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
 .link-btn:hover { background: var(--surface-2); }
+/* === Phase 27 — Guest RSVP host controls === */
+.wp-guest-kebab{
+  background:transparent;
+  border:none;
+  color:var(--ink-dim);
+  font-size:18px;
+  cursor:pointer;
+  min-width:44px;
+  min-height:44px;
+  display:grid;
+  place-items:center;
+}
+.wp-guest-kebab:hover{color:var(--ink)}
+.wp-rsvp-closed-pill{
+  display:inline-block;
+  font-family:'Inter',sans-serif;
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.10em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:4px 8px;
+  margin-top:4px;
+}
+.wp-guest-menu{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:4px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  min-width:160px;
+}
+.wp-guest-menu-item{
+  display:block;
+  width:100%;
+  padding:10px 14px;
+  background:transparent;
+  border:none;
+  color:var(--ink);
+  font-family:'Inter',sans-serif;
+  font-size:14px;
+  text-align:left;
+  cursor:pointer;
+  border-radius:6px;
+  min-height:44px;
+}
+.wp-guest-menu-item:hover{background:var(--surface-2)}
+.wp-guest-menu-item.destructive{color:var(--bad)}
 /* Owner-only settings rows (D-18 / D-19) */
 .settings-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 12px; }
 .settings-row-label { display: block; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
