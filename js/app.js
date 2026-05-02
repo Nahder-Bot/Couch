@@ -4432,6 +4432,102 @@ window.copyGuestLink = async function(btn) {
   catch(e) { flashToast('Select and copy manually', { kind: 'info' }); }
 };
 
+// === Phase 27 — Guest RSVP host actions ===
+
+// Open a small popover anchored to the kebab button on a guest chip.
+// Single-item menu: "Remove {name}". Tap → revokeGuest(guestId).
+window.openGuestMenu = function(guestId, wpId, event) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  // Close any existing menu first.
+  const prev = document.querySelector('.wp-guest-menu');
+  if (prev) prev.remove();
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  const guest = (wp.guests || []).find(g => g && g.guestId === guestId && !g.revoked);
+  if (!guest) return;
+  const familyMemberNamesSet = getFamilyMemberNamesSet();
+  const display = displayGuestName(guest.name || 'Guest', familyMemberNamesSet);
+  // Anchor to the kebab button via fixed-position popover.
+  const btn = (event && event.currentTarget) || (event && event.target);
+  const rect = btn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'wp-guest-menu';
+  menu.setAttribute('role', 'menu');
+  menu.style.cssText = `position:fixed; top:${rect.bottom + 4}px; left:${Math.max(8, rect.right - 180)}px; z-index:10000;`;
+  menu.innerHTML = `<button class="wp-guest-menu-item destructive" type="button" role="menuitem">Remove ${escapeHtml(display)}</button>`;
+  document.body.appendChild(menu);
+  const item = menu.querySelector('button');
+  item.addEventListener('click', function() {
+    menu.remove();
+    window.revokeGuest(wpId, guestId, display);
+  });
+  // Click-outside to dismiss.
+  setTimeout(() => {
+    const onClickOutside = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', onClickOutside, true);
+      }
+    };
+    document.addEventListener('click', onClickOutside, true);
+  }, 0);
+};
+
+window.revokeGuest = async function(wpId, guestId, displayName) {
+  try {
+    const fn = httpsCallable(functions, 'rsvpRevoke');
+    const r = await fn({ token: wpId, action: 'revoke', guestId: guestId });
+    if (r && r.data && r.data.ok) {
+      flashToast('Removed.', { kind: 'success' });
+    } else {
+      flashToast(`Couldn't remove ${displayName || 'guest'}. Try again.`, { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[27-revoke-guest]', e);
+    const code = e && e.code;
+    const msg = (code === 'permission-denied' || code === 'functions/permission-denied')
+      ? 'Only the host can remove guests.'
+      : `Couldn't remove ${displayName || 'guest'}. Try again.`;
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.closeRsvps = async function(wpId) {
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  try {
+    const fn = httpsCallable(functions, 'rsvpRevoke');
+    const r = await fn({ token: wpId, action: 'close' });
+    if (r && r.data && r.data.ok) {
+      flashToast('RSVPs closed.', { kind: 'success' });
+    } else {
+      flashToast("Couldn't close RSVPs. Try again.", { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[27-close-rsvps]', e);
+    flashToast("Couldn't close RSVPs. Try again.", { kind: 'warn' });
+  }
+};
+
+window.openRsvps = async function(wpId) {
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  try {
+    // Re-open is a host-only Firestore write (no CF needed). Phase 24 host-only rule
+    // (Path A: hostUid match) permits any field write by the host. rsvpClosed is not
+    // in the non-host-forbidden allowlist, so this is allowed.
+    const wpRef = doc(db, 'families', state.familyCode, 'watchparties', wpId);
+    await updateDoc(wpRef, { rsvpClosed: false });
+    flashToast('RSVPs reopened.', { kind: 'success' });
+  } catch (e) {
+    console.error('[27-open-rsvps]', e);
+    flashToast("Couldn't reopen RSVPs. Try again.", { kind: 'warn' });
+  }
+};
+
 window.transferOwnershipTo = async function() {
   const sel = document.getElementById('settings-transfer-target');
   const newOwnerUid = sel && sel.value;
