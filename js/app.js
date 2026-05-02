@@ -10340,7 +10340,8 @@ window.openSportsPicker = function() {
   if (tabsEl) {
     tabsEl.innerHTML = feedLeagueKeys().map(function(k) {
       const lg = SPORTS_FEED_LEAGUES[k];
-      const shortLabel = (k === 'epl' ? 'EPL' : (k === 'laliga' ? 'La Liga' : (k === 'bundesliga' ? 'Bundesliga' : (k === 'seriea' ? 'Serie A' : (k === 'ligue1' ? 'Ligue 1' : (k === 'ucl' ? 'UCL' : (k === 'mls' ? 'MLS' : (k === 'ncaaf' ? 'CFB' : (k === 'ncaab' ? 'CBB' : (k === 'wnba' ? 'WNBA' : (k === 'f1' ? 'F1' : (k === 'ufc' ? 'UFC' : (lg && lg.label) || k.toUpperCase())))))))))));
+      const SHORT_LABELS = { epl:'EPL', laliga:'La Liga', bundesliga:'Bundesliga', seriea:'Serie A', ligue1:'Ligue 1', ucl:'UCL', mls:'MLS', ncaaf:'CFB', ncaab:'CBB', wnba:'WNBA', f1:'F1', ufc:'UFC' };
+      const shortLabel = SHORT_LABELS[k] || (lg && lg.label) || k.toUpperCase();
       return '<button class="sports-league-tab' + (k === 'nba' ? ' on' : '') + '" data-league="' + k + '" onclick="selectSportsLeague(\'' + k + '\')">' + shortLabel + '</button>';
     }).join('');
   }
