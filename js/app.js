@@ -12305,6 +12305,25 @@ function renderReactionsFeed(wp, mine, modeOverride) {
 function getFamilyMemberNamesSet() {
   return new Set((state.members || []).map(m => (m.name || '').trim().toLowerCase()).filter(Boolean));
 }
+// Phase 30 — D-09 render-time collision detection across families.
+// Returns { lowercased-name: count } for collision detection.
+// CRITICAL Pitfall 6 critical: only cross-family collisions trigger the (FamilyName) suffix.
+// Within-family same-name collisions (rare but possible) must NOT trigger the suffix.
+// The Pitfall 6 logic lives in the chip-render branch in renderParticipantTimerStrip
+// (which checks crossFamilyMembers[i].familyCode against the host family); this helper
+// only counts; the differentiation logic is the consumer's responsibility.
+function buildNameCollisionMap(wp) {
+  const nameCounts = {};
+  Object.values(wp.participants || {}).forEach(p => {
+    const n = (p.name || '').trim().toLowerCase();
+    if (n) nameCounts[n] = (nameCounts[n] || 0) + 1;
+  });
+  (wp.crossFamilyMembers || []).forEach(m => {
+    const n = (m.name || '').trim().toLowerCase();
+    if (n) nameCounts[n] = (nameCounts[n] || 0) + 1;
+  });
+  return nameCounts;
+}
 // D-04: returns "{name} (guest)" iff name collides; otherwise returns name verbatim.
 function displayGuestName(rawName, familyMemberNamesSet) {
   const name = rawName || 'Guest';
@@ -12397,7 +12416,46 @@ function renderParticipantTimerStrip(wp) {
       ${kebab}
     </div>`;
   }).join('');
-  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}${guestChips}</div>`;
+  // === Phase 30 — append cross-family member chips ===
+  // Pitfall 6 critical: collision suffix fires ONLY when the same name appears in TWO
+  // DIFFERENT families. Same name within one family must NOT trigger the suffix.
+  const collisionMap = buildNameCollisionMap(wp);
+  const crossFamilyChips = (Array.isArray(wp.crossFamilyMembers) ? wp.crossFamilyMembers : []).map(m => {
+    const rawName = (m.name || 'Member').toString();
+    const norm = rawName.trim().toLowerCase();
+    // Pitfall 6: collision must span DIFFERENT families. Check that the name appears
+    // both in this family AND somewhere else (participants OR a different crossFamily entry).
+    // Implementation: if collisionMap shows count > 1 AND there's at least one entry in
+    // wp.participants with the same name OR a crossFamilyMember from a DIFFERENT familyCode
+    // with the same name, suffix fires.
+    let hasCrossFamilyCollision = false;
+    if ((collisionMap[norm] || 0) > 1) {
+      // Check participants (always considered "host family" / current viewer's family)
+      const inParticipants = Object.values(wp.participants || {}).some(p => (p.name || '').trim().toLowerCase() === norm);
+      if (inParticipants) {
+        hasCrossFamilyCollision = true;
+      } else {
+        // No participant collision — check for collision with a crossFamilyMember from a different familyCode
+        const otherFamilyMatches = (wp.crossFamilyMembers || []).filter(other =>
+          other.familyCode !== m.familyCode && (other.name || '').trim().toLowerCase() === norm
+        );
+        if (otherFamilyMatches.length > 0) hasCrossFamilyCollision = true;
+      }
+    }
+    const familyDisplayName = m.familyDisplayName || m.familyCode || '';
+    const displayName = hasCrossFamilyCollision
+      ? `${escapeHtml(rawName)} <span class="family-suffix">(${escapeHtml(familyDisplayName)})</span>`
+      : escapeHtml(rawName);
+    const initial = (rawName || '?')[0].toUpperCase();
+    const color = m.color || '#888';
+    return `<div class="wp-participant-chip cross-family" data-member-id="${escapeHtml(m.memberId || '')}" role="listitem">
+      <div class="wp-participant-av" style="background:${escapeHtml(color)};" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-info">
+        <div class="wp-participant-name">${displayName}</div>
+        <div class="wp-participant-time" data-role="pt-time">Joined</div>
+      </div></div>`;
+  }).join('');
+  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}${guestChips}${crossFamilyChips}</div>`;
 }
 
 function renderReaction(r, mode) {
