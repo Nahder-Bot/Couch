@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: paused-pending-decision
-last_updated: "2026-05-02T15:35:00.000Z"
+status: paused
+last_updated: "2026-05-03T03:28:31.446Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 27
