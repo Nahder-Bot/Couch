@@ -126,6 +126,48 @@ service cloud.firestore {
 
 
     // ==========================================================
+    // Phase 30 — Top-level /watchparties/{wpId} collection
+    // ==========================================================
+    // Post-migration: wp docs live at /watchparties/{wpId}, not nested under families/.
+    // READ gate: any uid listed in wp.memberUids (set by addFamilyToWp CF + confirmStartWatchparty).
+    // Path A / Path B write split mirrors Phase 24 nested rule verbatim.
+    // memberUids + families added to Path B denylist so non-host cannot write them
+    // (CF uses admin-SDK which bypasses rules — RESEARCH Pattern 2).
+    //
+    // Note: the existing nested /families/{familyCode}/watchparties/{wpId} block
+    // STAYS in place below for backward compat during the cache-bust window.
+    // After Phase 30 client is live + old cache purged, a follow-up can add
+    // `allow read: if false` to the nested block. Do NOT remove it now.
+    match /watchparties/{wpId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      allow create: if signedIn()
+        && request.resource.data.hostUid == uid()
+        && request.auth.uid in request.resource.data.memberUids;
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberUids
+        && (
+          // Path A: host — any field.
+          (
+            'hostUid' in resource.data
+            && resource.data.hostUid == request.auth.uid
+          )
+          ||
+          // Path B: non-host denylist — Phase 24 fields + Phase 30 families/memberUids.
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentTimeMs', 'currentTimeUpdatedAt', 'currentTimeSource',
+            'durationMs', 'isLiveStream', 'videoUrl', 'videoSource',
+            'hostId', 'hostUid', 'hostName',
+            'families', 'memberUids'
+          ])
+        );
+
+      allow delete: if signedIn() && resource.data.hostUid == uid();
+    }
+
+
+    // ==========================================================
     // Family doc
     // ==========================================================
 

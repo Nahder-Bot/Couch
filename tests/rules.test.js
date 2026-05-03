@@ -138,6 +138,27 @@ async function seed() {
       guestCount: 0,
       rsvpClosed: false,
     });
+
+    // Phase 30 seed — top-level /watchparties/{wpId} with memberUids for cross-family rule tests.
+    // Used by the Phase 30 Couch Groups rules describe block to assert:
+    //   GROUP-30-07: stranger (NOT in memberUids) read denied
+    //   GROUP-30-07: member (IN memberUids) read allowed
+    //   GROUP-30-06: non-host cannot mutate wp.memberUids (Path B denylist)
+    //   GROUP-30-06: non-host cannot mutate wp.families (Path B denylist)
+    await db.doc('watchparties/wp_phase30_test').set({
+      hostId: 'UID_OWNER',
+      hostUid: 'UID_OWNER',
+      hostName: 'Test Host',
+      hostFamilyCode: 'fam1',
+      families: ['fam1'],
+      memberUids: ['UID_OWNER', 'UID_MEMBER'],
+      crossFamilyMembers: [],
+      startAt: now,
+      status: 'active',
+      participants: { m1: { name: 'Test Host' } },
+      reactions: [],
+      guests: [],
+    });
   });
 }
 
@@ -973,24 +994,36 @@ async function run() {
     });
   });
 
-  // === Phase 30 — Couch Groups rules (PENDING — Plan 30-02 fills assertions) ===
-  // Wave 0 scaffold: 4 PENDING it() declarations. Each body is a single `return;` no-op.
-  // Plan 30-02 replaces each with real assertSucceeds/assertFails calls against the
-  // new top-level /watchparties/{wpId} block (memberUids[] read gate + Path B
-  // denylist for families/memberUids). See 30-RESEARCH.md § "Phase Requirements →
-  // Test Map" rows GROUP-30-06 + GROUP-30-07 for the locked semantics.
-  await describe('Phase 30 Couch Groups rules (PENDING — Plan 30-02 fills assertions)', async () => {
-    await it('#30-01 (PENDING) stranger read top-level wp → DENIED', async () => {
-      return; // Plan 30-02 replaces with: await assertFails(stranger.doc('watchparties/wp_phase30_test').get());
+  // === Phase 30 — Couch Groups rules ===
+  // ACTIVE: 4 real assertions covering GROUP-30-06 (host-only fan-out via Path B
+  // denylist for families/memberUids) + GROUP-30-07 (cross-family read denied
+  // for users NOT in wp.memberUids). Tests exercise the new top-level
+  // /watchparties/{wpId} block landed in Plan 30-02 Task 2.3.
+  await describe('Phase 30 Couch Groups rules', async () => {
+    // GROUP-30-07: stranger cannot read top-level wp (not in memberUids)
+    await it('#30-01 stranger read top-level wp -> DENIED', async () => {
+      await assertFails(stranger.doc('watchparties/wp_phase30_test').get());
     });
-    await it('#30-02 (PENDING) member in memberUids reads top-level wp → ALLOWED', async () => {
-      return; // Plan 30-02 replaces with: await assertSucceeds(member.doc('watchparties/wp_phase30_test').get());
+
+    // GROUP-30-07: member in memberUids can read
+    await it('#30-02 member in memberUids reads top-level wp -> ALLOWED', async () => {
+      await assertSucceeds(member.doc('watchparties/wp_phase30_test').get());
     });
-    await it('#30-03 (PENDING) non-host cannot write wp.memberUids → DENIED', async () => {
-      return; // Plan 30-02 replaces with: await assertFails(member.doc('watchparties/wp_phase30_test').update({memberUids:[...]}));
+
+    // GROUP-30-06: non-host cannot write wp.memberUids (Path B denylist blocks)
+    await it('#30-03 non-host cannot write wp.memberUids -> DENIED', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test')
+          .update({ memberUids: ['UID_OWNER', 'UID_MEMBER', 'UID_STRANGER'] })
+      );
     });
-    await it('#30-04 (PENDING) non-host cannot write wp.families → DENIED', async () => {
-      return; // Plan 30-02 replaces with: await assertFails(member.doc('watchparties/wp_phase30_test').update({families:[...]}));
+
+    // GROUP-30-06: non-host cannot write wp.families (Path B denylist blocks)
+    await it('#30-04 non-host cannot write wp.families -> DENIED', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test')
+          .update({ families: ['fam1', 'fam2'] })
+      );
     });
   });
 
