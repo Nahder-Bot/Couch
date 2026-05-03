@@ -973,6 +973,27 @@ async function run() {
     });
   });
 
+  // === Phase 30 — Couch Groups rules (PENDING — Plan 30-02 fills assertions) ===
+  // Wave 0 scaffold: 4 PENDING it() declarations. Each body is a single `return;` no-op.
+  // Plan 30-02 replaces each with real assertSucceeds/assertFails calls against the
+  // new top-level /watchparties/{wpId} block (memberUids[] read gate + Path B
+  // denylist for families/memberUids). See 30-RESEARCH.md § "Phase Requirements →
+  // Test Map" rows GROUP-30-06 + GROUP-30-07 for the locked semantics.
+  await describe('Phase 30 Couch Groups rules (PENDING — Plan 30-02 fills assertions)', async () => {
+    await it('#30-01 (PENDING) stranger read top-level wp → DENIED', async () => {
+      return; // Plan 30-02 replaces with: await assertFails(stranger.doc('watchparties/wp_phase30_test').get());
+    });
+    await it('#30-02 (PENDING) member in memberUids reads top-level wp → ALLOWED', async () => {
+      return; // Plan 30-02 replaces with: await assertSucceeds(member.doc('watchparties/wp_phase30_test').get());
+    });
+    await it('#30-03 (PENDING) non-host cannot write wp.memberUids → DENIED', async () => {
+      return; // Plan 30-02 replaces with: await assertFails(member.doc('watchparties/wp_phase30_test').update({memberUids:[...]}));
+    });
+    await it('#30-04 (PENDING) non-host cannot write wp.families → DENIED', async () => {
+      return; // Plan 30-02 replaces with: await assertFails(member.doc('watchparties/wp_phase30_test').update({families:[...]}));
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);
