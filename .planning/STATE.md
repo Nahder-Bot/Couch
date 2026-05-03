@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-03T20:58:26.713Z"
+last_updated: "2026-05-03T21:11:00.254Z"
 last_activity: 2026-05-03
 progress:
   total_phases: 27
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 28 — social-pickem-leaderboards
+**Current focus:** Phase 30 — couch-groups-affiliate-hooks
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 28 (social-pickem-leaderboards) — PAUSED after Plan 28-02 pending TheSportsDB Patreon spike (D-17). User away from computer until 2026-05-04; spike cannot proceed without Patreon API key. Plans 28-01 + 28-02 shipped to couch repo only (no deploy yet — sw.js still couch-v39-guest-rsvp).
-Plan: 3 of 6 (Plans 01 + 02 complete; Plans 03 / 04 / 05 / 06 blocked on D-17)
-**Status:** Ready to execute
+Phase: 30 (couch-groups-affiliate-hooks) — EXECUTING
+Plan: 1 of 5
+**Status:** Executing Phase 30
 
 **Resume signal:** After user runs the Patreon roster spike (CONTEXT.md § D-17 has the curl checklist), either re-run `/gsd-execute-phase 28` (if Patreon validates F1 driver + UFC fighter rosters — keeps original 4-pickType scope) OR drop F1/UFC from v1 and re-run `/gsd-plan-phase 28` to regenerate Plans 03-06 against a 14-league team-only scope.
 
