@@ -10526,7 +10526,12 @@ window.scheduleSportsWatchparty = async function(eventId) {
     },
     reactions: [],
     videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
-    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -10720,7 +10725,12 @@ window.confirmGamePicker = async function() {
     reactions: [],
     scoringPlays: [],
     videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
-    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -11201,7 +11211,12 @@ window.confirmStartWatchparty = async function() {
     },
     reactions: [],
     videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
-    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
