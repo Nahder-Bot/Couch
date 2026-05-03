@@ -1,4 +1,4 @@
-import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
+import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
@@ -1932,8 +1932,11 @@ const WP_ARCHIVE_MS = 25 * 60 * 60 * 1000; // 25h after start time
 // Phase 15.5 / D-04 + REQ-9: stale-wp cutoff. Wps where (now - startAt) >= WP_STALE_MS move from
 // the Tonight tab main banner to the Past parties surface. Boundary EXACT at 5h since startAt.
 const WP_STALE_MS = 5 * 60 * 60 * 1000; // 5h since start time
-function watchpartiesRef() { return collection(db, 'families', state.familyCode, 'watchparties'); }
-function watchpartyRef(id) { return doc(db, 'families', state.familyCode, 'watchparties', id); }
+// Phase 30 — watchparties migrated from families/{code}/watchparties to top-level
+// /watchparties/{wpId}. watchpartyRef now points at top-level for single-doc writes.
+// watchpartiesRef helper is REMOVED — the subscription uses inline collectionGroup query
+// (see subscribeWatchparties at the original onSnapshot site for the new query shape).
+function watchpartyRef(id) { return doc(db, 'watchparties', id); }
 
 // === Phase 8 Watch-Intent Flows ===
 // Intents are a new primitive SEPARATE from the general vote system (see 08-CONTEXT D-02).
@@ -4886,29 +4889,44 @@ function startSync() {
     if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   }, e => { qnLog('[intents] snapshot error', e.message); });
   // Subscribe to watchparties collection
-  state.unsubWatchparties = onSnapshot(watchpartiesRef(), s => {
-    state.watchparties = s.docs.map(d => d.data());
-    // Auto-archive any that have passed the 25h window and aren't already archived/cancelled
-    const now = Date.now();
-    state.watchparties.forEach(wp => {
-      if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
-        if (!state.auth && !(state.me && state.me.id)) return;
-        try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
-      }
-    });
-    // Phase 7 Plan 01: flip scheduled parties past startAt to active. Client-primary path;
-    // the watchpartyTick CF serves as a safety net when no client is online. Each client
-    // tries, but updateDoc is idempotent under "status === 'scheduled'" re-check so multi-
-    // client races don't produce double-flips — the second writer no-ops.
-    maybeFlipScheduledParties(state.watchparties);
-    // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
-    maybeNotifyWatchparties(state.watchparties);
-    renderWatchpartyBanner();
-    // Phase 7 fix: full re-render of live modal on every snapshot. Matches the invariant
-    // stated at the tick comment (line ~3153) — passive observers need reactions/participants
-    // to update without requiring a local action to fire an explicit re-render path.
-    if (state.activeWatchpartyId) renderWatchpartyLive();
-  }, e => {});
+  // Phase 30 — collectionGroup query replaces families/{code}/watchparties subscription.
+  // where('memberUids', 'array-contains', uid) MUST be present or rules reject the query
+  // per RESEARCH Pitfall 2 (rules-vs-query alignment requirement). Auth guard prevents
+  // subscription before state.auth.uid is known (Pitfall 1 silent-failure mitigation).
+  if (!state.auth || !state.auth.uid) {
+    qnLog('[watchparties] no auth.uid yet — subscription deferred');
+    return;
+  }
+  state.unsubWatchparties = onSnapshot(
+    query(
+      collectionGroup(db, 'watchparties'),
+      where('memberUids', 'array-contains', state.auth.uid)
+    ),
+    s => {
+      state.watchparties = s.docs.map(d => d.data());
+      // Auto-archive any that have passed the 25h window and aren't already archived/cancelled
+      const now = Date.now();
+      state.watchparties.forEach(wp => {
+        if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
+          if (!state.auth && !(state.me && state.me.id)) return;
+          try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
+        }
+      });
+      // Phase 7 Plan 01: flip scheduled parties past startAt to active. Client-primary path;
+      // the watchpartyTick CF serves as a safety net when no client is online. Each client
+      // tries, but updateDoc is idempotent under "status === 'scheduled'" re-check so multi-
+      // client races don't produce double-flips — the second writer no-ops.
+      maybeFlipScheduledParties(state.watchparties);
+      // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
+      maybeNotifyWatchparties(state.watchparties);
+      renderWatchpartyBanner();
+      // Phase 7 fix: full re-render of live modal on every snapshot. Matches the invariant
+      // stated at the tick comment (line ~3153) — passive observers need reactions/participants
+      // to update without requiring a local action to fire an explicit re-render path.
+      if (state.activeWatchpartyId) renderWatchpartyLive();
+    },
+    e => { qnLog('[watchparties] snapshot error', e && e.message); }
+  );
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
   state.watchpartyTick = setInterval(() => {
