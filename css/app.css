@@ -4652,3 +4652,193 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .past-parties-show-older:hover { background: rgba(232, 160, 74, 0.03); }
 /* === Phase 26 / Plan 04 — END === */
 /* === Phase 26 — END === */
+
+/* === Phase 30 — Couch groups: Bring another couch in affordance + cross-family chip suffix === */
+
+.wp-add-family-section {
+  margin-top: var(--space-stack-lg);
+  padding-top: var(--space-stack-md);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-sm);
+}
+
+.wp-add-family-heading {
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+.wp-add-family-subline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-h3);
+  line-height: 1.4;
+  color: var(--ink-warm);
+  margin: 0;
+  transition: color var(--duration-base) var(--easing-standard);
+}
+
+.wp-add-family-subline-warn {
+  color: var(--warn);
+}
+
+.wp-couches-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-sm);
+}
+
+.wp-couches-empty {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  margin: 0;
+}
+
+.wp-couches-empty strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  display: block;
+  margin-bottom: var(--space-inline-xs);
+}
+
+.wp-couches-empty em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-warm);
+}
+
+.wp-couches-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 44px;
+}
+
+.wp-couches-row.own .wp-couches-row-label .muted {
+  color: var(--ink-dim);
+  font-size: 0.92em;
+}
+
+.wp-couches-row-label {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+
+.wp-couches-remove {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wp-couches-remove:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.wp-add-family-input-row {
+  display: flex;
+  gap: var(--space-inline-md);
+  align-items: stretch;
+}
+
+.wp-add-family-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.wp-add-family-input::placeholder {
+  color: var(--ink-dim);
+  text-transform: none;
+}
+
+.wp-add-family-submit {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  font-weight: 600;
+  padding: var(--space-inline-sm) var(--space-inline-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.wp-add-family-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wp-add-family-submit:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.wp-add-family-help {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin: 0;
+}
+
+/* Cross-family chip in renderParticipantTimerStrip (Plan 03 Task 3.5 added the chip + .family-suffix span) */
+.wp-participant-chip.cross-family {
+  /* Reuses the existing .wp-participant-chip recipe verbatim — only the data-source differs. */
+}
+
+.family-suffix {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-dim);
+  font-weight: 400;
+  margin-left: var(--space-inline-xs);
+}
+
+/* Mobile-first: input row stacks below 600px viewport per UI-SPEC */
+@media (max-width: 599px) {
+  .wp-add-family-input-row {
+    flex-direction: column;
+  }
+  .wp-add-family-submit {
+    width: 100%;
+  }
+}
+
+/* prefers-reduced-motion guard for the soft-cap sub-line color transition */
+@media (prefers-reduced-motion: reduce) {
+  .wp-add-family-subline {
+    transition: none;
+  }
+}
+
+/* === END Phase 30 === */
