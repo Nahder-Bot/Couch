@@ -1,10 +1,11 @@
 ---
 phase: 30
 slug: couch-groups-affiliate-hooks
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-03
+reviewed_at: 2026-05-03
 ---
 
 # Phase 30 — UI Design Contract — Couch Groups
