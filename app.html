@@ -1208,6 +1208,27 @@
             That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
           </div>
         </div>
+        <!-- Phase 30 — Bring another couch in section. Render-time host-only gate
+             handled in js/app.js renderAddFamilySection — non-host gets entire section
+             hidden via .hidden class toggled in render. -->
+        <section class="wp-add-family-section" id="wp-add-family-section" aria-labelledby="wp-add-family-heading">
+          <h3 class="wp-add-family-heading" id="wp-add-family-heading">Bring another couch in</h3>
+          <p class="wp-add-family-subline" id="wp-add-family-subline"><em>Pull up another family for tonight.</em></p>
+          <div class="wp-couches-list" id="wp-couches-list" role="list" aria-label="Families in this watchparty"></div>
+          <div class="wp-add-family-input-row" id="wp-add-family-input-row">
+            <input type="text" id="wp-add-family-input"
+                   class="wp-add-family-input"
+                   placeholder="Paste their family code"
+                   inputmode="text"
+                   autocapitalize="characters"
+                   autocomplete="off"
+                   autocorrect="off"
+                   spellcheck="false"
+                   aria-label="Other family's code">
+            <button type="button" id="wp-add-family-submit" class="wp-add-family-submit btn">Bring them in</button>
+          </div>
+          <p class="wp-add-family-help"><em>They'll see their crew show up in this watchparty's couch.</em></p>
+        </section>
         <button class="modal-close" onclick="confirmStartWatchparty()">Send invites</button>
         <button class="pill modal-btn-block" onclick="closeWatchpartyStart()">Cancel</button>
       </div>
