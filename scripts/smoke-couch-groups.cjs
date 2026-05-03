@@ -141,10 +141,66 @@ eqContains('2.20 rsvpSubmit preserves legacy nested scan as fallback', rsvpSubmi
 // 2.21 — wpMigrate idempotency
 eqContains('2.21 wpMigrate has idempotency guard via existing.data().memberUids check', wpMigrateSrc, 'existing.data().memberUids');
 
+// === Wave 3 — UI affordance + cap copy + remove flow sentinels ===
+const appHtmlSrc = readIfExists(path.join(COUCH_ROOT, 'app.html'));
+const appCssSrc = readIfExists(path.join(COUCH_ROOT, 'css', 'app.css'));
+
+// 2.22 — DOM hook
+eqContains('2.22 app.html has wp-add-family-section DOM hook', appHtmlSrc, 'wp-add-family-section');
+eqContains('2.23 app.html section heading copy locked', appHtmlSrc, 'Bring another couch in');
+eqContains('2.24 app.html input placeholder copy locked', appHtmlSrc, 'Paste their family code');
+eqContains('2.25 app.html submit button copy locked', appHtmlSrc, 'Bring them in');
+
+// 2.26 — JS handlers
+eqContains('2.26 app.js declares renderAddFamilySection', appJsSrc, 'function renderAddFamilySection');
+eqContains('2.27 app.js declares onClickAddFamily', appJsSrc, 'function onClickAddFamily');
+eqContains('2.28 app.js declares onClickRemoveCouch', appJsSrc, 'function onClickRemoveCouch');
+eqContains('2.29 app.js wires httpsCallable(functions, addFamilyToWp)', appJsSrc, "httpsCallable(functions, 'addFamilyToWp')");
+eqContains('2.30 app.js host-only render gate', appJsSrc, 'state.me.id === wp.hostId');
+
+// 2.31 — Cap copy strings (D-08)
+eqContains("2.31 app.js soft-cap copy: That's a big couch — are you sure?", appJsSrc, "That's a big couch");
+eqContains('2.32 app.js hard-cap copy: This couch is full for tonight', appJsSrc, 'This couch is full for tonight');
+
+// 2.33 — Error matrix copy
+eqContains('2.33 app.js no-family error copy', appJsSrc, 'No family with that code. Double-check the spelling.');
+eqContains('2.34 app.js host-only error copy', appJsSrc, 'Only the host can add families');
+eqContains('2.35 app.js no-more-room error copy', appJsSrc, 'No more room on this couch tonight.');
+
+// 2.36 — Success + idempotent toasts
+eqContains('2.36 app.js success toast: Couch added', appJsSrc, "'Couch added'");
+eqContains('2.37 app.js idempotent toast: is already here', appJsSrc, 'is already here');
+
+// 2.38 — CSS new selectors
+eqContains('2.38 css/app.css declares .wp-add-family-section', appCssSrc, '.wp-add-family-section');
+eqContains('2.39 css/app.css declares .family-suffix', appCssSrc, '.family-suffix');
+eqContains('2.40 css/app.css declares mobile breakpoint', appCssSrc, '@media (max-width: 599px)');
+
+// 2.41 — Remove-couch flow
+eqContains('2.41 app.js remove-couch confirm modal copy', appJsSrc, 'Their crew will lose access to this watchparty');
+
+// === Wave 3 — B1 fix: soft-cap threshold ===
+// Per CONTEXT D-08 + UI-SPEC Copywriting Contract — soft-cap warning triggers at 5+ families (above 4), NOT at 4.
+eqContains('2.42 app.js soft-cap threshold is >=5 (B1 fix)', appJsSrc, 'familyCount >= 5');
+// Defensive: ensure no leftover >=4 soft-cap branch (the only ceiling check is >=8 hard cap).
+eq('2.43 app.js no leftover familyCount >= 4 soft-cap branch (B1 fix)', (appJsSrc.match(/familyCount >= 4/g) || []).length, 0);
+
+// === Wave 3 — B2 fix: wp-edit (lobby) surface delivery ===
+// Per Plan 04 objective + UI-SPEC § Component Inventory + ROADMAP skeleton — affordance must live in BOTH wp-create AND wp-edit (lobby).
+eqContains('2.44 app.js lobby DOM hook wp-add-family-section-lobby (B2 fix)', appJsSrc, 'wp-add-family-section-lobby');
+eqContains('2.45 app.js generalized renderAddFamilySection signature with idSuffix (B2 fix)', appJsSrc, 'function renderAddFamilySection(wp, idSuffix');
+eqContains('2.46 app.js lobby call site uses -lobby suffix (B2 fix)', appJsSrc, "renderAddFamilySection(wp, '-lobby')");
+// Floor for renderAddFamilySection occurrences: function decl (1) + wp-create call (1) + snapshot call (1) + lobby call (1) >= 4.
+eq('2.47 app.js renderAddFamilySection occurrences >= 4 (decl + 3 call sites)', (appJsSrc.match(/renderAddFamilySection/g) || []).length >= 4, true);
+
+// === Wave 3 — W4 fix: zero-member family guard error matrix copy (Plan 02 CF + Plan 04 UI) ===
+// addFamilyToWp CF throws failed-precondition for zero-member families; UI surfaces a warm, brand-voice toast.
+eqContains('2.48 app.js failed-precondition toast for zero-member family (W4 fix)', appJsSrc, "hasn't added any members yet");
+
 // === Section 3: floor meta-assertion (Plan 05 may raise this further) ===
 console.log('-- 3. production-code sentinel floor meta-assertion --');
 {
-  const FLOOR = 8;
+  const FLOOR = 16;
   // Helper-behavior assertions in Section 1 (above) = 4
   const helperBehaviorAssertions = 4;
   const productionCodeAssertions = passed - helperBehaviorAssertions;
