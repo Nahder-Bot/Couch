@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: paused
-last_updated: "2026-05-03T03:28:31.446Z"
-last_activity: 2026-05-02
+status: executing
+last_updated: "2026-05-03T20:58:26.713Z"
+last_activity: 2026-05-03
 progress:
   total_phases: 27
   completed_phases: 19
-  total_plans: 108
+  total_plans: 113
   completed_plans: 104
-  percent: 96
+  percent: 92
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 Phase: 28 (social-pickem-leaderboards) — PAUSED after Plan 28-02 pending TheSportsDB Patreon spike (D-17). User away from computer until 2026-05-04; spike cannot proceed without Patreon API key. Plans 28-01 + 28-02 shipped to couch repo only (no deploy yet — sw.js still couch-v39-guest-rsvp).
 Plan: 3 of 6 (Plans 01 + 02 complete; Plans 03 / 04 / 05 / 06 blocked on D-17)
-**Status:** Paused — pending Patreon spike on/after 2026-05-04
+**Status:** Ready to execute
 
 **Resume signal:** After user runs the Patreon roster spike (CONTEXT.md § D-17 has the curl checklist), either re-run `/gsd-execute-phase 28` (if Patreon validates F1 driver + UFC fighter rosters — keeps original 4-pickType scope) OR drop F1/UFC from v1 and re-run `/gsd-plan-phase 28` to regenerate Plans 03-06 against a 14-league team-only scope.
 
-**Last Activity:** 2026-05-02
+**Last Activity:** 2026-05-03
 
 **Most recent close-out:** Phase 27 / Plan 05 — Cross-repo close-out + production deploy (5 atomic commits: queuenight `b2949c9` feat(27-05): rsvpRevoke gains action='attachPushSub' branch + `daa8e2a` feat(27-05): rsvpReminderTick adds guest loop with direct webpush + dead-sub prune; couch `b099baa` test(27-05): extend smoke-guest-rsvp.cjs to 47 assertions + bump sw.js cache + `fafdfae` docs(27-05): scaffold 27-HUMAN-UAT.md with 10 device-UAT scripts + `3c048f5` docs(27-05): plan summary). Cross-repo deploy: `firebase deploy --only functions` from queuenight → `bash scripts/deploy.sh --allow-dirty 39-guest-rsvp` from couch. Production curl-verified at couchtonight.app **2026-05-02T03:15:25Z**: `const CACHE = 'couch-v39-guest-rsvp';`. All 4 Phase 27 CFs (rsvpSubmit, rsvpStatus, rsvpRevoke, rsvpReminderTick) live in queuenight-84044 us-central1 with CORS-locked preflight 204. Smoke gate now 10 contracts; smoke-guest-rsvp.cjs at 47 assertions (29 production-code sentinels + floor meta-assertion ≥13 fails the deploy gate). Rules tests 52/52 PASS. All 15 RSVP-27-* IDs codified in production source. Phase 27 awaits device-UAT (10 scripts in 27-HUMAN-UAT.md covering iOS non-PWA push absent + Android push opt-in + two-device revoke + close/reopen + kebab UAT + browser matrix; resume signal `uat passed` → `/gsd-verify-work 27`).
 
