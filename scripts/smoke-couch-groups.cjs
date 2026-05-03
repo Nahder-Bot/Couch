@@ -49,12 +49,8 @@ function eqContains(label, fileContent, needle) {
 const COUCH_ROOT = path.resolve(__dirname, '..');
 const QN_FUNCTIONS = path.resolve(__dirname, '..', '..', '..', 'queuenight', 'functions');
 
-// Suppress unused-import warnings for helpers exposed for Plans 02/03/04 sentinel additions.
+// Suppress unused-import warnings for helpers not yet referenced in this wave.
 void eqObj;
-void readIfExists;
-void eqContains;
-void COUCH_ROOT;
-void QN_FUNCTIONS;
 
 console.log('==== Phase 30 Couch Groups — smoke ====');
 
@@ -96,15 +92,61 @@ console.log('-- 1. buildNameCollisionMap (D-09 cross-family disambiguation) --')
   eq('1.4 no collision: count("sam") === 1', map2['sam'], 1);
 }
 
-// === Section 2: production-code sentinels — DEFERRED to Plans 02/03/04 ===
-console.log('-- 2. production-code sentinels (Wave 0 placeholder — Plans 02/03/04 fill) --');
-console.log('  skip 2.0 placeholder (Wave 0 has no production code yet)');
+// === Section 2: production-code sentinels (Wave 2 — js/app.js + js/firebase.js + queuenight CFs) ===
+console.log('-- 2. production-code sentinels (Wave 2 client + Wave 1 CFs) --');
 
-// === Section 3: floor meta-assertion (Plan 05 raises FLOOR; Wave 0 sets 0) ===
+const appJsSrc = readIfExists(path.join(COUCH_ROOT, 'js', 'app.js'));
+const firebaseJsSrc = readIfExists(path.join(COUCH_ROOT, 'js', 'firebase.js'));
+const rulesSrc = readIfExists(path.join(COUCH_ROOT, 'firestore.rules'));
+const addFamilyToWpSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'addFamilyToWp.js'));
+const wpMigrateSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'wpMigrate.js'));
+const rsvpSubmitSrc = readIfExists(path.join(QN_FUNCTIONS, 'src', 'rsvpSubmit.js'));
+
+// 2.1 — js/firebase.js exports collectionGroup + where
+eqContains('2.1 firebase.js imports collectionGroup', firebaseJsSrc, 'collectionGroup');
+eqContains('2.2 firebase.js imports where', firebaseJsSrc, 'where');
+
+// 2.3 — js/app.js subscribes via collectionGroup with the Pitfall 2-aligned filter
+eqContains('2.3 app.js uses collectionGroup(db, watchparties) subscription', appJsSrc, "collectionGroup(db, 'watchparties')");
+eqContains('2.4 app.js uses where(memberUids, array-contains, state.auth.uid)', appJsSrc, "where('memberUids', 'array-contains', state.auth.uid)");
+
+// 2.5 — js/app.js watchpartyRef retargets to top-level
+eqContains('2.5 app.js watchpartyRef points at top-level /watchparties/', appJsSrc, "function watchpartyRef(id) { return doc(db, 'watchparties', id); }");
+
+// 2.6 — confirmStartWatchparty stamps Phase 30 fields
+eqContains('2.6 app.js confirmStartWatchparty stamps hostFamilyCode', appJsSrc, 'hostFamilyCode: state.familyCode');
+eqContains('2.7 app.js stamps memberUids on wp create', appJsSrc, "memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean)");
+eqContains('2.8 app.js stamps crossFamilyMembers: [] on wp create', appJsSrc, 'crossFamilyMembers: []');
+
+// 2.9 — buildNameCollisionMap + Pitfall 6 disambiguation
+eqContains('2.9 app.js declares buildNameCollisionMap', appJsSrc, 'function buildNameCollisionMap(wp)');
+eqContains('2.10 app.js Pitfall 6 disambiguation: different familyCode check', appJsSrc, 'different familyCode');
+eqContains('2.11 app.js renderParticipantTimerStrip appends crossFamilyChips', appJsSrc, '${chips}${guestChips}${crossFamilyChips}');
+
+// 2.12 — firestore.rules new top-level block
+eqContains('2.12 firestore.rules has top-level /watchparties/{wpId} block', rulesSrc, 'match /watchparties/{wpId}');
+eqContains('2.13 firestore.rules read gate uses request.auth.uid in resource.data.memberUids', rulesSrc, 'request.auth.uid in resource.data.memberUids');
+eqContains('2.14 firestore.rules Path B denylist includes families and memberUids', rulesSrc, "'families', 'memberUids'");
+
+// 2.15 — addFamilyToWp CF host-only + idempotency + hard cap
+eqContains('2.15 addFamilyToWp CF has host-only check', addFamilyToWpSrc, 'wpDoc.data().hostUid !== request.auth.uid');
+eqContains('2.16 addFamilyToWp CF has idempotency guard', addFamilyToWpSrc, 'currentFamilies.includes(familyCode)');
+eqContains('2.17 addFamilyToWp CF has hard cap of 8 families', addFamilyToWpSrc, 'currentFamilies.length >= 8');
+eqContains('2.18 addFamilyToWp CF uses neutral confidentiality error string', addFamilyToWpSrc, "'No family with that code.'");
+
+// 2.19 — rsvpSubmit Pitfall 5 fix
+eqContains('2.19 rsvpSubmit prepended top-level lookup (Pitfall 5)', rsvpSubmitSrc, 'topLevelDoc.exists');
+eqContains('2.20 rsvpSubmit preserves legacy nested scan as fallback', rsvpSubmitSrc, 'Fallback: legacy nested scan');
+
+// 2.21 — wpMigrate idempotency
+eqContains('2.21 wpMigrate has idempotency guard via existing.data().memberUids check', wpMigrateSrc, 'existing.data().memberUids');
+
+// === Section 3: floor meta-assertion (Plan 05 may raise this further) ===
 console.log('-- 3. production-code sentinel floor meta-assertion --');
 {
-  const FLOOR = 0; // Plan 05 raises this to 13 (mirrors smoke-guest-rsvp.cjs pattern)
-  const helperBehaviorAssertions = 4; // Section 1 above
+  const FLOOR = 8;
+  // Helper-behavior assertions in Section 1 (above) = 4
+  const helperBehaviorAssertions = 4;
   const productionCodeAssertions = passed - helperBehaviorAssertions;
   if (productionCodeAssertions >= FLOOR) {
     console.log(`  ok 3.1 production-code sentinel floor met (${productionCodeAssertions} >= ${FLOOR})`);
