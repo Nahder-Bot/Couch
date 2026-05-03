@@ -4928,10 +4928,10 @@ function startSync() {
       // Re-renders cap state + family list rows + remove-kebab wiring on every wp snapshot.
       // No-ops when the modal is closed (renderAddFamilySection bails when #wp-add-family-section is absent).
       if (typeof renderAddFamilySection === 'function') {
-        const currentWp = state.activeWatchpartyId
+        const wp = state.activeWatchpartyId
           ? state.watchparties.find(x => x.id === state.activeWatchpartyId)
           : null;
-        if (currentWp) renderAddFamilySection(currentWp);
+        if (wp) renderAddFamilySection(wp);
       }
     },
     e => { qnLog('[watchparties] snapshot error', e && e.message); }
@@ -10306,14 +10306,14 @@ window.openWatchpartyStart = function(titleId) {
   // (host-only, family-count caps, .wp-couches-list) reflects the host's family-of-one
   // initial state. The host always passes the isHost gate at wp-create time.
   if (typeof renderAddFamilySection === 'function' && state.me) {
-    const syntheticWp = {
+    const wp = {
       id: null,
       hostId: state.me.id,
       hostFamilyCode: state.familyCode,
       families: [state.familyCode],
       crossFamilyMembers: []
     };
-    renderAddFamilySection(syntheticWp);
+    renderAddFamilySection(wp);
   }
 };
 
@@ -11319,8 +11319,11 @@ window.confirmStartWatchparty = async function() {
 // Render gating per UI-SPEC: host-only — non-host members see ZERO of the input/submit
 // or kebab affordances; they DO still see .wp-couches-list (D-06 transparency).
 
-function renderAddFamilySection(wp) {
-  const section = document.getElementById('wp-add-family-section');
+function renderAddFamilySection(wp, idSuffix) {
+  // B2 fix (revision): accept optional idSuffix to drive both wp-create modal (suffix='')
+  // and wp-edit lobby (suffix='-lobby') from the same helper. ZERO logic duplication.
+  const suffix = idSuffix || '';
+  const section = document.getElementById('wp-add-family-section' + suffix);
   if (!section) return;
 
   const isHost = !!(wp && state.me && state.me.id === wp.hostId);
@@ -11328,8 +11331,8 @@ function renderAddFamilySection(wp) {
   const familyCount = families.length;
 
   // === Sub-line copy state machine per UI-SPEC ===
-  const subline = document.getElementById('wp-add-family-subline');
-  const inputRow = document.getElementById('wp-add-family-input-row');
+  const subline = document.getElementById('wp-add-family-subline' + suffix);
+  const inputRow = document.getElementById('wp-add-family-input-row' + suffix);
   const helpLine = section.querySelector('.wp-add-family-help');
 
   if (familyCount >= 8) {
@@ -11357,7 +11360,7 @@ function renderAddFamilySection(wp) {
   // === .wp-couches-list — render one row per family entry ===
   // Row 1: own family with (your couch) suffix per UI-SPEC.
   // Subsequent rows: foreign families with optional Remove this couch kebab (host-only).
-  const list = document.getElementById('wp-couches-list');
+  const list = document.getElementById('wp-couches-list' + suffix);
   if (list) {
     if (familyCount === 0) {
       list.innerHTML = '<p class="wp-couches-empty"><strong>Just your couch tonight</strong><br><em>Add another family to share the watchparty.</em></p>';
@@ -11389,9 +11392,9 @@ function renderAddFamilySection(wp) {
   }
   section.classList.remove('non-host-view');
 
-  const submitBtn = document.getElementById('wp-add-family-submit');
+  const submitBtn = document.getElementById('wp-add-family-submit' + suffix);
   if (submitBtn) {
-    submitBtn.onclick = () => onClickAddFamily(wp);
+    submitBtn.onclick = () => onClickAddFamily(wp, suffix);
   }
 
   // Wire each kebab.
@@ -11406,9 +11409,12 @@ function renderAddFamilySection(wp) {
 }
 
 // === addFamilyToWp callable wiring + 4-state machine per UI-SPEC ===
-async function onClickAddFamily(wp) {
-  const input = document.getElementById('wp-add-family-input');
-  const submitBtn = document.getElementById('wp-add-family-submit');
+async function onClickAddFamily(wp, idSuffix) {
+  // B2 fix (revision): accept optional idSuffix to look up the right input/submit pair
+  // for whichever surface (wp-create '' or wp-edit '-lobby') initiated the click.
+  const suffix = idSuffix || '';
+  const input = document.getElementById('wp-add-family-input' + suffix);
+  const submitBtn = document.getElementById('wp-add-family-submit' + suffix);
   if (!input || !submitBtn) return;
   const familyCode = (input.value || '').trim();
   if (!familyCode) return;
@@ -12269,6 +12275,26 @@ function renderWatchpartyLive() {
         <button class="wp-ready-check ${myReady?'on':''}" onclick="toggleReadyCheck('${escapeHtml(wp.id)}')">${myReady?'Ready ✓':"I'm ready"}</button>
         ${isHost && majority ? `<button class="wp-lobby-start-btn" onclick="hostStartSession('${escapeHtml(wp.id)}')">Start the session</button>` : ''}
       </div>
+      ${isHost ? `
+      <section class="wp-add-family-section" id="wp-add-family-section-lobby" aria-labelledby="wp-add-family-heading-lobby">
+        <h3 class="wp-add-family-heading" id="wp-add-family-heading-lobby">Bring another couch in</h3>
+        <p class="wp-add-family-subline" id="wp-add-family-subline-lobby"><em>Pull up another family for tonight.</em></p>
+        <div class="wp-couches-list" id="wp-couches-list-lobby" role="list" aria-label="Families in this watchparty"></div>
+        <div class="wp-add-family-input-row" id="wp-add-family-input-row-lobby">
+          <input type="text" id="wp-add-family-input-lobby"
+                 class="wp-add-family-input"
+                 placeholder="Paste their family code"
+                 inputmode="text"
+                 autocapitalize="characters"
+                 autocomplete="off"
+                 autocorrect="off"
+                 spellcheck="false"
+                 aria-label="Other family's code">
+          <button type="button" id="wp-add-family-submit-lobby" class="wp-add-family-submit btn">Bring them in</button>
+        </div>
+        <p class="wp-add-family-help"><em>They'll see their crew show up in this watchparty's couch.</em></p>
+      </section>
+    ` : ''}
     </div>`;
     body = lobbyHtml;
   } else if (preStart && !inLobbyWindow) {
@@ -12389,6 +12415,12 @@ function renderWatchpartyLive() {
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postTextReaction(); }
     });
+  }
+  // Phase 30 — wire the Bring another couch in lobby surface (host-only; the lobby HTML
+  // only includes the section when isHost, and renderAddFamilySection internally no-ops when
+  // the DOM element is missing — safe to call unconditionally on every renderWatchpartyLive tick).
+  if (typeof renderAddFamilySection === 'function') {
+    renderAddFamilySection(wp, '-lobby');
   }
 }
 
