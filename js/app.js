@@ -149,6 +149,50 @@ function deactivateFocusTrap() {
   _activeFocusTrap = null;
 }
 
+// === Wave 5B / Gemini P2 — iOS PWA Add-to-Home-Screen nudge ===
+// iOS Safari has no beforeinstallprompt — users who deep-link in via a share
+// or invite URL can use the app indefinitely without ever knowing they can
+// install it. This shows a one-time, dismissable banner inviting them to use
+// the Share → Add to Home Screen flow. Skipped on:
+//   - non-iOS user agents
+//   - already-standalone PWA mode (window.navigator.standalone === true)
+//   - Chrome iOS (CriOS) — A2HS only works in Safari on iOS
+//   - users who previously dismissed (localStorage flag)
+// Called from showApp() so the nudge only ever appears post-sign-in (never
+// on the landing page or pre-auth screens).
+function maybeShowIosPwaNudge() {
+  try {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true;
+    const isChromeIos = /CriOS/.test(navigator.userAgent);
+    if (!isIos || isStandalone || isChromeIos) return;
+    // Honor previous dismissal (localStorage may throw in private mode — wrap)
+    try {
+      if (localStorage.getItem('iosPwaNudgeDismissedAt')) return;
+    } catch (_) { return; }
+    // Don't double-render if already on the page (showApp can run multiple times)
+    if (document.querySelector('.ios-pwa-nudge')) return;
+    const el = document.createElement('div');
+    el.className = 'ios-pwa-nudge';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `
+      <div class="ios-pwa-nudge-text">
+        Add Couch to your home screen — tap <span class="ios-pwa-nudge-icon" aria-hidden="true">⬆︎</span> then "Add to Home Screen" for the full experience.
+      </div>
+      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
+    `;
+    document.body.appendChild(el);
+    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', () => {
+      try { localStorage.setItem('iosPwaNudgeDismissedAt', String(Date.now())); } catch (_) {}
+      el.remove();
+    });
+  } catch (e) {
+    // Non-fatal — never block app boot if nudge wiring throws.
+    try { console.warn('[ios-pwa-nudge]', e); } catch (_) {}
+  }
+}
+
 // === Phase 19 / D-04..D-06 — Kid-mode session state ===
 // Both slots are session-only (NOT persisted to Firestore or localStorage).
 // Resets on showScreen-away-from-Tonight + couchClearAll.
@@ -5244,6 +5288,10 @@ function showApp() {
   document.getElementById('signin-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   document.getElementById('me-label').textContent = state.me.name;
+  // Wave 5B / Gemini P2 — one-time iOS A2HS nudge for users who arrived via
+  // share/invite URL and never saw landing.html's install card. Self-gated
+  // (iOS Safari only, non-standalone, not previously dismissed).
+  try { maybeShowIosPwaNudge(); } catch (_) {}
   // Account hero identity: avatar + family chip inline with group noun
   const identAv = document.getElementById('account-identity-avatar');
   if (identAv && state.me) {

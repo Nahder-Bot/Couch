@@ -4848,3 +4848,70 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 
 /* === END Phase 30 === */
+
+/* =====================================================
+   Wave 5B / Gemini P2 — iOS PWA Add-to-Home-Screen nudge
+   Bottom-anchored, dismissable banner shown once to iOS Safari users who
+   arrived deep-linked (e.g. via invite share URL) and never saw landing's
+   install card. Warm-dark theme; respects safe-area-inset-bottom; tucks
+   above the bottom tab bar so it doesn't cover content the user is on.
+   Wired from showApp() (post-sign-in only). Dismiss persists in
+   localStorage.iosPwaNudgeDismissedAt.
+   ===================================================== */
+.ios-pwa-nudge {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* Sit above the bottom tab bar (~64px) and respect iOS safe-area inset. */
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(232,160,74,0.06);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  max-width: 480px;
+  margin: 0 auto;
+  animation: ios-pwa-nudge-rise 0.36s var(--ease-out) both;
+}
+.ios-pwa-nudge-text {
+  flex: 1;
+  color: var(--ink-warm);
+}
+.ios-pwa-nudge-icon {
+  display: inline-block;
+  margin: 0 2px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ios-pwa-nudge-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 18px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.ios-pwa-nudge-close:hover { background: var(--surface-2); color: var(--ink); }
+@keyframes ios-pwa-nudge-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ios-pwa-nudge { animation: none; }
+}
