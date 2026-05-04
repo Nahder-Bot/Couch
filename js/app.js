@@ -11425,6 +11425,20 @@ function renderAddFamilySection(wp, idSuffix) {
   const families = (wp && Array.isArray(wp.families)) ? wp.families : [];
   const familyCount = families.length;
 
+  // Phase 30 / HIGH-1 — at wp-create time the wp doc doesn't exist yet (wp.id === null
+  // from openWatchpartyStart's synthetic shape). addFamilyToWp({wpId: null}) throws
+  // 'invalid-argument' and surfaces a confusing toast. Hide the input row entirely
+  // pre-creation and tell the host they can pull another couch in right after starting.
+  if (!wp || !wp.id) {
+    const inputRowEarly = document.getElementById('wp-add-family-input-row' + suffix);
+    if (inputRowEarly) inputRowEarly.style.display = 'none';
+    const sublineEarly = document.getElementById('wp-add-family-subline' + suffix);
+    if (sublineEarly) sublineEarly.innerHTML = "<em>You can pull up another family right after starting the watchparty.</em>";
+    const helpEarly = section.querySelector('.wp-add-family-help');
+    if (helpEarly) helpEarly.style.display = 'none';
+    return;
+  }
+
   // === Sub-line copy state machine per UI-SPEC ===
   const subline = document.getElementById('wp-add-family-subline' + suffix);
   const inputRow = document.getElementById('wp-add-family-input-row' + suffix);
@@ -11511,6 +11525,13 @@ async function onClickAddFamily(wp, idSuffix) {
   const input = document.getElementById('wp-add-family-input' + suffix);
   const submitBtn = document.getElementById('wp-add-family-submit' + suffix);
   if (!input || !submitBtn) return;
+  // Phase 30 / HIGH-1 safety net — defense-in-depth in case the renderAddFamilySection
+  // pre-creation guard ever races (e.g., DOM hand-edited). Friendlier copy than the
+  // raw 'Invalid watchparty.' toast that would otherwise surface from the CF.
+  if (!wp || !wp.id) {
+    flashToast('Send invites first, then you can bring more couches in.', { kind: 'warn' });
+    return;
+  }
   const familyCode = (input.value || '').trim();
   if (!familyCode) return;
 
