@@ -1262,6 +1262,22 @@ async function run() {
       );
     });
 
+    // === CDX-4 (Phase 30 hotfix Wave 3 — cross-AI peer review) ===
+    // The pre-CDX-4 delete rule allowed `signedIn() && hostUid == uid()`,
+    // letting the host hard-delete the wp doc and erase reactions/replay/
+    // RSVP history irrevocably. The Phase 30 migration silently expanded
+    // host authority — the legacy nested rule at firestore.rules ~line 378
+    // already had `allow delete: if false`. CDX-4 restores that semantic
+    // at the top level: the wp lifecycle uses status transitions
+    // (status: 'cancelled' | 'archived') for soft-delete; no client
+    // surface needs hard-delete. #30-19 and #30-20 already cover non-host
+    // and stranger deletes; #30-26 closes the host-delete gap.
+    await it('#30-26 host attempts to hard-delete top-level wp -> DENIED (CDX-4 -- must use status transition)', async () => {
+      await assertFails(
+        owner.doc('watchparties/wp_phase30_test').delete()
+      );
+    });
+
     // === CDX-1 (Phase 30 hotfix Wave 2 — cross-AI peer review) ===
     // The pre-CDX-1 create rule allowed any signed-in user to create a wp
     // claiming arbitrary `hostFamilyCode` and `families[]`. Tightened to
