@@ -11590,6 +11590,15 @@ async function onClickAddFamily(wp, idSuffix) {
       flashToast("That family hasn't added any members yet — ask them to invite people first.", { kind: 'warn' });
     } else if (code === 'functions/unauthenticated') {
       flashToast('Sign in to add a family.', { kind: 'warn' });
+    } else if (code === 'functions/invalid-argument') {
+      // Phase 30 / MED-4 — friendlier copy than the raw 'Invalid watchparty.' / 'Invalid
+      // family code.' that the CF surfaces; redirects user attention to the family code
+      // (the field they actually edited) instead of the watchparty (which is opaque).
+      flashToast("Couldn't add that couch — try again.", { kind: 'warn' });
+    } else if (code === 'functions/internal') {
+      // Phase 30 / MED-4 — admin-SDK transient failures, network blips. Was falling
+      // through to the generic toast that exposed implementation noise.
+      flashToast('Something went wrong — try again in a sec.', { kind: 'warn' });
     } else {
       flashToast(`Couldn't add that couch (${msg || 'unknown error'}).`, { kind: 'warn' });
     }
