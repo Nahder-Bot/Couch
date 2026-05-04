@@ -5080,6 +5080,12 @@ async function maybeFlipScheduledParties(parties) {
     if (wp.status !== 'scheduled') continue;
     if ((wp.startAt || 0) > now) continue;
     if ((now - (wp.startAt || 0)) > 6 * 60 * 60 * 1000) continue;  // >6h stale; CF archives these
+    // Phase 30 / CDX-7 — only the host fires the scheduled→active flip. Path B
+    // of firestore.rules (post-CR-06) blocks non-host status writes, so without
+    // this gate every signed-in client spammed PERMISSION_DENIED every 1s tick
+    // until the host's flip (or the CF safety net) landed. Mirrors the MED-3
+    // host-only archive flip pattern at ~4967.
+    if (!state.me || wp.hostId !== state.me.id) continue;
     try {
       const snap = await getDoc(watchpartyRef(wp.id));
       if (!snap.exists()) continue;
