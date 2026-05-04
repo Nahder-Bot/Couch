@@ -236,7 +236,12 @@ service cloud.firestore {
           ])
         );
 
-      allow delete: if signedIn() && resource.data.hostUid == uid();
+      // CDX-4 (Phase 30 hotfix Wave 3): top-level wp hard-delete is fully denied —
+      //   a hard delete erases reactions/replay/RSVP history irrevocably and there
+      //   is no client surface that needs it. Wp lifecycle uses status transitions
+      //   (status: 'cancelled' | 'archived') for soft-delete; legacy nested rule at
+      //   ~line 378 already denies delete, this top-level rule now matches.
+      allow delete: if false;
     }
 
 
