@@ -1261,6 +1261,137 @@ async function run() {
         stranger.doc('watchparties/wp_phase30_test').delete()
       );
     });
+
+    // === CDX-1 (Phase 30 hotfix Wave 2 — cross-AI peer review) ===
+    // The pre-CDX-1 create rule allowed any signed-in user to create a wp
+    // claiming arbitrary `hostFamilyCode` and `families[]`. Tightened to
+    // require: (1) families == [hostFamilyCode] at create, (2) empty
+    // crossFamilyMembers, (3) the hostFamilyCode family doc exists, (4)
+    // creator is a member of that family (via /users/{uid}/groups/{code}
+    // index — same surface as isMemberOfFamily()).
+    //
+    // #30-25 is the regression guard for the legitimate happy path —
+    // without it, an over-tight rule could break wp creation entirely.
+
+    // CDX-1: attacker tries to create a wp claiming someone else's family.
+    // Member of fam1 has NO /users/UID_MEMBER/groups/fam2 record (fam2
+    // doesn't exist as a real family in the seed). Even seed-wise, the
+    // attacker is NOT in fam2 → membership exists() returns false → DENIED.
+    await it('#30-21 user creates wp with hostFamilyCode != their family -> DENIED (CDX-1)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_cdx1_foreign_family_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam2',  // attacker claims a family they don't belong to
+          families: ['fam2'],
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // CDX-1: attacker stamps own family as host but expands families[]
+    // beyond [hostFamilyCode] at create — defeating the rule that says
+    // cross-family expansion happens via the addFamilyToWp admin-SDK CF.
+    // Without this gate, the `onWatchpartyCreateTopLevel` CF would fan out
+    // pushes to all members of fam2, fam3, etc. (cross-family push spam).
+    await it('#30-22 user creates wp with extra families[] beyond hostFamilyCode -> DENIED (CDX-1)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_cdx1_extra_families_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam1',
+          families: ['fam1', 'fam2', 'fam3'],  // attacker adds extra families at create
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // CDX-1: attacker stamps non-empty crossFamilyMembers[] at create,
+    // injecting fake denormalized roster rows that the client renderer
+    // will display + that downstream cross-family logic will trust. The
+    // admin-SDK addFamilyToWp CF is the only legitimate writer of this
+    // field; rules must enforce empty-at-create.
+    await it('#30-23 user creates wp with non-empty crossFamilyMembers[] at create time -> DENIED (CDX-1)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_cdx1_prefilled_crossfam_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam1',
+          families: ['fam1'],
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [
+            { memberId: 'm_spoof', name: 'Injected', familyCode: 'fam1' },
+          ],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // CDX-1: attacker creates a wp pointing to a family code that doesn't
+    // exist (typo, future-allocated code, or attacker sniffing for live
+    // codes). The exists() check on /families/{hostFamilyCode} blocks this.
+    await it('#30-24 user creates wp with hostFamilyCode pointing to nonexistent family -> DENIED (CDX-1)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_cdx1_orphan_family_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'nonexistent_fam_xyz',
+          families: ['nonexistent_fam_xyz'],
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // CDX-1 regression guard: legitimate happy-path create. Member of fam1
+    // creates a wp in their own family with families==[fam1] and empty
+    // crossFamilyMembers — this MUST still succeed, otherwise CDX-1's fix
+    // has over-tightened the rule and broken core wp creation. Note:
+    // /users/UID_MEMBER/groups/fam1 is seeded in seed() so the membership
+    // exists() check resolves true.
+    await it('#30-25 host creates wp with hostFamilyCode == their family + families==[hostFamilyCode] + empty crossFamilyMembers -> ALLOWED (CDX-1 regression guard)', async () => {
+      await assertSucceeds(
+        member.doc('watchparties/wp_cdx1_happy_path_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam1',
+          families: ['fam1'],
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
   });
 
   await testEnv.cleanup();
