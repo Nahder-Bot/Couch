@@ -154,7 +154,9 @@ export function seekToBroadcastedTime(player, wp, source) {
     if (source === 'mp4') {
       // HTMLVideoElement.currentTime is a setter; only valid after metadata loads.
       // Caller is responsible for waiting for 'loadedmetadata' (Plan 03 wires this).
-      if (player && typeof player.duration === 'number' && !isNaN(player.duration)) {
+      // isFinite() rejects NaN and ±Infinity; HLS/live streams report Infinity duration
+      // and seeking to a position on those is undefined behavior (REVIEWS WR-24-03).
+      if (player && isFinite(player.duration) && player.duration > 0) {
         player.currentTime = seconds;
         return true;
       }
