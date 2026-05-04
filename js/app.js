@@ -4947,6 +4947,7 @@ function startSync() {
     qnLog('[watchparties] no auth.uid yet — subscription deferred');
     return;
   }
+  if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e){} state.unsubWatchparties = null; }
   state.unsubWatchparties = onSnapshot(
     query(
       collectionGroup(db, 'watchparties'),
