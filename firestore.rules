@@ -154,12 +154,12 @@ service cloud.firestore {
             && resource.data.hostUid == request.auth.uid
           )
           ||
-          // Path B: non-host denylist — Phase 24 fields + Phase 30 families/memberUids.
+          // Path B: non-host denylist — Phase 24 fields + Phase 30 families/memberUids/crossFamilyMembers.
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'currentTimeMs', 'currentTimeUpdatedAt', 'currentTimeSource',
             'durationMs', 'isLiveStream', 'videoUrl', 'videoSource',
             'hostId', 'hostUid', 'hostName',
-            'families', 'memberUids'
+            'families', 'memberUids', 'crossFamilyMembers'
           ])
         );
 
