@@ -11709,16 +11709,25 @@ async function attachVideoPlayer(wp) {
       seekToBroadcastedTime(video, wp, 'mp4');
     }
     // REVIEWS H5 — Store handler refs so teardown can remove them.
+    // Phase 24 / CR-24-01 — Wait for metadata BEFORE arming the broadcaster. video.duration
+    // is NaN until 'loadedmetadata' fires; if we sample before then, we'd incorrectly
+    // stamp wp.isLiveStream=true and any reactions posted in that window would carry
+    // runtimeSource:'live-stream' (invisible to replay forever).
     if (isHost) {
-      _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
-        const duration = (typeof video.duration === 'number' && isFinite(video.duration) && video.duration > 0) ? video.duration : null;
-        const isLive = duration === null;
-        broadcastCurrentTime(wp.id, sec, 'mp4', duration, isLive);
-      });
-      _wpVideoTimeHandler = function () {
-        if (_wpVideoBroadcaster && _wpVideoElement) _wpVideoBroadcaster(_wpVideoElement.currentTime);
+      const armBroadcaster = () => {
+        if (_wpVideoBroadcaster) return; // idempotent — already armed
+        _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+          const duration = (typeof video.duration === 'number' && isFinite(video.duration) && video.duration > 0) ? video.duration : null;
+          const isLive = duration === null;
+          broadcastCurrentTime(wp.id, sec, 'mp4', duration, isLive);
+        });
+        _wpVideoTimeHandler = function () {
+          if (_wpVideoBroadcaster && _wpVideoElement) _wpVideoBroadcaster(_wpVideoElement.currentTime);
+        };
+        video.addEventListener('timeupdate', _wpVideoTimeHandler);
       };
-      video.addEventListener('timeupdate', _wpVideoTimeHandler);
+      if (video.readyState >= 1 /* HAVE_METADATA */) armBroadcaster();
+      else video.addEventListener('loadedmetadata', armBroadcaster, { once: true });
     }
     _wpVideoErrorHandler = function () { renderPlayerErrorOverlay('wp-mp4-player'); };
     video.addEventListener('error', _wpVideoErrorHandler);
