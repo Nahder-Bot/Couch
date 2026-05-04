@@ -4830,6 +4830,11 @@ function scheduleMidnightRefresh() {
 }
 
 function startSync() {
+  // CR-08 — guard each subscription assignment so re-entry (group switch, sign-in flap,
+  // family code change) tears down the previous listener before binding a new one.
+  // Was: bare reassignment leaked the prior onSnapshot callback for the duration of
+  // the tab. Mirrors the subscribeSession() teardown pattern.
+  if (state.unsubMembers) { try { state.unsubMembers(); } catch(e){} state.unsubMembers = null; }
   state.unsubMembers = onSnapshot(membersRef(), s => {
     state.members = s.docs.map(d => d.data());
     const dot = document.getElementById('sync-dot');
@@ -4845,6 +4850,7 @@ function startSync() {
     dot.classList.remove('on');
     dot.textContent = 'Offline';
   });
+  if (state.unsubTitles) { try { state.unsubTitles(); } catch(e){} state.unsubTitles = null; }
   state.unsubTitles = onSnapshot(titlesRef(), s => {
     state.titles = s.docs.map(d => d.data());
     renderAll();
@@ -4860,6 +4866,7 @@ function startSync() {
   // Live-sync the group doc so picker + mode updates propagate between devices.
   // Plan 07: also track ownerUid so the owner-only admin panel toggles in real time
   // (e.g. after a transferOwnership CF flips the doc).
+  if (state.unsubGroup) { try { state.unsubGroup(); } catch(e){} state.unsubGroup = null; }
   state.unsubGroup = onSnapshot(familyDocRef(), s => {
     if (!s.exists()) return;
     const d = s.data();
@@ -4895,6 +4902,7 @@ function startSync() {
   scheduleMidnightRefresh();
   // Phase 8 — subscribe to intents collection. Guards with typeof checks so Plan 08-01
   // can land before 08-02's renderIntentsStrip + 08-03's maybeEvaluateIntentMatches exist.
+  if (state.unsubIntents) { try { state.unsubIntents(); } catch(e){} state.unsubIntents = null; }
   state.unsubIntents = onSnapshot(intentsRef(), s => {
     state.intents = s.docs.map(d => d.data());
     if (typeof renderIntentsStrip === 'function') renderIntentsStrip();
