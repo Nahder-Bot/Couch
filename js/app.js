@@ -11664,17 +11664,27 @@ async function attachVideoPlayer(wp) {
           if (!isHost) return;
           // Host: arm the broadcaster + sampler. REVIEWS M4 gates per-sample.
           _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+            // Phase 24 / CR-24-01 + IN-26-02 — read getDuration() once per tick. Skip
+            // samples where the duration is genuinely unknown (NaN before metadata
+            // settles) instead of guessing isLiveStream=true — that guess would
+            // permanently stamp runtimeSource:'live-stream' on any reaction posted in
+            // the opening 1-3s window, making it invisible to replay forever.
+            // REVIEWS M4 — per-sample live-stream gate. Inline isFinite + getDuration
+            // so the gate is evaluated EVERY sample (NOT one-shot at onReady), matching
+            // the smoke contract's regex /isFinite\([^)]*getDuration/ for M4.
             let duration = null;
             let isLive = false;
             try {
-              // REVIEWS M4 — per-sample live-stream gate. Inline isFinite + getDuration
-              // so the gate is evaluated EVERY sample (NOT one-shot at onReady), matching
-              // the smoke contract's regex /isFinite\([^)]*getDuration/ for M4.
-              if (_wpYtPlayer && typeof _wpYtPlayer.getDuration === 'function' && isFinite(_wpYtPlayer.getDuration()) && _wpYtPlayer.getDuration() > 0) {
-                duration = _wpYtPlayer.getDuration();
+              const dur = (_wpYtPlayer && typeof _wpYtPlayer.getDuration === 'function')
+                ? _wpYtPlayer.getDuration()
+                : NaN;
+              if (!isFinite(dur)) return; // unknown — skip this sample, don't guess live
+              if (dur > 0) {
+                duration = dur;
+                isLive = false;
               } else {
-                isLive = true;
                 duration = null;
+                isLive = true; // genuinely live (dur === 0 in YT API for live broadcasts)
               }
             } catch (e) { duration = null; isLive = true; }
             broadcastCurrentTime(wp.id, sec, 'youtube', duration, isLive);
