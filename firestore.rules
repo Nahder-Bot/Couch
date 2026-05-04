@@ -145,21 +145,53 @@ service cloud.firestore {
         && request.resource.data.hostUid == uid()
         && request.auth.uid in request.resource.data.memberUids;
 
+      // CR-05 (Phase 30 hotfix): require attributedWrite-equivalent on every update so
+      //   audit trail is preserved on top-level wps (legacy nested rule at line ~629
+      //   relied on attributedWrite(familyCode), which can't be reused here because
+      //   top-level wps span families). Inline the actingUid + memberId regex anchor
+      //   that the validAttribution() helper performs — the regex anchor matches the
+      //   helper's '^m_[A-Za-z0-9_-]+$' pattern verbatim so any future memberId-derived
+      //   regex construction (parallel of the title-doc actingTupleKey pattern) is
+      //   defanged. Closes Phase 30 cross-cutting review CR-05.
+      //
+      // CR-06 (Phase 30 hotfix): Path B converted from denylist → allowlist. The prior
+      //   denylist let cross-family members (added via addFamilyToWp) overwrite
+      //   participants[host_id] (defeating Phase 15.5 REQ-7), titleName, mode, status,
+      //   archivedAt, etc. Path B now permits ONLY the safe, member-writable fields:
+      //   reactions, rsvps, archivedAt, participants, lastActivityAt — plus the four
+      //   attribution echo fields (actingUid, managedMemberId, memberId, memberName)
+      //   which CR-05 mandates be present on every write. Cross-family members can no
+      //   longer mutate host-only or party-shape fields. Closes Phase 30 cross-cutting
+      //   review CR-06.
       allow update: if signedIn()
         && request.auth.uid in resource.data.memberUids
+        && request.resource.data.actingUid == request.auth.uid
+        && request.resource.data.memberId is string
+        && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
         && (
-          // Path A: host — any field.
+          !('managedMemberId' in request.resource.data)
+          || (
+            request.resource.data.managedMemberId is string
+            && request.resource.data.managedMemberId.matches('^m_[A-Za-z0-9_-]+$')
+          )
+        )
+        && (
+          // Path A: host — any field allowed.
           (
             'hostUid' in resource.data
             && resource.data.hostUid == request.auth.uid
           )
           ||
-          // Path B: non-host denylist — Phase 24 fields + Phase 30 families/memberUids/crossFamilyMembers.
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'currentTimeMs', 'currentTimeUpdatedAt', 'currentTimeSource',
-            'durationMs', 'isLiveStream', 'videoUrl', 'videoSource',
-            'hostId', 'hostUid', 'hostName',
-            'families', 'memberUids', 'crossFamilyMembers'
+          // Path B: non-host limited to specific safe fields (allowlist).
+          // Includes the four attribution echo fields because CR-05 requires them
+          // on every write — they MUST appear in affectedKeys for any write to land.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'reactions',
+            'rsvps',
+            'archivedAt',
+            'participants',
+            'lastActivityAt',
+            'actingUid', 'managedMemberId', 'memberId', 'memberName'
           ])
         );
 
