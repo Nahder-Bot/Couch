@@ -2627,7 +2627,7 @@ window.onFlowBOpenCounterTime = function() {
   if (!intent) return;
   const counterDepth = intent.counterChainDepth || 0;
   if (counterDepth >= 3) {
-    flashToast('Counter chain full', { kind: 'warn' });
+    flashToast("Whoa, slow down — that's a lot of taps.", { kind: 'warn' });
     return;
   }
   // Render counter-time picker.
@@ -4131,7 +4131,7 @@ window.leaveFamily = async function() {
 // This is what Firestore rules (Plan 04) gate on: writes carrying managedMemberId
 // require members/{managedMemberId}.managedBy === request.auth.uid.
 window.openCreateSubProfile = function() {
-  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   if (!state.familyCode) { flashToast('Join a group first', { kind: 'warn' }); return; }
   const nameEl = document.getElementById('subprofile-name');
   if (nameEl) nameEl.value = '';
@@ -4145,7 +4145,7 @@ window.closeSubProfileModal = function() {
 window.createSubProfile = async function() {
   const name = (document.getElementById('subprofile-name').value || '').trim();
   const color = document.getElementById('subprofile-color').value || '#f2a365';
-  if (!name) { flashToast('Name required', { kind: 'warn' }); return; }
+  if (!name) { flashToast('We need a name to put on the couch.', { kind: 'warn' }); return; }
   if (!state.auth || !state.familyCode) { flashToast('Not ready', { kind: 'warn' }); return; }
   const memberId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   const sub = {
@@ -4186,7 +4186,7 @@ function renderSubProfileList() {
 // manage, then shares the link via Web Share API (preferred) or clipboard fallback.
 // When the kid redeems, claimMember CF clears managedBy + stamps graduatedAt (D-16).
 window.sendGraduationLink = async function(memberId) {
-  if (!state.auth || !state.familyCode) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth || !state.familyCode) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   const m = (state.members || []).find(x => x.id === memberId);
   if (!m) return;
   if (!m.managedBy) { flashToast('This member is already independent.', { kind: 'info' }); return; }
@@ -4633,7 +4633,7 @@ window.transferOwnershipTo = async function() {
 // Act-as tap (D-04, per-action): set state.actingAs so writeAttribution picks it up on the
 // NEXT vote/veto/mood write, then the snapshot-then-clear in writeAttribution reverts it.
 window.tapActAsSubProfile = function(memberId, memberName) {
-  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   const m = (state.members || []).find(x => x.id === memberId);
   if (!m || !m.managedBy) return;
   state.actingAs = memberId;
@@ -7412,7 +7412,7 @@ function getNeedsVoteTitles() {
 }
 
 window.openSwipeMode = function() {
-  if (!state.me) { alert('Sign in first.'); return; }
+  if (!state.me) { alert('Sign in to do that.'); return; }
   swipeQueue = getNeedsVoteTitles();
   swipeIndex = 0;
   document.getElementById('swipe-overlay').classList.add('on');
@@ -15352,7 +15352,7 @@ async function loadPackPreview(pack) {
 
 window.confirmStartPack = async function() {
   if (!_activePackId) return;
-  if (!state.me) { alert('Sign in first.'); return; }
+  if (!state.me) { alert('Sign in to do that.'); return; }
   if (guardReadOnlyWrite && guardReadOnlyWrite()) return;
   const pack = COUCH_NIGHTS_PACKS.find(p => p.id === _activePackId);
   if (!pack) return;
@@ -17896,7 +17896,7 @@ window.onFlowAOpenCounterSubflow = function() {
   if (!intent) return;
   const counterDepth = intent.counterChainDepth || 0;
   if (counterDepth >= 3) {
-    flashToast('Counter chain full — pick from current options', { kind: 'warn' });
+    flashToast("Whoa, slow down — pick from the current options.", { kind: 'warn' });
     return;
   }
   state.flowACounterFor = intentId;
