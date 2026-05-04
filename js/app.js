@@ -10571,6 +10571,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
     catch (e) { return null; }
   })();
+  const myUid = (state.auth && state.auth.uid) || null;
   const wp = {
     id,
     titleId: null,
