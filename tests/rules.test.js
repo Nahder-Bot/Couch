@@ -1025,6 +1025,14 @@ async function run() {
           .update({ families: ['fam1', 'fam2'] })
       );
     });
+
+    // P03-T-30-07: non-host cannot spoof wp.crossFamilyMembers (Path B denylist blocks)
+    await it('#30-05 non-host cannot write wp.crossFamilyMembers -> DENIED', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test')
+          .update({ crossFamilyMembers: [{ memberId: 'spoof', name: 'Spoofed', familyCode: 'evil' }] })
+      );
+    });
   });
 
   await testEnv.cleanup();
