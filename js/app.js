@@ -539,6 +539,10 @@ async function subscribeToPush() {
 }
 
 // Unsubscribe this device. Removes the endpoint from Firestore and from the browser.
+// Phase 30 / CR-11 — multi-family unsubscribe. Was: deleted only state.familyCode's
+// record, leaking the endpoint hash in every OTHER family the user belongs to (those
+// devices kept receiving pushes after sign-out / unsubscribe). Now iterates state.groups
+// so every family's member doc gets the field removed.
 async function unsubscribeFromPush() {
   if (!('serviceWorker' in navigator)) return;
   try {
@@ -547,13 +551,30 @@ async function unsubscribeFromPush() {
     if (!sub) return;
     const subJson = sub.toJSON();
     const endpointHash = await hashString(subJson.endpoint);
-    if (state.me) {
-      // deleteField is the proper way to remove a nested map key
-      await updateDoc(doc(membersRef(), state.me.id), {
-        [`pushSubscriptions.${endpointHash}`]: deleteField()
-      });
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+    if (groups.length > 0) {
+      for (const g of groups) {
+        const fc = g && (g.familyCode || g.code);
+        const mid = g && (g.memberId || g.myMemberId);
+        if (!fc || !mid) continue;
+        try {
+          await updateDoc(
+            doc(db, 'families', fc, 'members', mid),
+            { [`pushSubscriptions.${endpointHash}`]: deleteField() }
+          );
+        } catch (e) { /* swallow per-family failures so one bad family doesn't block the rest */ }
+      }
+    } else if (state.me) {
+      // Fallback for cold-start where state.groups hasn't hydrated yet — at least
+      // clear the active family's record. deleteField is the proper way to remove
+      // a nested map key.
+      try {
+        await updateDoc(doc(membersRef(), state.me.id), {
+          [`pushSubscriptions.${endpointHash}`]: deleteField()
+        });
+      } catch (e) { /* swallow */ }
     }
-    await sub.unsubscribe();
+    try { await sub.unsubscribe(); } catch (e) { /* idempotent */ }
     qnLog('[QN push] Unsubscribed');
   } catch(e) {
     console.warn('[QN push] Unsubscribe failed:', e.message);
