@@ -12864,9 +12864,16 @@ async function postReaction(payload) {
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) return;
   const mine = myParticipation(wp);
-  if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
-  if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
-  const elapsedMs = computeElapsed(mine, wp);
+  // Phase 26 / CR-26-01 — replay-mode reactions must reach derivePositionForReaction even
+  // when the viewer was never an original participant (D-08 dual-entry surface). Hoist
+  // the replay branch above the live-mode participation guard. pausedAt has no meaning
+  // when revisiting an archived wp, so we bypass it in replay mode too.
+  const isReplay = state.activeWatchpartyMode === 'revisit';
+  if (!isReplay) {
+    if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
+    if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
+  }
+  const elapsedMs = isReplay ? 0 : computeElapsed(mine, wp);
 
   // Phase 26 / RPLY-26-01 + RPLY-26-07 — derive position-anchored fields for the reaction.
   // isReplay path is reachable when Plan 02 ships state.activeWatchpartyMode = 'revisit' on
@@ -12876,7 +12883,7 @@ async function postReaction(payload) {
     wp,
     mine,
     elapsedMs,
-    isReplay: state.activeWatchpartyMode === 'revisit',
+    isReplay,
     localReplayPositionMs: state.replayLocalPositionMs
   });
 
