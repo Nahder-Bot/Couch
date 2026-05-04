@@ -1033,6 +1033,56 @@ async function run() {
           .update({ crossFamilyMembers: [{ memberId: 'spoof', name: 'Spoofed', familyCode: 'evil' }] })
       );
     });
+
+    // === Phase 30 hotfix tests (CR-05 / CR-06) ===
+    // After 2026-05-03 cross-cutting review, the top-level wp `allow update` rule
+    // gained (1) inline attributedWrite-equivalent (actingUid echo + memberId regex
+    // anchor) and (2) Path B converted from denylist → allowlist. These tests
+    // verify both gates.
+
+    // CR-05: non-host write that touches an allowlisted field but OMITS actingUid
+    // is denied. Without the inline attribution echo, audit trail would be broken
+    // for cross-family members joining via addFamilyToWp.
+    await it('#30-06 non-host writes to wp.participants WITHOUT actingUid -> DENIED (CR-05)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          participants: { 'm_UID_MEMBER': { name: 'Member', joinedAt: Date.now(), rsvpStatus: 'in' } },
+          // actingUid intentionally omitted — CR-05 requires it on every write
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // CR-06: non-host writes to titleName were previously ALLOWED by the old
+    // denylist (titleName wasn't on it). After the allowlist conversion,
+    // titleName is host-only — a guest-family member can no longer rename
+    // the watchparty.
+    await it('#30-07 non-host writes to wp.titleName -> DENIED (CR-06 allowlist)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          titleName: 'Pwned Title',
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // CR-06 regression guard: legitimate non-host write of an allowlisted field
+    // (reactions) WITH valid attribution still works. This anchors that the
+    // hotfix didn't over-restrict the legitimate cross-family interaction
+    // surface — reactions are explicitly in the safe-fields allowlist.
+    await it('#30-08 non-host writes to wp.reactions WITH valid actingUid+memberId -> ALLOWED (CR-06 regression guard)', async () => {
+      await assertSucceeds(
+        member.doc('watchparties/wp_phase30_test').update({
+          reactions: [{ emoji: 'fire', actingUid: UID_MEMBER, memberId: 'm_UID_MEMBER', actingAt: Date.now() }],
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
   });
 
   await testEnv.cleanup();
