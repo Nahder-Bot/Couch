@@ -115,7 +115,11 @@ eqContains('2.5 app.js watchpartyRef points at top-level /watchparties/', appJsS
 
 // 2.6 — confirmStartWatchparty stamps Phase 30 fields
 eqContains('2.6 app.js confirmStartWatchparty stamps hostFamilyCode', appJsSrc, 'hostFamilyCode: state.familyCode');
-eqContains('2.7 app.js stamps memberUids on wp create', appJsSrc, "memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean)");
+// 2.7 — Post CR-09 (Phase 30 cross-cutting hotfix): memberUids construction must include
+// the host's own uid defensively (Set-dedup) so wp create works even if state.members hasn't
+// synced. Verify the new defensive pattern is present.
+eqContains('2.7 app.js stamps memberUids on wp create (CR-09 defensive)', appJsSrc, 'Array.from(new Set([');
+eqContains('2.7b app.js memberUids includes host uid even pre-state.members-sync (CR-09)', appJsSrc, "(state.members || []).map(m => m && m.uid).filter(Boolean)");
 eqContains('2.8 app.js stamps crossFamilyMembers: [] on wp create', appJsSrc, 'crossFamilyMembers: []');
 
 // 2.9 — buildNameCollisionMap + Pitfall 6 disambiguation
@@ -126,13 +130,39 @@ eqContains('2.11 app.js renderParticipantTimerStrip appends crossFamilyChips', a
 // 2.12 — firestore.rules new top-level block
 eqContains('2.12 firestore.rules has top-level /watchparties/{wpId} block', rulesSrc, 'match /watchparties/{wpId}');
 eqContains('2.13 firestore.rules read gate uses request.auth.uid in resource.data.memberUids', rulesSrc, 'request.auth.uid in resource.data.memberUids');
-eqContains('2.14 firestore.rules Path B denylist includes families and memberUids', rulesSrc, "'families', 'memberUids'");
+// 2.14 — Path B converted from denylist → allowlist (Phase 30 cross-cutting hotfix CR-06).
+// Verify Path B uses hasOnly([...]) and includes 'reactions' as a canary safe field.
+eqContains('2.14 firestore.rules Path B uses hasOnly allowlist (CR-06)', rulesSrc, 'affectedKeys().hasOnly([');
+eqContains('2.14b firestore.rules Path B allowlist includes reactions', rulesSrc, "'reactions',");
+// 2.14c — CR-05 attribution echo required on every wp update (cross-cutting hotfix).
+eqContains('2.14c firestore.rules requires actingUid echo on top-level wp update (CR-05)', rulesSrc, 'request.resource.data.actingUid == request.auth.uid');
+eqContains('2.14d firestore.rules requires memberId regex anchor on top-level wp update (CR-05)', rulesSrc, "request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')");
 
-// 2.15 — addFamilyToWp CF host-only + idempotency + hard cap
-eqContains('2.15 addFamilyToWp CF has host-only check', addFamilyToWpSrc, 'wpDoc.data().hostUid !== request.auth.uid');
+// 2.15 — addFamilyToWp CF host-only + idempotency + hard cap.
+// Post-LOW-2 the host check moved inside a runTransaction (variable renamed wpDoc→wpSnap/wpDocPre).
+// The check substring is the host-uid equality; tolerate both pre-tx and tx-internal variable names.
+eqContains('2.15 addFamilyToWp CF has host-only check', addFamilyToWpSrc, '.data().hostUid !== request.auth.uid');
 eqContains('2.16 addFamilyToWp CF has idempotency guard', addFamilyToWpSrc, 'currentFamilies.includes(familyCode)');
 eqContains('2.17 addFamilyToWp CF has hard cap of 8 families', addFamilyToWpSrc, 'currentFamilies.length >= 8');
 eqContains('2.18 addFamilyToWp CF uses neutral confidentiality error string', addFamilyToWpSrc, "'No family with that code.'");
+// 2.18b — HIGH-4 (Phase 30 hotfix): failed-precondition oracle folded into not-found.
+// Verify the legacy "no members yet" copy is GONE so cross-family enumeration is consistent.
+const hasFailedPreconditionOracle = addFamilyToWpSrc.includes("hasn't added any members yet");
+if (hasFailedPreconditionOracle) {
+  console.log('  FAIL 2.18b addFamilyToWp still leaks family-existence via failed-precondition copy (HIGH-4)');
+  failed++;
+} else {
+  console.log("  ok 2.18b addFamilyToWp folded failed-precondition into not-found (HIGH-4)");
+  passed++;
+}
+// 2.18c — LOW-2 (Phase 30 hotfix): family-cap check inside runTransaction.
+eqContains('2.18c addFamilyToWp wraps cap check in runTransaction (LOW-2)', addFamilyToWpSrc, 'runTransaction');
+// 2.18d — CR-02/HIGH-2 (cross-cutting hotfix): wpMigrate gated on admin allowlist.
+eqContains('2.18d wpMigrate gated on ADMIN_UIDS allowlist (CR-02)', wpMigrateSrc, 'ADMIN_UIDS');
+// 2.18e — MED-2 (Phase 30 hotfix): wpMigrate uses { merge: true } to avoid clobber.
+eqContains('2.18e wpMigrate bulkWriter uses merge:true (MED-2)', wpMigrateSrc, 'merge: true');
+// 2.18f — HIGH-3 (Phase 30 hotfix): wpMigrate skips zero-member families.
+eqContains('2.18f wpMigrate guards against empty memberUids (HIGH-3)', wpMigrateSrc, 'memberUids.length === 0');
 
 // 2.19 — rsvpSubmit Pitfall 5 fix
 eqContains('2.19 rsvpSubmit prepended top-level lookup (Pitfall 5)', rsvpSubmitSrc, 'topLevelDoc.exists');
