@@ -61,13 +61,15 @@ export function parseVideoUrl(input) {
   if (host === 'youtube.com') {
     if (u.pathname === '/watch') {
       const id = u.searchParams.get('v');
-      if (id && /^[A-Za-z0-9_-]{6,}$/.test(id)) return { source: 'youtube', id, url: trimmed };
+      // Real YouTube IDs are exactly 11 chars; tighter than the prior {6,}
+      // floor which accepted spoofed/mangled IDs (REVIEWS WR-24-04).
+      if (id && /^[A-Za-z0-9_-]{11}$/.test(id)) return { source: 'youtube', id, url: trimmed };
     }
-    const m = u.pathname.match(/^\/(?:shorts|embed)\/([A-Za-z0-9_-]{6,})/);
+    const m = u.pathname.match(/^\/(?:shorts|embed)\/([A-Za-z0-9_-]{11})(?:[/?#]|$)/);
     if (m) return { source: 'youtube', id: m[1], url: trimmed };
   }
   if (host === 'youtu.be') {
-    const m = u.pathname.match(/^\/([A-Za-z0-9_-]{6,})/);
+    const m = u.pathname.match(/^\/([A-Za-z0-9_-]{11})(?:[/?#]|$)/);
     if (m) return { source: 'youtube', id: m[1], url: trimmed };
   }
   if (/\.mp4$/i.test(u.pathname)) return { source: 'mp4', url: trimmed };
