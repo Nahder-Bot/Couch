@@ -3192,9 +3192,35 @@ window.backToModePick = function() {
 // Apple (handleSigninApple) intentionally omitted — deferred to Phase 9.
 // See .planning/seeds/phase-09-apple-signin.md and 05-06-SUMMARY.md.
 
+// G-P0-1 — Sanitize Firebase Auth SDK errors before they hit a toast.
+// Raw SDK strings like "RecaptchaVerifier must bind to a CLICKABLE element"
+// or "auth/argument-error: ..." can leak from caller catch blocks that pass
+// e.message straight to flashToast. This helper maps common error codes to
+// brand-voice copy and falls back to a generic warm message; it never
+// surfaces e.message. Pass the optional fallback to override the default.
+function authErrorToast(e, fallback) {
+  const code = (e && e.code) || '';
+  const map = {
+    'auth/invalid-phone-number':       "That phone number doesn't look right — try again.",
+    'auth/missing-phone-number':       'Add your phone number to send a code.',
+    'auth/too-many-requests':          'Too many tries. Take a breath, then try again in a minute.',
+    'auth/code-expired':               'That code expired. Tap to send a fresh one.',
+    'auth/invalid-verification-code':  "Hmm, that code didn't match. Try again.",
+    'auth/invalid-verification-id':    'That session expired — request a fresh code.',
+    'auth/network-request-failed':     'Connection trouble. Check your wifi and try again.',
+    'auth/popup-blocked':              'Your browser blocked the sign-in window. Try again?',
+    'auth/cancelled-popup-request':    'Sign-in cancelled. Try again?',
+    'auth/user-disabled':              'This account is disabled. Reach out to support.',
+    'auth/operation-not-allowed':      'That sign-in method is disabled right now.',
+    'auth/invalid-email':              "That email doesn't look right — try again.",
+    'auth/quota-exceeded':             'SMS quota hit for now. Try again in a bit.',
+  };
+  flashToast(map[code] || fallback || 'Sign-in hit a snag — give it another shot.', { kind: 'warn' });
+}
+
 window.handleSigninGoogle = async function() {
   try { haptic('light'); await signInWithGoogle(); /* redirect takes over */ }
-  catch(e) { console.error('[signin][google]', e); flashToast("Couldn't start Google sign-in. Try again?", { kind: 'warn' }); }
+  catch(e) { console.error('[signin][google]', e); authErrorToast(e, "Couldn't start Google sign-in. Try again?"); }
 };
 
 window.handleSigninEmail = async function() {
@@ -3206,7 +3232,7 @@ window.handleSigninEmail = async function() {
     haptic('success');
   } catch(e) {
     console.error('[signin][email]', e);
-    flashToast("Couldn't send email link. Try again?", { kind: 'warn' });
+    authErrorToast(e, "Couldn't send email link. Try again?");
   }
 };
 
@@ -3232,7 +3258,7 @@ window.handleSigninPhoneSend = async function() {
   } catch(e) {
     console.error('[signin][phone-send]', e);
     resetPhoneCaptcha();
-    flashToast("Couldn't send code. Try again?", { kind: 'warn' });
+    authErrorToast(e, "Couldn't send code. Try again?");
   }
 };
 
@@ -3244,7 +3270,7 @@ window.handleSigninPhoneVerify = async function() {
     // onAuthStateChanged listener picks up from here
   } catch(e) {
     console.error('[signin][phone-verify]', e);
-    flashToast('Wrong code — try again?', { kind: 'warn' });
+    authErrorToast(e, 'Wrong code — try again?');
   }
 };
 
