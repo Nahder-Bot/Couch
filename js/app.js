@@ -3284,6 +3284,12 @@ async function onAuthStateChangedCouch(user) {
     // tear them down + clear their backing arrays here.
     if (typeof unsubActivity === 'function') { try { unsubActivity(); } catch(e) {} unsubActivity = null; }
     if (typeof unsubLists === 'function')    { try { unsubLists();    } catch(e) {} unsubLists    = null; }
+    // CDX-6 — Wave 1 hotfix added watchparty/session/group teardown but missed two
+    // recurring intervals reassigned by startSync(): watchpartyTick (1s flip+banner
+    // tick at ~4996) and _traktHeartbeat (15-min Trakt sync at ~5206). Without this
+    // they keep firing on the pre-auth screen until next sign-in clears them.
+    if (state.watchpartyTick) { try { clearInterval(state.watchpartyTick); } catch(e){} state.watchpartyTick = null; }
+    if (state._traktHeartbeat) { try { clearInterval(state._traktHeartbeat); } catch(e){} state._traktHeartbeat = null; }
     recentActivity = [];
     allLists = [];
     state.watchparties = [];
