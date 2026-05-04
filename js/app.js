@@ -91,6 +91,64 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
   return out;
 }
 
+// === Wave 5B / G-P0-2 (focus-trap half) ===
+// Keyboard focus trap for open modals — complements the aria-modal/role=dialog
+// attributes added in Wave 3 A11Y. Wave 3 closed the screen-reader-discovery
+// gap; this closes the keyboard-escape gap on the highest-traffic and
+// destructive modals (wp-live, wp-start, leave-family, delete-account, comments).
+// Single-trap-at-a-time invariant: opening a second trap deactivates the first.
+// Restores focus to the previously focused element on deactivate.
+let _activeFocusTrap = null;
+
+function activateFocusTrap(modalEl) {
+  if (!modalEl) return;
+  // Defensive: ensure single trap active. If a stray prior trap exists (e.g.,
+  // a close path forgot to call deactivate), tear it down first.
+  deactivateFocusTrap();
+  const focusables = modalEl.querySelectorAll(
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const previouslyFocused = document.activeElement;
+
+  const handler = (e) => {
+    if (e.key !== 'Tab') return;
+    // Re-query each Tab in case modal contents changed (form fields appear/disappear,
+    // dynamic lists render late). Cheap; modals are small DOMs.
+    const live = modalEl.querySelectorAll(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (live.length === 0) { e.preventDefault(); return; }
+    const f = live[0];
+    const l = live[live.length - 1];
+    if (e.shiftKey && document.activeElement === f) {
+      e.preventDefault();
+      l.focus();
+    } else if (!e.shiftKey && document.activeElement === l) {
+      e.preventDefault();
+      f.focus();
+    }
+  };
+
+  modalEl.addEventListener('keydown', handler);
+  _activeFocusTrap = { modalEl, handler, previouslyFocused };
+  // Move focus into the modal on open. try/catch so a programmatic .focus()
+  // throw on a hidden element never blocks modal rendering.
+  try { first.focus(); } catch (_) {}
+}
+
+function deactivateFocusTrap() {
+  if (!_activeFocusTrap) return;
+  const { modalEl, handler, previouslyFocused } = _activeFocusTrap;
+  try { modalEl.removeEventListener('keydown', handler); } catch (_) {}
+  if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+    try { previouslyFocused.focus(); } catch (_) {}
+  }
+  _activeFocusTrap = null;
+}
+
 // === Phase 19 / D-04..D-06 — Kid-mode session state ===
 // Both slots are session-only (NOT persisted to Firestore or localStorage).
 // Resets on showScreen-away-from-Tonight + couchClearAll.
@@ -3967,16 +4025,16 @@ window.signOut = async function() {
 // and delegates to it.
 window.confirmLeaveFamily = function() {
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.add('on');
+  if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
 };
 window.closeLeaveFamilyConfirm = function() {
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 window.performLeaveFamily = async function() {
   // Close the modal first so it doesn't linger during the async leave work.
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
   // Delegate to the existing leave path. We set a flag so window.leaveFamily's
   // built-in confirm() gets bypassed — it was the destructive gate we just
   // handled via the modal.
@@ -4017,7 +4075,7 @@ window.openDeleteAccountConfirm = async function() {
         }
       }
       const bg = document.getElementById('delete-account-blocker-bg');
-      if (bg) bg.classList.add('on');
+      if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
       return;
     }
   } catch (e) {
@@ -4031,17 +4089,17 @@ window.openDeleteAccountConfirm = async function() {
   const err = document.getElementById('delete-account-error');
   if (err) err.textContent = '';
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.add('on');
+  if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
 };
 
 window.closeDeleteAccountModal = function() {
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 
 window.closeDeleteAccountBlocker = function() {
   const bg = document.getElementById('delete-account-blocker-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 
 window.performDeleteAccount = async function() {
@@ -4055,7 +4113,7 @@ window.performDeleteAccount = async function() {
   if (errEl) errEl.textContent = '';
   // Close modal optimistically — match performLeaveFamily pattern (modal off before async work)
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
   try {
     const fn = httpsCallable(functions, 'requestAccountDeletion');
     const r = await fn({ confirm: 'DELETE' });
@@ -7199,7 +7257,9 @@ window.openCommentsModal = function(titleId) {
   document.getElementById('comments-modal-title').textContent = t.name;
   document.getElementById('comment-list').innerHTML = '<div class="comment-empty">Loading...</div>';
   document.getElementById('comment-input').value = '';
-  document.getElementById('comments-modal-bg').classList.add('on');
+  const _commentsBg = document.getElementById('comments-modal-bg');
+  _commentsBg.classList.add('on');
+  activateFocusTrap(_commentsBg);
   if (unsubComments) unsubComments();
   const q = query(commentsRef(titleId), orderBy('createdAt', 'asc'));
   unsubComments = onSnapshot(q, snap => {
@@ -7212,6 +7272,7 @@ window.openCommentsModal = function(titleId) {
 
 window.closeCommentsModal = function() {
   document.getElementById('comments-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   if (unsubComments) { unsubComments(); unsubComments = null; }
   commentsTitleId = null;
 };
@@ -10383,7 +10444,9 @@ window.openWatchpartyStart = function(titleId) {
   if (existing) {
     state.activeWatchpartyId = existing.id;
     renderWatchpartyLive();
-    document.getElementById('wp-live-modal-bg').classList.add('on');
+    const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+    _wpLiveBg.classList.add('on');
+    activateFocusTrap(_wpLiveBg);
     return;
   }
   wpStartTitleId = titleId;
@@ -10398,7 +10461,9 @@ window.openWatchpartyStart = function(titleId) {
     b.onclick = () => selectWpLead(lead);
   });
   updateWpStartPreview();
-  document.getElementById('wp-start-modal-bg').classList.add('on');
+  const _wpStartBg = document.getElementById('wp-start-modal-bg');
+  _wpStartBg.classList.add('on');
+  activateFocusTrap(_wpStartBg);
   // Phase 30 — render the Bring another couch in section into the freshly-opened modal.
   // At wp-create time there's no wp doc yet; pass a synthetic wp shape so render gating
   // (host-only, family-count caps, .wp-couches-list) reflects the host's family-of-one
@@ -10459,6 +10524,7 @@ function computeWpStartAt() {
 
 window.closeWatchpartyStart = function() {
   document.getElementById('wp-start-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   wpStartTitleId = null;
 };
 
@@ -10680,7 +10746,9 @@ window.scheduleSportsWatchparty = async function(eventId) {
     }
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 200);
   } catch(e) {
     qnLog('[Sports] watchparty create failed', e);
@@ -10903,7 +10971,9 @@ window.confirmGamePicker = async function() {
     }
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 200);
   } catch(e) {
     qnLog('[GamePicker] watchparty create failed', e);
@@ -11401,6 +11471,7 @@ window.confirmStartWatchparty = async function() {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
     logActivity('wp_started', { titleName: t.name });
     document.getElementById('wp-start-modal-bg').classList.remove('on');
+    deactivateFocusTrap();
     state.activeWatchpartyId = id;
 
     // Phase 11 / REFR-05 — Web Share API trigger after successful save.
@@ -11466,7 +11537,9 @@ window.confirmStartWatchparty = async function() {
     // Open the live view
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 150);
   } catch(e) { alert('Could not start watchparty: ' + e.message); }
 };
@@ -11708,7 +11781,9 @@ window.joinWatchparty = async function(wpId) {
     await updateDoc(watchpartyRef(wpId), { ...update, ...writeAttribution() });
     state.activeWatchpartyId = wpId;
     renderWatchpartyLive();
-    document.getElementById('wp-live-modal-bg').classList.add('on');
+    const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+    _wpLiveBg.classList.add('on');
+    activateFocusTrap(_wpLiveBg);
   } catch(e) { alert('Could not join: ' + e.message); }
 };
 
@@ -11983,7 +12058,9 @@ window.openWatchpartyLive = function(wpId, opts) {
     state.replayShownReactionIds = new Set();
   }
   renderWatchpartyLive();
-  document.getElementById('wp-live-modal-bg').classList.add('on');
+  const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+  _wpLiveBg.classList.add('on');
+  activateFocusTrap(_wpLiveBg);
   // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt.
   // Phase 23 — gate widened: ALSO fire for legacy wp.sportEvent watchparties
   // (created via scheduleSportsWatchparty before mode='game' was the canonical
@@ -12010,6 +12087,7 @@ window.closeWatchpartyLive = function() {
   // anything else clears state. Idempotent if no player is attached.
   teardownVideoPlayer();
   document.getElementById('wp-live-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   // Phase 11 / REFR-10 — stop any active score polling loop
   stopSportsScorePolling();
   state.activeWatchpartyId = null;
