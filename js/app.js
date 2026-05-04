@@ -10525,6 +10525,12 @@ function formatSportsEventTime(ts) {
 
 window.scheduleSportsWatchparty = async function(eventId) {
   qnLog('[Sports] schedule click', { eventId, league: sportsCurrentLeague });
+  // Phase 30 / MED-1 — cold-start guards (mirror confirmStartWatchparty).
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
   const cacheEntry = sportsGamesCache[sportsCurrentLeague];
   if (!cacheEntry) {
     qnLog('[Sports] no cache for league', sportsCurrentLeague);
@@ -10750,6 +10756,12 @@ window.selectGame = function(gameId, encodedJson) {
 window.confirmGamePicker = async function() {
   if (!_gamePickerSelected || !state.me) return;
   if (guardReadOnlyWrite()) return;
+  // Phase 30 / MED-1 — cold-start guards (mirror confirmStartWatchparty).
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
   // Phase 24 / REVIEWS M3 — Video URL field. Reads from #wp-video-url-game.
   const _videoCheck = readAndValidateVideoUrl('game');
   if (!_videoCheck.ok) return;
