@@ -11780,6 +11780,11 @@ window.openWatchpartyLive = function(wpId, opts) {
   // Phase 26 / RPLY-26-13 — mode flag set BEFORE first render so first paint is mode-correct.
   // Default 'live' preserves backward compat for all existing call sites that pass (wpId) only.
   state.activeWatchpartyMode = (opts && opts.mode === 'revisit') ? 'revisit' : 'live';
+  // Phase 26 / WR-26-04 — fresh per-wp persistent set on every revisit-open so cross-wp
+  // navigation in one session doesn't leak shown-reaction ids between archived parties.
+  if (state.activeWatchpartyMode === 'revisit') {
+    state.replayShownReactionIds = new Set();
+  }
   renderWatchpartyLive();
   document.getElementById('wp-live-modal-bg').classList.add('on');
   // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt.
