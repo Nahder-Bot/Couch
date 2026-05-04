@@ -141,9 +141,50 @@ service cloud.firestore {
     match /watchparties/{wpId} {
       allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
 
+      // CDX-1 (Phase 30 hotfix wave 2 — cross-AI peer review): the prior create rule
+      //   only required `hostUid == uid()` and `auth.uid in memberUids`. There was NO
+      //   check that the creator actually belongs to the claimed `hostFamilyCode`, no
+      //   bound on the initial `families[]` array, and no bound on
+      //   `crossFamilyMembers[]`. A signed-in attacker could call doc().set({...})
+      //   with `hostFamilyCode: 'someone-elses-code'` and `families: ['fam-A',
+      //   'fam-B', ...]` (any list they wanted) as long as their own uid was in
+      //   memberUids. The `onWatchpartyCreateTopLevel` Cloud Function then fans out
+      //   push notifications to every member of every family in `wp.families[]` —
+      //   cross-family push spam + a spoofed-watchparty injection vector against
+      //   unrelated families' members.
+      //
+      //   Tightened to the actual creation invariants enforced by addFamilyToWp's
+      //   admin-SDK fan-out path. At CREATE time:
+      //     (1) hostFamilyCode must be a string (defensive — Firestore type guard
+      //         before we deref it inside the exists() call below).
+      //     (2) families[] MUST equal [hostFamilyCode]. Cross-family expansion
+      //         happens later via the `addFamilyToWp` admin-SDK Cloud Function
+      //         (queuenight/functions/index.js), NOT at client create. The single-
+      //         element list rule mirrors how the client always creates wps in its
+      //         own family scope first.
+      //     (3) crossFamilyMembers[] MUST be empty at create. Same reasoning — the
+      //         denormalized cross-family roster is populated by addFamilyToWp's
+      //         transactional admin write, never by direct client create.
+      //     (4) The hostFamilyCode family doc must already exist (no orphan-wp
+      //         injection against not-yet-created family codes).
+      //     (5) The creator's uid must be in the host family — verified via the
+      //         existing per-user index at /users/{uid}/groups/{familyCode}, the
+      //         same surface `isMemberOfFamily()` reads. We can't reuse the helper
+      //         directly because it captures `familyCode` from the path match
+      //         (`/families/{familyCode}/...`) — at the top-level /watchparties/
+      //         path there is no familyCode wildcard, so we read it off the
+      //         incoming resource via `request.resource.data.hostFamilyCode`.
+      //
+      //   Closes CDX-1. Tests: tests/rules.test.js #30-21..25.
       allow create: if signedIn()
         && request.resource.data.hostUid == uid()
-        && request.auth.uid in request.resource.data.memberUids;
+        && request.auth.uid in request.resource.data.memberUids
+        && request.resource.data.hostFamilyCode is string
+        && request.resource.data.families == [request.resource.data.hostFamilyCode]
+        && request.resource.data.crossFamilyMembers is list
+        && request.resource.data.crossFamilyMembers.size() == 0
+        && exists(/databases/$(database)/documents/families/$(request.resource.data.hostFamilyCode))
+        && exists(/databases/$(database)/documents/users/$(uid())/groups/$(request.resource.data.hostFamilyCode));
 
       // CR-05 (Phase 30 hotfix): require attributedWrite-equivalent on every update so
       //   audit trail is preserved on top-level wps (legacy nested rule at line ~629
