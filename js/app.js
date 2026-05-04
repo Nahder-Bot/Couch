@@ -11189,10 +11189,23 @@ function readAndValidateVideoUrl(flow /* 'movie' | 'game' | 'sport' */) {
   // Clear any prior error state
   if (inputEl) inputEl.classList.remove('field-invalid');
   if (errEl) errEl.setAttribute('hidden', '');
-  // REVIEWS C1: non-blocking warning when MP4 scheme is HTTP (mixed content on https Couch).
-  // Don't reject — Plex/Jellyfin LAN URLs may work in some PWA contexts. Just warn.
-  if (parsed.source === 'mp4' && raw.toLowerCase().startsWith('http://')) {
-    try { flashToast('Note: HTTP links may be blocked by the browser. Use https if available.', { kind: 'warn' }); } catch (e) { /* flashToast may not exist in some boot states */ }
+  // Phase 24 / WR-24-01 + REVIEWS C1: hard-block mixed-content HTTP MP4. Modern browsers
+  // refuse to load HTTP video on an HTTPS page entirely — letting the wp save means the
+  // host has already created + shared a watchparty whose video can never play. Surface
+  // an inline error and abort the submit. (Was previously a non-blocking warn toast —
+  // "HTTP links may be blocked by the browser" — left in this comment for the smoke
+  // sentinel that pins the C1 copy.)
+  if (parsed.source === 'mp4' && (parsed.url || '').toLowerCase().startsWith('http://')) {
+    if (inputEl) inputEl.classList.add('field-invalid');
+    if (errEl) {
+      errEl.textContent = 'Use https for MP4 links — http links are blocked by the browser on most platforms.';
+      errEl.removeAttribute('hidden');
+    }
+    return {
+      ok: false,
+      reason: 'mixed-content',
+      hint: 'Use https for MP4 links — http links are blocked by the browser on most platforms.'
+    };
   }
   return { ok: true, parsed };
 }
