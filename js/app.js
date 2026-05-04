@@ -16511,7 +16511,16 @@ window.openTileActionSheet = function(titleId, e) {
   if (!content) return;
   const items = [];
   if (!t.watched && state.me) {
-    // 1. Watch tonight — start a watchparty immediately (highest-commitment, top of list).
+    // Quick queue toggle — first option so the most common low-friction action is fastest.
+    // Surfaces queue state on tile-tap so users can add/remove without opening the vote modal.
+    const meId = state.me.id;
+    const inQueue = !!(t.queues && t.queues[meId] != null);
+    if (inQueue) {
+      items.push(`<button class="action-sheet-item" onclick="closeActionSheet();applyVote('${titleId}','${meId}','yes')"><span class="icon">✓</span>In your queue · Tap to remove</button>`);
+    } else {
+      items.push(`<button class="action-sheet-item" onclick="closeActionSheet();applyVote('${titleId}','${meId}','yes')"><span class="icon">＋</span>Add to your queue</button>`);
+    }
+    // 1. Watch tonight — start a watchparty immediately (highest-commitment).
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openWatchpartyStart('${titleId}')"><span class="icon">🎬</span>Watch tonight</button>`);
     // 2. Schedule for later — defer to a specific time.
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openScheduleModal('${titleId}')"><span class="icon">📅</span>Schedule for later</button>`);
