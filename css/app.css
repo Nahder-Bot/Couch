@@ -23,7 +23,7 @@
      — Accessibility (WCAG-AA contrast on --bg #14110f) —
        --ink (#f5ede0) on --bg → ≥ 14:1 (passes AAA for normal text)
        --ink-warm (#c9bca8) on --bg → ≥ 8.5:1 (passes AA+AAA)
-       --ink-dim (#847868) on --bg → ≥ 4.0:1 (passes AA only for LARGE text; use sparingly)
+       --ink-dim (#928777) on --bg → ≥ 4.5:1 (passes WCAG 2.1 AA for normal text — Wave 3 hotfix G-P1-3 lifted from 4.0:1)
        --ink-faint (#5a4f43) on --bg → ~2.3:1 (DECORATIVE only — never for readable content)
 
      Verify before adding new text/background combinations with webaim.org/resources/contrastchecker. */
@@ -38,7 +38,7 @@
   /* — Color: Ink (cream/warm, never pure white) — */
   --ink:#f5ede0;
   --ink-warm:#c9bca8;
-  --ink-dim:#847868;
+  --ink-dim:#928777;
   --ink-faint:#5a4f43;
 
   /* — Color: Accent — */
