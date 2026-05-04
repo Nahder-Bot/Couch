@@ -573,7 +573,11 @@ h3{font-size:var(--t-h3)}
 .who-mini-avatars{display:flex;gap:-6px;flex:1}
 .who-mini-avatars .who-mini-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--t-meta);color:#14110f;margin-right:-6px;border:2px solid var(--bg);font-family:'Instrument Serif','Fraunces',serif}
 .who-mini-avatars .who-mini-av:last-child{margin-right:0}
-.who-mini-edit{background:transparent;border:1px solid var(--border);color:var(--ink-dim);padding:6px 12px;border-radius:var(--r-pill);font-family:inherit;font-size:var(--fs-meta);cursor:pointer}
+/* Wave 5B / Gemini P2 — tap-target lift to WCAG/Apple HIG/MD 44px minimum
+   hit area. Padding stays modest so visual size is unchanged; min-height
+   enlarges the touch target. inline-flex centers the label vertically inside
+   the taller button. */
+.who-mini-edit{background:transparent;border:1px solid var(--border);color:var(--ink-dim);padding:6px 12px;border-radius:var(--r-pill);font-family:inherit;font-size:var(--fs-meta);cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 .rating-pill{display:inline-block;font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;font-size:var(--t-micro);padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);margin-right:6px;letter-spacing:0.03em}
 .rating-pill.tier1{background:rgba(127,176,105,0.18);color:#9bc77f;border-color:transparent}
 .rating-pill.tier2{background:rgba(232,160,74,0.18);color:#e8a04a;border-color:transparent}
@@ -2344,7 +2348,9 @@ input.field-invalid{border-color:var(--bad)}
 .subprofile-row:last-child { border-bottom: none; }
 .subprofile-row .who-avatar { width: 36px; height: 36px; font-size: 13px; display: grid; place-items: center; border-radius: 50%; color: #14110f; font-weight: 700; flex-shrink: 0; }
 .subprofile-name { flex: 1; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
-.link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+/* Wave 5B / Gemini P2 — tap-target lift to 44px min hit area.
+   Visual remains compact via padding; min-height enlarges touch surface. */
+.link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .link-btn:hover { background: var(--surface-2); }
 /* === Phase 27 — Guest RSVP host controls === */
 .wp-guest-kebab{
