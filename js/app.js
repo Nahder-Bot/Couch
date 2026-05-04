@@ -12308,14 +12308,21 @@ function renderWatchpartyLive() {
       <div style="font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;">When you actually hit play, tap "Start my timer" below so your reactions line up with everyone else's.</div>
     </div>`;
   } else if (!mine) {
-    // Un-joined viewer — UNCHANGED copy. Footer's "Join late" button (js/app.js:~7654)
-    // is the single CTA for this case; do NOT introduce additional H2/body copy here
-    // (would create a redundant/conflicting action with the footer).
-    body = `<div class="wp-prelaunch">
-      <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
-      <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
-      ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
-    </div>`;
+    // Phase 26 / CR-26-02 — replay-mode entry by a non-original-participant must render
+    // the position-anchored reactions feed (D-08 dual-entry surface). Live-mode copy
+    // unchanged below.
+    if (isReplay) {
+      body = window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0);
+    } else {
+      // Un-joined viewer — UNCHANGED copy. Footer's "Join late" button (js/app.js:~7654)
+      // is the single CTA for this case; do NOT introduce additional H2/body copy here
+      // (would create a redundant/conflicting action with the footer).
+      body = `<div class="wp-prelaunch">
+        <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
+        <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
+        ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
+      </div>`;
+    }
   } else if (!mine.startedAt) {
     // Phase 7 Plan 06 (Gap #3): joined participant whose timer hasn't started yet
     // (late joiner / pre-start creator / re-joiner). Show the "Ready when you are"
