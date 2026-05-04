@@ -103,7 +103,20 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      if (self.clients.openWindow) {
+        // CR-13: validate that targetUrl resolves same-origin before opening.
+        // The push payload is attacker-controllable in principle (a hijacked VAPID
+        // key or rogue server could deliver data.url='https://evil.example/'),
+        // and openWindow on a cross-origin URL would launch an attacker page from
+        // a system notification. Strip to pathname+search+hash on same-origin and
+        // fall back to /app on anything else.
+        let safeUrl = '/app';
+        try {
+          const u = new URL(targetUrl, self.location.origin);
+          if (u.origin === self.location.origin) safeUrl = u.pathname + u.search + u.hash;
+        } catch (e) {}
+        return self.clients.openWindow(safeUrl);
+      }
     })
   );
 });
