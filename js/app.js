@@ -4525,8 +4525,12 @@ window.openRsvps = async function(wpId) {
     // Re-open is a host-only Firestore write (no CF needed). Phase 24 host-only rule
     // (Path A: hostUid match) permits any field write by the host. rsvpClosed is not
     // in the non-host-forbidden allowlist, so this is allowed.
-    const wpRef = doc(db, 'families', state.familyCode, 'watchparties', wpId);
-    await updateDoc(wpRef, { rsvpClosed: false });
+    // Phase 27 / BL-04 — top-level /watchparties/{id} path (was legacy nested
+    // families/{code}/watchparties/{id}, which post-Phase-30 doesn't get the new wp
+    // doc — every reopen silently failed and the rsvpClosed pill never cleared).
+    // Also stamp writeAttribution() so the audit trail is preserved.
+    const wpRef = watchpartyRef(wpId);
+    await updateDoc(wpRef, { rsvpClosed: false, ...writeAttribution() });
     flashToast('RSVPs reopened.', { kind: 'success' });
   } catch (e) {
     console.error('[27-open-rsvps]', e);
