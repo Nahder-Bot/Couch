@@ -10955,10 +10955,15 @@ window.postBurstReaction = async function(wpId, emoji) {
   // returns { null, 'live-stream' } per D-03 (sports replay surface filters these out, which
   // is the correct behavior — live broadcasts have no re-watchable timeline).
   const wp = state.watchparties.find(x => x.id === wpId);
+  // Phase 26 / WR-26-02 — derive caller's actual elapsedMs from myParticipation so a
+  // burst reaction posted on a non-live, non-replay wp with stale broadcast lands on
+  // an accurate elapsed-time anchor instead of always 0ms.
+  const mineLocal = wp ? myParticipation(wp) : null;
+  const elapsedMs = mineLocal ? computeElapsed(mineLocal, wp) : 0;
   const { runtimePositionMs, runtimeSource } = derivePositionForReaction({
     wp: wp || {},
-    mine: null,
-    elapsedMs: 0,
+    mine: mineLocal,
+    elapsedMs,
     isReplay: state.activeWatchpartyMode === 'revisit',
     localReplayPositionMs: state.replayLocalPositionMs
   });
