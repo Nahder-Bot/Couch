@@ -53,9 +53,31 @@
       return;
     }
 
-    // v1: skip a read-only preview CF — let rsvpSubmit validate the token on tap.
-    // Render a minimal generic invite card so the form is actionable immediately.
-    renderInviteForm({ titleName: '', startTime: '', hostName: '', poster: '' });
+    // LO-01: Gate the form on an initial rsvpStatus call so cold loads of
+    // expired/closed/revoked invites land on the right empty-state instead
+    // of flashing a submittable form that will only fail on tap. We mirror
+    // the 30-second poll's branch ordering (revoked → closed → expired →
+    // form). Network or transient errors fall through to the form so users
+    // on flaky connections still get an actionable surface — rsvpSubmit
+    // re-validates server-side anyway.
+    (async function gateInitialRender() {
+      try {
+        var r = await fetch(CF_BASE + '/rsvpStatus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { token: token, guestId: guestId } })
+        });
+        var d = await r.json();
+        if (d && d.result) {
+          if (d.result.revoked) { renderRevoked(); return; }
+          if (d.result.closed)  { renderClosed();  return; }
+          if (d.result.expired) { renderExpired(); return; }
+        }
+      } catch (e) { /* fall through to form on network error */ }
+      // v1: skip a read-only preview CF — let rsvpSubmit validate the token on tap.
+      // Render a minimal generic invite card so the form is actionable immediately.
+      renderInviteForm({ titleName: '', startTime: '', hostName: '', poster: '' });
+    })();
 
     function renderInviteForm(invite) {
       contentEl.innerHTML =
