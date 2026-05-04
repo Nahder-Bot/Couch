@@ -3253,6 +3253,20 @@ async function onAuthStateChangedCouch(user) {
     if (state.unsubMembers) { try { state.unsubMembers(); } catch(e) {} state.unsubMembers = null; }
     if (state.unsubTitles) { try { state.unsubTitles(); } catch(e) {} state.unsubTitles = null; }
     if (state.unsubIntents) { try { state.unsubIntents(); } catch(e) {} state.unsubIntents = null; }
+    // CR-07 — these subscriptions previously leaked across user changes and would
+    // continue firing snapshot callbacks for the prior user's family until tab close.
+    if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
+    if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
+    if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+    // CR-04 — module-scoped activity feed + lists subscriptions also leaked. These
+    // are module-scope lets (unsubActivity at ~8894, unsubLists at ~16552) so we
+    // tear them down + clear their backing arrays here.
+    if (typeof unsubActivity === 'function') { try { unsubActivity(); } catch(e) {} unsubActivity = null; }
+    if (typeof unsubLists === 'function')    { try { unsubLists();    } catch(e) {} unsubLists    = null; }
+    recentActivity = [];
+    allLists = [];
+    state.watchparties = [];
+    state.session = null;
     state.intents = [];
     state.me = null;
     state.familyCode = null;
