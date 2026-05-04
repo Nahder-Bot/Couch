@@ -53,21 +53,73 @@ COUCH_DEPLOY_ROOT="$(cd "${COUCH_DEPLOY_ROOT_RAW}" && pwd)"
 
 cd "$REPO_ROOT"
 
-# 0. Pitfall 7 -- abort on dirty tree unless --allow-dirty
+# 0. Flag parsing -- accepts --allow-dirty and --sync-rules in any order, before <tag>
 ALLOW_DIRTY=0
-if [ "${1:-}" = "--allow-dirty" ]; then
-  ALLOW_DIRTY=1
-  shift
-fi
+SYNC_RULES=0
+while true; do
+  case "${1:-}" in
+    --allow-dirty) ALLOW_DIRTY=1; shift;;
+    --sync-rules)  SYNC_RULES=1;  shift;;
+    *) break;;
+  esac
+done
+
+# Pitfall 7 -- abort on dirty tree unless --allow-dirty
 if [ "$ALLOW_DIRTY" -eq 0 ]; then
   if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     echo "ERROR: working tree is dirty. Commit or stash before deploy.sh." >&2
-    echo "       (Or pass --allow-dirty as the first argument to skip this check.)" >&2
+    echo "       (Or pass --allow-dirty before <tag> to skip this check.)" >&2
     exit 1
   fi
 fi
 
 TAG="${1:-}"
+
+# 0.6. Wave 4 / CR-12 -- firestore.rules mirror sync gate.
+#      Source-of-truth lives in this repo at firestore.rules; queuenight repo holds
+#      the deploy mirror because Firebase rules are deployed from there. Pre-Wave-4,
+#      drift between the two was silent: today's deploy reported "released rules"
+#      while shipping a stale mirror, leaving CR-05 / CR-06 / CDX-1 / CDX-4
+#      protections unenforced for ~24h despite a successful-looking deploy. This
+#      block fails the deploy when the two files diverge, OR (with --sync-rules)
+#      mirrors + commits the new file in queuenight + runs the rules deploy from
+#      there before continuing the hosting deploy.
+REPO_RULES="${REPO_ROOT}/firestore.rules"
+MIRROR_RULES="${COUCH_DEPLOY_ROOT}/firestore.rules"
+if [ -f "$REPO_RULES" ] && [ -f "$MIRROR_RULES" ]; then
+  if ! diff -q "$REPO_RULES" "$MIRROR_RULES" >/dev/null 2>&1; then
+    if [ "$SYNC_RULES" -eq 1 ]; then
+      echo "Rules-mirror drift detected — mirroring couch/firestore.rules -> ${MIRROR_RULES} ..."
+      cp "$REPO_RULES" "$MIRROR_RULES"
+      (cd "$COUCH_DEPLOY_ROOT" && git add firestore.rules && \
+        git commit -m "chore(rules): auto-mirror couch firestore.rules ($(date -u +%Y-%m-%dT%H:%M:%SZ))" >/dev/null) \
+        || { echo "ERROR: failed to commit mirror in $COUCH_DEPLOY_ROOT" >&2; exit 1; }
+      echo "Mirror updated. Deploying firestore.rules from $COUCH_DEPLOY_ROOT ..."
+      (cd "$COUCH_DEPLOY_ROOT" && firebase deploy --only firestore:rules --project queuenight-84044) \
+        || { echo "ERROR: rules deploy failed" >&2; exit 1; }
+      echo "Rules deploy complete. Continuing with hosting deploy..."
+    else
+      echo "ERROR: couch/firestore.rules differs from ${MIRROR_RULES}" >&2
+      echo "       The source-of-truth (this repo) is ahead of the deploy mirror." >&2
+      echo "       Diff (mirror -> source-of-truth):" >&2
+      diff -u "$MIRROR_RULES" "$REPO_RULES" | head -40 | sed 's/^/         /' >&2
+      echo "" >&2
+      echo "       Re-run with --sync-rules to auto-mirror + deploy rules + continue:" >&2
+      echo "         bash scripts/deploy.sh --sync-rules ${TAG:-<tag>}" >&2
+      echo "" >&2
+      echo "       OR manually mirror, commit, deploy rules, then re-run this script:" >&2
+      echo "         cp '$REPO_RULES' '$MIRROR_RULES'" >&2
+      echo "         (cd '$COUCH_DEPLOY_ROOT' && git add firestore.rules && \\" >&2
+      echo "          git commit -m 'chore(rules): mirror couch')" >&2
+      echo "         (cd '$COUCH_DEPLOY_ROOT' && firebase deploy --only firestore:rules --project queuenight-84044)" >&2
+      echo "" >&2
+      echo "       (Wave 4 / CR-12 — closes the v44 deploy-mirror gap. See RUNBOOK §H.)" >&2
+      exit 1
+    fi
+  else
+    echo "Rules-mirror in sync."
+  fi
+fi
 
 # 0.5. Pre-flight: ensure port 8080 (Firestore emulator) is free.
 # Without this, the rules-tests step fails opaquely with "Could not start
