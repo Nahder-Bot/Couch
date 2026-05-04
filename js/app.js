@@ -10545,6 +10545,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     titlePoster: '',
     hostId: state.me.id,
     hostName: state.me.name,
+    hostUid: myUid,  // Phase 30 / CR-09 — stamp host uid on legacy sports flow (was missing — Path A rejected host writes)
     creatorTimeZone: creatorTimeZone || null,  // Phase 7 Plan 5: CF renders startAt in creator's tz
     startAt: game.startTime,
     createdAt: Date.now(),
@@ -10582,7 +10583,13 @@ window.scheduleSportsWatchparty = async function(eventId) {
     // === Phase 30 — Couch groups fields ===
     hostFamilyCode: state.familyCode,
     families: [state.familyCode],
-    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race where
+    // state.members hasn't synced yet still produces a non-empty memberUids array (rules
+    // require request.auth.uid in resource.data.memberUids on create).
+    memberUids: Array.from(new Set([
+      myUid,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
     crossFamilyMembers: []
   };
   try {
@@ -10781,7 +10788,13 @@ window.confirmGamePicker = async function() {
     // === Phase 30 — Couch groups fields ===
     hostFamilyCode: state.familyCode,
     families: [state.familyCode],
-    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+    // (state.members not yet synced) still satisfies the create rule that requires
+    // request.auth.uid in resource.data.memberUids.
+    memberUids: Array.from(new Set([
+      (state.auth && state.auth.uid) || null,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
     crossFamilyMembers: []
   };
   try {
@@ -11239,6 +11252,14 @@ function readAndValidateVideoUrl(flow /* 'movie' | 'game' | 'sport' */) {
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
+  // Phase 30 / MED-1 — user-facing cold-start guards. CR-09 already includes the host's
+  // uid defensively in memberUids; this surface tells the user why the create deferred
+  // instead of letting it silently no-op.
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
   const t = state.titles.find(x => x.id === wpStartTitleId);
   if (!t) return;
   const startAt = computeWpStartAt();
@@ -11285,7 +11306,13 @@ window.confirmStartWatchparty = async function() {
     // === Phase 30 — Couch groups fields ===
     hostFamilyCode: state.familyCode,
     families: [state.familyCode],
-    memberUids: (state.members || []).map(m => m && m.uid).filter(Boolean),
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+    // (state.members not yet synced) still satisfies the create rule that requires
+    // request.auth.uid in resource.data.memberUids.
+    memberUids: Array.from(new Set([
+      (state.auth && state.auth.uid) || null,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
     crossFamilyMembers: []
   };
   try {
