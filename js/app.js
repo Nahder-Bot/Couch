@@ -17905,28 +17905,48 @@ window.onFlowAConvert = async function() {
   const ins = (intent.expectedCouchMemberIds || []).filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'in').length;
   if (ins < 1) { flashToast('Need ≥1 confirmed in', { kind: 'warn' }); return; }
   try {
-    const wpRef = await addDoc(watchpartiesRef(), {
+    // Phase 30 hotfix-wave-2 / CDX-2 — Flow A rank-pick → wp conversion targets the
+    // top-level /watchparties/{wpId} collection (the legacy watchpartiesRef() helper
+    // pointed at the per-family nested path and was removed during the Phase 30
+    // migration). Auto-id via doc(collection(...)).id, then setDoc on watchpartyRef(id).
+    // Stamp the same Phase 30 fields (hostFamilyCode / families / memberUids /
+    // crossFamilyMembers) as the canonical wp create sites at lines ~10630, ~10841,
+    // ~11359 so collectionGroup subscriptions and the top-level rules block work.
+    const id = doc(collection(db, 'watchparties')).id;
+    const myUid = (state.auth && state.auth.uid) || null;
+    await setDoc(watchpartyRef(id), {
       status: 'scheduled',
       hostId: state.me.id,
-      hostUid: (state.auth && state.auth.uid) || null,
+      hostUid: myUid,
       hostName: state.me.name || null,
       titleId: intent.titleId,
       // 5min runway lets the lobby flow (Phase 11-05) take over and gather final RSVPs.
       startAt: Date.now() + 5 * 60 * 1000,
       createdAt: Date.now(),
       convertedFromIntentId: intent.id,
+      // === Phase 30 — Couch groups fields ===
+      hostFamilyCode: state.familyCode,
+      families: [state.familyCode],
+      // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+      // (state.members not yet synced) still satisfies the create rule that requires
+      // request.auth.uid in resource.data.memberUids.
+      memberUids: Array.from(new Set([
+        myUid,
+        ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+      ])).filter(Boolean),
+      crossFamilyMembers: [],
       ...writeAttribution()
     });
     await updateDoc(intentRef(intentId), {
       status: 'converted',
-      convertedToWpId: wpRef.id,
-      convertedTo: wpRef.id, // back-compat alias for any Phase 8 consumers
+      convertedToWpId: id,
+      convertedTo: id, // back-compat alias for any Phase 8 consumers
       ...writeAttribution()
     });
     flashToast('Converted to watchparty — heading there', { kind: 'success' });
     state.flowAOpenIntentId = null;
     closeFlowAPicker();
-    if (typeof openWatchpartyLive === 'function') openWatchpartyLive(wpRef.id);
+    if (typeof openWatchpartyLive === 'function') openWatchpartyLive(id);
   } catch (e) {
     console.error('[flowA] convert failed', e);
     flashToast('Convert failed — try again', { kind: 'warn' });
