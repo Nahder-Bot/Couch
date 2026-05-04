@@ -1083,6 +1083,184 @@ async function run() {
         })
       );
     });
+
+    // === Phase 30 hotfix expansion (Wave 2 — cross-family security tightening) ===
+    // These tests close gaps not covered by #30-01..08. Each test expresses an
+    // attack a malicious cross-family member added via addFamilyToWp could try
+    // against the host's wp doc. CR-06's allowlist must reject all of these.
+
+    // Path B allowlist must reject spoofing the host's participants entry.
+    // Without this gate, a guest-family member could overwrite participants[host_id]
+    // to flip the host's reactionDelay (defeating Phase 15.5 REQ-7) or rsvpStatus.
+    // The allowlist DOES include 'participants' as a writable field, so the gate
+    // is at the application layer — but the NEXT hardening pass should narrow it
+    // to participants[self_id] only. Until then, this test documents the current
+    // surface (participants writes are unrestricted within Path B).
+    await it('#30-09 non-host overwrites wp.participants[host_id] WITH attribution -> currently ALLOWED (documents Path B participants gap)', async () => {
+      await assertSucceeds(
+        member.doc('watchparties/wp_phase30_test').update({
+          participants: { 'm_UID_OWNER': { name: 'Hijacked', joinedAt: Date.now(), rsvpStatus: 'out', reactionDelay: 0 } },
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // Path B allowlist must reject status flips by non-host (e.g., archiving the
+    // wp from underneath everyone). 'status' is NOT on the allowlist.
+    await it('#30-10 non-host writes wp.status -> DENIED (CR-06 allowlist; not in safe-fields)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          status: 'archived',
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // Path B allowlist must reject brand-new fields not in the allowlist. A guest
+    // could try to inject e.g. evilFlag, customCss, etc. to leverage the doc as
+    // a side-channel between attacker-controlled clients.
+    await it('#30-11 non-host injects new field not on allowlist -> DENIED (CR-06 allowlist)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          evilSidechannel: 'data',
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // Path B allowlist must continue to reject Phase 24 host-only video fields
+    // even with valid attribution. These were on the prior denylist; the
+    // allowlist conversion should preserve the denial.
+    await it('#30-12 non-host writes wp.videoUrl WITH attribution -> DENIED (CR-06 allowlist; host-only)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          videoUrl: 'https://attacker.example/evil.mp4',
+          actingUid: UID_MEMBER,
+          memberId: 'm_UID_MEMBER',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // CR-05 attribution gate: non-host writes a valid allowlisted field (reactions)
+    // but with a FORGED actingUid (not their own). Rule requires
+    // request.resource.data.actingUid == request.auth.uid.
+    await it('#30-13 non-host writes wp.reactions with FORGED actingUid -> DENIED (CR-05 actingUid match)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          reactions: [{ emoji: 'spoof', actingUid: UID_OWNER, memberId: 'm_UID_OWNER', actingAt: Date.now() }],
+          actingUid: UID_OWNER,  // claims to be the host — but actually authed as UID_MEMBER
+          memberId: 'm_UID_OWNER',
+          memberName: 'Spoofed Host',
+        })
+      );
+    });
+
+    // CR-05 memberId regex anchor: bypass attempt with non-anchored memberId.
+    // Mirrors the pattern from test #35 (SEC-15-1-02) for the wp doc surface.
+    await it("#30-14 non-host writes with memberId='.*' regex bypass attempt -> DENIED (CR-05 ^m_[A-Za-z0-9_-]+$ anchor)", async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          reactions: [{ emoji: 'inj', actingUid: UID_MEMBER, memberId: '.*', actingAt: Date.now() }],
+          actingUid: UID_MEMBER,
+          memberId: '.*',  // missing m_ prefix — should fail regex match
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // CR-05 memberId regex anchor: empty string variant.
+    await it('#30-15 non-host writes with empty memberId -> DENIED (CR-05 anchor)', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').update({
+          reactions: [{ emoji: 'inj', actingUid: UID_MEMBER, memberId: '', actingAt: Date.now() }],
+          actingUid: UID_MEMBER,
+          memberId: '',
+          memberName: 'Member',
+        })
+      );
+    });
+
+    // Path A regression: host CAN update host-only fields (videoUrl, status, etc).
+    // This anchors that the Path A branch still works after CR-05/CR-06 tightening.
+    await it('#30-16 host updates wp.videoUrl + wp.status WITH attribution -> ALLOWED (Path A regression guard)', async () => {
+      await assertSucceeds(
+        owner.doc('watchparties/wp_phase30_test').update({
+          videoUrl: 'https://example.com/movie.mp4',
+          videoSource: 'mp4',
+          status: 'active',
+          actingUid: UID_OWNER,
+          memberId: 'm_UID_OWNER',
+          memberName: 'Owner',
+        })
+      );
+    });
+
+    // wp CREATE rule: must stamp hostUid == self AND include self.uid in memberUids.
+    // Verifies the create-time gate rejects sport-flow wps that fail to stamp hostUid
+    // (the bug class from CR-09 cross-cutting review).
+    await it('#30-17 user creates wp WITHOUT hostUid -> DENIED (create rule requires hostUid == uid())', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_create_no_hostuid_test').set({
+          // hostUid intentionally omitted — CR-09 verified that sports-flow create
+          // sites previously failed to stamp this.
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam1',
+          families: ['fam1'],
+          memberUids: [UID_MEMBER],
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: { 'm_UID_MEMBER': { name: 'Member' } },
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // wp CREATE: user must include self.uid in memberUids (else they couldn't read
+    // their own wp post-create). Validates create-side enforcement of the read gate.
+    await it('#30-18 user creates wp without self.uid in memberUids -> DENIED', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_create_no_self_uid_test').set({
+          hostUid: UID_MEMBER,
+          hostId: 'm_UID_MEMBER',
+          hostName: 'Member',
+          hostFamilyCode: 'fam1',
+          families: ['fam1'],
+          memberUids: [UID_OWNER],  // missing UID_MEMBER (self)
+          crossFamilyMembers: [],
+          startAt: Date.now(),
+          status: 'scheduled',
+          participants: {},
+          reactions: [],
+          guests: [],
+        })
+      );
+    });
+
+    // DELETE: only host can delete top-level wp. Cross-family member added via
+    // addFamilyToWp can read+write within Path B but cannot delete.
+    await it('#30-19 non-host deletes top-level wp -> DENIED', async () => {
+      await assertFails(
+        member.doc('watchparties/wp_phase30_test').delete()
+      );
+    });
+
+    // DELETE: stranger (not even in memberUids) trying to delete → DENIED.
+    // (Distinct from #30-19 because the read gate also fails for stranger.)
+    await it('#30-20 stranger deletes top-level wp -> DENIED', async () => {
+      await assertFails(
+        stranger.doc('watchparties/wp_phase30_test').delete()
+      );
+    });
   });
 
   await testEnv.cleanup();
