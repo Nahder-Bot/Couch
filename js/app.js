@@ -3754,7 +3754,11 @@ window.submitGuestRedeem = async function() {
       }, { merge: true });
     } catch(e) {}
 
-    flashToast('Welcome to the couch', { kind: 'success' });
+    // G-P1-4 — warmer guest welcome. Owner/family name isn't surfaced in the
+    // unauth preview (T-09-07b-02), so we lean on warm-cinematic restraint with
+    // the guest's own name. "Pull up a seat" is short, evocative, on-voice.
+    const _guestFirst = String(d.memberName || guestName || '').split(/\s+/)[0];
+    flashToast(_guestFirst ? `Pull up a seat, ${_guestFirst}. The couch is waiting.` : 'Pull up a seat. The couch is waiting.', { kind: 'success' });
     haptic('success');
     // Defer to the normal auth-routing path so watchers subscribe and Tonight paints
     try { await _bootIntoGroup(d.familyCode); } catch(e) { console.error('[invite-redeem] bootIntoGroup', e); }
