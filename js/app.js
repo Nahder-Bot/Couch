@@ -4959,6 +4959,11 @@ function startSync() {
       state.watchparties.forEach(wp => {
         if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
           if (!state.auth && !(state.me && state.me.id)) return;
+          // Phase 30 / MED-3 — only the host fires the archive flip. Was: every member
+          // raced to write status:'archived' on every snapshot tick (N writes per stale
+          // wp per snapshot per online client). Other clients passively observe the
+          // host's flip via the next snapshot.
+          if (!state.me || wp.hostId !== state.me.id) return;
           try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
         }
       });
