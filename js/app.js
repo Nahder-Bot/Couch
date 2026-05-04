@@ -3088,10 +3088,13 @@ function getScrubberDurationMs(wp) {
   const positions = (wp.reactions || [])
     .map(r => r.runtimePositionMs)
     .filter(p => typeof p === 'number' && p > 0);
-  if (positions.length > 0) {
-    return Math.max(...positions) + 30000;
-  }
-  return 60 * 60 * 1000;
+  // Phase 26 / WR-26-03 — safe reduce avoids stack-overflow on very large reaction arrays
+  // (Math.max(...positions) blows up around ~125k entries). 4h floor (was 60min) covers
+  // long-form content (3h movies / TV episodes) when TMDB metadata is missing AND no
+  // reactions have been posted yet — the user can still scrub through the whole runtime.
+  const maxPos = positions.reduce((m, p) => p > m ? p : m, 0);
+  if (maxPos > 0) return maxPos + 30000;
+  return 4 * 60 * 60 * 1000; // 4h floor for missing TMDB metadata
 }
 
 // ===== Group mode helpers (Family / Crew / Duo) =====
