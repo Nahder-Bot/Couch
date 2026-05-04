@@ -12857,9 +12857,14 @@ function renderParticipantTimerStrip(wp) {
       ? `${escapeHtml(rawName)} <span class="family-suffix">(${escapeHtml(familyDisplayName)})</span>`
       : escapeHtml(rawName);
     const initial = (rawName || '?')[0].toUpperCase();
-    const color = m.color || '#888';
+    // Phase 30 / LOW-1 — m.color is stamped by addFamilyToWp from a foreign family's
+    // member doc and reaches a CSS context. escapeHtml alone leaves CSS-injection
+    // (tracking pixels via background-image:url(...)) viable. Validate against a
+    // strict hex/rgb pattern; fall back to neutral grey on anything weirder.
+    const rawColor = m.color || '';
+    const safeColor = /^#[0-9a-f]{3,8}$|^rgb/i.test(rawColor) ? rawColor : '#888';
     return `<div class="wp-participant-chip cross-family" data-member-id="${escapeHtml(m.memberId || '')}" role="listitem">
-      <div class="wp-participant-av" style="background:${escapeHtml(color)};" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-av" style="background:${escapeHtml(safeColor)};" aria-hidden="true">${escapeHtml(initial)}</div>
       <div class="wp-participant-info">
         <div class="wp-participant-name">${displayName}</div>
         <div class="wp-participant-time" data-role="pt-time">Joined</div>
