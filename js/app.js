@@ -2950,17 +2950,17 @@ function replayableReactionCount(wp) {
 // first-week-after-deploy framing — count is 0 for existing families on deploy day
 // because D-11 + D-10 combination filters out all pre-Phase-26 archived parties.
 function allReplayableArchivedCount(allWatchparties) {
-  const list = Array.isArray(allWatchparties) ? allWatchparties : [];
-  let n = 0;
-  for (const wp of list) {
-    if (!wp) continue;
-    // Match the same predicate logic as renderPastParties' filter for consistency.
-    const isArchived = wp.status === 'archived';
-    if (!isArchived) continue;
-    if (wp.status === 'cancelled') continue;
-    if (replayableReactionCount(wp) >= 1) n++;
-  }
-  return n;
+  // Phase 26 / WR-26-01 — reuse the same source-of-truth filter as archivedWatchparties()
+  // + renderPastParties so the Tonight inline-link count never diverges from the modal
+  // contents (a wp with status==='active' but startAt older than WP_ARCHIVE_MS shows up
+  // in the modal but used to be missed by the count helper).
+  const archived = (Array.isArray(allWatchparties) && allWatchparties !== state.watchparties)
+    ? allWatchparties.filter(wp => wp && (wp.status === 'archived' || (Date.now() - wp.startAt) >= WP_ARCHIVE_MS))
+    : archivedWatchparties();
+  return archived
+    .filter(wp => wp.status !== 'cancelled')
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .length;
 }
 function wpForTitle(titleId) { return activeWatchparties().find(wp => wp.titleId === titleId && wp.status !== 'cancelled'); }
 function myParticipation(wp) {
