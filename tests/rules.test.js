@@ -1410,6 +1410,134 @@ async function run() {
     });
   });
 
+  // === Phase 28 — Pick'em rules ===
+  // Covers /families/{code}/picks (D-04 lock + REVIEWS HIGH-1 state-required +
+  // REVIEWS HIGH-4 pickType allowlist + REVIEWS HIGH-9 affectedKeys allowlist),
+  // /families/{code}/leaderboards (CF-only writes), and /picks_reminders
+  // (top-level CF-only collection — admin SDK bypasses).
+  // 10 it() cases per REVIEWS Amendment 9 / MEDIUM-8 (expanded from 4 to 10).
+  // Reuses fam1 + UID_MEMBER / m_UID_MEMBER seeded in seed().
+  await describe('Phase 28 Pick\'em rules', async () => {
+    const FUTURE = () => Date.now() + 60 * 60 * 1000;   // 1h from now
+    const PAST   = () => Date.now() - 60 * 60 * 1000;   // 1h ago
+    const validPick = (overrides = {}) => Object.assign({
+      memberId: 'm_UID_MEMBER',
+      gameId: 'g_test',
+      leagueKey: 'nba',
+      strSeason: '2025-2026',
+      pickType: 'team_winner',
+      selection: { winningTeam: 'home' },
+      gameStartTime: FUTURE(),
+      state: 'pending',
+      pointsAwarded: 0,
+      settledAt: null,
+      tiebreakerActual: null,
+      actingUid: UID_MEMBER,
+      memberName: 'Member'
+    }, overrides);
+
+    // PICK-28-09 + PICK-28-10: D-04 lock — member can create pick BEFORE gameStartTime.
+    await it('#28-01 member create pick before lock -> ALLOWED', async () => {
+      await assertSucceeds(
+        member.doc('families/fam1/picks/pick_test_28_01').set(validPick({ gameId: 'g_test_01' }))
+      );
+    });
+
+    // PICK-28-10: D-04 lock — member CANNOT create pick AFTER gameStartTime has passed.
+    await it('#28-02 member create pick after lock -> DENIED', async () => {
+      await assertFails(
+        member.doc('families/fam1/picks/pick_test_28_02').set(validPick({ gameId: 'g_test_02', gameStartTime: PAST() }))
+      );
+    });
+
+    // PICK-28-09: CF-only field tampering — member CANNOT update state from 'pending'
+    // to 'settled'. The HIGH-9 affectedKeys allowlist denies the update because
+    // 'state' + 'pointsAwarded' are not in the mutable set.
+    await it('#28-03 member update CF-only state field -> DENIED', async () => {
+      const docRef = member.doc('families/fam1/picks/pick_test_28_03');
+      await docRef.set(validPick({ gameId: 'g_test_03' }));
+      await assertFails(docRef.update({
+        state: 'settled', pointsAwarded: 1,
+        actingUid: UID_MEMBER, memberId: 'm_UID_MEMBER', memberName: 'Member'
+      }));
+    });
+
+    // PICK-28-23: picks_reminders top-level — clients have ZERO access (read).
+    await it('#28-04 client read picks_reminders -> DENIED', async () => {
+      await assertFails(member.doc('picks_reminders/nba_g_test_04_m_UID_MEMBER').get());
+    });
+
+    // === REVIEWS Amendment 9 / MEDIUM-8 — 6 NEW tests (#28-05..#28-10) ===
+
+    // PICK-28-36 (REVIEWS Amendment 6 / HIGH-1): create without state field -> DENIED.
+    // The CREATE rule REQUIRES state == 'pending' explicitly — the previous omission
+    // branch is removed.
+    await it('#28-05 member create without state field -> DENIED (REVIEWS HIGH-1)', async () => {
+      const noState = validPick({ gameId: 'g_test_05' });
+      delete noState.state;
+      await assertFails(
+        member.doc('families/fam1/picks/pick_test_28_05').set(noState)
+      );
+    });
+
+    // PICK-28-38 (REVIEWS Amendment 8 / HIGH-4): create with pickType=ufc_winner_method
+    // -> DENIED. CREATE rule constrains pickType to 3-value allowlist; UFC dropped
+    // per D-17 update 2.
+    await it('#28-06 member create with pickType=ufc_winner_method -> DENIED (REVIEWS HIGH-4)', async () => {
+      await assertFails(
+        member.doc('families/fam1/picks/pick_test_28_06').set(validPick({
+          gameId: 'g_test_06',
+          leagueKey: 'ufc',
+          pickType: 'ufc_winner_method',
+          selection: { winningFighter: 'fighter_a', method: 'KO' }
+        }))
+      );
+    });
+
+    // PICK-28-37 (REVIEWS Amendment 7 / HIGH-9): update gameStartTime -> DENIED.
+    // The affectedKeys allowlist does NOT include gameStartTime — it's immutable
+    // post-create (extending the lock by client write would defeat D-04).
+    await it('#28-07 member update gameStartTime -> DENIED (REVIEWS HIGH-9 allowlist)', async () => {
+      const docRef = member.doc('families/fam1/picks/pick_test_28_07');
+      await docRef.set(validPick({ gameId: 'g_test_07' }));
+      await assertFails(docRef.update({
+        gameStartTime: FUTURE() + 24 * 60 * 60 * 1000,  // push 24h further
+        actingUid: UID_MEMBER, memberId: 'm_UID_MEMBER', memberName: 'Member'
+      }));
+    });
+
+    // PICK-28-37 (REVIEWS Amendment 7 / HIGH-9): update pickType -> DENIED.
+    // pickType is also immutable post-create (the discriminator drives settlement
+    // routing; mutating it would cross-wire scoring branches).
+    await it('#28-08 member update pickType -> DENIED (REVIEWS HIGH-9 allowlist)', async () => {
+      const docRef = member.doc('families/fam1/picks/pick_test_28_08');
+      await docRef.set(validPick({ gameId: 'g_test_08' }));
+      await assertFails(docRef.update({
+        pickType: 'f1_podium',
+        selection: { p1: 'X', p2: 'Y', p3: 'Z' },
+        actingUid: UID_MEMBER, memberId: 'm_UID_MEMBER', memberName: 'Member'
+      }));
+    });
+
+    // PICK-28-11: client write to leaderboards -> DENIED.
+    // gameResultsTick writes via admin SDK; clients can read but never write.
+    await it('#28-09 client write to leaderboards -> DENIED', async () => {
+      await assertFails(member.doc('families/fam1/leaderboards/nba_2025-2026').set({
+        leagueKey: 'nba', strSeason: '2025-2026',
+        members: { m_UID_MEMBER: { pointsTotal: 999 } }
+      }));
+    });
+
+    // PICK-28-23: client write to picks_reminders -> DENIED.
+    // pickReminderTick writes via admin SDK; clients can never touch this collection.
+    await it('#28-10 client write to picks_reminders -> DENIED', async () => {
+      await assertFails(member.doc('picks_reminders/nba_g_test_10_m_UID_MEMBER').set({
+        leagueKey: 'nba', gameId: 'g_test_10', memberId: 'm_UID_MEMBER',
+        familyCode: 'fam1', sentAt: Date.now()
+      }));
+    });
+  });
+
   await testEnv.cleanup();
 
   console.log(`\n${passed} passing, ${failed} failing`);

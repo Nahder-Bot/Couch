@@ -293,7 +293,38 @@ void QN_FUNCTIONS;
       grt, '/results/');
   }
 
-  // === Group 7: Floor meta-assertion (locked by Plan 28-06) ===
+  // === Group 7 — Firestore rules + rules-tests sentinels
+  //              (PICK-28-09/10/11/23/24/36/37/38) ===
+  // Production-code grep that asserts the rule literals required by REVIEWS
+  // Amendments 6/7/8/9 landed verbatim in firestore.rules + tests/rules.test.js.
+  // 10 assertions covering all 3 new rule blocks + the 10 Phase 28 rules-tests.
+  {
+    const rules = readIfExists(path.join(COUCH_ROOT, 'firestore.rules'));
+    const rulesTest = readIfExists(path.join(COUCH_ROOT, 'tests', 'rules.test.js'));
+
+    eqContains('7.A firestore.rules has /picks/{pickId} block with gameStartTime CREATE lock',
+      rules, 'request.time.toMillis() < request.resource.data.gameStartTime');
+    eqContains('7.B firestore.rules picks UPDATE rule has lock check (resource.data.gameStartTime)',
+      rules, 'request.time.toMillis() < resource.data.gameStartTime');
+    eqContains('7.C firestore.rules picks CREATE REQUIRES state == \'pending\' (REVIEWS HIGH-1)',
+      rules, "request.resource.data.state == 'pending'");
+    eqContains('7.D firestore.rules picks CREATE constrains pickType to 3-value allowlist (REVIEWS HIGH-4)',
+      rules, "request.resource.data.pickType in ['team_winner', 'team_winner_or_draw', 'f1_podium']");
+    eqContains('7.E firestore.rules picks UPDATE uses affectedKeys hasOnly allowlist (REVIEWS HIGH-9)',
+      rules, 'affectedKeys().hasOnly(');
+    eqContains('7.F firestore.rules picks UPDATE allowlist includes selection',
+      rules, "'selection'");
+    eqContains('7.G firestore.rules picks UPDATE allowlist includes tiebreakerTotal',
+      rules, "'tiebreakerTotal'");
+    eqContains('7.H firestore.rules has /picks_reminders/{reminderId} top-level CF-only block',
+      rules, 'match /picks_reminders/{reminderId}');
+    eqContains('7.I rules.test.js has Phase 28 describe block',
+      rulesTest, "describe('Phase 28 Pick\\'em rules'");
+    eqContains('7.J rules.test.js Phase 28 has all 10 cases (#28-10 = last case anchor)',
+      rulesTest, '#28-10');
+  }
+
+  // === Group 8: Floor meta-assertion (locked by Plan 28-06) ===
   // Wave 1 placeholder — will tighten to FLOOR=13 in Plan 28-06 after
   // production-code sentinels land in Plans 02-05.
   {
