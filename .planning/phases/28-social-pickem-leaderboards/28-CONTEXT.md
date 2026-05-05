@@ -2,8 +2,8 @@
 phase: 28-social-pickem-leaderboards
 type: context
 created: 2026-05-02
-updated: 2026-05-02
-status: paused-pending-patreon-spike
+updated: 2026-05-04
+status: paused-pending-api-sports-spike (D-17 superseded — see D-17 update 2026-05-04)
 authored_via: /gsd-discuss-phase 28
 gray_areas_discussed: 4
 decisions_locked: 17
@@ -15,7 +15,7 @@ decisions_locked: 17
 
 Add a pre-game prediction surface (winner-only picks across all 16 leagues from `js/sports-feed.js`) on top of the existing sports watchparty primitive, plus a per-family per-league per-season leaderboard that tracks pick accuracy. The pick'em data model is the single source of truth; the leaderboard is a derived view of it (Phase 28 explicitly merges old Phase 28 + 29 into one deploy because of this — see `seeds/v2-watchparty-sports-milestone.md`).
 
-**In scope:** Standalone "Pick'em" tab listing upcoming games per league, winner-only picker (with polymorphic `pickType` discriminator handling team-sport / soccer-with-draw / F1 podium / UFC method-of-victory variants), per-family `families/{code}/picks/{pickId}` collection, settlement via new scheduled `gameResultsTick` CF that polls TheSportsDB for finals, per-family per-league per-season leaderboard surface with hard reset + history snapshot, push-notification opt-in for pick reminders + result alerts, real-time pick visibility within the family, soft pre-fill from `participants[mid].teamAllegiance`.
+**In scope:** Standalone "Pick'em" tab listing upcoming games per league, winner-only picker (with polymorphic `pickType` discriminator handling team-sport / soccer-with-draw / F1 podium variants — UFC method-of-victory **DROPPED for v1** per D-17 update 2 2026-05-04), per-family `families/{code}/picks/{pickId}` collection, settlement via new scheduled `gameResultsTick` CF that polls TheSportsDB for finals + Jolpica for F1, per-family per-league per-season leaderboard surface with hard reset + history snapshot, push-notification opt-in for pick reminders + result alerts, real-time pick visibility within the family, soft pre-fill from `participants[mid].teamAllegiance`.
 
 **Out of scope (explicitly):**
 - Spread picks, exact-score picks, confidence-pool scoring (deferred to Phase 28.x or v3)
@@ -26,6 +26,7 @@ Add a pre-game prediction surface (winner-only picks across all 16 leagues from 
 - Manual settlement / score-override admin UI (settlement is fully automated via `gameResultsTick` against TheSportsDB final scores)
 - Spread / Vegas-line auto-fetching (no provider; out of scope until v3)
 - Monetization / paid leagues / premium leaderboards (CLAUDE.md "Don't start monetization / billing / plan-tier work")
+- **UFC pickType (`ufc_winner_method`) — DROPPED for v1** per D-17 update 2 2026-05-04. No free UFC API exists with structured roster + settlement at zero cost; paid options ($108-120/yr) not justified for current scope. Deferred to Phase 28.x triggered by user demand, project budget, or emergence of a free UFC API.
 
 ## Carrying forward (already shipped)
 
@@ -42,9 +43,9 @@ Add a pre-game prediction surface (winner-only picks across all 16 leagues from 
 
 ## Decisions
 
-### D-01 — League scope at v2 launch = ALL 16 leagues (always-on, free key)
+### D-01 — League scope at v2 launch = 15 of 16 leagues (UFC dropped per D-17 update 2)
 
-All 16 leagues from `js/sports-feed.js` LEAGUES catalog get pick'em at v2 launch (nba/nfl/mlb/nhl/wnba/ncaaf/ncaab/epl/laliga/bundesliga/seriea/ligue1/ucl/mls/f1/ufc).
+15 of 16 leagues from `js/sports-feed.js` LEAGUES catalog get pick'em at v2 launch: nba/nfl/mlb/nhl/wnba/ncaaf/ncaab/epl/laliga/bundesliga/seriea/ligue1/ucl/mls/f1. **UFC dropped** per D-17 update 2 (2026-05-04) — no free UFC API exists with structured roster + settlement; paid options not justified for v1. UFC stays in `js/sports-feed.js` LEAGUES catalog for the existing watchparty mode (Phase 22) but is excluded from pickem surface; Pick'em tab + picker UI must filter `LEAGUES` to exclude `'ufc'` at render time.
 
 **Always-on:** Whenever a `wp.mode === 'game'` watchparty exists OR the standalone Pick'em tab is opened, the pick'em surface is available. **NO** family-level or per-member toggle (would add settings UI without a clear win — families uninterested in pick'em simply don't open the tab).
 
@@ -70,6 +71,68 @@ Wave 0 verification (28-01) confirmed the free TheSportsDB tier exposes EPL `int
 
 **Why pause now rather than ship 14 leagues:** Avoids the wasted work of writing CF settlement + UI roster code twice (once for "team-only", once again when Patreon validates). The 2-day delay is cheaper than the rework.
 
+> **Update 2026-05-04 (D-17 superseded — see new spike scope below):**
+>
+> User attempted Patreon signup, surfaced two facts that obsolete the original D-17 framing:
+>
+> 1. **Pricing was wrong.** Real cost is **$9/month** (= $108/yr), not $14/yr. 7.7× higher. Significantly changes the cost-benefit for a personal-project family app where CLAUDE.md explicitly says "Don't start monetization / billing / plan-tier work" — there is no revenue path to amortize $108/yr.
+> 2. **TheSportsDB-or-nothing was a false dichotomy.** Looking outside `js/sports-feed.js`'s existing TheSportsDB dependency, two free alternatives cover the F1 + UFC roster gap completely:
+>
+>    - **F1 → Jolpica** (`https://api.jolpi.ca/ergast/f1/{year}/{round}/drivers/`) — open-source successor to the deprecated Ergast API; backwards-compatible endpoints; free, no key required, no published rate limit. Verified 2026-05-04 against `/2026/1/drivers/` returning all 22 drivers with structured `givenName` + `familyName` + `code` (3-letter abbrev) + `permanentNumber` + `nationality` fields. **Roster shape is exactly what `f1_podium` pickType needs.**
+>    - **UFC → API-Sports MMA free tier** (`https://v1.mma.api-sports.io/`) — 100 requests/day, never expires, no credit card; paid plans from $10/mo if scaling needed; transparent pricing (unlike SportsDataIO MMA, which is opaque on post-trial terms — disqualified for a free-tier dependency). Estimated real usage: ~30 req/month (1 fighter-roster fetch + 1 result fetch per UFC event × ~15 events/month). 100/day = 3,000/month → **<1% quota utilization**; effectively unlimited for our scope.
+>
+> **New decision (locked 2026-05-04):** Adopt Option A — Jolpica for F1 + API-Sports MMA free tier for UFC. Total cost **$0/yr**. All 4 pickTypes from D-02 ship as originally scoped. TheSportsDB Patreon path is **abandoned** (free F1 alternative + cheaper transparent UFC alternative dominate the original Patreon path on every dimension: cost, transparency, time-to-key).
+>
+> **Failure-mode analysis:** If either Jolpica or API-Sports has an outage / breaking change / key revocation:
+> - Jolpica down → F1 picker shows "Roster unavailable for this race" empty state; other 3 pickTypes unaffected.
+> - API-Sports down or quota exceeded → UFC picker shows same empty state; other 3 pickTypes unaffected.
+> - Settlement: `gameResultsTick` already has the per-pickType branching (D-02), so a missing roster fetch fails-soft per pickType.
+>
+> **Revised spike scope (when user is ready):**
+> 1. ~~Sign up for TheSportsDB Patreon~~ → **DROPPED**.
+> 2. Sign up for API-Sports free tier at `https://api-sports.io/` (no credit card; daily limit 100 req); obtain `x-apisports-key` header value.
+> 3. `curl` test against API-Sports MMA endpoints to confirm:
+>    - `GET /fights?event={eventId}` (or equivalent) — returns structured `Fighter` (winner + loser names) per bout
+>    - `GET /events?league=ufc&date={today}` — returns upcoming UFC event list with `eventId`
+>    - `GET /fights?event={eventId}` for a settled past event — returns winner + method (`KO|SUB|DEC`)
+> 4. Jolpica F1 endpoints already verified (2026-05-04 via direct curl) — no additional test needed.
+> 5. If API-Sports curl tests pass: resume `/gsd-execute-phase 28` from Wave 2; Plans 28-03..06 may need minor edits to (a) read F1 roster from Jolpica instead of TheSportsDB Patreon, (b) read UFC roster from API-Sports MMA instead of TheSportsDB Patreon, (c) add `js/sports-feed.js` `fetchF1Roster(round)` + `fetchUfcEvent(eventId)` functions alongside existing TheSportsDB calls.
+> 6. If API-Sports MMA curl tests fail (unlikely given published spec): drop UFC only (NOT F1), `/gsd-plan-phase 28` to regenerate Plans 28-03..06 against Jolpica-F1 + 14-team-leagues scope. F1 still ships in v1 because Jolpica is verified working.
+>
+> **Original D-17 above preserved as historical record per CLAUDE.md "phase slot history" convention. Do not act on the original spike scope — it is superseded.**
+
+> **Update 2 — 2026-05-04 (post-spike, Option A FALSIFIED):**
+>
+> API-Sports MMA spike completed against API key `5e9ded6ee71cdd0c4bf022cb243df16a` (free tier, 100/day). All 5 curl tests run; results below:
+>
+> | Endpoint | Result |
+> |---|---|
+> | `/status` | ✅ Account confirmed Free, 100/day quota, expires 2027-05-05 |
+> | `/categories` | ✅ Returns 18 weight classes |
+> | `/fighters?search=jones` | ✅ 9 results with full bio (no date restriction) |
+> | `/fights?date=2026-05-04..06` | ⚠️ 0 results (no UFC events in 3-day window) |
+> | `/fights?date=2024-04-13` (UFC 300) | ❌ "Free plans do not have access to this date, try from 2026-05-04 to 2026-05-06" |
+> | `/fights?season=2026` | ❌ "Free plans do not have access to this season, try from 2022 to 2024" |
+> | `/fights?fighter=2338` | ❌ Requires `date` or `season` → falls into the same trap |
+>
+> **Critical gating mechanism missed in Option A planning:** API-Sports' free tier restricts `/fights` queries to a 3-day rolling window for current data AND historical seasons 2022-2024 only. The "100 requests/day" headline rate limit is NOT the binding constraint — the binding constraint is the **data-window restriction** that makes the free tier unusable for our use case (need 7+ day schedule lookahead AND 2025/2026 settlement). To get useful UFC data on API-Sports requires the paid plan ($10/mo = $120/yr — actually MORE expensive than the rejected TheSportsDB Patreon $108/yr).
+>
+> **Lesson for future spikes:** Always test free tiers with both a near-term AND a far-term date before trusting. "Unlimited free trial" usually means unlimited requests within a sharply scoped data window.
+>
+> **Final decision (locked 2026-05-04, supersedes both prior D-17 versions): Option B — drop UFC for v1, ship F1 via Jolpica + 14 team-leagues.**
+>
+> Cost: **$0/yr**. Scope: 3 of 4 originally-locked pickTypes (`team_winner`, `team_winner_or_draw`, `f1_podium`). UFC moves to a future Phase 28.x triggered by (a) actual user demand for UFC picks, (b) project budget materializing, or (c) a free UFC API emerging (none currently exists with structured roster + settlement at zero cost).
+>
+> **Rationale for not paying $108/yr for UFC:**
+> - Personal-project family app with no monetization path (CLAUDE.md "Don't start monetization / billing / plan-tier work")
+> - 3 of 4 pickTypes covers all 7 US team sports + 7 soccer leagues + F1 — strong v1 surface
+> - Phase 28.x can add UFC later without invalidating Phase 28 work (UFC adds a 4th pickType branch + a roster fetch function; existing 3 branches unchanged)
+> - The $108/yr "bonus features" of TheSportsDB Patreon (live scoreboards, video highlights) are not in any v1 requirement
+>
+> **Replan trigger:** Plans 28-03 / 28-04 / 28-05 / 28-06 (paused since 2026-05-02) need regeneration via `/gsd-plan-phase 28` against the new 3-pickType + Jolpica-F1 scope. D-02 / D-01 / line-18 in-scope statement / D-05 slate notes have all been updated below to reflect the dropped UFC.
+>
+> **Resume signal:** When user is ready to ship Phase 28: `/gsd-plan-phase 28` (replans 03-06) → `/gsd-execute-phase 28` (resumes execution from Wave 2).
+
 ### D-02 — Polymorphic pick schema with `pickType` discriminator
 
 Each pick document stamps a `pickType` discriminator that drives validator UI + settlement logic per league family:
@@ -81,7 +144,7 @@ families/{code}/picks/{pickId} = {
   gameId,                      // wp.sportEvent.id (TheSportsDB idEvent)
   leagueKey,                   // 'nba' | 'nfl' | ...
   strSeason,                   // copied from game at submit time (e.g. '2025-2026', '2026') — see Open question #1
-  pickType,                    // 'team_winner' | 'team_winner_or_draw' | 'f1_podium' | 'ufc_winner_method'
+  pickType,                    // 'team_winner' | 'team_winner_or_draw' | 'f1_podium' (UFC dropped per D-17 update 2)
   selection,                   // shape varies by pickType (see below)
   tiebreakerTotal: null,       // populated ONLY on the designated tiebreaker game per slate (D-05)
   submittedAt,                 // serverTimestamp — used for engagement tracking, NOT for tiebreaker (D-05)
@@ -95,14 +158,14 @@ families/{code}/picks/{pickId} = {
 **Selection shapes per pickType:**
 - `team_winner` (NBA / NFL / MLB / NHL / WNBA / NCAAF / NCAAB) — `selection: { winningTeam: 'home' | 'away' }`
 - `team_winner_or_draw` (EPL / La Liga / Bundesliga / Serie A / Ligue 1 / UCL / MLS) — `selection: { result: 'home' | 'away' | 'draw' }`
-- `f1_podium` (Formula 1) — `selection: { p1, p2, p3 }` where each is a TheSportsDB driver name (auto-supplied from race entry list)
-- `ufc_winner_method` (UFC) — `selection: { winningFighter, method: 'KO' | 'SUB' | 'DEC' }`
+- `f1_podium` (Formula 1) — `selection: { p1, p2, p3 }` where each is a Jolpica driver name in `givenName + " " + familyName` form (auto-supplied from `https://api.jolpi.ca/ergast/f1/{year}/{round}/drivers/` race entry list per D-17 update 2)
+- ~~`ufc_winner_method` (UFC)~~ — **DROPPED for v1** per D-17 update 2 (2026-05-04). UFC pickType deferred to Phase 28.x.
 
-**Settlement logic** (`gameResultsTick` CF, polls `feedFetchScore` until `score.state === 'post'`):
+**Settlement logic** (`gameResultsTick` CF, polls `feedFetchScore` (TheSportsDB) for team/soccer leagues + Jolpica for F1 podium until `score.state === 'post'`):
 - `team_winner`: `winningTeam matches finalScore.winningTeam` → 1 pt
 - `team_winner_or_draw`: `result matches finalScore.result` (with explicit 'draw' branch) → 1 pt
-- `f1_podium`: ALL THREE positions correct → 1 pt (single-position-correct also = 0 pt; full-podium-correct could earn a bonus in v3 but stays 1pt for v1 per D-03)
-- `ufc_winner_method`: BOTH winningFighter AND method correct → 1 pt
+- `f1_podium`: ALL THREE positions correct → 1 pt (settled against Jolpica `https://api.jolpi.ca/ergast/f1/{year}/{round}/results/` `Results[0..2].Driver`; single-position-correct also = 0 pt; full-podium-correct could earn a bonus in v3 but stays 1pt for v1 per D-03)
+- ~~`ufc_winner_method`~~ — **DROPPED for v1**.
 
 ### D-03 — Scoring = 1 point per correct pick, flat across all pick types
 
@@ -196,7 +259,7 @@ Tap to change.
 
 **Honors the BRAND voice** (Fraunces / Instrument Serif / italic for moments of warmth). Friendly, low-coercion. Member can override with one tap. Pre-fill applies ONLY when `teamAllegiance` is set AND the team is one of the two teams in this game (otherwise picker starts empty).
 
-**For non-team pickTypes** (`f1_podium`, `ufc_winner_method`): no pre-fill (`teamAllegiance` is team-flavored; doesn't map). Picker starts empty.
+**For non-team pickTypes** (`f1_podium` only — `ufc_winner_method` dropped per D-17 update 2): no pre-fill (`teamAllegiance` is team-flavored; doesn't map). Picker starts empty.
 
 ### D-10 — Pick visibility = visible to family in real-time (no sealed-bid)
 
@@ -271,7 +334,7 @@ New `gameResultsTick` CF (every 5 min during active league windows; mirrors `wat
 - **Pick'em tab nav placement** — top-nav vs sub-surface in Tonight tab vs sub-surface in Watchparty tab. Researcher checks the existing app.html tab structure and picks per the navigation skeleton's affordances. Constraint: Pick'em should be discoverable without burying it 3 taps deep.
 - **Empty state copy** for "No picks made yet" / "No upcoming games for your enabled leagues this week" — BRAND voice (Fraunces, italic, warm). Planner drafts.
 - **Leaderboard chrome** — color-by-rank? Trophy icon for #1? "On a hot streak (5W2L last 7 picks)" callout? Planner has discretion within the BRAND restraint posture.
-- **Slate definition for F1 + UFC** (D-05) — final call by researcher / planner. F1 is one race per weekend (clear); UFC has variable-length cards. Tiebreaker semantics for these two pickTypes may need adjustment once the slate logic is concrete.
+- **Slate definition for F1** (D-05) — final call by researcher / planner. F1 is one race per weekend (clear). Tiebreaker semantics for `f1_podium` may need adjustment once the slate logic is concrete. (UFC slate question dropped per D-17 update 2 — UFC pickType deferred to Phase 28.x.)
 - **Picker pre-fill animation** (D-09) — subtle highlight on the pre-filled team chip when picker first renders, then fade to normal? Planner / UI-spec discretion.
 - **`pickReminder` snooze / unsubscribe quick action** — could surface "Don't remind me for NBA" from inside the push notification body (Web Push action buttons). Nice-to-have; planner discretion.
 - **Live-wp inline pick row visibility threshold** (D-07) — show only when 2+ members have picked? Always show (renders empty placeholders for not-yet-picked members)? Planner picks based on the existing live-wp layout density.
