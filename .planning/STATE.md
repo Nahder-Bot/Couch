@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-05T02:04:41.043Z"
+last_updated: "2026-05-05T03:34:48Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 27
   completed_phases: 20
-  total_plans: 113
-  completed_plans: 109
+  total_plans: 114
+  completed_plans: 110
   percent: 96
 ---
 
@@ -25,15 +25,17 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 30 — couch-groups-affiliate-hooks
-Plan: 05 SHIPPED + 5 hotfix waves SHIPPED
-**Status:** Ready to execute
+Phase: 28 — social-pickem-leaderboards (Wave 2)
+Plan: 28-03 SHIPPED 2026-05-05 (cross-repo CFs gameResultsTick + pickReminderTick + 3-map notification lockstep + composite indexes); 28-04 next (Wave 2; Firestore rules)
+**Status:** Wave 2 in progress — Plan 28-03 complete; Plan 28-04 unblocked
 
-**Resume signal:** (1) Real-device UAT for Phases 24/26/27/30 (~32 scripts) → `/gsd-verify-work` per phase. (2) For Phase 28: `/gsd-execute-phase 28` to resume execution from Wave 2 (Plans 03 + 04 in parallel → 05 → 06; replan completed 2026-05-05 via /gsd-plan-phase 28 against Option B scope; gsd-plan-checker verification PASSED first iteration; cross-repo deploy targets sw.js cache `couch-v47-pickem`).
+**Resume signal:** (1) Continue `/gsd-execute-phase 28` to run Plan 28-04 next (firestore.rules picks/leaderboards/picks_reminders blocks; 4 new rules-tests 78→82 PASS) → Wave 3 (Plan 28-05 UI surface) → Wave 4 (Plan 28-06 phase-close + cross-repo deploy + sw.js bump to couch-v47-pickem). (2) Real-device UAT for Phases 24/26/27/30 (~32 scripts) → `/gsd-verify-work` per phase.
 
 **Last Activity:** 2026-05-05
 
-**Most recent close-out:** Phase 30 hotfix Wave 5 (deployed 2026-05-04 as `couch-v46-wave-5-hotfix`) — last 5 commits `1f65cc3` 44px hit-area minimum (Gemini P2) + `4154a06` richer hero alt text (Gemini P2) + `08612bf` iOS PWA Add-to-Home-Screen nudge banner (Gemini P2) + `9169a1b` Wave 5B summary (4 frontend fixes + 1 deferred) + `4ab283e` consolidated Wave 5 hotfix summaries + `166dbd0` sw.js cache bump commit. Combined with Wave 5A burndown of deferred items (MD-01 revoked-guest re-submit denied / MD-02 dead-sub prune endpoint match / MD-03 NFKC NBSP normalize on guest names / HI-02 in-memory rate limiter on Phase 27 unauth CFs / CR-10 onMemberDelete CF strips stale memberUids / G-P0-2 part 2 keyboard focus trap helper wired to 6 high-traffic modals). 9 of the original 67 review findings closed in Wave 5 alone; 61 of 67 closed across all 5 waves.
+**Most recent close-out:** Phase 28 / Plan 03 — Wave 2 backend SHIPPED 2026-05-05 (5 cross-repo commits: queuenight `c38519a` gameResultsTick CF + queuenight `fbbd178` pickReminderTick CF + couch `52094db` firestore.indexes.json + queuenight `83495db` CF exports + 3 NOTIFICATION_DEFAULTS keys + couch `ddc0cf2` 3 DEFAULT_NOTIFICATION_PREFS + 3 NOTIFICATION_EVENT_LABELS + smoke Group 5/6). gameResultsTick (392 lines, every 5 min, us-central1, 256MiB, 240s timeout) settles pending picks transactionally with TheSportsDB branch (team_winner + team_winner_or_draw) + Jolpica branch (f1_podium); UFC dropped per D-17 update 2 (smoke 6.D negative sentinel verifies). pickReminderTick (190 lines, same schedule shape) fires T-15min push with picks_reminders/{leagueKey}_{gameId}_{memberId} idempotency doc written BEFORE sendToMembers (Pitfall 5 closure). All 6 REVIEWS amendments locked: HIGH-2 counter ownership (processedFirstAt sentinel; gameResultsTick is sole writer of picksTotal/picksSettled/picksAutoZeroed/lastPickAt) / HIGH-3 composite indexes (firestore.indexes.json with watchparties (mode, hostFamilyCode) + picks (state, gameStartTime); Plan 06 deploys via firebase deploy --only firestore:indexes) / HIGH-4 backend UFC defense (KNOWN_PICKTYPES allowlist; unknown pickType continues BEFORE transaction) / MEDIUM-5 branch-aware grace (3h/3h/24h — F1 24h tolerates Jolpica race-day lag) / MEDIUM-6 cross-plan F1 field guard (Number.isInteger check on pick.f1Year/f1Round) / MEDIUM-10 per-tick fetch cache (scoreCacheByTick Map: 1 fetch per game per tick instead of N). DR-3 three-place lockstep: pickReminder + pickResults + pickemSeasonReset added to all 3 maps in single Task 3.4 commit pair. smoke-pickem.cjs at 55 passed / 0 failed (+29 over Plan 02 baseline: Group 5 9 lockstep + Group 6 20 sentinels including 6.D NO_UFC negative + 6.T Jolpica /results/ trailing-slash). Full npm run smoke aggregate green across all 13 contracts. PICK-28-12 / 14 / 15 / 16 / 17 / 18 / 19 / 31 / 32 / 33 / 34 / 35 codified.
+
+**Previous close-out:** Phase 30 hotfix Wave 5 (deployed 2026-05-04 as `couch-v46-wave-5-hotfix`) — last 5 commits `1f65cc3` 44px hit-area minimum (Gemini P2) + `4154a06` richer hero alt text (Gemini P2) + `08612bf` iOS PWA Add-to-Home-Screen nudge banner (Gemini P2) + `9169a1b` Wave 5B summary (4 frontend fixes + 1 deferred) + `4ab283e` consolidated Wave 5 hotfix summaries + `166dbd0` sw.js cache bump commit. Combined with Wave 5A burndown of deferred items (MD-01 revoked-guest re-submit denied / MD-02 dead-sub prune endpoint match / MD-03 NFKC NBSP normalize on guest names / HI-02 in-memory rate limiter on Phase 27 unauth CFs / CR-10 onMemberDelete CF strips stale memberUids / G-P0-2 part 2 keyboard focus trap helper wired to 6 high-traffic modals). 9 of the original 67 review findings closed in Wave 5 alone; 61 of 67 closed across all 5 waves.
 
 **Previous close-out:** Phase 30 hotfix Wave 4 — process gate (no hosting deploy; no cache bump). `scripts/deploy.sh` gained `--sync-rules` flag (commit `569c146`) — pre-flight diff between source-of-truth and queuenight mirror; fails fast if drifted, OR auto-mirrors + commits + deploys rules with the flag. Documented in RUNBOOK §H (`88c7738`). Closes the v44 deploy-mirror gap that left CR-05/CR-06 protections unenforced for ~24h. Process hardening only — no shipped feature, no cache bump.
 
