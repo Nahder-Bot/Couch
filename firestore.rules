@@ -246,6 +246,21 @@ service cloud.firestore {
 
 
     // ==========================================================
+    // Phase 28 / D-06 (PICK-28-23) — pickReminderTick idempotency docs
+    // ==========================================================
+    // Top-level (not nested under families/) so the pickReminderTick CF can use a
+    // single doc.get() per (leagueKey, gameId, memberId) tuple to short-circuit
+    // double-fires under retry. Doc ID format: '{leagueKey}_{gameId}_{memberId}' —
+    // composed by pickReminderTick (queuenight/functions/src/pickReminderTick.js).
+    // Admin SDK in CF bypasses rules; clients have no business reading or writing
+    // this collection. Tests: tests/rules.test.js #28-04 (read denied) + #28-10
+    // (write denied).
+    match /picks_reminders/{reminderId} {
+      allow read, write: if false;
+    }
+
+
+    // ==========================================================
     // Family doc
     // ==========================================================
 
@@ -845,6 +860,91 @@ service cloud.firestore {
         // Never hard-delete — the intent doc is the Year-in-Review raw data (D-22/D-23).
         // Archival is done via status transitions (cancelled / expired / converted).
         allow delete: if false;
+      }
+
+
+      // ==========================================================
+      // Phase 28 / D-02 + D-04 (PICK-28-09 + PICK-28-10 + REVIEWS HIGH-1/HIGH-4/HIGH-9) — Pick'em picks
+      // ==========================================================
+      // Member self-write own picks until gameStartTime (D-04 lock).
+      // CF-only fields (state/pointsAwarded/settledAt/tiebreakerActual/processedFirstAt)
+      // protected via REVIEWS HIGH-9 affectedKeys ALLOWLIST (not denylist).
+      //
+      // REVIEWS Amendment 6 / HIGH-1 — CREATE REQUIRES state == 'pending' (no omission).
+      //   Previous (now-amended) rule allowed `(!('state' in ...) || state == 'pending')`.
+      //   The omission branch is removed: state-omitted picks were invisible to
+      //   gameResultsTick's `where('state','==','pending')` query and would never
+      //   settle. Same hard-equality requirement for pointsAwarded == 0,
+      //   settledAt == null, tiebreakerActual == null.
+      //
+      // REVIEWS Amendment 8 / HIGH-4 — CREATE CONSTRAINS pickType to 3-value allowlist.
+      //   No 'ufc_winner_method'; no other forged values. Defense-in-depth alongside
+      //   Plan 28-03's gameResultsTick KNOWN_PICKTYPES skip. UFC dropped per D-17
+      //   update 2 (2026-05-04).
+      //
+      // REVIEWS Amendment 7 / HIGH-9 — UPDATE allowlist of mutable fields ONLY.
+      //   {selection, tiebreakerTotal, editedAt, actingUid, memberId, memberName}.
+      //   All routing/identity/scoring fields (gameId, leagueKey, strSeason,
+      //   pickType, gameStartTime, submittedAt, f1Year, f1Round, state,
+      //   pointsAwarded, settledAt, tiebreakerActual, processedFirstAt) are
+      //   IMMUTABLE post-create. The previous denylist-only approach allowed
+      //   routing/identity tampering.
+      //
+      // The gameResultsTick CF (queuenight/functions/src/gameResultsTick.js) writes
+      // CF-only fields via admin SDK which bypasses these rules entirely.
+      //
+      // Tests: tests/rules.test.js #28-01..#28-08 (10 cases per REVIEWS Amendment 9
+      // / MEDIUM-8).
+      match /picks/{pickId} {
+        allow read: if isMemberOfFamily(familyCode);
+
+        // CREATE: member must be in family; gameStartTime must be in the future;
+        //         state/pointsAwarded/settledAt/tiebreakerActual REQUIRED at canonical
+        //         values (REVIEWS HIGH-1); pickType in 3-value allowlist (REVIEWS HIGH-4).
+        allow create: if attributedWrite(familyCode)
+          && request.resource.data.memberId is string
+          && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.gameStartTime is number
+          && request.time.toMillis() < request.resource.data.gameStartTime
+          && request.resource.data.pickType in ['team_winner', 'team_winner_or_draw', 'f1_podium']
+          && request.resource.data.state == 'pending'
+          && request.resource.data.pointsAwarded == 0
+          && request.resource.data.settledAt == null
+          && request.resource.data.tiebreakerActual == null;
+
+        // UPDATE: member can edit own pick before lock; ONLY mutable fields allowed
+        //         (REVIEWS Amendment 7 / HIGH-9 — allowlist, not denylist).
+        //         Also enforce memberId immutability (cannot reassign pick to another
+        //         member).
+        allow update: if attributedWrite(familyCode)
+          && resource.data.memberId == request.resource.data.memberId
+          && request.time.toMillis() < resource.data.gameStartTime
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'selection',
+               'tiebreakerTotal',
+               'editedAt',
+               'actingUid',
+               'memberId',
+               'memberName'
+             ]);
+
+        // No client deletes — picks are append-only (D-13 no-backfill alignment;
+        // CONTEXT Specifics — no edit-history audit). Hard DELETE denied for
+        // everyone; admin SDK in CF bypasses if cleanup ever needed.
+        allow delete: if false;
+      }
+
+
+      // ==========================================================
+      // Phase 28 / D-03 (PICK-28-11) — Leaderboard docs (CF-only writes)
+      // ==========================================================
+      // Doc ID convention: {leagueKey}_{strSeason} (e.g. 'nfl_2025',
+      // 'epl_2025-2026', 'f1_2026'). gameResultsTick CF writes via admin SDK
+      // which bypasses these rules. Family members may read for the leaderboard
+      // render in Plan 28-05. Tests: tests/rules.test.js #28-09 (write denied).
+      match /leaderboards/{lbDoc} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow write: if false;
       }
     }
   }
