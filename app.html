@@ -315,6 +315,16 @@
          (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
          above the picker card, so "who's on the couch" is the first thing the user sees. -->
     <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
+    <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface inline-link affordance.
+         Hidden by default; renderPickemTonightLink() in js/app.js toggles visibility based
+         on whether the current week's slate has upcoming games for any active league
+         (UFC excluded per D-17 update 2). Tap → openPickemSurface() in js/app.js. -->
+    <div id="pe-tonight-link-container" class="tab-hero-sub-row" hidden>
+      <!-- JS rewrites the inner content with slate context once renderPickemTonightLink() runs.
+           Static fallback copy "Open pick'em" lives here so the smoke contract `contains` check
+           sees the literal even before any user opens the app. -->
+      <a class="pe-tonight-link" href="#" onclick="event.preventDefault(); openPickemSurface();">Open pick'em</a>
+    </div>
     <!-- Phase 15 / S1 (TRACK-15-07) — "Pick up where you left off" tuple-aware cross-show widget.
          Sits between couch viz and Flow A entry per UI-SPEC §Surface insertion order.
          Renderer: renderPickupWidget() in js/app.js (called from renderTonight()).
@@ -399,6 +409,21 @@
       <div id="activity-list"></div>
     </div>
   </div>
+
+  <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface (#screen-pickem).
+       Renderer: renderPickemSurface() in js/app.js. Entry from Tonight inline-link
+       (#pe-tonight-link-container above). Surface lists upcoming games per active
+       league (UFC excluded per D-17 update 2) with picker cards + leaderboard CTA
+       + past-seasons archive (hide-when-empty). #pe-content is the renderer's
+       injection target; renderPickemSurface() rewrites it on every onSnapshot tick. -->
+  <section class="screen pe-surface" id="screen-pickem">
+    <div class="tab-hero">
+      <div class="tab-hero-eyebrow" id="pe-hero-eyebrow">PICK'EM</div>
+      <div class="tab-hero-title" id="pe-hero-title">Your pick'em</div>
+      <div class="tab-hero-sub" id="pe-hero-sub"><em>Pick a winner. Earn a point. Tease the rest of the couch.</em></div>
+    </div>
+    <div id="pe-content"></div>
+  </section>
 
   <div class="screen" id="screen-library">
     <div class="add-row">
