@@ -42,15 +42,42 @@
     var contentEl = document.getElementById('rsvp-content');
 
     var CF_BASE = 'https://us-central1-queuenight-84044.cloudfunctions.net';
+    var GUEST_KEY = 'qn_guest_' + (token || '');
+    var guestId = (token && localStorage.getItem(GUEST_KEY)) || null;
+    var VAPID_PUBLIC_KEY = 'BGwhEJGIKjf4MSd4vyZA6uegbKhiG5kkxoAD2o1WUfxYmcm5cUmSjc0z05d-r7meS1gmKOT0f0Sn4zXQwhriRHg';
+    var lastHostName = '';
+    var lastGuestCounts = { yes: 0, maybe: 0 };
 
     if (!token) {
       renderExpired();
       return;
     }
 
-    // v1: skip a read-only preview CF — let rsvpSubmit validate the token on tap.
-    // Render a minimal generic invite card so the form is actionable immediately.
-    renderInviteForm({ titleName: '', startTime: '', hostName: '', poster: '' });
+    // LO-01: Gate the form on an initial rsvpStatus call so cold loads of
+    // expired/closed/revoked invites land on the right empty-state instead
+    // of flashing a submittable form that will only fail on tap. We mirror
+    // the 30-second poll's branch ordering (revoked → closed → expired →
+    // form). Network or transient errors fall through to the form so users
+    // on flaky connections still get an actionable surface — rsvpSubmit
+    // re-validates server-side anyway.
+    (async function gateInitialRender() {
+      try {
+        var r = await fetch(CF_BASE + '/rsvpStatus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { token: token, guestId: guestId } })
+        });
+        var d = await r.json();
+        if (d && d.result) {
+          if (d.result.revoked) { renderRevoked(); return; }
+          if (d.result.closed)  { renderClosed();  return; }
+          if (d.result.expired) { renderExpired(); return; }
+        }
+      } catch (e) { /* fall through to form on network error */ }
+      // v1: skip a read-only preview CF — let rsvpSubmit validate the token on tap.
+      // Render a minimal generic invite card so the form is actionable immediately.
+      renderInviteForm({ titleName: '', startTime: '', hostName: '', poster: '' });
+    })();
 
     function renderInviteForm(invite) {
       contentEl.innerHTML =
@@ -66,10 +93,15 @@
           '<button class="rsvp-btn rsvp-yes" data-resp="yes" onclick="submitRsvp(this)">Going</button>' +
           '<button class="rsvp-btn rsvp-maybe" data-resp="maybe" onclick="submitRsvp(this)">Maybe</button>' +
           '<button class="rsvp-btn rsvp-no" data-resp="no" onclick="submitRsvp(this)">Can&rsquo;t make it</button>' +
-        '</div>';
+        '</div>' +
+        '<p class="rsvp-privacy-footer">' +
+          'By tapping going/maybe/no, you agree to our ' +
+          '<a href="/privacy" class="rsvp-privacy-link">Privacy Policy</a>.' +
+        '</p>';
     }
 
-    function renderConfirmation(resp, hostName) {
+    function renderConfirmation(resp, hostName, counts) {
+      counts = counts || { yes: 0, maybe: 0 };
       var titles = {
         yes: '<em>See you there.</em>',
         maybe: '<em>Noted &mdash; we&rsquo;ll remind you.</em>',
@@ -80,11 +112,37 @@
         maybe: 'Couch will nudge you closer to the time.',
         no: 'Next time.'
       };
+      var countLineHtml = '';
+      if (counts.yes > 0 || counts.maybe > 0) {
+        var parts = [];
+        if (counts.yes   > 0) parts.push(counts.yes   + ' going');
+        if (counts.maybe > 0) parts.push(counts.maybe + ' maybe');
+        countLineHtml = '<div class="rsvp-count-line">' + parts.join(' &middot; ') + '</div>';
+      }
+      var pushSupported = ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
+      var pushBlockHtml = '';
+      if (pushSupported) {
+        pushBlockHtml =
+          '<div class="rsvp-push-block" id="rsvp-push-block">' +
+            '<div class="rsvp-push-copy">Get reminded when the party starts?</div>' +
+            '<button class="rsvp-push-btn" id="rsvp-push-btn" type="button" ' +
+                    'aria-label="Get push reminders for this watchparty" ' +
+                    'onclick="requestPushOptIn()">Remind me</button>' +
+          '</div>';
+      }
+      var privacyFooterHtml =
+        '<p class="rsvp-privacy-footer">' +
+          'By tapping going/maybe/no, you agree to our ' +
+          '<a href="/privacy" class="rsvp-privacy-link">Privacy Policy</a>.' +
+        '</p>';
       contentEl.innerHTML =
         '<div class="rsvp-confirmation">' +
           '<div class="rsvp-confirmation-eyebrow">CONFIRMED</div>' +
           '<div class="rsvp-confirmation-title">' + titles[resp] + '</div>' +
           '<div class="rsvp-confirmation-sub">' + subs[resp] + '</div>' +
+          countLineHtml +
+          pushBlockHtml +
+          privacyFooterHtml +
           '<a href="/" class="rsvp-install-cta">Pull up a seat</a>' +
         '</div>';
     }
@@ -95,6 +153,25 @@
           '<div class="rsvp-expired-title"><em>This invite has expired.</em></div>' +
           '<div class="rsvp-expired-sub">Ask the host to send a fresh link.</div>' +
         '</div>';
+    }
+
+    function renderRevoked() {
+      contentEl.innerHTML =
+        '<div class="rsvp-evicted">' +
+          '<div class="rsvp-evicted-title" tabindex="-1"><em>Your RSVP was removed by the host.</em></div>' +
+          '<div class="rsvp-evicted-sub">Reach out to them directly if you think this is a mistake.</div>' +
+        '</div>';
+      var titleEl = contentEl.querySelector('.rsvp-evicted-title');
+      if (titleEl && titleEl.focus) { try { titleEl.focus(); } catch(e) {} }
+    }
+    function renderClosed() {
+      contentEl.innerHTML =
+        '<div class="rsvp-closed">' +
+          '<div class="rsvp-expired-title" tabindex="-1"><em>RSVPs are closed for this party.</em></div>' +
+          '<div class="rsvp-expired-sub">The host has stopped accepting new RSVPs.</div>' +
+        '</div>';
+      var titleEl = contentEl.querySelector('.rsvp-expired-title');
+      if (titleEl && titleEl.focus) { try { titleEl.focus(); } catch(e) {} }
     }
 
     function showError(msg) {
@@ -119,7 +196,7 @@
         var r = await fetch(CF_BASE + '/rsvpSubmit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: { token: token, response: resp, name: name } })
+          body: JSON.stringify({ data: { token: token, response: resp, name: name, guestId: guestId } })
         });
         var data = await r.json();
         if (data && data.error) {
@@ -132,12 +209,124 @@
           renderExpired();
           return;
         }
+        if (data && data.result && data.result.closed) {
+          renderClosed();
+          return;
+        }
+        if (data && data.result && data.result.guestCapReached) {
+          showError("This watchparty has reached its guest limit. Ask the host to make space.");
+          btns.forEach(function(b){ b.disabled = false; });
+          btn.classList.remove('tapped');
+          return;
+        }
         var hostName = (data && data.result && data.result.hostName) || '';
-        renderConfirmation(resp, hostName);
+        var returnedGuestId = (data && data.result && data.result.guestId) || null;
+        var counts = (data && data.result && data.result.guestCounts) || { yes: 0, maybe: 0 };
+        if (returnedGuestId && token) {
+          try { localStorage.setItem(GUEST_KEY, returnedGuestId); } catch(e) {}
+          guestId = returnedGuestId;
+        }
+        lastHostName = hostName;
+        lastGuestCounts = counts;
+        renderConfirmation(resp, hostName, counts);
+        startStatusPoll();
       } catch(e) {
         showError("Couldn't save — try again in a moment.");
         btns.forEach(function(b){ b.disabled = false; });
         btn.classList.remove('tapped');
+      }
+    };
+
+    var statusPollHandle = null;
+    function startStatusPoll() {
+      if (statusPollHandle) return;
+      statusPollHandle = setInterval(async function() {
+        try {
+          var r = await fetch(CF_BASE + '/rsvpStatus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: { token: token, guestId: guestId } })
+          });
+          var d = await r.json();
+          if (d && d.result) {
+            if (d.result.revoked) {
+              clearInterval(statusPollHandle); statusPollHandle = null;
+              renderRevoked();
+            } else if (d.result.closed) {
+              clearInterval(statusPollHandle); statusPollHandle = null;
+              renderClosed();
+            } else if (d.result.expired) {
+              clearInterval(statusPollHandle); statusPollHandle = null;
+              renderExpired();
+            }
+          }
+        } catch(e) {}
+      }, 30000);
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+      var padding = '='.repeat((4 - base64String.length % 4) % 4);
+      var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var rawData = window.atob(base64);
+      var outputArray = new Uint8Array(rawData.length);
+      for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+    function replacePushBlock(stateClass, copyHtml) {
+      var block = document.getElementById('rsvp-push-block');
+      if (!block) return;
+      block.outerHTML = '<div class="' + stateClass + '" role="status">' + copyHtml + '</div>';
+    }
+    window.requestPushOptIn = async function() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        replacePushBlock('rsvp-push-unsupported', "Reminders aren’t supported on this device — ask the host to message you when the party starts.");
+        return;
+      }
+      try {
+        var perm = await Notification.requestPermission();
+        if (perm === 'denied') {
+          replacePushBlock('rsvp-push-blocked', 'Notifications blocked in your browser settings.');
+          return;
+        }
+        if (perm !== 'granted') {
+          replacePushBlock('rsvp-push-unsupported', "Reminders aren’t supported on this device — ask the host to message you when the party starts.");
+          return;
+        }
+        var reg;
+        try {
+          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        } catch (swErr) {
+          try { reg = await navigator.serviceWorker.register('/sw.js', { scope: '/rsvp/' }); }
+          catch (e2) { throw swErr; }
+        }
+        await navigator.serviceWorker.ready;
+        var sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+        var subJson = sub && sub.toJSON ? sub.toJSON() : null;
+        if (!subJson || !subJson.endpoint) {
+          replacePushBlock('rsvp-push-err', "Couldn’t set up reminders. Ask " + (lastHostName || 'the host') + ' to message you directly.');
+          return;
+        }
+        try {
+          var r = await fetch(CF_BASE + '/rsvpRevoke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: { action: 'attachPushSub', token: token, guestId: guestId, pushSub: subJson } })
+          });
+          var data = await r.json();
+          if (data && data.error) {
+            replacePushBlock('rsvp-push-err', "Couldn’t set up reminders. Ask " + (lastHostName || 'the host') + ' to message you directly.');
+            return;
+          }
+        } catch (postErr) {
+          replacePushBlock('rsvp-push-err', "Couldn’t set up reminders. Ask " + (lastHostName || 'the host') + ' to message you directly.');
+          return;
+        }
+        replacePushBlock('rsvp-push-done', "<em>You’re on the list.</em>");
+      } catch (e) {
+        replacePushBlock('rsvp-push-unsupported', "Reminders aren’t supported on this device — ask the host to message you when the party starts.");
       }
     };
 

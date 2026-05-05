@@ -8,11 +8,11 @@
 **What it is:** PWA for families to pick what to watch together. "Who's on the couch tonight?" Deployed at couchtonight.app via Firebase Hosting.
 
 **Full context:** `.planning/PROJECT.md` (read first)
-**Active scope:** `.planning/REQUIREMENTS.md` — 51 v1 requirements across 8 GSD phases
-**Phase structure:** `.planning/ROADMAP.md` — Phase 3-10 (Phases 1-2 shipped pre-GSD; Phases 3, 4, 5, 7, 8 COMPLETE; Phase 6 UAT partial; Phase 9 in progress; Phase 10 pending)
+**Active scope:** `.planning/REQUIREMENTS.md` — v1 requirements across the GSD phases
+**Phase structure:** `.planning/ROADMAP.md` — authoritative source. As of 2026-04-26: Phases 3-14 SHIPPED (current cache: `couch-v34.1.1-touchcancel-fix`). Phases 15-17 (Tracking Layer / Calendar Layer / App Store Launch Readiness) scoped, awaiting kickoff.
 **Current state:** `.planning/STATE.md`
 
-**Post-Phase 9 routing (live at couchtonight.app):** `/` serves `landing.html` (marketing page, zero-JS), `/app` serves `app.html` (PWA app shell). Firebase Hosting rewrites in `queuenight/firebase.json`. Deep links (`?invite=`, `?claim=`) arrive at `/`, landing's inline redirect forwards them to `/app` preserving query string.
+**Routing (live at couchtonight.app):** `/` serves `landing.html` (marketing page, zero-JS), `/app` serves `app.html` (PWA app shell). Firebase Hosting rewrites live in the deploy-mirror sibling repo's `firebase.json`. Deep links (`?invite=`, `?claim=`) arrive at `/`, landing's inline redirect forwards them to `/app` preserving query string.
 
 ## Architecture (locked for v1)
 
@@ -22,16 +22,16 @@
   - `js/constants.js` — TMDB_KEY, Trakt config, COLORS, RATING_TIERS, MOODS, etc.
   - `js/state.js` — `state` object, `titlesRef`, `membersRef`, `familyDocRef`
   - `js/utils.js` — `escapeHtml`, `haptic`, `flashToast`, poster helpers
-  - `js/app.js` — all feature logic (~10200 lines); imports from the above
+  - `js/app.js` — all feature logic (~15800 lines as of 2026-04-27 / Phase 15.1; imports from the above. Phases 14 + 15 + 15.1 added ~5500 lines — was ~10200 at end of Phase 13)
 - **CSS:** `css/app.css` (~2360 lines; warm-dark design system, 47-token semantic alias layer from 09-02, Phase 9/DESIGN-03 utility classes ~line 2210, desktop `@media (min-width:900px)` block ~line 2330) + `css/landing.css` (~86 lines; standalone for the marketing page).
-- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v33.3-sentry-dsn` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
+- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v34.1-roster-control` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
 - **Backend:** Firebase Firestore (project `queuenight-84044`) for real-time family sync; Cloud Functions in sibling `queuenight/functions/` for push notifications (watchparty + intent + veto) and Trakt OAuth token exchange.
 - **Third-party data:** TMDB REST v3 for metadata/providers; Trakt API for watch-history sync.
 - **Delivery:** Firebase Hosting (deploy via sibling `queuenight/public/` mirror). PWA manifest inline as data URL in app.html. iOS/Android icon set wired.
 
 ## ⚠ Token cost — read only what you need
 
-`js/app.js` is ~10200 lines (~120K tokens). **Never read it in full.**
+`js/app.js` is ~15800 lines (~190K tokens) as of 2026-04-27 / Phase 15.1. **Never read it in full.**
 - `Grep` to locate a function first, then `Read(file, offset=N, limit=50)`
 - `app.html` is ~990 lines (HTML only) — safe to read in full if needed
 - `landing.html` (~160 lines), `css/landing.css` (~86 lines), `sw.js` (~105 lines), `404.html`, `robots.txt`, `sitemap.xml` — all tiny, read freely

@@ -105,3 +105,39 @@ export function writeAttribution(extraFields = {}) {
   if (actingAsSubProfile) { state.actingAs = null; state.actingAsName = null; }
   return payload;
 }
+
+// === D-10 anchored tooltip primitive — DECI-14-10 ===
+// Anchored to a target element via getBoundingClientRect.
+// Single instance at a time. Dismiss on next tap anywhere (capture phase) so user
+// "interaction" closes it per D-10. CSS class .coach-tip styled in css/app.css.
+// Adapted from flashToast above (lazy-create + requestAnimationFrame + setTimeout-removal),
+// but anchored instead of floating, single-instance instead of stacking, and dismiss-on-tap
+// instead of auto-timer.
+let _activeTooltip = null;
+export function showTooltipAt(targetEl, message, opts) {
+  if (!targetEl) return;
+  hideTooltip();
+  const tip = document.createElement('div');
+  tip.className = 'coach-tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.textContent = message;
+  document.body.appendChild(tip);
+  const rect = targetEl.getBoundingClientRect();
+  // Default: pin below target, centered. Caller can pass {placement:'above'} to flip.
+  const placement = (opts && opts.placement) || 'below';
+  tip.style.position = 'fixed';
+  // Clamp horizontally so the 240-max-width tip stays on-screen on narrow viewports.
+  tip.style.left = `${Math.max(8, Math.min(window.innerWidth - 248, rect.left + rect.width/2 - 120))}px`;
+  tip.style.top  = (placement === 'above') ? `${Math.max(8, rect.top - 48)}px` : `${rect.bottom + 8}px`;
+  requestAnimationFrame(() => tip.classList.add('on'));
+  const onDismiss = () => { hideTooltip(); document.removeEventListener('click', onDismiss, true); };
+  // Capture-phase listener so the very next interaction closes the tooltip.
+  setTimeout(() => document.addEventListener('click', onDismiss, true), 0);
+  _activeTooltip = tip;
+}
+export function hideTooltip() {
+  if (!_activeTooltip) return;
+  const tip = _activeTooltip; _activeTooltip = null;
+  tip.classList.remove('on');
+  setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 200);
+}

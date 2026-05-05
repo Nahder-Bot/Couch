@@ -80,16 +80,18 @@ npm test
 
 ## Deploy
 
-The `couchtonight.app` deploy mirror lives in a separate sibling directory (`../queuenight/`) outside this repo. It's not part of this codebase but contains:
+The `couchtonight.app` deploy mirror lives in a separate sibling directory (`../couch-deploy/`) outside this repo. It's not part of this codebase but contains:
 
 - `public/` — the static files mirrored from this repo
 - `functions/` — Cloud Function source
 - `firebase.json`, `firestore.rules`, `storage.rules`
 
-Deploy: mirror modified files to `queuenight/public/`, then:
+(Project ID `queuenight-84044` is the legacy Firebase project ID — baked into Cloud Functions URLs, Storage bucket, and Hosting URL. Cannot be cheaply renamed; the custom domain `couchtonight.app` cleanly hides it.)
+
+Deploy: mirror modified files to `couch-deploy/public/`, then:
 
 ```bash
-cd ../queuenight
+cd ../couch-deploy
 firebase deploy --only hosting --project queuenight-84044
 ```
 

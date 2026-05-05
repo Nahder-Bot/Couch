@@ -23,7 +23,7 @@
      — Accessibility (WCAG-AA contrast on --bg #14110f) —
        --ink (#f5ede0) on --bg → ≥ 14:1 (passes AAA for normal text)
        --ink-warm (#c9bca8) on --bg → ≥ 8.5:1 (passes AA+AAA)
-       --ink-dim (#847868) on --bg → ≥ 4.0:1 (passes AA only for LARGE text; use sparingly)
+       --ink-dim (#928777) on --bg → ≥ 4.5:1 (passes WCAG 2.1 AA for normal text — Wave 3 hotfix G-P1-3 lifted from 4.0:1)
        --ink-faint (#5a4f43) on --bg → ~2.3:1 (DECORATIVE only — never for readable content)
 
      Verify before adding new text/background combinations with webaim.org/resources/contrastchecker. */
@@ -38,7 +38,7 @@
   /* — Color: Ink (cream/warm, never pure white) — */
   --ink:#f5ede0;
   --ink-warm:#c9bca8;
-  --ink-dim:#847868;
+  --ink-dim:#928777;
   --ink-faint:#5a4f43;
 
   /* — Color: Accent — */
@@ -503,7 +503,7 @@ h3{font-size:var(--t-h3)}
   border:1px solid var(--border);border-radius:var(--r-md)}
 .vote-row-full .name{flex:1;font-size:var(--t-body);font-weight:500}
 .vote-btns{display:flex;gap:var(--s1)}
-.vote-btn{width:40px;height:40px;border-radius:var(--r-sm);border:none;
+.vote-btn{width:44px;height:44px;border-radius:var(--r-sm);border:none;
   background:var(--bg);color:var(--ink-dim);font-size:var(--t-body);cursor:pointer;
   transition:all var(--t-quick)}
 .vote-btn:hover{background:var(--bg-deep)}
@@ -573,7 +573,11 @@ h3{font-size:var(--t-h3)}
 .who-mini-avatars{display:flex;gap:-6px;flex:1}
 .who-mini-avatars .who-mini-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--t-meta);color:#14110f;margin-right:-6px;border:2px solid var(--bg);font-family:'Instrument Serif','Fraunces',serif}
 .who-mini-avatars .who-mini-av:last-child{margin-right:0}
-.who-mini-edit{background:transparent;border:1px solid var(--border);color:var(--ink-dim);padding:6px 12px;border-radius:var(--r-pill);font-family:inherit;font-size:var(--fs-meta);cursor:pointer}
+/* Wave 5B / Gemini P2 — tap-target lift to WCAG/Apple HIG/MD 44px minimum
+   hit area. Padding stays modest so visual size is unchanged; min-height
+   enlarges the touch target. inline-flex centers the label vertically inside
+   the taller button. */
+.who-mini-edit{background:transparent;border:1px solid var(--border);color:var(--ink-dim);padding:6px 12px;border-radius:var(--r-pill);font-family:inherit;font-size:var(--fs-meta);cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 .rating-pill{display:inline-block;font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;font-size:var(--t-micro);padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);margin-right:6px;letter-spacing:0.03em}
 .rating-pill.tier1{background:rgba(127,176,105,0.18);color:#9bc77f;border-color:transparent}
 .rating-pill.tier2{background:rgba(232,160,74,0.18);color:#e8a04a;border-color:transparent}
@@ -683,6 +687,10 @@ h3{font-size:var(--t-h3)}
   transition:border-color var(--t-quick)}
 .schedule-modal input:focus,.schedule-modal textarea:focus{
   border-color:var(--accent);outline:none}
+/* Phase 24 — generic input-validation utility classes */
+.field-help{font-family:var(--font-sans);font-size:var(--t-meta);font-weight:400;color:var(--ink-dim);margin-top:4px;line-height:1.4}
+.field-error{font-family:var(--font-sans);font-size:var(--t-meta);font-weight:400;color:var(--ink-warm);margin-top:6px;line-height:1.4}
+input.field-invalid{border-color:var(--bad)}
 .schedule-modal textarea{resize:vertical;min-height:50px}
 .schedule-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .schedule-quick button{padding:8px 12px;background:var(--surface-2);border:none;border-radius:8px;color:var(--ink);font-family:inherit;font-size:var(--t-meta);cursor:pointer;font-weight:600}
@@ -766,6 +774,9 @@ h3{font-size:var(--t-h3)}
 .wp-participant-chip.me{border-color:rgba(232,160,74,0.45);background:linear-gradient(135deg,rgba(232,160,74,0.08),transparent)}
 .wp-participant-chip.paused{opacity:0.55}
 .wp-participant-chip.joined{opacity:0.7}
+/* Phase 27 — Guest chip variant */
+.wp-participant-chip.guest{border-color:rgba(124,180,169,0.35)}
+.wp-participant-chip.guest .wp-participant-av{background:#5a8a84}
 .wp-participant-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:white;flex-shrink:0}
 .wp-participant-info{display:flex;flex-direction:column;gap:1px;line-height:1.1}
 .wp-participant-name{font-size:var(--t-meta);font-weight:600;color:var(--ink);white-space:nowrap}
@@ -836,9 +847,20 @@ h3{font-size:var(--t-h3)}
 .wp-control-btn.on{background:var(--brand-grad);color:var(--bg);border-color:transparent;font-weight:700;box-shadow:0 2px 8px rgba(232,160,74,0.2),inset 0 1px 0 rgba(255,255,255,0.15)}
 .wp-control-btn.danger{color:var(--bad,#e53170)}
 /* Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Reuses .wp-control-btn base; .wp-delay tightens padding for chip-look. */
-.wp-delay-row{display:flex;gap:6px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
+/* Phase 15.5 / UI-SPEC § Spacing Scale: gap raised from 6px to 8px (--space-inline-sm). */
+.wp-delay-row{display:flex;gap:8px;align-items:center;margin:-6px 0 12px;flex-wrap:wrap}
 .wp-delay-label{font-size:var(--t-meta);color:var(--ink-dim);margin-right:2px}
-.wp-control-btn.wp-delay{min-width:44px;padding:4px 10px;font-size:var(--t-meta)}
+/* Phase 15.5 / UI-SPEC § Movie-mode chip strip: ≥44px touch target floor (iOS HIG). */
+.wp-control-btn.wp-delay{min-width:44px;min-height:44px;padding:8px 12px;font-size:var(--t-meta);box-sizing:border-box}
+/* Phase 15.5 / UI-SPEC § Movie-mode chip strip: Custom… chip idle dashed border. */
+.wp-control-btn.wp-delay.custom-chip{background:var(--surface-2);color:var(--ink);border:1px dashed var(--ink-faint)}
+.wp-control-btn.wp-delay.custom-chip.on{border-style:solid}
+/* Phase 15.5 / UI-SPEC § "2. Movie-mode chip strip" sub-line: italic readout + +5 min nudge. */
+.wp-delay-subline{display:flex;align-items:center;gap:var(--space-inline-md,12px);margin:-6px 0 12px}
+.wp-delay-subline .wp-delay-readout-text{color:var(--ink-warm);font-style:italic;font-family:var(--font-serif,'Instrument Serif',serif);font-size:var(--t-meta);flex-shrink:0}
+/* Phase 15.5 / UI-SPEC § "4. +5 min nudge button": surface-2 background, NOT accent. */
+.wp-delay-nudge-btn{min-width:44px;min-height:44px;padding:8px 12px;box-sizing:border-box;background:var(--surface-2);color:var(--ink);border:1px solid var(--ink-faint);border-radius:100px;font-family:inherit;font-size:var(--t-meta);font-weight:500;cursor:pointer;transition:transform var(--t-quick) ease-out}
+.wp-delay-nudge-btn:active{transform:scale(0.96)}
 /* Phase 7 Plan 08 (Issue #4): on-time override controls on OWN participant chip. Secondary affordance — subtle, not competing with primary controls. */
 .wp-ontime-claim{margin-top:4px;min-height:32px;padding:4px 8px;background:transparent;border:1px solid var(--border);color:var(--ink-dim);font-size:var(--t-meta);border-radius:var(--r-sm,8px);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .wp-ontime-claim:hover{color:var(--ink);border-color:var(--border-strong)}
@@ -1491,6 +1513,16 @@ h3{font-size:var(--t-h3)}
 .tc-note.veto .veto-who{color:var(--ink)}
 .tc-note.pending{background:rgba(100,140,220,0.12);color:#8fb3f0;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .tc-note.declined{background:rgba(120,120,120,0.1);color:var(--ink-dim);font-style:italic}
+/* Phase 20 / D-08 — Decision explanation footer on Tonight match cards.
+   Single-line dim-text — informational, sits between vote-strip and tc-footer.
+   NOT italic, NOT serif (D-08 calls for plain dim only — italic serif is reserved
+   for D-07 spin-pick + D-09 detail modal hero placements). */
+.tc-explanation {
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  margin: var(--s1) 0 var(--s2);
+  line-height: 1.4;
+}
 .tc-approve-inline,.tc-decline-inline{font-family:inherit;font-size:var(--t-eyebrow);padding:3px 10px;border-radius:var(--r-pill);border:1px solid transparent;cursor:pointer;margin-left:auto}
 .tc-approve-inline{background:var(--good);color:var(--bg);font-weight:600}
 .tc-decline-inline{background:transparent;color:var(--ink-dim);border-color:var(--border)}
@@ -1553,6 +1585,31 @@ h3{font-size:var(--t-h3)}
 .detail-prov-label{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;min-width:40px}
 .detail-prov-empty{font-size:var(--fs-meta);color:var(--ink-dim);font-style:italic}
 .detail-section .provider-logo.mine{box-shadow:0 0 0 2px var(--accent);border-color:var(--accent)}
+/* Phase 20 / D-09 — "Why this is in your matches" section in detail modal.
+   Italic Instrument Serif h4 + dim p — same humility register as Phase 18
+   "Provider data via TMDB" attribution and Phase 19 kid-mode-override-link.
+   Section is conditionally rendered (only when t.id is in getCurrentMatches()). */
+.detail-why-match {
+  padding: var(--s3) 0 var(--s2);
+  border-top: 1px solid var(--border);
+  margin-top: var(--s3);
+}
+.detail-why-match h4 {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-body);
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 var(--s2);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.detail-why-match-text {
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin: 0;
+  line-height: 1.5;
+}
 .cast-row{display:flex;gap:var(--s3);overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .cast-row::-webkit-scrollbar{display:none}
 .cast-card{flex-shrink:0;width:80px;text-align:center}
@@ -1560,6 +1617,20 @@ h3{font-size:var(--t-h3)}
 .cast-name{font-family:'Inter',sans-serif;font-size:var(--fs-meta);font-weight:600;line-height:1.25;margin-bottom:2px}
 .cast-char{font-size:var(--fs-micro);color:var(--ink-dim);line-height:1.3}
 .trailer-frame{width:100%;aspect-ratio:16/9;border-radius:var(--r-md);border:none;background:#000;margin-bottom:var(--s2)}
+/* Phase 24 — Native video player surface inside watchparty live modal.
+   Persistent surface (REVIEWS H1): #wp-video-surface owns the player; never
+   re-rendered by renderWatchpartyLive. Coordination surface owns everything else. */
+.wp-video-surface{flex-shrink:0}
+.wp-video-surface:empty{display:none}
+.wp-live-coordination{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.wp-video-frame{width:100%;aspect-ratio:16/9;background:#000;border-radius:0;overflow:hidden;position:relative;flex-shrink:0}
+.wp-video-frame iframe,.wp-video-frame video{width:100%;height:100%;border:none;display:block}
+.wp-live-modal > #wp-video-surface .wp-video-frame:first-child,
+.wp-live-modal > .wp-video-surface .wp-video-frame:first-child{border-radius:24px 24px 0 0}
+.wp-live-header--has-player .wp-live-poster{display:none}
+.wp-video-error{position:absolute;left:0;right:0;bottom:0;padding:var(--s3) var(--s4);background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0.7) 100%);color:var(--ink);font-family:var(--font-sans);font-size:var(--t-meta);display:flex;align-items:center;gap:var(--s3);justify-content:space-between}
+.wp-video-error em{font-family:var(--font-serif);font-style:italic;color:var(--ink-warm)}
+.wp-video-error .link-like{font-size:var(--t-meta);color:var(--accent);cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
 .similar-row{display:flex;gap:var(--s3);overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .similar-row::-webkit-scrollbar{display:none}
 .similar-card{flex-shrink:0;width:100px;cursor:pointer}
@@ -1600,6 +1671,19 @@ h3{font-size:var(--t-h3)}
   box-shadow:0 1px 4px rgba(0,0,0,0.3)}
 .spin-reason{font-size:var(--t-meta);color:var(--accent);margin-bottom:18px;
   font-style:italic;font-family:'Instrument Serif','Fraunces',serif}
+/* Phase 20 / D-07 — Decision explanation sub-line in spin result modal.
+   Sits below .spin-result-meta and above .spin-result-providers strip.
+   Italic Instrument Serif + ink-dim — informational, not celebratory. */
+.spin-explanation {
+  font-size: var(--t-meta);
+  font-style: italic;
+  font-family: var(--font-serif);
+  color: var(--ink-dim);
+  margin: 0 auto 10px;
+  max-width: 90%;
+  text-align: center;
+  line-height: 1.4;
+}
 .spin-actions{display:flex;gap:8px;flex-direction:column}
 .spin-actions button{padding:14px;border-radius:12px;font-family:inherit;font-weight:700;font-size:var(--t-body);cursor:pointer;border:none}
 .spin-accept{background:var(--good);color:white}
@@ -1652,7 +1736,7 @@ h3{font-size:var(--t-h3)}
 .who-list{display:flex;gap:var(--s2);overflow-x:auto;scrollbar-width:none;position:relative;z-index:1}
 .who-list::-webkit-scrollbar{display:none}
 .who-chip{display:flex;align-items:center;gap:8px;
-  padding:6px 10px 6px 6px;flex-shrink:0;
+  padding:8px 12px 8px 8px;flex-shrink:0;
   background:var(--surface-2);border:1px solid var(--border-mid);
   border-radius:var(--r-pill);cursor:pointer;
   transition:all var(--t-quick)}
@@ -1785,6 +1869,8 @@ h3{font-size:var(--t-h3)}
 .activity-text em{color:var(--accent);font-style:italic;font-family:'Instrument Serif','Fraunces',serif;font-weight:500}
 .activity-time{font-size:var(--t-micro);color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.12em;font-weight:500;margin-top:3px}
 .activity-empty{font-size:var(--t-meta);color:var(--ink-dim);text-align:center;padding:14px;font-style:italic}
+.activity-show-more{display:block;width:100%;background:transparent;border:none;color:var(--ink-dim);font-size:var(--t-meta);font-style:italic;padding:12px 0 4px;cursor:pointer;letter-spacing:0.02em}
+.activity-show-more:hover{color:var(--ink)}
 
 .section-head{font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;font-style:italic;letter-spacing:-0.015em;margin:0 4px 12px;display:flex;align-items:baseline;justify-content:space-between}
 .section-head .sub{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.18em;font-weight:600;font-style:normal;font-family:'Inter',sans-serif}
@@ -2184,6 +2270,13 @@ h3{font-size:var(--t-h3)}
 .activity-title-link{color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-color:transparent;transition:text-decoration-color var(--t-quick)}
 .activity-title-link:hover{text-decoration-color:var(--accent)}
 
+/* Inline link-style button — used in empty-state CTAs (D-11) per polish audit.
+   Reuse-friendly: any inline action that should read as a sentence link, not a chip. */
+.link-like{background:transparent;border:none;padding:0;color:var(--accent);
+  cursor:pointer;text-decoration:underline;text-decoration-color:transparent;
+  font:inherit;transition:text-decoration-color var(--t-quick)}
+.link-like:hover,.link-like:focus-visible{text-decoration-color:var(--accent)}
+
 /* Full queue view */
 .full-queue-row{display:flex;gap:12px;background:var(--surface);border-radius:12px;padding:10px;margin-bottom:6px;border:1px solid var(--border);align-items:center;touch-action:pan-y;user-select:none;position:relative}
 .full-queue-row.dragging{opacity:0.4;background:var(--bg-2)}
@@ -2255,8 +2348,61 @@ h3{font-size:var(--t-h3)}
 .subprofile-row:last-child { border-bottom: none; }
 .subprofile-row .who-avatar { width: 36px; height: 36px; font-size: 13px; display: grid; place-items: center; border-radius: 50%; color: #14110f; font-weight: 700; flex-shrink: 0; }
 .subprofile-name { flex: 1; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); }
-.link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+/* Wave 5B / Gemini P2 — tap-target lift to 44px min hit area.
+   Visual remains compact via padding; min-height enlarges touch surface. */
+.link-btn { background: transparent; border: none; color: var(--accent); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 6px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .link-btn:hover { background: var(--surface-2); }
+/* === Phase 27 — Guest RSVP host controls === */
+.wp-guest-kebab{
+  background:transparent;
+  border:none;
+  color:var(--ink-dim);
+  font-size:18px;
+  cursor:pointer;
+  min-width:44px;
+  min-height:44px;
+  display:grid;
+  place-items:center;
+}
+.wp-guest-kebab:hover{color:var(--ink)}
+.wp-rsvp-closed-pill{
+  display:inline-block;
+  font-family:'Inter',sans-serif;
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.10em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:4px 8px;
+  margin-top:4px;
+}
+.wp-guest-menu{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:4px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  min-width:160px;
+}
+.wp-guest-menu-item{
+  display:block;
+  width:100%;
+  padding:10px 14px;
+  background:transparent;
+  border:none;
+  color:var(--ink);
+  font-family:'Inter',sans-serif;
+  font-size:14px;
+  text-align:left;
+  cursor:pointer;
+  border-radius:6px;
+  min-height:44px;
+}
+.wp-guest-menu-item:hover{background:var(--surface-2)}
+.wp-guest-menu-item.destructive{color:var(--bad)}
 /* Owner-only settings rows (D-18 / D-19) */
 .settings-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 12px; }
 .settings-row-label { display: block; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
@@ -2429,6 +2575,232 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 
 /* — Hidden offscreen input (emoji picker target) — */
 .input-offscreen{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* === v36.4 — Twemoji rendering ===
+   Brand-consistent emoji glyphs for curated mood + reaction pickers.
+   Replaces OS-rendered emojis (Apple Color / Google Noto / Microsoft Segoe)
+   which render wildly differently across family members' devices.
+   Only used in 9 mood-icon render sites + WP reaction picker — free-text
+   emoji elsewhere stays platform-native. */
+.twemoji{display:inline-block;width:1.25em;height:1.25em;vertical-align:-0.2em;user-select:none}
+.twemoji--md{width:1.5em;height:1.5em;vertical-align:-0.3em}
+.twemoji--lg{width:2em;height:2em;vertical-align:-0.4em}
+/* Compact 3-icon dot row on tile cards (.tc-mood-dots context) */
+.tc-mood-dots .twemoji{width:1em;height:1em;vertical-align:-0.15em;margin-right:1px}
+/* WP reaction picker buttons — slightly larger for tap target comfort */
+.wp-emoji-btn .twemoji{width:1.5em;height:1.5em;vertical-align:-0.2em}
+
+/* === Phase 21 — Conflict-aware empty state ===
+   Diagnoses why the matches list is empty when titles exist (vetoes, kid-mode,
+   tier cap, mood filter, provider intersection). Replaces the generic
+   "Nothing's matching" copy with a structured headline + reason chips. */
+.empty-conflict-aware{display:flex;flex-direction:column;gap:var(--s2);align-items:center;text-align:center}
+.empty-reasons{display:flex;flex-wrap:wrap;gap:var(--s1);justify-content:center;margin-top:var(--s2)}
+.empty-reason-chip{display:inline-block;padding:var(--s1) var(--s2);background:var(--surface);color:var(--ink-dim);font-size:var(--t-meta);border-radius:var(--r-sm);border:1px solid var(--ink-dim-2,rgba(255,255,255,0.08))}
+.empty-consider-hint{margin-top:var(--s2);font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;font-family:var(--font-serif)}
+
+/* === Phase 15 — Tracking Layer === */
+/* All Phase 15 selectors prefixed .cv15- per UI-SPEC §Integration. Zero new
+   color/spacing/type tokens — bound to existing :root scale. Reuses
+   .detail-section + .modal-bg + .tc-primary verbatim (NOT redeclared).
+   Letter-spacing: -0.015em on Fraunces title is the established Couch
+   convention (see css/app.css:334, :544 — REVIEW Codex CSS letter-spacing
+   concern rejected per BRAND.md §Typography). */
+
+/* S2 row visual + S1 widget reuse. */
+.cv15-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--ink-faint);
+}
+.cv15-progress-row:first-of-type { padding-top: 0; }
+.cv15-progress-row:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.cv15-progress-row-body { flex: 1; min-width: 0; }
+.cv15-tuple-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: var(--t-h3);
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+/* REVIEW MEDIUM-6 — modifier renamed for semantic clarity. Fires only when the
+   placeholder shimmer is rendered (no custom name AND we want to invite naming). */
+.cv15-tuple-name.unnamed-placeholder {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  letter-spacing: 0;
+  margin-left: var(--s2);
+}
+.cv15-tuple-rename {
+  background: none;
+  border: 0;
+  padding: var(--s1);
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  transition: color var(--t-quick);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cv15-tuple-rename:hover { color: var(--ink); }
+.cv15-tuple-rename:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cv15-tuple-rename-input {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 4px var(--s2);
+  width: 100%;
+  max-width: 240px;
+}
+.cv15-progress-pos {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  white-space: nowrap;
+}
+.cv15-progress-time {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+.cv15-progress-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.cv15-progress-show-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: var(--t-h3);
+  color: var(--ink);
+  line-height: 1.2;
+}
+.cv15-progress-tuple-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  margin-top: 2px;
+}
+
+/* S6 per-show notif kill-switch. */
+.cv15-mute-toggle {
+  background: none;
+  border: 0;
+  padding: var(--s2) 0 0 0;
+  margin-top: var(--s3);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  text-align: left;
+  width: 100%;
+  border-top: 1px solid var(--ink-faint);
+  transition: color var(--t-quick);
+}
+.cv15-mute-toggle:hover { color: var(--ink); }
+.cv15-mute-toggle.on { color: var(--bad); }
+.cv15-mute-toggle.on:hover { opacity: 0.85; }
+.cv15-mute-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* S5 conflict-prompt modal (consumed by 15-07). */
+.cv15-cowatch-prompt-content {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: var(--s5);
+  width: 100%;
+  max-width: 320px;
+}
+.cv15-cowatch-prompt-h {
+  font-family: 'Fraunces', serif;
+  font-size: var(--t-h3);
+  color: var(--ink);
+  margin: 0 0 var(--s3) 0;
+}
+.cv15-cowatch-prompt-body {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  line-height: 1.45;
+  margin: 0 0 var(--s5) 0;
+}
+.cv15-cowatch-prompt-actions {
+  display: flex;
+  gap: var(--s2);
+  justify-content: flex-end;
+}
+.cv15-cowatch-prompt-actions .tc-secondary.accent-border {
+  border-color: var(--accent);
+}
+
+/* S1 Tonight widget container (consumed by 15-05). */
+.cv15-pickup-container {
+  margin-top: var(--space-section);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: var(--s4);
+}
+.cv15-pickup-container:empty { display: none; }
+.cv15-pickup-h {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 var(--s3) 0;
+}
+
+/* Post-session auto-track confirmation row. */
+.cv15-autotrack-row {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: var(--s3) var(--s4);
+  margin-top: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.cv15-autotrack-row p {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--t-body);
+  color: var(--ink);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.cv15-autotrack-row .cv15-autotrack-confidence {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  display: inline;
+}
+/* === /Phase 15 — Tracking Layer === */
 
 /* ==========================================================================
    Phase 9 / DESIGN-04 — Desktop responsive layer
@@ -3049,3 +3421,1805 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 .about-attribution a{color:var(--ink-warm);text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px}
 .about-attribution a:hover,.about-attribution a:focus-visible{color:var(--ink);text-decoration-color:var(--accent)}
+
+/* === D-08 Flow B nominate — DECI-14-08 (Phase 14 Plan 08) === */
+/* Nominate UI (Task 1) */
+.flow-b-nominate-content { width: min(520px, 100%); padding: var(--s4); }
+.flow-b-nominate-form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); }
+.flow-b-label { display: flex; flex-direction: column; gap: var(--s1); }
+.flow-b-label-text { color: var(--c-text-strong, #e8dcc4); font-weight: 600; }
+.flow-b-time-input, .flow-b-note-input {
+  background: var(--c-bg-elevated, #1f1a16);
+  color: var(--c-text-strong, #e8dcc4);
+  border: 1px solid var(--c-border, #4a3d33);
+  border-radius: var(--r-md, 8px);
+  padding: var(--s2);
+  font-family: var(--font-body, Inter, sans-serif);
+  font-size: 16px; /* >=16px to suppress iOS zoom-on-focus */
+}
+.flow-b-note-input { min-height: 80px; resize: vertical; }
+.flow-b-nominate-footer { display: flex; justify-content: space-between; gap: var(--s2); margin-top: var(--s3); }
+
+/* Recipient response + counter-time picker (Task 2) */
+.flow-b-response-content, .flow-b-counter-content { width: min(520px, 100%); padding: var(--s4); }
+.flow-b-response-body { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); }
+.flow-b-already, .flow-b-note {
+  padding: var(--s2);
+  background: var(--c-bg-elevated, #1f1a16);
+  border-radius: var(--r-md, 8px);
+}
+.flow-b-counter-form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s3); }
+.flow-b-counter-footer { display: flex; justify-content: space-between; gap: var(--s2); margin-top: var(--s3); }
+
+/* Nominator status screen — counter rows + indicators (Task 3) */
+.flow-b-status-content { width: min(680px, 100%); max-height: 90vh; overflow-y: auto; padding: var(--s4); }
+.flow-b-indicator {
+  padding: var(--s3);
+  border-radius: var(--r-md, 8px);
+  margin: var(--s2) 0;
+}
+.flow-b-converting { background: var(--c-bg-elevated, #1f1a16); border: 1px solid var(--c-warm-amber, #d4a574); }
+.flow-b-allno { background: var(--c-bg-elevated, #1f1a16); border: 1px solid var(--c-warning, #d97757); display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.flow-b-counter-list { margin: var(--s3) 0; }
+.flow-b-counter-row {
+  padding: var(--s3);
+  background: var(--c-bg-elevated, #1f1a16);
+  border-radius: var(--r-md, 8px);
+  margin-bottom: var(--s2);
+}
+.flow-b-counter-row-meta { color: var(--c-text-strong, #e8dcc4); }
+.flow-b-counter-row-actions { display: flex; gap: var(--s2); margin-top: var(--s2); flex-wrap: wrap; }
+.flow-b-note-inline { color: var(--c-text-body, #c4b89e); font-style: italic; margin: var(--s2) 0 0; }
+.flow-b-section-h { font-family: var(--font-serif, 'Instrument Serif', serif); font-size: 18px; color: var(--c-text-strong, #e8dcc4); margin: 0 0 var(--s2); }
+
+/* tc-secondary fallback — 14-08 introduces secondary buttons but the existing CSS
+   only declares .tc-primary (css/app.css:1403). 14-09 / future tile-redesign work
+   may replace this with a canonical token; until then this Rule-2 fallback keeps
+   the Cancel / Counter / Decline buttons readable on the warm-dark surface. */
+.tc-secondary {
+  background: transparent;
+  color: var(--ink, #e8dcc4);
+  border: 1px solid var(--border, #4a3d33);
+  border-radius: var(--r-md, 8px);
+  padding: var(--s3) var(--s4);
+  font-family: inherit;
+  font-size: var(--t-body, 16px);
+  cursor: pointer;
+  transition: border-color var(--t-quick, 150ms) ease, background var(--t-quick, 150ms) ease;
+}
+.tc-secondary:hover, .tc-secondary:focus-visible {
+  border-color: var(--border-strong, var(--accent, #e8a04a));
+  background: rgba(255,255,255,0.03);
+  outline: none;
+}
+.tc-secondary:active { transform: scale(0.98); }
+
+/* === D-06 Couch viz — DECI-14-06 (hero-icon + avatar-grid pattern, sketch 001 winner P) ===
+   Tokens reference the sketch's --c-* / --text-* names with hardcoded fallbacks aligned to
+   the production warm-dark palette (#14110f bg, #f5ede0 ink, #e8a04a accent). The fallback
+   second-arg in every var() is the active value — these var lookups won't resolve in this
+   project's token layer, so the fallback drives the rendering. */
+
+.couch-viz-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+  margin: var(--s4) auto;
+  padding: var(--s2);
+}
+
+.couch-hero {
+  /* Legacy 14-04 — kept in case other surfaces reference .couch-hero alone.
+     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo. */
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1;
+  border-radius: 22px;
+  margin-bottom: var(--s3);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--c-border-soft, #2a241f);
+  /* Subtle warm halo around the hero (firelight) — fades into the dark bg */
+  background:
+    radial-gradient(ellipse at center, rgba(217, 122, 60, 0.10) 0%, transparent 65%);
+  background-size: 140% 140%;
+  background-position: center;
+}
+
+/* V5 hero — smaller (84px), drop-shadow only (no halo bg, no rounded surface).
+   Used by the new roster-pill viz; overrides .couch-hero size when both classes apply. */
+.couch-hero-v5 {
+  width: 84px;
+  height: 84px;
+  max-width: 84px;
+  aspect-ratio: 1;
+  margin-bottom: var(--s3);
+  border-radius: 22px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  background: none;
+}
+
+.couch-headline {
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-size: var(--text-xl, 1.4rem);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--c-text, #f5ede1);
+  margin: 0 0 var(--s1) 0;
+  text-align: center;
+}
+
+.couch-sub {
+  font-family: var(--font-serif, 'Instrument Serif', Georgia, serif);
+  font-style: italic;
+  color: var(--c-text-muted, #b3a797);
+  font-size: var(--text-base, 1rem);
+  margin: 0 0 var(--s4) 0;
+  text-align: center;
+}
+
+/* === V5 (sketch 003) — Roster IS the control === */
+/* Roster wrap-flex container. Centered, max-width tightens horizontal sprawl on desktop. */
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 28px auto 22px;
+  max-width: 580px;
+}
+
+/* Pill base — avatar + name + optional YOU tag + ping-hint underline. */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px 8px 8px;
+  border-radius: var(--r-pill, 999px);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 220ms cubic-bezier(0.2, 0.8, 0.4, 1);
+  position: relative;
+  border: 1.5px solid transparent;
+  /* iOS PWA: pill height ≈ 32+16 = 48px ≥44pt minimum tap target. */
+}
+.pill:hover { transform: translateY(-2px); }
+.pill:focus-visible { outline: 2px solid var(--c-warm-amber, #d4a574); outline-offset: 3px; }
+.pill .av {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body, Inter, sans-serif);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 220ms;
+}
+.pill .label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 180ms;
+  color: var(--c-text, #f5ede1);
+}
+.pill .you-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-warm-amber, #d4a574);
+  letter-spacing: 1px;
+  margin-left: 4px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(217, 122, 60, 0.12);
+}
+
+/* OUT state: dashed border, transparent bg, ghost initial in --c-text-dim. */
+.pill.out {
+  background: transparent;
+  border-color: var(--c-border-soft, #2a241f);
+  border-style: dashed;
+}
+.pill.out .av {
+  background: transparent;
+  border: 1.5px dashed var(--c-text-dim, #6e6356);
+  color: var(--c-text-dim, #6e6356);
+}
+.pill.out .label { color: var(--c-text-muted, #b3a797); }
+.pill.out:hover {
+  border-color: var(--c-warm-amber, #d4a574);
+  background: rgba(217, 122, 60, 0.04);
+}
+.pill.out:hover .av {
+  border-color: var(--c-warm-amber, #d4a574);
+  color: var(--c-warm-amber, #d4a574);
+}
+
+/* IN state: filled bg, surface elevation, member-color avatar. */
+.pill.in {
+  background: var(--surface, #1f1a16);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.pill.in .av {
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.pill.in .label { color: var(--c-text, #f5ede1); }
+
+/* ME outline (always visible regardless of in/out state). */
+.pill.me {
+  border-color: var(--c-warm-amber, #d4a574);
+  border-style: solid;
+}
+.pill.me.in {
+  background: linear-gradient(135deg, rgba(217, 122, 60, 0.18) 0%, var(--surface, #1f1a16) 100%);
+}
+
+/* Long-press progress underline — animates 0% → 100% width over 700ms while pressed. */
+.pill .ping-hint {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 2px;
+  background: var(--c-warm-amber, #d4a574);
+  border-radius: 2px;
+  width: 0;
+  transition: width 100ms linear;
+}
+.pill.pinging .ping-hint {
+  width: calc(100% - 16px);
+  transition: width 700ms linear;
+}
+
+/* Tally bar: Fraunces num + Instrument Serif italic "of N watching". */
+.couch-viz-container .tally {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.couch-viz-container .tally .num {
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-weight: 600;
+  font-size: 1.6rem;
+  color: var(--c-warm-amber, #d4a574);
+  letter-spacing: -0.02em;
+}
+.couch-viz-container .tally .of {
+  font-family: var(--font-serif, 'Instrument Serif', Georgia, serif);
+  font-style: italic;
+  color: var(--c-text-muted, #b3a797);
+  font-size: 1.05rem;
+}
+
+/* Action row: 3 text-link buttons — visibility-gated by JS. */
+.couch-viz-container .pill-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.couch-viz-container .pill-actions .action-link {
+  background: transparent;
+  border: 0;
+  color: var(--c-text-dim, #6e6356);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: color 120ms, background 120ms;
+}
+.couch-viz-container .pill-actions .action-link:hover {
+  color: var(--c-warm-amber, #d4a574);
+  background: rgba(217, 122, 60, 0.06);
+}
+
+/* Hint line below the action row. */
+.couch-viz-container .pill-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-text-dim, #6e6356);
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-style: italic;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* prefers-reduced-motion: kill long-press progress animation + hover transform. */
+@media (prefers-reduced-motion: reduce) {
+  .pill, .pill:hover { transition: none; transform: none; }
+  .pill .ping-hint, .pill.pinging .ping-hint { transition: none; }
+}
+
+/* === Phase 19 / D-14..D-17 — Kid-mode toggle === */
+/* Pill-button toggle below the action row when familyHasKids() returns true.
+   Idle: dashed amber outline, transparent background, ink-warm text.
+   Active: amber-filled, dark text, deeper amber border on hover.
+   Roster surface gets subtle amber tint when active (D-15, ≤ 0.05 opacity per
+   BRAND.md §6 "warm restraint" — no theatrical wash). */
+
+.kid-mode-row {
+  margin-top: var(--s2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.kid-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--ink-warm);
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-base) var(--easing-standard),
+              color var(--duration-base) var(--easing-standard),
+              border-color var(--duration-base) var(--easing-standard);
+  min-height: 44px; /* iOS PWA tap target per CLAUDE.md */
+}
+
+.kid-mode-toggle:hover {
+  border-color: var(--accent-deep);
+  color: var(--ink);
+}
+
+.kid-mode-toggle.on {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.kid-mode-toggle.on:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+.kid-mode-hint {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+/* D-15 — subtle amber tint on roster surface when kid-mode is active. */
+.roster.kid-mode-on {
+  background: rgba(232, 160, 74, 0.05);
+  border-radius: var(--r-md);
+  padding: var(--s2);
+  transition: background var(--duration-deliberate) var(--easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kid-mode-toggle,
+  .roster.kid-mode-on {
+    transition: none;
+  }
+}
+
+/* === Phase 19 / D-10..D-12 — Kid-mode parent override on detail modal === */
+/* Inline italic-serif link surfaced inside the detail-body when ALL three
+   conditions hold: state.kidMode active + tier > 2 + isCurrentUserParent.
+   Dim by default (BRAND.md §6 warm-restraint — does not compete with primary
+   detail content), warms to amber on hover/focus. Already-overridden state
+   shows the quiet "active" hint instead of the re-clickable link. */
+
+.kid-mode-override-row {
+  margin: var(--s2) 0 var(--s3);
+  text-align: left;
+}
+
+.kid-mode-override-link {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color var(--duration-fast) var(--easing-standard);
+}
+
+.kid-mode-override-link:hover,
+.kid-mode-override-link:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent-deep);
+}
+
+.kid-mode-override-active {
+  margin: var(--s2) 0 var(--s3);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--accent-deep);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kid-mode-override-link {
+    transition: none;
+  }
+}
+
+/* Phone-tighter: smaller pill on narrow viewports (matches sketch line 288-296). */
+@media (max-width: 480px) {
+  .pill { padding: 6px 12px 6px 6px; }
+  .pill .av { width: 28px; height: 28px; font-size: 12px; }
+  .pill .label { font-size: 13px; }
+  .roster { gap: 8px; }
+}
+
+/* === D-04 (DECI-14-04) — Tile redesign: X-want-it pill + Trailer btn === */
+/* "X want it" pill — overlapping micro-avatars + "+N" overflow chip + label.
+   Sits inline in .tc-meta where the bare yes-count pill used to be. */
+.tc-want-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 2px 8px 2px 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  font-size: var(--t-micro);
+  color: var(--ink-warm);
+  line-height: 1;
+}
+.tc-want-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.tc-want-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(20, 17, 15, 0.92);
+  margin-left: -4px;
+  border: 2px solid var(--surface-2);
+  flex: none;
+}
+.tc-want-avatar:first-child { margin-left: 0; }
+.tc-want-overflow {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--ink-dim);
+  border: 2px solid var(--surface-2);
+  margin-left: -4px;
+  flex: none;
+}
+.tc-want-label { white-space: nowrap; }
+
+/* ▶ Trailer affordance on tile face. Sits in .tc-footer next to ⋯ — restrained
+   warm-amber outline so it reads as secondary to the warm-grad .tc-primary. */
+.tc-trailer-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--accent, #d4a574);
+  color: var(--accent, #d4a574);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-quick), color var(--t-quick);
+}
+.tc-trailer-btn:hover {
+  background: rgba(212, 167, 106, 0.12);
+}
+
+/* === D-04 (DECI-14-04) — TMDB community reviews in detail modal === */
+/* Sibling to .review-card (family-local reviews) — slightly more compact and uses
+   surface-2 background to visually distinguish from the family review block. */
+.tmdb-reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.tmdb-review {
+  padding: var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-md, 8px);
+}
+.tmdb-review-h {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: var(--s2);
+  font-size: var(--t-meta);
+}
+.tmdb-review-body {
+  color: var(--ink-dim);
+  line-height: 1.5;
+  margin: 0;
+  font-size: var(--t-meta);
+}
+
+/* === D-05 (DECI-14-05) — Catch-up-on-votes CTA on Add tab === */
+/* Sits at the very top of #screen-add when unvoted family titles >= 10.
+   Warm-amber outline + serif headline so it reads as a brand moment without
+   competing with the search bar below. Removes itself when count drops. */
+.add-catchup-cta {
+  background: var(--surface-2);
+  padding: var(--s4);
+  border-radius: var(--r-lg, 12px);
+  margin: var(--s3) 0 var(--s4);
+  border: 1px solid var(--accent, #d4a574);
+  box-shadow: var(--shadow-warm);
+}
+.add-catchup-h {
+  font-family: 'Instrument Serif', 'Fraunces', serif;
+  font-style: italic;
+  font-size: var(--t-h2);
+  color: var(--ink);
+  line-height: 1.2;
+}
+.add-catchup-body {
+  color: var(--ink-dim);
+  margin: var(--s2) 0 var(--s3);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+.add-catchup-cta .tc-primary {
+  /* Inherits .tc-primary brand-grad styling from line 1403; no override needed. */
+}
+
+/* ========================================================================== */
+/* === Phase 14 / Plan 14-07 — D-07 Flow A: rank-pick + push-confirm UI ===== */
+/* ========================================================================== */
+/* Entry CTA, picker (3-tier ranked list), roster (proxy-confirm), and        */
+/* response (live tally + counter sub-flow + convert) screens. Reuses the     */
+/* existing .modal-bg + .modal-content shell (declared at css/app.css:478).   */
+/* All custom-property names use the existing token aliases with hardcoded    */
+/* fallbacks so production-palette omissions still render correctly (same     */
+/* defensive pattern as 14-04 and 14-08).                                     */
+/* ========================================================================== */
+
+/* === D-07 Flow A entry CTA — DECI-14-07 === */
+.flow-a-entry-container {
+  /* Container exists in app.html under #couch-viz-container. Empty by default;
+     renderFlowAEntry() conditionally fills it. No layout when empty. */
+}
+.flow-a-entry, .flow-a-active {
+  background: var(--surface-2, #1f1a16);
+  padding: var(--s3, 12px);
+  border-radius: var(--r-lg, 12px);
+  margin: var(--s4, 16px) 0;
+  border: 1px solid var(--c-warm-amber, #d4a574);
+}
+.flow-a-entry-h, .flow-a-active-h {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: 22px;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-entry-body, .flow-a-active-body {
+  color: var(--ink-dim, #c4b89e);
+  margin: var(--s2, 8px) 0 var(--s3, 12px);
+}
+
+/* === D-07 Flow A picker UI === */
+.flow-a-picker-modal { display: none; }
+.flow-a-picker-modal.on { display: flex; }
+.flow-a-picker-content {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-picker-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-picker-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s3, 12px); }
+.flow-a-section { margin-bottom: var(--s4, 16px); }
+.flow-a-section-h {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: 18px;
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  padding: var(--s2, 8px);
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  transition: background-color 200ms ease-out;
+}
+.flow-a-row:hover, .flow-a-row:focus-visible {
+  background: var(--surface-2, #1f1a16);
+  outline: none;
+}
+.flow-a-row-poster {
+  width: 60px; height: 90px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-3, #2a221c);
+  border-radius: var(--r-sm, 4px);
+  flex-shrink: 0;
+}
+.flow-a-row-meta { flex: 1; min-width: 0; }
+.flow-a-row-name { font-weight: 600; color: var(--ink, #e8dcc4); }
+.flow-a-row-tier { font-size: 13px; color: var(--ink-dim, #8a7d6e); margin-top: 2px; }
+.flow-a-t3-toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--ink-dim, #8a7d6e);
+  color: var(--ink-dim, #8a7d6e);
+  padding: var(--s2, 8px) var(--s3, 12px);
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.flow-a-t3-warn {
+  font-size: 12px;
+  color: var(--ink-dim, #8a7d6e);
+  font-style: italic;
+  margin: var(--s2, 8px) 0;
+}
+
+/* === D-07 Flow A roster — proxy-confirm === */
+.flow-a-roster-content {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-roster-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-roster-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s3, 12px); }
+.flow-a-roster-list { display: flex; flex-direction: column; gap: var(--s2, 8px); margin: var(--s3, 12px) 0; }
+.flow-a-roster-member {
+  appearance: none;
+  background: var(--surface-2, #1f1a16);
+  border: 1px solid transparent;
+  padding: var(--s3, 12px);
+  border-radius: var(--r-md, 8px);
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-roster-member.confirmed {
+  border-color: var(--c-warm-amber, #d4a574);
+}
+.flow-a-roster-member:disabled { opacity: 0.7; cursor: default; }
+.flow-a-roster-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.flow-a-roster-name { flex: 1; color: var(--ink, #e8dcc4); }
+.flow-a-roster-status { font-size: 12px; color: var(--ink-dim, #8a7d6e); }
+.flow-a-roster-footer {
+  display: flex;
+  gap: var(--s2, 8px);
+  justify-content: space-between;
+  margin-top: var(--s4, 16px);
+}
+
+/* === D-07 Flow A response screen === */
+.flow-a-response-content {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--s4, 16px);
+}
+.flow-a-response-h h2 {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  margin: 0 0 var(--s2, 8px);
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-response-h p { color: var(--ink-dim, #c4b89e); margin: 0 0 var(--s2, 8px); }
+.flow-a-status-closed {
+  color: var(--c-warm-amber, #d4a574);
+  font-style: italic;
+}
+.flow-a-rejected-cta, .flow-a-counter-cap, .flow-a-already {
+  padding: var(--s3, 12px);
+  background: var(--surface-2, #1f1a16);
+  border-radius: var(--r-md, 8px);
+  margin: var(--s2, 8px) 0;
+  color: var(--ink, #e8dcc4);
+}
+.flow-a-rejected-cta { border: 1px solid var(--c-warning, #d97757); }
+.flow-a-rejected-cta strong { color: var(--c-warning, #d97757); display: block; margin-bottom: var(--s2, 8px); }
+.flow-a-counter-cap { border: 1px solid var(--ink-dim, #8a7d6e); }
+.flow-a-counter-cap strong { display: block; margin-bottom: var(--s2, 8px); }
+.flow-a-response-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+  margin-top: var(--s3, 12px);
+}
+/* === Phase 14 / Plan 14-07 — END Flow A CSS === */
+
+/* === Phase 14 / Plan 14-09 — D-10 coach-tip (DECI-14-10) === */
+.coach-tip {
+  position: fixed;
+  max-width: 240px;
+  padding: var(--s2, 8px) var(--s3, 12px);
+  background: var(--c-bg-deep, #14110f);
+  color: var(--c-text-strong, #e8dcc4);
+  border: 1px solid var(--c-warm-amber, #d4a574);
+  border-radius: var(--r-md, 8px);
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--t-shimmer, 200ms) var(--ease-out, ease-out),
+              transform var(--t-shimmer, 200ms) var(--ease-out, ease-out);
+  z-index: 200;
+  pointer-events: none;
+}
+.coach-tip.on {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-tip { transition: none; transform: none; }
+}
+
+/* === Phase 14 / Plan 14-09 — D-11 empty-state CTA layout === */
+.queue-empty-cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+  margin-top: var(--s3, 12px);
+  align-items: stretch;
+}
+
+/* === Phase 14 / Plan 14-09 — D-11 (c) cushion-glow affordance === */
+/* OBSOLETED by 14-10 V5 redesign: previously targeted the legacy cushion grid's
+   empty cushions, which the V5 roster has replaced. The renderFlowAEntry empty
+   state no longer needs to add the cushion-glow class because the dashed-pill
+   roster IS the empty state in V5. Whole block (selectors + keyframes) deleted. */
+/* === Phase 14 / Plan 14-09 — END === */
+
+/* === Phase 15.5 / Plan 04 — D-03 + REQ-3: Wait Up custom picker bottom-sheet === */
+/* Subclass of .modal — inherits .modal positioning + animation; overrides
+   max-height + padding for picker-specific layout. iOS safe-area-inset honored
+   in bottom padding so the home indicator doesn't clip the action row. */
+.wait-up-picker-modal {
+  max-height: 70vh;
+  padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+}
+.wait-up-picker-h {
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 12px 0;
+}
+/* Numeric input row — three side-by-side fields with labels below. */
+.wup-input-row {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 16px 0;
+  justify-content: flex-start;
+}
+.wup-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wup-field input {
+  width: 64px;
+  height: 56px;
+  background: var(--surface-3, #2c261f);
+  border: 1px solid var(--border, #3a322a);
+  border-radius: var(--r-sm, 8px);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 400;
+  text-align: center;
+  transition: border-color var(--duration-fast, 150ms);
+  box-sizing: border-box;
+}
+.wup-field input:focus {
+  outline: none;
+  border-color: var(--accent, #e8a04a);
+}
+.wup-field-label {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim, #847868);
+}
+/* Helper line — italic Instrument Serif, the per-receiver-only contract reinforcement (REQ-8 / D-06). */
+.wup-helper {
+  margin: 0 0 16px 0;
+  color: var(--ink-dim, #847868);
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-size: var(--t-meta, 13px);
+  font-style: italic;
+  line-height: 1.4;
+}
+.wup-helper em { font-style: italic; }  /* defensive — em already italic */
+/* Eyebrow above preset row. */
+.wup-preset-eyebrow {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim, #847868);
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+}
+/* Preset row — same chip recipe as main strip; reuses .wp-control-btn.wp-delay rules from Plan 03. */
+.wup-preset-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 20px 0;
+}
+/* Action row — Cancel link left, Set wait button right. */
+.wup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+.wup-cancel {
+  background: none;
+  border: none;
+  color: var(--ink-dim, #847868);
+  font-family: inherit;
+  font-size: var(--t-meta, 13px);
+  font-weight: 500;
+  padding: 12px 8px;
+  min-height: 44px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.wup-cancel:hover { color: var(--ink-warm, #c9bca8); }
+/* Set wait submit button — inherits .modal-close base recipe (--brand-grad + --shadow-warm + weight 700). */
+.wup-submit {
+  min-height: 44px;
+  padding: 12px 24px;
+  font-weight: 700;
+  border-radius: var(--r-md, 12px);
+}
+/* Reduced motion — sheet appears instantly per UI-SPEC § Accessibility Contract. */
+@media (prefers-reduced-motion: reduce) {
+  .wait-up-picker-modal { animation: none; }
+  #wait-up-picker-bg { animation: none; }
+}
+/* === Phase 15.5 / Plan 04 — END === */
+
+/* === Phase 15.5 / Plan 06 — Past parties surface === */
+/* Phase 15.5 / D-04 + UI-SPEC § "6a Tonight tab inline entry point": Past parties link row.
+   Renders inside #wp-banner-tonight below the active wp banners when stale wps exist. */
+.past-parties-link-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 12px 16px;
+  margin-top: 40px; /* --space-section approximation per UI-SPEC § Spacing Scale */
+  color: var(--ink-warm, #c9bca8);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+.past-parties-link-row:hover { color: var(--ink, #f5ede0); }
+.past-parties-link-row:focus { outline: 2px solid var(--accent, #e8a04a); outline-offset: 2px; }
+.past-parties-count { color: var(--accent, #e8a04a); font-weight: 500; }
+.past-parties-chevron { color: var(--ink-dim, #847868); margin-left: 4px; }
+/* Phase 15.5 / UI-SPEC § "6b Past parties surface": tall sheet — full-height, full-width.
+   Subclasses .modal (which is bottom-anchored bottom-sheet by default). */
+.past-parties-surface {
+  max-height: 100vh;
+  height: 100vh;
+  max-width: 480px;
+  border-radius: 24px 24px 0 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.past-parties-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface, #1c1814);
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--ink-faint, #3a322a);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.past-parties-eyebrow {
+  font-size: var(--t-eyebrow, 11px);
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  color: var(--ink-dim, #847868);
+  text-transform: uppercase;
+}
+.past-parties-h {
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ink, #f5ede0);
+  margin: 0;
+}
+.past-parties-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--ink-dim, #847868);
+  font-size: 24px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.past-parties-close:hover { color: var(--ink, #f5ede0); }
+.past-parties-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px max(20px, env(safe-area-inset-bottom));
+}
+/* Past parties row — based on .approval-row pattern (css/app.css:1841-1860). */
+.past-parties-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--ink-faint, #3a322a);
+  cursor: pointer;
+  min-height: 96px;
+}
+.past-parties-row:first-child { border-top: none; }
+.past-parties-row:focus { outline: 2px solid var(--accent, #e8a04a); outline-offset: 2px; }
+.past-parties-row:hover { background: rgba(232, 160, 74, 0.03); }
+/* Poster size override per UI-SPEC § "6b" (56×84, 3:2 aspect) */
+.past-parties-poster {
+  width: 56px;
+  height: 84px;
+  border-radius: var(--r-sm, 8px);
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2, #25201a);
+  flex-shrink: 0;
+}
+.past-parties-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.past-parties-title {
+  color: var(--ink, #f5ede0);
+  font-size: 15px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* UI-SPEC §6b color correction: subtitles use --ink-warm (8.5:1 contrast) NOT --ink-dim (4.0:1 fails AA Large at 13px). */
+.past-parties-meta {
+  color: var(--ink-warm, #c9bca8);
+  font-size: 13px;
+}
+.past-parties-row-chevron {
+  color: var(--ink-faint, rgba(132, 120, 104, 0.4));
+  flex-shrink: 0;
+  font-size: 16px;
+}
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #past-parties-bg { animation: none; }
+  .past-parties-surface { animation: none; }
+}
+/* === Phase 15.5 / Plan 06 — END === */
+
+/* ===== Phase 26 — Position-anchored reactions + async-replay (replay variant chrome) ===== */
+/* Reuses the existing .wp-live-modal scaffold (css/app.css:741-776).
+   Mirrors .wp-dvr-slider track + thumb recipe (css/app.css:3117-3137) — scaled per UI-SPEC §2.
+   Zero new color tokens — every value is an existing semantic alias.
+*/
+
+/* ----- Replay scrubber strip (per UI-SPEC §2) ----- */
+.wp-replay-scrubber-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inline-sm, 8px);
+  padding: var(--space-stack-sm, 12px) var(--space-inline-md, 12px);
+  background: var(--surface);
+  border-radius: var(--r-sm, 8px);
+  min-height: 56px;
+  margin-bottom: var(--space-stack-sm, 12px);
+}
+
+/* Play/pause icon button — 32x32 minimum, >=44px effective via parent padding stack */
+.wp-replay-playpause {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-2);
+  color: var(--ink);
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background var(--duration-fast, 150ms) var(--easing-out, ease-out);
+}
+.wp-replay-playpause:hover { background: var(--surface-3, var(--surface-2)); }
+.wp-replay-playpause:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Range input — flex-1 between the play/pause and readout */
+.wp-replay-scrubber-input {
+  flex: 1;
+  height: 28px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+.wp-replay-scrubber-input::-webkit-slider-runnable-track {
+  height: 8px;
+  background: linear-gradient(to right,
+    var(--accent) 0%,
+    var(--accent) calc(var(--scrubber-pct, 0) * 1%),
+    rgba(132, 120, 104, 0.4) calc(var(--scrubber-pct, 0) * 1%),
+    rgba(132, 120, 104, 0.4) 100%);
+  border-radius: 4px;
+}
+.wp-replay-scrubber-input::-moz-range-track {
+  height: 8px;
+  background: rgba(132, 120, 104, 0.4);
+  border-radius: 4px;
+}
+.wp-replay-scrubber-input::-moz-range-progress {
+  height: 8px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+.wp-replay-scrubber-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  margin-top: -10px;
+  box-shadow: var(--shadow-soft, 0 2px 6px rgba(0,0,0,0.3));
+  transition: transform var(--duration-fast, 150ms) var(--easing-out, ease-out);
+}
+.wp-replay-scrubber-input::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: var(--shadow-soft, 0 2px 6px rgba(0,0,0,0.3));
+  transition: transform var(--duration-fast, 150ms) var(--easing-out, ease-out);
+}
+.wp-replay-scrubber-input:active::-webkit-slider-thumb { transform: scale(1.1); }
+.wp-replay-scrubber-input:active::-moz-range-thumb { transform: scale(1.1); }
+
+/* Readout — tabular-nums for stable digit width during clock advance */
+.wp-replay-scrubber-readout {
+  font-family: var(--font-sans, Inter, sans-serif);
+  font-size: var(--t-meta, 13px);
+  color: var(--ink-warm);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 100px;
+  text-align: right;
+}
+
+/* ----- Replay banner sub-line (italic Instrument Serif under the title) ----- */
+.wp-live-revisit-subline {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  color: var(--ink-warm);
+  font-size: var(--t-meta, 13px);
+  line-height: 1.2;
+  margin-top: 2px;
+  letter-spacing: 0;
+}
+
+/* ----- Reduced-motion guard (project-wide token already clamps; this keeps the
+        scrubber thumb scale animation crisp under accessibility setting) ----- */
+@media (prefers-reduced-motion: reduce) {
+  .wp-replay-scrubber-input:active::-webkit-slider-thumb,
+  .wp-replay-scrubber-input:active::-moz-range-thumb,
+  .wp-replay-playpause { transition-duration: 0.01ms; }
+}
+
+/* ===== Phase 26 / Plan 04 — Past watchparties for title section (UI-SPEC §5) ===== */
+.past-watchparties-for-title-list {
+  display: flex;
+  flex-direction: column;
+}
+.past-watchparty-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(132, 120, 104, 0.3);
+  cursor: pointer;
+  min-height: 72px;
+}
+.past-watchparty-row:first-child { border-top: none; }
+.past-watchparty-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.past-watchparty-row:hover { background: rgba(232, 160, 74, 0.03); }
+.past-watchparty-poster {
+  width: 48px;
+  height: 72px;
+  border-radius: var(--r-sm, 8px);
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2);
+  border: 1px solid rgba(232, 160, 74, 0.18);  /* Accent reserved-for #5: 0.18 alpha */
+  flex-shrink: 0;
+}
+.past-watchparty-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.past-watchparty-title {
+  color: var(--ink);
+  font-size: var(--t-body, 15px);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.past-watchparty-meta {
+  color: var(--ink-warm);
+  font-size: var(--t-meta, 13px);
+}
+.past-watchparty-chevron {
+  color: var(--ink-dim);
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+/* ----- Past parties surface pagination row ----- */
+.past-parties-show-older {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 16px;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--ink-warm);
+  font-family: var(--font-sans, Inter, sans-serif);
+  font-size: var(--t-body, 15px);
+  border-top: 1px solid rgba(132, 120, 104, 0.3);
+}
+.past-parties-show-older:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.past-parties-show-older:hover { background: rgba(232, 160, 74, 0.03); }
+/* === Phase 26 / Plan 04 — END === */
+/* === Phase 26 — END === */
+
+/* === Phase 30 — Couch groups: Bring another couch in affordance + cross-family chip suffix === */
+
+.wp-add-family-section {
+  margin-top: var(--space-stack-lg);
+  padding-top: var(--space-stack-md);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-sm);
+}
+
+.wp-add-family-heading {
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+.wp-add-family-subline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-h3);
+  line-height: 1.4;
+  color: var(--ink-warm);
+  margin: 0;
+  transition: color var(--duration-base) var(--easing-standard);
+}
+
+.wp-add-family-subline-warn {
+  color: var(--warn);
+}
+
+.wp-couches-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-sm);
+}
+
+.wp-couches-empty {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  margin: 0;
+}
+
+.wp-couches-empty strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  display: block;
+  margin-bottom: var(--space-inline-xs);
+}
+
+.wp-couches-empty em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-warm);
+}
+
+.wp-couches-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 44px;
+}
+
+.wp-couches-row.own .wp-couches-row-label .muted {
+  color: var(--ink-dim);
+  font-size: 0.92em;
+}
+
+.wp-couches-row-label {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+
+.wp-couches-remove {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wp-couches-remove:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.wp-add-family-input-row {
+  display: flex;
+  gap: var(--space-inline-md);
+  align-items: stretch;
+}
+
+.wp-add-family-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.wp-add-family-input::placeholder {
+  color: var(--ink-dim);
+  text-transform: none;
+}
+
+.wp-add-family-submit {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  font-weight: 600;
+  padding: var(--space-inline-sm) var(--space-inline-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.wp-add-family-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wp-add-family-submit:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.wp-add-family-help {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  margin: 0;
+}
+
+/* Cross-family chip in renderParticipantTimerStrip (Plan 03 Task 3.5 added the chip + .family-suffix span) */
+.wp-participant-chip.cross-family {
+  /* Reuses the existing .wp-participant-chip recipe verbatim — only the data-source differs. */
+}
+
+.family-suffix {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-dim);
+  font-weight: 400;
+  margin-left: var(--space-inline-xs);
+}
+
+/* Mobile-first: input row stacks below 600px viewport per UI-SPEC */
+@media (max-width: 599px) {
+  .wp-add-family-input-row {
+    flex-direction: column;
+  }
+  .wp-add-family-submit {
+    width: 100%;
+  }
+}
+
+/* prefers-reduced-motion guard for the soft-cap sub-line color transition */
+@media (prefers-reduced-motion: reduce) {
+  .wp-add-family-subline {
+    transition: none;
+  }
+}
+
+/* === END Phase 30 === */
+
+/* =====================================================
+   Wave 5B / Gemini P2 — iOS PWA Add-to-Home-Screen nudge
+   Bottom-anchored, dismissable banner shown once to iOS Safari users who
+   arrived deep-linked (e.g. via invite share URL) and never saw landing's
+   install card. Warm-dark theme; respects safe-area-inset-bottom; tucks
+   above the bottom tab bar so it doesn't cover content the user is on.
+   Wired from showApp() (post-sign-in only). Dismiss persists in
+   localStorage.iosPwaNudgeDismissedAt.
+   ===================================================== */
+.ios-pwa-nudge {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* Sit above the bottom tab bar (~64px) and respect iOS safe-area inset. */
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(232,160,74,0.06);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  max-width: 480px;
+  margin: 0 auto;
+  animation: ios-pwa-nudge-rise 0.36s var(--ease-out) both;
+}
+.ios-pwa-nudge-text {
+  flex: 1;
+  color: var(--ink-warm);
+}
+.ios-pwa-nudge-icon {
+  display: inline-block;
+  margin: 0 2px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ios-pwa-nudge-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 18px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.ios-pwa-nudge-close:hover { background: var(--surface-2); color: var(--ink); }
+@keyframes ios-pwa-nudge-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ios-pwa-nudge { animation: none; }
+}
+
+/* ============================================================
+   Phase 28 — Pick'em (.pe-* class family)
+   PICK-28-03..28-27 + REVIEWS Amendments 10/11/12/13.
+   All token references resolve against the existing 47-token semantic alias
+   layer (Layer 1 + Layer 2). NO new design tokens introduced.
+   Per UI-SPEC §Component reuse map: .pe-picker-card extends .tab-list-card;
+   .pe-chip mirrors the .sports-game-card chip recipe at app.css:972-988.
+   ============================================================ */
+
+.pe-surface {
+  /* Sub-surface mounted via .screen.active (matching screen lifecycle) */
+  padding-bottom: var(--space-page);
+}
+.pe-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+}
+.pe-league-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-md);
+  border-top: 1px solid var(--ink-faint);
+  padding-top: var(--space-stack-md);
+}
+.pe-league-section:first-child { border-top: none; padding-top: 0; }
+.pe-league-section-h {
+  font-family: var(--font-sans);
+  font-size: var(--t-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-warm);
+  margin: 0 0 var(--space-stack-sm) 0;
+}
+.pe-tonight-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-inline-md);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--accent);
+  text-decoration: none;
+}
+.pe-tonight-link:hover { color: var(--accent); text-decoration: underline; }
+
+/* === Picker card === */
+.pe-picker-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-faint);
+  border-radius: 14px;
+  padding: var(--space-inline-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack-sm);
+}
+.pe-picker-matchup {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-h3);
+  color: var(--ink);
+  line-height: 1.3;
+}
+.pe-picker-meta {
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  color: var(--ink-warm);
+  line-height: 1.4;
+}
+.pe-tiebreaker-tag {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-dim);
+  margin-left: var(--space-inline-xs);
+}
+
+/* === Chip row + chips === */
+.pe-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-inline-sm);
+}
+.pe-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-inline-md);
+  background: var(--surface-2);
+  border: 1px solid var(--ink-faint);
+  border-radius: 10px;
+  color: var(--ink-warm);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: border 150ms ease, color 150ms ease, background 150ms ease;
+}
+.pe-chip:hover { background: var(--surface-3); }
+.pe-chip.selected {
+  color: var(--ink);
+  border: 2px solid var(--accent);
+}
+.pe-chip.prefilled {
+  color: var(--ink);
+  border: 2px solid var(--team-color, var(--accent));
+}
+.pe-chip.locked {
+  background: var(--surface);
+  color: var(--ink-dim);
+  border-color: var(--ink-faint);
+  cursor: default;
+}
+
+/* === F1 podium row stack === */
+.pe-f1-podium-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inline-sm);
+  min-height: 44px;
+}
+.pe-f1-position-label {
+  flex: 0 0 auto;
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--ink-warm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  min-width: 32px;
+}
+.pe-f1-driver-select {
+  flex: 1 1 auto;
+  min-height: 44px;
+  background: var(--surface-2);
+  border: 1px solid var(--ink-faint);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  padding: 0 var(--space-inline-md);
+}
+
+/* === Tiebreaker numeric input === */
+.pe-tiebreaker-input {
+  height: 40px;
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--ink-faint);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  font-variant-numeric: tabular-nums;
+  padding: 0 var(--space-inline-sm);
+}
+
+/* === Pre-fill brand-voice sub-line (D-09) === */
+.pe-prefill-sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+.pe-prefill-sub em { color: var(--accent); font-style: italic; }
+
+/* === Roster unavailable + locked-pill + empty-state === */
+.pe-roster-unavailable {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-body);
+  color: var(--ink-dim);
+  padding: var(--space-inline-md) 0;
+}
+.pe-picks-closed-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px var(--space-inline-sm);
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--bg);
+  font-size: var(--t-meta);
+  font-weight: 600;
+}
+.pe-empty-state { padding: var(--space-stack-md) 0; text-align: center; }
+.pe-empty-state-h {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-h2);
+  color: var(--ink);
+  line-height: 1.2;
+  margin-bottom: var(--space-inline-sm);
+}
+.pe-empty-state-body {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink-warm);
+  line-height: 1.55;
+}
+
+/* === Leaderboard sub-surface === */
+.pe-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-inline-sm);
+  margin-top: var(--space-stack-md);
+}
+.pe-leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inline-md);
+  min-height: 56px;
+  background: var(--surface);
+  border: 1px solid var(--ink-faint);
+  border-radius: 12px;
+  padding: var(--space-inline-md);
+}
+.pe-rank-pill {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-h2);
+  color: var(--ink-warm);
+  font-variant-numeric: tabular-nums;
+}
+.pe-rank-pill.first {
+  color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(197, 79, 99, 0.18);
+}
+.pe-leaderboard-name {
+  flex: 1 1 auto;
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+.pe-leaderboard-score {
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  color: var(--ink-warm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Past-seasons archive === */
+.pe-past-season-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--ink-faint);
+  border-radius: 10px;
+  padding: var(--space-inline-md);
+}
+.pe-past-season-line {
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.pe-past-season-frozen {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--t-meta);
+  color: var(--ink-dim);
+}
+
+/* === Inline wp pick row (lives inside .wp-live-modal) === */
+.pe-inline-wp-row {
+  background: var(--surface-2);
+  color: var(--ink-warm);
+  font-family: var(--font-sans);
+  font-size: var(--t-meta);
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  border-radius: 8px;
+  margin: var(--space-inline-sm) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-inline-sm);
+  align-items: center;
+}
+.pe-inline-wp-row em { font-family: var(--font-serif); font-style: italic; color: var(--accent); }
+
+/* === Reduced-motion guard (BRAND §5 contract) === */
+@media (prefers-reduced-motion: reduce) {
+  .pe-picker-card,
+  .pe-chip,
+  .pe-leaderboard-row,
+  .pe-rank-pill,
+  .pe-tonight-link {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

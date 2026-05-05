@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Couch Viz — Variant 2: Filled-Only + Invite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   VARIANT 2: FILLED-ONLY + INVITE CELL
+   ----------------------------------------------------------------------------
+   Problem solved: Only claimed seats render as full circles. Empty seats DON'T
+   render — there's just ONE trailing dashed "+ Invite" cell that opens the
+   share-link modal. The roster still appears, but as a sheet you open via tap,
+   not as a fixed grid.
+
+   Dual-mode tradeoff:
+     ✓ Self-claim — Tap the "+" Invite cell, sheet shows your name first,
+       tap it to claim. Or hit "Find a seat" CTA which auto-claims.
+     ✓ Proxy-fill — In the Invite sheet, tap multiple family members to fill
+       them in at once. "Mark all in" button for the case where the whole
+       family is on the couch.
+     ✓ Remote ping — Invite sheet has a "Send push to selected" option.
+     ✗ Two-tap to seat someone (tap "+", then tap their name in sheet) vs
+       Variant 1's one-tap.
+     ✗ Slightly heavier interaction model — but more discoverable.
+
+   Intentionally cut: Pre-rendered empty placeholders. The "+1 fake seats"
+   anti-pattern. Couch capacity formula entirely.
+   ============================================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #14110f;
+  --surface: #1f1a16;
+  --surface-elev: #2a241f;
+  --border-soft: #2a241f;
+  --text: #f5ede1;
+  --text-muted: #b3a797;
+  --text-dim: #6e6356;
+  --warm-amber: #d4a574;
+  --warm-glow: rgba(217, 122, 60, 0.18);
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  padding: 32px 24px 120px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* === State toggle === */
+.state-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 32px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  padding: 4px;
+  width: fit-content;
+  font-size: 12px;
+}
+.state-toggle button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+}
+.state-toggle button.active {
+  background: var(--surface-elev);
+  color: var(--text);
+}
+
+/* === Hero === */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.hero-icon {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 18px;
+  border-radius: 22px;
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.5));
+}
+.couch-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.couch-sub {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+/* === Seat row (filled-only + invite) === */
+.seat-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin: 28px 0 24px;
+  flex-wrap: wrap;
+  min-height: 88px;
+}
+.seat {
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.4, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+.seat:hover { transform: translateY(-3px); }
+.seat .circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  color: white;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  transition: all 180ms;
+}
+.seat.me .circle {
+  outline: 2.5px solid var(--warm-amber);
+  outline-offset: 3px;
+}
+.seat .name {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.seat.me .name { color: var(--warm-amber); }
+.seat .leave-x {
+  position: absolute;
+  top: -4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.7);
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 120ms;
+  cursor: pointer;
+}
+.seat:hover .leave-x { opacity: 1; }
+
+.invite-cell {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px dashed var(--warm-amber);
+  background: rgba(217, 122, 60, 0.06);
+  color: var(--warm-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 180ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.invite-cell:hover {
+  background: rgba(217, 122, 60, 0.18);
+  transform: rotate(90deg) scale(1.05);
+}
+.invite-label {
+  font-size: 11px;
+  color: var(--warm-amber);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* === Empty hero (zero-state) === */
+.empty-pulse {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 2.5px dashed var(--warm-amber);
+  background: rgba(217, 122, 60, 0.04);
+  color: var(--warm-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  cursor: pointer;
+  margin: 12px auto 0;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 60, 0.45); }
+  50% { box-shadow: 0 0 0 16px rgba(217, 122, 60, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-pulse { animation: none; }
+}
+
+.count-line {
+  text-align: center;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+}
+.count-line .num { color: var(--warm-amber); font-style: normal; font-family: 'Inter'; font-weight: 600; }
+
+/* === CTA === */
+.cta-row { display: flex; justify-content: center; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.cta {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 26px;
+  border-radius: var(--r-pill);
+  border: 0;
+  cursor: pointer;
+  transition: transform 120ms, filter 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.cta-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d4a574 100%);
+  color: #1a1410;
+  box-shadow: 0 6px 20px rgba(217, 122, 60, 0.4);
+}
+.cta-primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+/* === Invite sheet === */
+.sheet-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet-bg.on { display: flex; }
+.sheet {
+  background: var(--surface);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px 32px;
+  width: 100%;
+  max-width: 480px;
+  border-top: 1px solid var(--warm-amber);
+  animation: slideUp 240ms cubic-bezier(0.2, 0.8, 0.4, 1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 1.25rem;
+  margin-bottom: 6px;
+}
+.sheet .sheet-sub {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+.sheet-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.sheet-row:hover { background: var(--surface-elev); }
+.sheet-row .av {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 600; font-size: 16px;
+}
+.sheet-row .nm { color: var(--text); font-weight: 500; }
+.sheet-row .me-tag { color: var(--warm-amber); font-size: 11px; margin-left: 6px; font-weight: 500; }
+.sheet-row .check {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: transparent;
+  transition: all 120ms;
+}
+.sheet-row.in .check {
+  background: var(--warm-amber);
+  border-color: var(--warm-amber);
+  color: #1a1410;
+}
+.sheet-actions {
+  display: flex; gap: 10px; margin-top: 18px;
+  padding-top: 18px; border-top: 1px solid var(--border-soft);
+}
+.sheet-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: var(--r-pill);
+  border: 0;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.sheet-actions .done {
+  background: var(--warm-amber);
+  color: #1a1410;
+}
+.sheet-actions .ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+}
+
+/* === Explainer === */
+.explainer {
+  position: fixed; top: 12px; left: 12px;
+  background: rgba(31, 26, 22, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-soft);
+  padding: 10px 14px; border-radius: 10px;
+  font-size: 11px; color: var(--text-muted);
+  max-width: 280px; line-height: 1.5;
+  z-index: 100;
+}
+.explainer strong { color: var(--warm-amber); display: block; margin-bottom: 4px; font-family: 'Fraunces', serif; font-size: 13px; }
+
+#sketch-tools {
+  position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+  font-family: system-ui; font-size: 12px;
+  background: rgba(0,0,0,0.78); color: white;
+  padding: 8px 12px; border-radius: 8px;
+  opacity: 0.45; transition: opacity 200ms;
+  display: flex; gap: 8px; align-items: center;
+}
+#sketch-tools:hover { opacity: 1; }
+#sketch-tools button {
+  background: rgba(255,255,255,0.1); color: white; border: 0;
+  padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: inherit;
+}
+#sketch-tools button.active { background: var(--warm-amber); color: #1a1410; }
+
+@media (max-width: 480px) {
+  body { padding: 20px 16px 100px; }
+  .couch-headline { font-size: 1.45rem; }
+  .seat .circle { width: 52px; height: 52px; font-size: 18px; }
+  .invite-cell { width: 52px; height: 52px; font-size: 22px; }
+  .seat-row { gap: 10px; }
+  .explainer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="explainer">
+  <strong>Variant 2 — Filled-only</strong>
+  Only claimed seats render. ONE trailing "+ Invite" cell opens a sheet to fill in family members.
+</div>
+
+<div class="state-toggle" role="tablist">
+  <button data-state="empty">0 in</button>
+  <button data-state="me-only" class="active">Me only</button>
+  <button data-state="mixed">4 of 8 in</button>
+</div>
+
+<div class="hero">
+  <svg class="hero-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="floorGlow2" cx="68%" cy="60%" r="40%">
+        <stop offset="0%" stop-color="#f4b860" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="leather2" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#a06a45"/>
+        <stop offset="100%" stop-color="#7a4d2f"/>
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="96" height="96" rx="18" fill="#1a120c"/>
+    <circle cx="68" cy="60" r="32" fill="url(#floorGlow2)"/>
+    <path d="M 25 30 Q 25 22 33 22 L 55 22 Q 60 22 60 28 L 60 38 Q 60 44 65 44 L 70 44 Q 75 44 75 50 L 75 70 Q 75 76 67 76 L 33 76 Q 25 76 25 68 Z" fill="url(#leather2)" stroke="#5d3820" stroke-width="0.6"/>
+    <rect x="78" y="48" width="3" height="12" fill="#d4a574"/>
+    <circle cx="79.5" cy="46" r="4" fill="#f4b860"/>
+  </svg>
+  <h1 class="couch-headline">On the couch tonight</h1>
+  <p class="couch-sub" id="sub-line">Tap a seat to claim it</p>
+</div>
+
+<!-- Empty state: pulsing single seat -->
+<div id="empty-state" style="display:none;">
+  <div class="empty-pulse" onclick="openSheet()">+</div>
+  <p style="text-align:center; margin-top:14px; color:var(--text-muted); font-family:'Instrument Serif'; font-style:italic;">No one's seated yet. Tap to start.</p>
+</div>
+
+<!-- Filled state: row of claimed circles + invite cell -->
+<div class="seat-row" id="seat-row" style="display:none;">
+  <!-- injected by JS -->
+</div>
+
+<div class="count-line" id="count-line" style="display:none;">
+  <span class="num" id="count-num">0</span> on the couch
+</div>
+
+<div class="cta-row" id="cta-row" style="display:none;">
+  <button class="cta cta-primary" id="cta-primary">Send pushes to others</button>
+</div>
+
+<!-- Invite sheet -->
+<div class="sheet-bg" id="sheet-bg" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet">
+    <h2>Who's on the couch?</h2>
+    <p class="sheet-sub">Tap to mark them in. They'll see it on their device.</p>
+    <div id="sheet-rows"></div>
+    <div class="sheet-actions">
+      <button class="ghost" onclick="closeSheet()">Cancel</button>
+      <button class="done" onclick="closeSheet()">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="sketch-tools">
+  <span style="opacity:0.6">viewport</span>
+  <button onclick="setViewport(375)">📱</button>
+  <button onclick="setViewport(768)">▭</button>
+  <button onclick="setViewport(1280)" class="active">🖥</button>
+</div>
+
+<script>
+const FAMILY = [
+  { id: 'me',    name: 'Nahder',  initial: 'N', color: '#8b5cf6', isMe: true  },
+  { id: 'wife',  name: 'Ashley',  initial: 'A', color: '#ec4899', isMe: false },
+  { id: 'kid1',  name: 'Brody',   initial: 'B', color: '#f59e0b', isMe: false },
+  { id: 'kid2',  name: 'Arianna', initial: 'A', color: '#14b8a6', isMe: false },
+  { id: 'mom',   name: 'Mom',     initial: 'M', color: '#3b82f6', isMe: false },
+  { id: 'dad',   name: 'Dad',     initial: 'D', color: '#22c55e', isMe: false },
+  { id: 'tyler', name: 'Tyler',   initial: 'T', color: '#ef4444', isMe: false },
+  { id: 'sam',   name: 'Sam',     initial: 'S', color: '#6366f1', isMe: false },
+];
+let inState = new Set(['me']);
+
+function render() {
+  const num = inState.size;
+  document.getElementById('count-num').textContent = num;
+  document.getElementById('empty-state').style.display = num === 0 ? '' : 'none';
+  document.getElementById('seat-row').style.display = num === 0 ? 'none' : 'flex';
+  document.getElementById('count-line').style.display = num === 0 ? 'none' : 'block';
+  document.getElementById('cta-row').style.display = (num === 0 || num === FAMILY.length) ? 'none' : 'flex';
+
+  // Sub-line copy
+  const sub = document.getElementById('sub-line');
+  if (num === 0) sub.textContent = 'Tap to claim a seat';
+  else if (num === 1 && inState.has('me')) sub.textContent = "You're on the couch — invite family";
+  else sub.textContent = `${num} ${num === 1 ? 'person' : 'people'} on the couch`;
+
+  // Render seats
+  const row = document.getElementById('seat-row');
+  row.innerHTML = '';
+  FAMILY.filter(m => inState.has(m.id)).forEach(m => {
+    const seat = document.createElement('div');
+    seat.className = `seat ${m.isMe ? 'me' : ''}`;
+    seat.innerHTML = `
+      <div class="circle" style="background:${m.color}">${m.initial}</div>
+      <span class="name">${m.name.toUpperCase()}</span>
+      <span class="leave-x" title="Leave couch" onclick="event.stopPropagation();toggle('${m.id}')">×</span>
+    `;
+    seat.onclick = () => toggle(m.id);
+    row.appendChild(seat);
+  });
+  // Invite cell
+  if (num < FAMILY.length) {
+    const inv = document.createElement('div');
+    inv.style.display = 'flex';
+    inv.style.flexDirection = 'column';
+    inv.style.alignItems = 'center';
+    inv.style.cursor = 'pointer';
+    inv.innerHTML = `<div class="invite-cell">+</div><span class="invite-label">INVITE</span>`;
+    inv.onclick = openSheet;
+    row.appendChild(inv);
+  }
+
+  // Render sheet rows
+  const sr = document.getElementById('sheet-rows');
+  sr.innerHTML = '';
+  FAMILY.forEach(m => {
+    const r = document.createElement('div');
+    r.className = `sheet-row ${inState.has(m.id) ? 'in' : ''}`;
+    r.innerHTML = `
+      <div class="av" style="background:${m.color}">${m.initial}</div>
+      <div class="nm">${m.name}${m.isMe ? '<span class="me-tag">YOU</span>' : ''}</div>
+      <div class="check">✓</div>
+    `;
+    r.onclick = () => { toggle(m.id); };
+    sr.appendChild(r);
+  });
+
+  // Update CTA
+  const cta = document.getElementById('cta-primary');
+  const out = FAMILY.length - num;
+  cta.textContent = `Send push to ${out} other${out === 1 ? '' : 's'}`;
+}
+
+function toggle(id) {
+  if (inState.has(id)) inState.delete(id);
+  else inState.add(id);
+  render();
+}
+
+function openSheet() { document.getElementById('sheet-bg').classList.add('on'); }
+function closeSheet() { document.getElementById('sheet-bg').classList.remove('on'); }
+
+document.querySelectorAll('.state-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.state-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const state = btn.dataset.state;
+    inState = new Set();
+    if (state === 'me-only') inState.add('me');
+    if (state === 'mixed') ['me', 'wife', 'kid1', 'kid2'].forEach(id => inState.add(id));
+    render();
+  };
+});
+
+function setViewport(w) {
+  document.body.style.maxWidth = w === 1280 ? '720px' : (w + 'px');
+  document.querySelectorAll('#sketch-tools button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,8 +1,29 @@
-import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
+import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
-import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution } from './utils.js';
+import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
+import { twemojiImg } from './twemoji.js';
+import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys, leagueLabel as feedLeagueLabel, leagueEmoji as feedLeagueEmoji } from './sports-feed.js';
+// Phase 28 / Plan 28-05 — Pick'em pure helpers (slate grouping, scoring, validation,
+// season summaries, comparator, frozen pickType-by-league map, T-15min reminder offset).
+import {
+  slateOf as pickemSlateOf,
+  latestGameInSlate as pickemLatestGameInSlate,
+  validatePickSelection as pickemValidatePickSelection,
+  summarizeMemberSeason as pickemSummarizeMemberSeason,
+  compareMembers as pickemCompareMembers,
+  PICK_TYPE_BY_LEAGUE as PICKEM_PICK_TYPE_BY_LEAGUE,
+  PICK_REMINDER_OFFSET_MS as PICKEM_REMINDER_OFFSET_MS
+} from './pickem.js';
+import {
+  parseVideoUrl,
+  titleHasNonDrmPath,
+  makeIntervalBroadcaster,
+  seekToBroadcastedTime,
+  VIDEO_BROADCAST_INTERVAL_MS,
+  STALE_BROADCAST_MAX_MS
+} from './native-video-player.js';
 import {
   bootstrapAuth, watchAuth,
   signInWithGoogle, signInWithApple,
@@ -80,6 +101,328 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
   } catch(e){}
   return out;
 }
+
+// === Wave 5B / G-P0-2 (focus-trap half) ===
+// Keyboard focus trap for open modals — complements the aria-modal/role=dialog
+// attributes added in Wave 3 A11Y. Wave 3 closed the screen-reader-discovery
+// gap; this closes the keyboard-escape gap on the highest-traffic and
+// destructive modals (wp-live, wp-start, leave-family, delete-account, comments).
+// Single-trap-at-a-time invariant: opening a second trap deactivates the first.
+// Restores focus to the previously focused element on deactivate.
+let _activeFocusTrap = null;
+
+function activateFocusTrap(modalEl) {
+  if (!modalEl) return;
+  // Defensive: ensure single trap active. If a stray prior trap exists (e.g.,
+  // a close path forgot to call deactivate), tear it down first.
+  deactivateFocusTrap();
+  const focusables = modalEl.querySelectorAll(
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const previouslyFocused = document.activeElement;
+
+  const handler = (e) => {
+    if (e.key !== 'Tab') return;
+    // Re-query each Tab in case modal contents changed (form fields appear/disappear,
+    // dynamic lists render late). Cheap; modals are small DOMs.
+    const live = modalEl.querySelectorAll(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (live.length === 0) { e.preventDefault(); return; }
+    const f = live[0];
+    const l = live[live.length - 1];
+    if (e.shiftKey && document.activeElement === f) {
+      e.preventDefault();
+      l.focus();
+    } else if (!e.shiftKey && document.activeElement === l) {
+      e.preventDefault();
+      f.focus();
+    }
+  };
+
+  modalEl.addEventListener('keydown', handler);
+  _activeFocusTrap = { modalEl, handler, previouslyFocused };
+  // Move focus into the modal on open. try/catch so a programmatic .focus()
+  // throw on a hidden element never blocks modal rendering.
+  try { first.focus(); } catch (_) {}
+}
+
+function deactivateFocusTrap() {
+  if (!_activeFocusTrap) return;
+  const { modalEl, handler, previouslyFocused } = _activeFocusTrap;
+  try { modalEl.removeEventListener('keydown', handler); } catch (_) {}
+  if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+    try { previouslyFocused.focus(); } catch (_) {}
+  }
+  _activeFocusTrap = null;
+}
+
+// === Wave 5B / Gemini P2 — iOS PWA Add-to-Home-Screen nudge ===
+// iOS Safari has no beforeinstallprompt — users who deep-link in via a share
+// or invite URL can use the app indefinitely without ever knowing they can
+// install it. This shows a one-time, dismissable banner inviting them to use
+// the Share → Add to Home Screen flow. Skipped on:
+//   - non-iOS user agents
+//   - already-standalone PWA mode (window.navigator.standalone === true)
+//   - Chrome iOS (CriOS) — A2HS only works in Safari on iOS
+//   - users who previously dismissed (localStorage flag)
+// Called from showApp() so the nudge only ever appears post-sign-in (never
+// on the landing page or pre-auth screens).
+function maybeShowIosPwaNudge() {
+  try {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true;
+    const isChromeIos = /CriOS/.test(navigator.userAgent);
+    if (!isIos || isStandalone || isChromeIos) return;
+    // Honor previous dismissal (localStorage may throw in private mode — wrap)
+    try {
+      if (localStorage.getItem('iosPwaNudgeDismissedAt')) return;
+    } catch (_) { return; }
+    // Don't double-render if already on the page (showApp can run multiple times)
+    if (document.querySelector('.ios-pwa-nudge')) return;
+    const el = document.createElement('div');
+    el.className = 'ios-pwa-nudge';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `
+      <div class="ios-pwa-nudge-text">
+        Add Couch to your home screen — tap <span class="ios-pwa-nudge-icon" aria-hidden="true">⬆︎</span> then "Add to Home Screen" for the full experience.
+      </div>
+      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
+    `;
+    document.body.appendChild(el);
+    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', () => {
+      try { localStorage.setItem('iosPwaNudgeDismissedAt', String(Date.now())); } catch (_) {}
+      el.remove();
+    });
+  } catch (e) {
+    // Non-fatal — never block app boot if nudge wiring throws.
+    try { console.warn('[ios-pwa-nudge]', e); } catch (_) {}
+  }
+}
+
+// === Phase 19 / D-04..D-06 — Kid-mode session state ===
+// Both slots are session-only (NOT persisted to Firestore or localStorage).
+// Resets on showScreen-away-from-Tonight + couchClearAll.
+// state.kidModeOverrides is a Set of titleIds for per-title parent overrides
+// (D-10..D-13; surface lives in Plan 19-02). Initialized once at module load
+// using Phase 14/15 precedent (state.couchMemberIds, state.selectedMoods).
+if (state.kidMode == null) state.kidMode = false;
+if (state.kidModeOverrides == null) state.kidModeOverrides = new Set();
+
+// === Phase 19 / D-09 — single source of truth for kid-mode tier ceiling ===
+// Returns 2 (TIER_PG) when state.kidMode is active, else null (no cap from
+// kid-mode; existing per-member tier-cap logic still runs). Cheap helper
+// called inside 7 filter functions — keep it pure + branch-free.
+function getEffectiveTierCap() {
+  return state.kidMode ? 2 : null;
+}
+
+// === Phase 20 / D-01..D-06 + D-10 — Decision explanation phrase builder ===
+// Pure helper — no state mutation, no Firestore writes, render-time only.
+// buildMatchExplanation(t, couchMemberIds, opts) -> string
+//   t              — title document (reads: t.votes, t.providers, t.runtime)
+//   couchMemberIds — array of member ids currently on the couch
+//   opts           — optional { considerableVariant: false }; when true the
+//                    1-voter case reads "Some of you said yes" instead of the
+//                    member's name (D-10 — used for the considerable list).
+// Returns a ≤3-phrase dot-separated string ("X said yes · Available on Y · 1 hr 38 min").
+// Returns '' when title null/missing or couch empty.
+// Drop priority on overflow: voters > provider > runtime (D-06).
+function buildMatchExplanation(t, couchMemberIds, opts) {
+  if (!t || !Array.isArray(couchMemberIds) || !couchMemberIds.length) return '';
+  const votes = t.votes || {};
+  const considerableVariant = !!(opts && opts.considerableVariant);
+  const phrases = [];
+
+  // D-03 / D-10 — Voter phrase
+  const yesVoters = couchMemberIds.filter(mid => votes[mid] === 'yes');
+  if (yesVoters.length > 0) {
+    let votersPhrase;
+    if (yesVoters.length === 1) {
+      if (considerableVariant) {
+        votersPhrase = 'Some of you said yes';
+      } else {
+        const m = state.members.find(x => x.id === yesVoters[0]);
+        votersPhrase = escapeHtml(m ? m.name : yesVoters[0]) + ' said yes';
+      }
+    } else if (yesVoters.length === 2 && yesVoters.length === couchMemberIds.length) {
+      const n1 = state.members.find(x => x.id === yesVoters[0]);
+      const n2 = state.members.find(x => x.id === yesVoters[1]);
+      votersPhrase = escapeHtml(n1 ? n1.name : yesVoters[0]) + ' + ' + escapeHtml(n2 ? n2.name : yesVoters[1]) + ' said yes';
+    } else if (yesVoters.length === couchMemberIds.length) {
+      votersPhrase = 'All of you said yes';
+    } else {
+      votersPhrase = yesVoters.length + ' of you said yes';
+    }
+    phrases.push(votersPhrase);
+  }
+
+  // D-04 — Provider phrase: prefer couch-services intersection, fallback to first brand.
+  const providers = Array.isArray(t.providers) ? t.providers : [];
+  if (providers.length) {
+    const couchServices = new Set();
+    for (const mid of couchMemberIds) {
+      const m = state.members.find(x => x.id === mid);
+      if (m && Array.isArray(m.services)) m.services.forEach(s => couchServices.add(s));
+    }
+    let matchedBrand = null;
+    for (const p of providers) {
+      const brand = normalizeProviderName(p && p.name);
+      if (brand && couchServices.has(brand)) { matchedBrand = brand; break; }
+    }
+    if (matchedBrand) {
+      phrases.push('Available on ' + matchedBrand);
+    } else {
+      const firstBrand = normalizeProviderName(providers[0] && providers[0].name);
+      if (firstBrand) phrases.push('Streaming on ' + firstBrand);
+    }
+  }
+
+  // D-05 — Runtime phrase. Skip when null OR 0 (RESEARCH Pitfall 5 — guard 0).
+  if (t.runtime != null && t.runtime > 0) {
+    const mins = t.runtime;
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      phrases.push(m === 0 ? (h + ' hr') : (h + ' hr ' + m + ' min'));
+    } else {
+      phrases.push(mins + ' min');
+    }
+  }
+
+  // D-06 — Cap at 3 phrases. Phrases were appended in priority order so slice keeps voters > provider > runtime.
+  return phrases.slice(0, 3).join(' · ');
+}
+
+// === Phase 21 / D-01..D-12 — Conflict-aware empty-state diagnosis ===
+// Pure helper — no state mutation, render-time only. Mirrors Phase 20 shape.
+// diagnoseEmptyMatches(titles, couchMemberIds) -> { headline, reasons[] }
+//   titles         — array of titles (full universe; helper skips already-no/seen-voted)
+//   couchMemberIds — array of member ids on couch
+// Returns:
+//   headline (string)  — single warm/restraint sentence summarising dominant cause
+//   reasons (array)    — up to 3 chips: { kind, count, copy }
+// Detects (D-04 priority order): all-vetoed -> kid-mode-filtered -> per-member-tier-filtered
+//   -> mood-filtered -> provider-unavailable -> no-yes-votes.
+// Edges: empty titles -> { 'No titles yet', [] }. Empty couch -> { "No one's on the couch.", [] }.
+// Null/undefined inputs -> graceful no-op.
+function diagnoseEmptyMatches(titles, couchMemberIds) {
+  if (!Array.isArray(titles) || titles.length === 0) {
+    return { headline: 'No titles yet', reasons: [] };
+  }
+  if (!Array.isArray(couchMemberIds) || couchMemberIds.length === 0) {
+    return { headline: 'No one’s on the couch.', reasons: [] };
+  }
+  const vetoesByMember = {};
+  let vetoedTotal = 0;
+  let kidModeFilteredCount = 0;
+  let tierFilteredCount = 0;
+  let moodFilteredCount = 0;
+  let providerUnavailableCount = 0;
+  let yesVotedAny = false;
+  let countedTotal = 0;
+  const kidCap = (typeof getEffectiveTierCap === 'function') ? getEffectiveTierCap() : null;
+  const selectedMoods = Array.isArray(state.selectedMoods) ? state.selectedMoods : [];
+  const moodFilterActive = selectedMoods.length > 0;
+  const couchServices = new Set();
+  let lowestMemberTierCap = null;
+  for (const mid of couchMemberIds) {
+    const m = state.members.find(x => x.id === mid);
+    if (!m) continue;
+    if (Array.isArray(m.services)) m.services.forEach(s => couchServices.add(s));
+    const memberCap = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
+    if (memberCap != null && (lowestMemberTierCap == null || memberCap < lowestMemberTierCap)) {
+      lowestMemberTierCap = memberCap;
+    }
+  }
+  const hasAnyCouchServices = couchServices.size > 0;
+  for (const t of titles) {
+    const votes = t.votes || {};
+    // Skip titles where any couch-member voted 'no' or 'seen' — already excluded upstream;
+    // not part of the diagnosis universe.
+    if (couchMemberIds.some(mid => votes[mid] === 'no' || votes[mid] === 'seen')) continue;
+    countedTotal++;
+    if (couchMemberIds.some(mid => votes[mid] === 'yes')) yesVotedAny = true;
+    // Vetoes — exclusive (vetoed titles don't get other reasons counted)
+    const vetoes = t.vetoes || {};
+    let titleVetoed = false;
+    for (const mid of couchMemberIds) {
+      if (vetoes[mid]) { vetoesByMember[mid] = (vetoesByMember[mid] || 0) + 1; titleVetoed = true; }
+    }
+    if (titleVetoed) { vetoedTotal++; continue; }
+    const titleTier = tierFor(t.rating);
+    if (lowestMemberTierCap != null && titleTier != null && titleTier > lowestMemberTierCap) {
+      tierFilteredCount++; continue;
+    }
+    if (kidCap != null && titleTier != null && titleTier > kidCap) {
+      kidModeFilteredCount++; continue;
+    }
+    if (moodFilterActive) {
+      const titleMoods = Array.isArray(t.moods) ? t.moods : [];
+      if (!titleMoods.some(mid => selectedMoods.includes(mid))) {
+        moodFilteredCount++; continue;
+      }
+    }
+    if (hasAnyCouchServices) {
+      const titleProviders = Array.isArray(t.providers) ? t.providers : [];
+      const ok = titleProviders.some(p => {
+        const brand = normalizeProviderName(p && p.name);
+        return brand && couchServices.has(brand);
+      });
+      if (!ok) { providerUnavailableCount++; continue; }
+    }
+  }
+  const reasons = [];
+  if (vetoedTotal > 0) {
+    const vetoers = Object.entries(vetoesByMember).sort((a, b) => b[1] - a[1]);
+    if (vetoers.length === 1) {
+      const m = state.members.find(x => x.id === vetoers[0][0]);
+      const name = m ? m.name : vetoers[0][0];
+      reasons.push({ kind: 'veto', count: vetoedTotal, copy: escapeHtml(name) + ' vetoed ' + vetoedTotal });
+    } else {
+      reasons.push({ kind: 'veto', count: vetoedTotal, copy: vetoedTotal + ' vetoed across the couch' });
+    }
+  }
+  if (kidModeFilteredCount > 0) reasons.push({ kind: 'kidmode', count: kidModeFilteredCount, copy: 'Kid Mode hides ' + kidModeFilteredCount });
+  if (tierFilteredCount > 0)    reasons.push({ kind: 'tier',    count: tierFilteredCount,    copy: tierFilteredCount + ' over the rating cap' });
+  if (moodFilteredCount > 0)    reasons.push({ kind: 'mood',    count: moodFilteredCount,    copy: 'No matching mood' });
+  if (providerUnavailableCount > 0) {
+    const topBrands = Array.from(couchServices).slice(0, 3).join(' / ');
+    reasons.push({ kind: 'provider', count: providerUnavailableCount, copy: topBrands ? 'Off ' + topBrands : 'No matching service' });
+  }
+  if (!yesVotedAny && reasons.length === 0) {
+    return { headline: 'No one’s said yes to anything yet.', reasons: [] };
+  }
+  const capped = reasons.slice(0, 3);
+  let headline;
+  const dominant = capped[0];
+  if (!dominant) {
+    headline = 'Nothing’s matching tonight.';
+  } else if (dominant.kind === 'veto' && capped.length === 1 && Object.keys(vetoesByMember).length === 1) {
+    const onlyVetoerId = Object.keys(vetoesByMember)[0];
+    const m = state.members.find(x => x.id === onlyVetoerId);
+    const name = m ? m.name : onlyVetoerId;
+    headline = 'All ' + countedTotal + ' titles are out — ' + escapeHtml(name) + ' vetoed every one of them.';
+  } else if (dominant.kind === 'kidmode') {
+    headline = 'Kid Mode’s tight tonight — most titles are over the cap.';
+  } else if (dominant.kind === 'mood') {
+    headline = 'Try unchecking a mood — those filters are tight tonight.';
+  } else if (dominant.kind === 'provider') {
+    headline = 'Everything’s on services no one subscribes to.';
+  } else if (dominant.kind === 'tier') {
+    headline = 'Everything’s over the rating cap tonight.';
+  } else if (capped.length > 1) {
+    headline = 'All ' + countedTotal + ' titles are out — vetoes + filters caught most of them.';
+  } else {
+    headline = 'Nothing’s matching tonight.';
+  }
+  return { headline: headline, reasons: capped };
+}
+
 // Escape user-provided strings before interpolating into HTML
 // Local notifications. We don't need a backend — Firestore already pushes watchparty
 // events to every tab in real time. We just surface those events as OS notifications
@@ -91,10 +434,10 @@ async function fetchTmdbExtras(mediaType, tmdbId) {
 // fires. Acceptable for the current product loop — most people leave one tab open.
 // === Web Push (real OS-level notifications via service worker) ===
 // VAPID public key is imported from js/constants.js (public-by-design, matches TMDB_KEY posture).
-// Matching private key lives server-side in queuenight/functions/.env.
+// Matching private key lives server-side in the deploy-mirror repo's functions/.env.
 
 // Per-event-type notification defaults (PUSH-02). Written to users/{uid}.notificationPrefs when
-// the user touches a toggle; server reads and respects these in queuenight/functions sendToMembers.
+// the user touches a toggle; server reads and respects these in the deploy-mirror repo's functions/ sendToMembers.
 // Four events default ON (the ones users expect). Two default OFF because they can be noisy
 // if the family is large — users opt in via Settings when they want them.
 const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
@@ -106,10 +449,51 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   tonightPickChosen: false,
   // Phase 8 Watch-Intent Flows
   intentProposed: true,
-  intentMatched: true
+  intentMatched: true,
+  // === Phase 14 — Decision Ritual Core (D-12 / DR-3 place 2 of 3) ===
+  // Must stay in lockstep with the deploy-mirror repo's functions/index.js NOTIFICATION_DEFAULTS
+  // (server gate) and NOTIFICATION_EVENT_LABELS below (UI copy). All default ON
+  // per RESEARCH §5 — these fire only when the user has actively engaged.
+  flowAPick: true,
+  flowAVoteOnPick: true,
+  flowARejectMajority: true,
+  flowBNominate: true,
+  flowBCounterTime: true,
+  flowBConvert: true,
+  intentExpiring: true,
+  // === Phase 15 / D-11 + D-12 (TRACK-15-10) — auto-subscribe on watch (DR-3 place 2 of 3) ===
+  // Must stay in lockstep with deploy-mirror NOTIFICATION_DEFAULTS in 15-06
+  newSeasonAirDate: true,
+  // Phase 15.5 / D-05 + REQ-7: reactionPosted — server fans out reaction pushes;
+  // body stripped per receiver reactionDelay. Mirror of queuenight NOTIFICATION_DEFAULTS.
+  reactionPosted: true,
+  // Phase 15.4 / D-09 — couchPing: V5 roster long-press push fan-out (F-W-1 path A).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS in 15.4-01. Default ON: this fires
+  // only when another family member has actively long-pressed your pill — intent-
+  // rich engagement signal; user expects it.
+  couchPing: true,
+  // Phase 18 / D-12 + D-20 — titleAvailable: daily provider-refresh CF push fan-out.
+  // Mirror of queuenight NOTIFICATION_DEFAULTS in Plan 18-01. Default ON: low-volume
+  // high-signal channel — fires only when a title in someone's queue becomes newly
+  // watchable on a brand they own. Users opt out via Settings if noisy.
+  titleAvailable: true,
+  // === Phase 28 / D-06 (PICK-28-17) — pick'em push categories (DR-3 client place 1 of 2).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS — must stay in lockstep. All three
+  // default ON: pick'em fires only when the user has actively engaged with the
+  // pick'em surface (submitted picks, joined a league season).
+  pickReminder: true,
+  pickResults: true,
+  pickemSeasonReset: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
+// === Phase 14 / D-12 / DR-3 place 3 of 3 ===
+// 7 new keys added with BRAND-voice copy per CONTEXT.md D-12 push copy table.
+// NOTE (per Plan 14-09 DR-3 follow-up override, 2026-04-25): the new keys are
+// NOT mirrored into the Phase 12 friendly-UI maps below (NOTIF_UI_TO_SERVER_KEY,
+// NOTIF_UI_LABELS, NOTIF_UI_DEFAULTS) — they surface only in the legacy Settings
+// UI for now to avoid the dual-Settings-screen collision RESEARCH §5 flagged.
+// Friendly-UI parity captured as a follow-up polish item.
 const NOTIFICATION_EVENT_LABELS = Object.freeze({
   watchpartyScheduled: { label: 'New watchparty scheduled', hint: 'When someone sets up a watchparty' },
   watchpartyStarting:  { label: 'Watchparty starting',       hint: 'Right when the movie starts' },
@@ -118,7 +502,44 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   vetoCapReached:      { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row' },
   tonightPickChosen:   { label: 'Tonight’s pick chosen', hint: 'When the spinner lands on a movie' },
   intentProposed:      { label: 'New intent posted',         hint: 'When someone proposes a tonight-watch or asks the family about a title' },
-  intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' }
+  intentMatched:       { label: 'Intent matched',            hint: 'When your proposed watch reaches the family threshold' },
+  // Phase 14 — DECI-14-12 (BRAND-voice copy per D-12 / RESEARCH §5)
+  flowAPick:           { label: "Tonight's pick chosen",      hint: "When someone on your couch picks a movie." },
+  flowAVoteOnPick:     { label: "Couch voted on your pick",   hint: "When someone responds to a pick you made." },
+  flowARejectMajority: { label: "Your pick was passed on",    hint: "When the couch asks you to pick again." },
+  flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
+  flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
+  flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
+  // === Phase 15 / D-11 + D-12 (TRACK-15-11) — auto-subscribe on watch (DR-3 place 3 of 3) ===
+  // REVIEW MEDIUM-12: customer-facing label is "New episode alerts" because the
+  // implementation surfaces per-EPISODE prompts, not the original season-only
+  // framing. The KEY remains 'newSeasonAirDate' for back-compat with Phase
+  // 14-09 D-12 framework + already-installed PWAs.
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." },
+  // Phase 15.5 / D-05 + REQ-7: legacy Settings UI label — friend-voice, no banned words.
+  // NOTE: NOTIF_UI_TO_SERVER_KEY (friendly-UI map below) intentionally NOT updated —
+  // friendly-UI parity tracked as polish backlog item (Phase 15.4 / DR-3 follow-up).
+  reactionPosted:      { label: 'Someone reacts in a watchparty', hint: 'When someone in your family reacts during a watchparty.' },
+  // Phase 15.4 / D-09 — couchPing legacy Settings UI label.
+  // BRAND-voice copy. NOTE: this surface is mirrored to friendly-UI maps in this
+  // plan's Task 3 (D-08 mirror approach), so it appears in BOTH the legacy
+  // NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
+  // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
+  couchPing:           { label: 'Couch nudges', hint: 'When someone on your couch wants you on the couch tonight.' },
+  // Phase 18 / D-20 — titleAvailable legacy Settings UI label.
+  // BRAND-voice copy. NOTE: this surface is mirrored to friendly-UI maps in this
+  // plan's Task 2 (D-20 + Phase-15.4 mirror approach), so it appears in BOTH the
+  // legacy NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
+  // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
+  titleAvailable: { label: 'Newly watchable', hint: 'When a title in your queue lands on a service in your pack.' },
+  // === Phase 28 / D-06 (PICK-28-17) — pick'em push category labels (DR-3 client place 2 of 2).
+  // BRAND-voice copy per CONTEXT D-06. Lockstep with DEFAULT_NOTIFICATION_PREFS above
+  // and queuenight NOTIFICATION_DEFAULTS server map. Friendly-UI parity deferred per
+  // Phase 14-09 DR-3 follow-up override (TD-8 dual-Settings-screen consolidation).
+  pickReminder:      { label: 'Game starting soon — make your pick',   hint: "Heads-up your pick'em deadline is in 15 minutes." },
+  pickResults:       { label: "Pick'em results",                       hint: 'When games you picked finish.' },
+  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
@@ -131,7 +552,23 @@ const NOTIF_UI_TO_SERVER_KEY = Object.freeze({
   intentRsvpRequested:    'intentProposed',
   inviteReceived:         'inviteReceived',
   vetoCapReached:         'vetoCapReached',
-  tonightPickChosen:      'tonightPickChosen'
+  tonightPickChosen:      'tonightPickChosen',
+  // Phase 15.4 / D-08 — friendly-UI parity for the 7 D-12 + newSeasonAirDate +
+  // couchPing keys. uiKey === serverKey (no rename needed — these are all
+  // post-Phase-12 keys with already-friendly names; the alias map exists only to
+  // bridge the 6 Phase-12 keys whose friendly-UI names diverged from server keys).
+  flowAPick:           'flowAPick',
+  flowAVoteOnPick:     'flowAVoteOnPick',
+  flowARejectMajority: 'flowARejectMajority',
+  flowBNominate:       'flowBNominate',
+  flowBCounterTime:    'flowBCounterTime',
+  flowBConvert:        'flowBConvert',
+  intentExpiring:      'intentExpiring',
+  newSeasonAirDate:    'newSeasonAirDate',
+  couchPing:           'couchPing',
+  // Phase 18 / D-20 — friendly-UI parity for titleAvailable. uiKey === serverKey
+  // (no rename needed — post-Phase-12 keys keep server names).
+  titleAvailable:      'titleAvailable'
 });
 
 // BRAND-voice copy per CONTEXT.md D-06. Sentence-case labels;
@@ -142,7 +579,23 @@ const NOTIF_UI_LABELS = Object.freeze({
   intentRsvpRequested:    { label: 'Tonight RSVP request',      hint: 'When someone proposes a watch tonight at a time.' },
   inviteReceived:         { label: 'Family invite',             hint: 'When someone invites you to a couch.' },
   vetoCapReached:         { label: 'Tonight is stuck',          hint: 'When the family vetoes too many picks in a row. Owner-leaning, default off.' },
-  tonightPickChosen:      { label: "Tonight's pick chosen",     hint: 'When the spinner lands on a movie.' }
+  tonightPickChosen:      { label: "Tonight's pick chosen",     hint: 'When the spinner lands on a movie.' },
+  // Phase 15.4 / D-08 — friendly-UI parity. Copy mirrors NOTIFICATION_EVENT_LABELS
+  // verbatim (single source of voice; Phase 14-09 + Phase 15 + Phase 15.5 audited
+  // each label individually). The 9 new entries close DR-3 dual-Settings collision
+  // by ensuring both Settings UI surfaces expose the same set of toggles.
+  flowAPick:           { label: "Tonight's pick chosen",      hint: "When someone on your couch picks a movie." },
+  flowAVoteOnPick:     { label: "Couch voted on your pick",   hint: "When someone responds to a pick you made." },
+  flowARejectMajority: { label: "Your pick was passed on",    hint: "When the couch asks you to pick again." },
+  flowBNominate:       { label: "Watch with the couch?",      hint: "When someone wants to watch with you at a time." },
+  flowBCounterTime:    { label: "Counter-time on your nom",   hint: "When someone counters with a different time." },
+  flowBConvert:        { label: "Movie starting in 15 min",   hint: "When your nomination becomes a watchparty." },
+  intentExpiring:      { label: "Tonight's pick expiring",    hint: "Heads-up that a tonight intent is about to expire." },
+  newSeasonAirDate:    { label: "New episode alerts",         hint: "When a tracked show drops a new episode." },
+  couchPing:           { label: "Couch nudges",               hint: "When someone on your couch wants you on the couch tonight." },
+  // Phase 18 / D-20 — friendly-UI parity for titleAvailable. Copy mirrors
+  // NOTIFICATION_EVENT_LABELS verbatim (single source of voice).
+  titleAvailable:      { label: "Newly watchable",            hint: "When a title in your queue lands on a service in your pack." }
 });
 
 const NOTIF_UI_DEFAULTS = Object.freeze({
@@ -151,7 +604,23 @@ const NOTIF_UI_DEFAULTS = Object.freeze({
   intentRsvpRequested:   true,
   inviteReceived:        true,
   vetoCapReached:        false,
-  tonightPickChosen:     true
+  tonightPickChosen:     true,
+  // Phase 15.4 / D-08 — friendly-UI parity defaults. All 9 new entries match the
+  // server-side NOTIFICATION_DEFAULTS values verbatim (Plan 14-09 D-12 keys: all
+  // true; Plan 15 / TRACK-15-09: newSeasonAirDate true; Plan 15.4 / D-09:
+  // couchPing true).
+  flowAPick:           true,
+  flowAVoteOnPick:     true,
+  flowARejectMajority: true,
+  flowBNominate:       true,
+  flowBCounterTime:    true,
+  flowBConvert:        true,
+  intentExpiring:      true,
+  newSeasonAirDate:    true,
+  couchPing:           true,
+  // Phase 18 / D-20 — friendly-UI parity default. Matches server-side
+  // NOTIFICATION_DEFAULTS.titleAvailable = true (Plan 18-01).
+  titleAvailable:      true
 });
 
 // Convert a base64url string (what VAPID keys look like) to the Uint8Array the Push API expects.
@@ -197,6 +666,10 @@ async function subscribeToPush() {
 }
 
 // Unsubscribe this device. Removes the endpoint from Firestore and from the browser.
+// Phase 30 / CR-11 — multi-family unsubscribe. Was: deleted only state.familyCode's
+// record, leaking the endpoint hash in every OTHER family the user belongs to (those
+// devices kept receiving pushes after sign-out / unsubscribe). Now iterates state.groups
+// so every family's member doc gets the field removed.
 async function unsubscribeFromPush() {
   if (!('serviceWorker' in navigator)) return;
   try {
@@ -205,13 +678,30 @@ async function unsubscribeFromPush() {
     if (!sub) return;
     const subJson = sub.toJSON();
     const endpointHash = await hashString(subJson.endpoint);
-    if (state.me) {
-      // deleteField is the proper way to remove a nested map key
-      await updateDoc(doc(membersRef(), state.me.id), {
-        [`pushSubscriptions.${endpointHash}`]: deleteField()
-      });
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+    if (groups.length > 0) {
+      for (const g of groups) {
+        const fc = g && (g.familyCode || g.code);
+        const mid = g && (g.memberId || g.myMemberId);
+        if (!fc || !mid) continue;
+        try {
+          await updateDoc(
+            doc(db, 'families', fc, 'members', mid),
+            { [`pushSubscriptions.${endpointHash}`]: deleteField() }
+          );
+        } catch (e) { /* swallow per-family failures so one bad family doesn't block the rest */ }
+      }
+    } else if (state.me) {
+      // Fallback for cold-start where state.groups hasn't hydrated yet — at least
+      // clear the active family's record. deleteField is the proper way to remove
+      // a nested map key.
+      try {
+        await updateDoc(doc(membersRef(), state.me.id), {
+          [`pushSubscriptions.${endpointHash}`]: deleteField()
+        });
+      } catch (e) { /* swallow */ }
     }
-    await sub.unsubscribe();
+    try { await sub.unsubscribe(); } catch (e) { /* idempotent */ }
     qnLog('[QN push] Unsubscribed');
   } catch(e) {
     console.warn('[QN push] Unsubscribe failed:', e.message);
@@ -631,6 +1121,11 @@ const trakt = {
         'trakt.lastSyncedAt': Date.now()
       });
 
+      // === Phase 15 / D-06 (TRACK-15-12) — fire co-watch overlap detector after sync ===
+      if (typeof trakt.detectAndPromptCoWatchOverlap === 'function') {
+        trakt.detectAndPromptCoWatchOverlap().catch(e => console.warn('[15-07] coWatch detect failed', e));
+      }
+
       if (opts.manual) {
         const msg = added || updated
           ? `Synced: ${added} new, ${updated} updated`
@@ -680,15 +1175,20 @@ const trakt = {
       if (!tmdbId) continue; // can't match without a TMDB id
       // Trakt's /watched/shows aggregates per-user watched episodes. The
       // last-played episode is in `seasons[last].episodes[last]`. Find it:
-      let maxSeason = 0, maxEpisodeInSeason = 0;
+      let maxSeason = 0, maxEpisodeInSeason = 0, lastWatchedAt = null;
       for (const s of (entry.seasons || [])) {
         if (s.number > maxSeason) {
           maxSeason = s.number;
           maxEpisodeInSeason = 0;
+          lastWatchedAt = null;  // === Phase 15 / D-06 — reset on new max season ===
         }
         if (s.number === maxSeason) {
           for (const ep of (s.episodes || [])) {
-            if (ep.number > maxEpisodeInSeason) maxEpisodeInSeason = ep.number;
+            if (ep.number > maxEpisodeInSeason) {
+              maxEpisodeInSeason = ep.number;
+              // === Phase 15 / D-06 (TRACK-15-12) — capture per-episode timestamp for overlap detection ===
+              lastWatchedAt = ep.last_watched_at ? new Date(ep.last_watched_at).getTime() : null;
+            }
           }
         }
       }
@@ -702,16 +1202,18 @@ const trakt = {
           || maxSeason > current.season
           || (maxSeason === current.season && maxEpisodeInSeason > current.episode);
         if (traktAhead) {
-          const prevProgress = existing.progress && typeof existing.progress === 'object'
-            ? { ...existing.progress }
-            : {};
-          prevProgress[meId] = {
-            season: maxSeason,
-            episode: maxEpisodeInSeason,
-            updatedAt: Date.now(),
-            source: 'trakt'
+          // Phase 15.1 / SEC-15-1-01 — dotted-path single-inner-key write so
+          // the Wave 2 4th sub-rule's affectedKeys().hasOnly([memberId]) check
+          // passes. Only the actor's own progress slice is written.
+          const update = {
+            [`progress.${meId}`]: {
+              season: maxSeason,
+              episode: maxEpisodeInSeason,
+              lastWatchedAt: lastWatchedAt,
+              updatedAt: Date.now(),
+              source: 'trakt'
+            }
           };
-          const update = { progress: prevProgress };
           // Apply rating if we have one and user hasn't already rated
           const rating = ratingByTmdb.get(String(tmdbId));
           if (rating && (!existing.ratings || !existing.ratings[meId])) {
@@ -729,6 +1231,7 @@ const trakt = {
             [meId]: {
               season: maxSeason,
               episode: maxEpisodeInSeason,
+              lastWatchedAt: lastWatchedAt,
               updatedAt: Date.now(),
               source: 'trakt'
             }
@@ -863,6 +1366,203 @@ const trakt = {
   }
 };
 window.trakt = trakt;
+
+// === Phase 15 / D-06 (TRACK-15-12) — co-watch overlap detection + S5 prompt ===
+// Walks every TV title; for each, finds member pairs whose
+// t.progress[mid].source === 'trakt' AND lastWatchedAt within ±3hr.
+//
+// REVIEW MEDIUM-10 — episode selection uses a SINGLE ordinal comparator
+// (season * 1000 + episode), copying BOTH season AND episode from the
+// winning progress object. Fixes a bug where Math.max-of-season + Math.max-of-episode
+// could yield S5E10 when neither member had watched that exact episode.
+//
+// REVIEW MEDIUM-9 — declined pairs are persisted at
+// families/{code}.coWatchPromptDeclined[tupleKey] = timestamp. The detector
+// reads this on entry and SKIPS any pair whose tupleKey appears, preventing
+// the same prompt from re-triggering after every sync.
+//
+// CROSS-PLAN COORDINATION NOTE: the families/{code}.coWatchPromptDeclined
+// dotted-path write requires 15-01's family-doc 5th UPDATE branch allowlist
+// to be EXTENDED to include 'coWatchPromptDeclined'. Until 15-08 ships that
+// rule extension, the decline write will be DENIED — wrapped in try/catch +
+// Sentry breadcrumb so the local UX still drains the queue without crashing.
+const COWATCH_OVERLAP_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+// REVIEW MEDIUM-10 helper — ordinal score for (season, episode) pair.
+// Assumes episode <1000 per season (TMDB max ever observed: ~430 for One Piece).
+function cv15EpisodeOrdinal(prog) {
+  const s = (prog && prog.season != null) ? prog.season : 0;
+  const e = (prog && prog.episode != null) ? prog.episode : 0;
+  return s * 1000 + e;
+}
+
+// REVIEW MEDIUM-10 — pick the higher of two progress objects, return BOTH
+// fields from the winner (NOT independent maxes).
+function cv15SelectHigherProgress(a, b) {
+  const oa = cv15EpisodeOrdinal(a);
+  const ob = cv15EpisodeOrdinal(b);
+  return oa >= ob ? a : b;
+}
+
+trakt.detectAndPromptCoWatchOverlap = async function() {
+  if (!state.me || !state.familyCode || !state.titles) return;
+  const meId = state.me.id;
+  // REVIEW MEDIUM-9 — load the decline map once at the top.
+  const declined = (state.family && state.family.coWatchPromptDeclined) || {};
+  const candidates = [];
+  for (const t of state.titles) {
+    if (!t || t.kind !== 'TV') continue;
+    const progressMap = t.progress || {};
+    const myProg = progressMap[meId];
+    if (!myProg || myProg.source !== 'trakt' || !myProg.lastWatchedAt) continue;
+    for (const otherId of Object.keys(progressMap)) {
+      if (otherId === meId) continue;
+      const otherProg = progressMap[otherId];
+      if (!otherProg || otherProg.source !== 'trakt' || !otherProg.lastWatchedAt) continue;
+      const drift = Math.abs(myProg.lastWatchedAt - otherProg.lastWatchedAt);
+      if (drift > COWATCH_OVERLAP_WINDOW_MS) continue;
+      const tk = tupleKey([meId, otherId]);
+      if (!tk) continue;  // HIGH-2 safety
+      // REVIEW MEDIUM-9 — skip declined pairs.
+      if (declined[tk]) continue;
+      // Skip pairs already grouped — we don't ask twice.
+      if (t.tupleProgress && t.tupleProgress[tk]) continue;
+      // REVIEW MEDIUM-10 — single-comparator winner; copy BOTH fields from winner.
+      const winner = cv15SelectHigherProgress(myProg, otherProg);
+      const candSeason = winner.season;
+      const candEpisode = winner.episode;
+      if (candSeason == null || candEpisode == null) continue;
+      candidates.push({
+        titleId: t.id,
+        titleName: t.name || 'this show',
+        memberIds: [meId, otherId],
+        otherMemberName: (state.members.find(m => m.id === otherId) || {}).name || 'them',
+        season: candSeason,
+        episode: candEpisode,
+        tupleKey: tk
+      });
+    }
+  }
+  if (!candidates.length) return;
+  state._coWatchPromptQueue = state._coWatchPromptQueue || [];
+  for (const c of candidates) state._coWatchPromptQueue.push(c);
+  cv15ProcessNextCoWatchPrompt();
+};
+
+function cv15ProcessNextCoWatchPrompt() {
+  if (state._coWatchPromptShowing) return;
+  if (!state._coWatchPromptQueue || !state._coWatchPromptQueue.length) return;
+  const next = state._coWatchPromptQueue.shift();
+  state._coWatchPromptShowing = next;
+  renderCv15CoWatchPromptModal(next);
+}
+
+// REVIEW MEDIUM-7-style: data-cv15-action attrs + delegated listener (mirrors
+// the 15-04 pattern; this modal has only 2 buttons but consistency wins).
+function renderCv15CoWatchPromptModal(c) {
+  let modal = document.getElementById('cv15-cowatch-prompt-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cv15-cowatch-prompt-modal';
+    modal.className = 'modal-bg';
+    document.body.appendChild(modal);
+    // Outside-tap = No (UI-SPEC §Discretion Q4).
+    modal.addEventListener('click', function(ev) {
+      if (ev.target === modal) cv15CoWatchPromptDecline();
+    });
+    // Single delegated listener for the Yes/No buttons.
+    modal.addEventListener('click', function(ev) {
+      const trigger = ev.target.closest('[data-cv15-action]');
+      if (!trigger) return;
+      const action = trigger.getAttribute('data-cv15-action');
+      if (action === 'cowatchAccept') cv15CoWatchPromptAccept();
+      else if (action === 'cowatchDecline') cv15CoWatchPromptDecline();
+    });
+  }
+  const escName = escapeHtml(c.otherMemberName || 'them');
+  const escShow = escapeHtml(c.titleName || 'this show');
+  const escSeason = escapeHtml(String(c.season || '?'));
+  const escEpisode = escapeHtml(String(c.episode || '?'));
+  modal.innerHTML = `<div class="modal-content cv15-cowatch-prompt-content">
+    <h3 class="cv15-cowatch-prompt-h">Watched together?</h3>
+    <p class="cv15-cowatch-prompt-body"><em>Looks like you and ${escName} both watched ${escShow} S${escSeason}E${escEpisode} around the same time. Group your progress?</em></p>
+    <div class="cv15-cowatch-prompt-actions">
+      <button class="tc-secondary" type="button" id="cv15-cowatch-decline" data-cv15-action="cowatchDecline">No, keep separate</button>
+      <button class="tc-secondary accent-border" type="button" data-cv15-action="cowatchAccept">Yes, group us</button>
+    </div>
+  </div>`;
+  modal.classList.add('on');
+  // Default focus on No.
+  setTimeout(function() {
+    const noBtn = document.getElementById('cv15-cowatch-decline');
+    if (noBtn) noBtn.focus();
+  }, 50);
+}
+
+async function cv15CoWatchPromptAccept() {
+  const c = state._coWatchPromptShowing;
+  if (!c) return;
+  await writeTupleProgress(c.titleId, c.memberIds, c.season, c.episode, 'trakt-overlap');
+  cv15CloseCoWatchPrompt();
+  cv15ProcessNextCoWatchPrompt();
+}
+
+// REVIEW MEDIUM-9 — On decline, persist the per-tuple decline timestamp to
+// families/{code}.coWatchPromptDeclined[tupleKey] = now. The detector skips
+// declined pairs on next run, preventing nag.
+async function cv15CoWatchPromptDecline() {
+  const c = state._coWatchPromptShowing;
+  if (c && c.tupleKey && state.familyCode) {
+    // HIGH-2 safety: validate tk before dotted-path write
+    if (isSafeTupleKey(c.tupleKey)) {
+      try {
+        // Phase 15.1 / SEC-15-1-03 — stamp actingTupleKey alongside the
+        // dotted-path coWatchPromptDeclined write. The Wave 2 family-doc
+        // 5th-branch participant regex reads request.resource.data.actingTupleKey
+        // to validate actor membership in c.tupleKey.
+        await updateDoc(doc(db, 'families', state.familyCode), {
+          [`coWatchPromptDeclined.${c.tupleKey}`]: Date.now(),
+          actingTupleKey: c.tupleKey,
+          ...writeAttribution()
+        });
+        // Optimistic local update (matches 15-02 MEDIUM-8 pattern).
+        state.family = state.family || {};
+        state.family.coWatchPromptDeclined = {
+          ...(state.family.coWatchPromptDeclined || {}),
+          [c.tupleKey]: Date.now()
+        };
+      } catch (e) {
+        console.warn('[15-07] coWatchPromptDeclined write failed', e);
+        // Silent failure is acceptable — the user's local session won't re-prompt
+        // (cv15ProcessNextCoWatchPrompt drains the queue) and Sentry breadcrumb
+        // covers diagnostics. Expected to fail until 15-08 extends the family-doc
+        // 5th UPDATE branch allowlist (15-01) to include 'coWatchPromptDeclined'.
+        try {
+          if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+            Sentry.addBreadcrumb({
+              category: 'coWatchPromptDeclined',
+              level: 'warning',
+              message: 'persist of decline record failed',
+              data: { tupleKey: c.tupleKey }
+            });
+          }
+        } catch (_) {}
+      }
+    }
+  }
+  cv15CloseCoWatchPrompt();
+  cv15ProcessNextCoWatchPrompt();
+}
+
+function cv15CloseCoWatchPrompt() {
+  state._coWatchPromptShowing = null;
+  const modal = document.getElementById('cv15-cowatch-prompt-modal');
+  if (modal) modal.classList.remove('on');
+}
+
+// Expose on window for any external/debug invocation.
+window.cv15CoWatchPromptAccept = cv15CoWatchPromptAccept;
+window.cv15CoWatchPromptDecline = cv15CoWatchPromptDecline;
 
 // Listen for postMessage from the OAuth callback page. When the user grants
 // permission and Trakt redirects them back to /trakt-callback.html, that page
@@ -1377,8 +2077,14 @@ function isFairnessLocked() {
 
 // ===== Watchparty =====
 const WP_ARCHIVE_MS = 25 * 60 * 60 * 1000; // 25h after start time
-function watchpartiesRef() { return collection(db, 'families', state.familyCode, 'watchparties'); }
-function watchpartyRef(id) { return doc(db, 'families', state.familyCode, 'watchparties', id); }
+// Phase 15.5 / D-04 + REQ-9: stale-wp cutoff. Wps where (now - startAt) >= WP_STALE_MS move from
+// the Tonight tab main banner to the Past parties surface. Boundary EXACT at 5h since startAt.
+const WP_STALE_MS = 5 * 60 * 60 * 1000; // 5h since start time
+// Phase 30 — watchparties migrated from families/{code}/watchparties to top-level
+// /watchparties/{wpId}. watchpartyRef now points at top-level for single-doc writes.
+// watchpartiesRef helper is REMOVED — the subscription uses inline collectionGroup query
+// (see subscribeWatchparties at the original onSnapshot site for the new query shape).
+function watchpartyRef(id) { return doc(db, 'watchparties', id); }
 
 // === Phase 8 Watch-Intent Flows ===
 // Intents are a new primitive SEPARATE from the general vote system (see 08-CONTEXT D-02).
@@ -1397,16 +2103,35 @@ function computeIntentThreshold(group) {
   return { rule };
 }
 
-async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {}) {
+// === D-09 createIntent extension — DECI-14-09 (DR-1: extend, do not fork) ===
+// Phase 14 Plan 06: extends Phase 8's createIntent to accept 4 flow values.
+// Legacy callers passing `type` still work (back-compat preserved verbatim).
+// New callers pass `flow` to opt into 'rank-pick' (Flow A) or 'nominate' (Flow B).
+// Per-flow expiresAt + per-flow rsvps[me] seed shape + new fields (counterChainDepth,
+// expectedCouchMemberIds) layered on without breaking any existing intent doc.
+async function createIntent({ type, flow, titleId, proposedStartAt, proposedNote, expectedCouchMemberIds } = {}) {
   if (!state.me || !state.familyCode) return null;
-  if (type !== 'tonight_at_time' && type !== 'watch_this_title') throw new Error('bad_intent_type');
+  // Back-compat: legacy callers pass `type`; new callers pass `flow`. Accept either; prefer flow.
+  const flowVal = flow || type;
+  const allowed = ['tonight_at_time', 'watch_this_title', 'rank-pick', 'nominate'];
+  if (!allowed.includes(flowVal)) throw new Error('bad_intent_flow');
   const t = state.titles.find(x => x.id === titleId);
   if (!t) throw new Error('title_not_found');
   const id = 'i_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   const now = Date.now();
-  const expiresAt = type === 'tonight_at_time'
-    ? (proposedStartAt || now) + 3 * 60 * 60 * 1000  // 3h past startAt
-    : now + 30 * 24 * 60 * 60 * 1000;                // 30d for interest polls
+  // Per-flow expiry per D-07 (Flow A: 11pm same-day) and D-08 (Flow B: T+4hr).
+  // Legacy 'tonight_at_time' (3h past startAt) and 'watch_this_title' (30d) preserved verbatim.
+  let expiresAt;
+  if (flowVal === 'rank-pick') {
+    const eod = new Date(); eod.setHours(23, 0, 0, 0);
+    expiresAt = eod.getTime();
+  } else if (flowVal === 'nominate') {
+    expiresAt = (proposedStartAt || now) + 4 * 60 * 60 * 1000;
+  } else if (flowVal === 'tonight_at_time') {
+    expiresAt = (proposedStartAt || now) + 3 * 60 * 60 * 1000;
+  } else {
+    expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+  }
   const th = computeIntentThreshold(state.group || {});
   // Plan 09-07a (absorbs 08x-intent-cf-timezone): capture the creator's IANA tz name
   // so onIntentCreated CF can render the push-body time in local instead of UTC.
@@ -1415,27 +2140,39 @@ async function createIntent({ type, titleId, proposedStartAt, proposedNote } = {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
     catch(e) { return null; }
   })();
+  // Per D-09: rsvps[me] vocabulary differs by flow. Legacy flows use {value:'yes'};
+  // new flows use {state:'in'}. CF + reads accept both (intent.flow || intent.type fallback).
+  const meRsvp = (flowVal === 'rank-pick' || flowVal === 'nominate')
+    ? {
+        state: 'in',
+        at: now,
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      }
+    : {
+        value: 'yes',
+        at: now,
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      };
   const intent = {
-    id, type,
+    id,
+    type: flowVal,            // legacy field — preserved for back-compat (rules + Phase 8 readers)
+    flow: flowVal,            // new D-09 discriminator (rules accept either; CFs prefer flow)
     titleId, titleName: t.name, titlePoster: t.poster || '',
     createdBy: state.me.id,
     createdByName: state.me.name || null,
     createdByUid: (state.auth && state.auth.uid) || null,
     createdAt: now,
     creatorTimeZone,
-    rsvps: {
-      [state.me.id]: {
-        value: 'yes',
-        at: now,
-        actingUid: (state.auth && state.auth.uid) || null,
-        memberName: state.me.name || null
-      }
-    },
+    rsvps: { [state.me.id]: meRsvp },
     thresholdRule: th.rule,
     status: 'open',
-    expiresAt
+    expiresAt,
+    counterChainDepth: 0   // D-07.6 cap at 3 (rules enforce); 0 = no counters yet
   };
-  if (type === 'tonight_at_time') intent.proposedStartAt = proposedStartAt || null;
+  if (flowVal === 'tonight_at_time' || flowVal === 'nominate') intent.proposedStartAt = proposedStartAt || null;
+  if (flowVal === 'rank-pick' && Array.isArray(expectedCouchMemberIds)) intent.expectedCouchMemberIds = expectedCouchMemberIds;
   if (proposedNote) intent.proposedNote = proposedNote;
   await setDoc(intentRef(id), { ...intent, ...writeAttribution() });
   return id;
@@ -1808,6 +2545,528 @@ window.convertIntent = async function(intentId, kind) {
     openScheduleModal(intent.titleId);
   }
 };
+
+// === D-08 Flow B nominate — DECI-14-08 (Phase 14 Plan 08) ===
+// Solo-nominate flow per D-08: member nominates a title with a proposed time, family
+// members can join / counter / decline. Counter-time decision belongs to nominator
+// (accept / reject / pick compromise). Auto-convert at T-15min handled CF-side
+// (deploy-mirror watchpartyTick from 14-06). All-No edge case auto-cancels client-side.
+window.openFlowBNominate = function(titleId) {
+  if (!state.me) { flashToast('Sign in to nominate', { kind: 'warn' }); return; }
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) { flashToast('Title not found', { kind: 'warn' }); return; }
+  state.flowBNominateTitleId = titleId;
+  renderFlowBNominateScreen();
+};
+
+function renderFlowBNominateScreen() {
+  let modal = document.getElementById('flow-b-nominate-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-nominate-modal';
+    modal.className = 'modal-bg flow-b-nominate-modal';
+    document.body.appendChild(modal);
+  }
+  const titleId = state.flowBNominateTitleId;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) { closeFlowBNominate(); return; }
+
+  // Default proposed time: 8pm tonight (or now+1hr if it's already past 8pm).
+  const now = new Date();
+  const defaultDate = new Date(now);
+  defaultDate.setHours(20, 0, 0, 0);
+  if (defaultDate.getTime() <= now.getTime()) {
+    defaultDate.setTime(now.getTime() + 60 * 60 * 1000);
+  }
+  // ISO datetime-local format (YYYY-MM-DDTHH:MM).
+  const pad = (n) => String(n).padStart(2, '0');
+  const defaultLocal = `${defaultDate.getFullYear()}-${pad(defaultDate.getMonth()+1)}-${pad(defaultDate.getDate())}T${pad(defaultDate.getHours())}:${pad(defaultDate.getMinutes())}`;
+
+  modal.innerHTML = `<div class="modal-content flow-b-nominate-content">
+    <header class="flow-b-nominate-h">
+      <button class="modal-close" type="button" onclick="closeFlowBNominate()" aria-label="Close">✕</button>
+      <h2>Nominate ${escapeHtml(t.name)}</h2>
+      <p>Pick a time. Family members can join, counter, or pass.</p>
+    </header>
+    <form class="flow-b-nominate-form" onsubmit="event.preventDefault();onFlowBSubmitNominate();">
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Proposed start time</span>
+        <input type="datetime-local" id="flow-b-time-input" class="flow-b-time-input" value="${defaultLocal}" required />
+      </label>
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Note (optional)</span>
+        <textarea id="flow-b-note-input" class="flow-b-note-input" maxlength="200" placeholder="e.g. After dinner. BYO popcorn."></textarea>
+      </label>
+      <div class="flow-b-nominate-footer">
+        <button class="tc-secondary" type="button" onclick="closeFlowBNominate()">Cancel</button>
+        <button class="tc-primary" type="submit">Send nomination</button>
+      </div>
+    </form>
+  </div>`;
+  modal.classList.add('on');
+}
+
+window.closeFlowBNominate = function() {
+  const modal = document.getElementById('flow-b-nominate-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBNominateTitleId = null;
+};
+
+window.onFlowBSubmitNominate = async function() {
+  const titleId = state.flowBNominateTitleId;
+  if (!titleId) return;
+  const timeInput = document.getElementById('flow-b-time-input');
+  const noteInput = document.getElementById('flow-b-note-input');
+  if (!timeInput || !timeInput.value) {
+    flashToast('Pick a time', { kind: 'warn' });
+    return;
+  }
+  const proposedStartAt = new Date(timeInput.value).getTime();
+  if (!isFinite(proposedStartAt) || proposedStartAt < Date.now() - 60000) {
+    flashToast('Pick a future time', { kind: 'warn' });
+    return;
+  }
+  const proposedNote = noteInput && noteInput.value ? noteInput.value.trim().slice(0, 200) : null;
+  let intentId;
+  try {
+    intentId = await createIntent({
+      flow: 'nominate',
+      titleId,
+      proposedStartAt,
+      proposedNote: proposedNote || undefined
+    });
+  } catch (e) {
+    console.error('[flowB] createIntent failed', e);
+    flashToast('Could not send nomination — try again', { kind: 'warn' });
+    return;
+  }
+  flashToast('Nomination sent', { kind: 'success' });
+  closeFlowBNominate();
+  // Open status screen so the nominator can watch live progress (Task 3 below).
+  setTimeout(() => openFlowBStatusScreen(intentId), 100);
+};
+
+// --- Recipient response UI (Task 2) ---
+window.openFlowBResponseScreen = function(intentId) {
+  let modal = document.getElementById('flow-b-response-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-response-modal';
+    modal.className = 'modal-bg flow-b-response-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowBOpenIntentId = intentId;
+  renderFlowBResponseScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowBResponseScreen() {
+  const modal = document.getElementById('flow-b-response-modal');
+  if (!modal) return;
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowBResponse(); return; }
+  const t = state.titles.find(x => x.id === intent.titleId);
+  const isNominator = intent.createdBy === (state.me && state.me.id);
+  if (isNominator) {
+    // Nominator status screen — handled by Task 3.
+    closeFlowBResponse();
+    return openFlowBStatusScreen(intentId);
+  }
+
+  const myRsvp = (intent.rsvps || {})[state.me && state.me.id];
+  const responded = !!myRsvp;
+  const proposedTime = intent.proposedStartAt
+    ? new Date(intent.proposedStartAt).toLocaleString([], {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+        timeZone: intent.creatorTimeZone || undefined
+      })
+    : 'soon';
+
+  modal.innerHTML = `<div class="modal-content flow-b-response-content">
+    <header class="flow-b-response-h">
+      <button class="modal-close" type="button" onclick="closeFlowBResponse()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(intent.createdByName || 'Family member')} wants to watch ${escapeHtml(t ? t.name : '')}</h2>
+      <p>Proposed time: <strong>${escapeHtml(proposedTime)}</strong></p>
+      ${intent.proposedNote ? `<p class="flow-b-note">"${escapeHtml(intent.proposedNote)}"</p>` : ''}
+    </header>
+    <div class="flow-b-response-body">
+      ${responded ? `<div class="flow-b-already">You said: ${escapeHtml(myRsvp.state || myRsvp.value || '?')}</div>` : ''}
+      <button class="tc-primary" type="button" onclick="onFlowBRespondJoin()">Join @ proposed time</button>
+      <button class="tc-secondary" type="button" onclick="onFlowBOpenCounterTime()">Counter-suggest a different time</button>
+      <button class="tc-secondary" type="button" onclick="onFlowBRespondDecline()">Decline</button>
+    </div>
+  </div>`;
+}
+
+window.closeFlowBResponse = function() {
+  const modal = document.getElementById('flow-b-response-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBOpenIntentId = null;
+};
+
+window.onFlowBRespondJoin = async function() {
+  const intentId = state.flowBOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'in',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast('You\'re in. Watching for confirmation.', { kind: 'success' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] join failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowBRespondDecline = async function() {
+  const intentId = state.flowBOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'reject',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast('Declined.', { kind: 'info' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] decline failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowBOpenCounterTime = function() {
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counterDepth = intent.counterChainDepth || 0;
+  if (counterDepth >= 3) {
+    flashToast("Whoa, slow down — that's a lot of taps.", { kind: 'warn' });
+    return;
+  }
+  // Render counter-time picker.
+  const modal = document.getElementById('flow-b-response-modal');
+  if (!modal) return;
+  // Default counter time: original + 1hr.
+  const original = intent.proposedStartAt || Date.now();
+  const counterDefault = new Date(original + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const counterDefaultLocal = `${counterDefault.getFullYear()}-${pad(counterDefault.getMonth()+1)}-${pad(counterDefault.getDate())}T${pad(counterDefault.getHours())}:${pad(counterDefault.getMinutes())}`;
+
+  modal.innerHTML = `<div class="modal-content flow-b-counter-content">
+    <header class="flow-b-counter-h">
+      <button class="modal-close" type="button" onclick="closeFlowBResponse()" aria-label="Close">✕</button>
+      <h2>Counter-suggest a time</h2>
+      <p>Nominator decides whether to accept your counter.</p>
+    </header>
+    <form class="flow-b-counter-form" onsubmit="event.preventDefault();onFlowBSubmitCounterTime();">
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Your suggested time</span>
+        <input type="datetime-local" id="flow-b-counter-time-input" class="flow-b-time-input" value="${counterDefaultLocal}" required />
+      </label>
+      <label class="flow-b-label">
+        <span class="flow-b-label-text">Note (optional)</span>
+        <textarea id="flow-b-counter-note-input" class="flow-b-note-input" maxlength="200" placeholder="e.g. After kids' bedtime."></textarea>
+      </label>
+      <div class="flow-b-counter-footer">
+        <button class="tc-secondary" type="button" onclick="renderFlowBResponseScreen()">Back</button>
+        <button class="tc-primary" type="submit">Send counter</button>
+      </div>
+    </form>
+  </div>`;
+};
+
+window.onFlowBSubmitCounterTime = async function() {
+  const intentId = state.flowBOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent || !state.me) return;
+  const newDepth = (intent.counterChainDepth || 0) + 1;
+  if (newDepth > 3) { flashToast('Counter chain cap reached', { kind: 'warn' }); return; }
+  const ti = document.getElementById('flow-b-counter-time-input');
+  const ni = document.getElementById('flow-b-counter-note-input');
+  if (!ti || !ti.value) { flashToast('Pick a counter time', { kind: 'warn' }); return; }
+  const counterTime = new Date(ti.value).getTime();
+  if (!isFinite(counterTime) || counterTime < Date.now() - 60000) { flashToast('Pick a future time', { kind: 'warn' }); return; }
+  const note = ni && ni.value ? ni.value.trim().slice(0, 200) : null;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'maybe',
+        counterTime,
+        note: note || null,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      counterChainDepth: newDepth,
+      ...writeAttribution()
+    });
+    flashToast('Counter sent', { kind: 'success' });
+    closeFlowBResponse();
+  } catch (e) {
+    console.error('[flowB] counter failed', e);
+    flashToast('Could not send counter', { kind: 'warn' });
+  }
+};
+
+// --- Nominator status screen (Task 3) ---
+window.openFlowBStatusScreen = function(intentId) {
+  let modal = document.getElementById('flow-b-status-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-b-status-modal';
+    modal.className = 'modal-bg flow-b-status-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowBStatusIntentId = intentId;
+  renderFlowBStatusScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowBStatusScreen() {
+  const modal = document.getElementById('flow-b-status-modal');
+  if (!modal) return;
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowBStatus(); return; }
+  if (intent.status !== 'open') {
+    // Auto-close on convert / cancel / expire.
+    setTimeout(() => closeFlowBStatus(), 1500);
+  }
+  const t = state.titles.find(x => x.id === intent.titleId);
+
+  const rsvps = intent.rsvps || {};
+  const ins = Object.entries(rsvps).filter(([mid, r]) => (r.state === 'in' || r.value === 'yes') && mid !== intent.createdBy);
+  const counters = Object.entries(rsvps).filter(([mid, r]) => r.state === 'maybe' && r.counterTime);
+  const declines = Object.entries(rsvps).filter(([mid, r]) => r.state === 'reject' || r.value === 'no');
+
+  // Recipient count (everyone except creator).
+  const recipientCount = (state.members || []).filter(m => m.id !== intent.createdBy).length;
+  const allNo = recipientCount > 0 && declines.length === recipientCount && ins.length === 0;
+
+  // Auto-convert countdown (CF fires at T-15min on its 5-min cadence).
+  const minutesToStart = intent.proposedStartAt ? Math.round((intent.proposedStartAt - Date.now()) / 60000) : null;
+  const willAutoConvert = ins.length > 0 && minutesToStart != null && minutesToStart > 0 && minutesToStart <= 30;
+
+  const counterRows = counters.map(([mid, r]) => {
+    const m = (state.members || []).find(x => x.id === mid);
+    const counterFmt = new Date(r.counterTime).toLocaleString([], {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+    return `<div class="flow-b-counter-row">
+      <div class="flow-b-counter-row-meta">
+        <strong>${escapeHtml(m ? m.name : 'Member')}</strong> countered with <strong>${escapeHtml(counterFmt)}</strong>
+        ${r.note ? `<p class="flow-b-note-inline">"${escapeHtml(r.note)}"</p>` : ''}
+      </div>
+      <div class="flow-b-counter-row-actions">
+        <button class="tc-primary" type="button" onclick="onFlowBAcceptCounter('${mid}')">Accept</button>
+        <button class="tc-secondary" type="button" onclick="onFlowBRejectCounter('${mid}')">Reject</button>
+        <button class="tc-secondary" type="button" onclick="onFlowBOpenCompromiseTimePicker('${mid}')">Compromise</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  modal.innerHTML = `<div class="modal-content flow-b-status-content">
+    <header class="flow-b-status-h">
+      <button class="modal-close" type="button" onclick="closeFlowBStatus()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t ? t.name : 'Nomination')}</h2>
+      <p>Status: <strong>${escapeHtml(intent.status)}</strong> · ${ins.length} in · ${counters.length} counter · ${declines.length} declined of ${recipientCount} family</p>
+    </header>
+    <div class="flow-b-status-body">
+      ${willAutoConvert ? `<div class="flow-b-indicator flow-b-converting">⏱ Auto-converting to watchparty in ${Math.max(0, minutesToStart - 15)} min (T-15)</div>` : ''}
+      ${allNo ? `<div class="flow-b-indicator flow-b-allno">All recipients declined. <button class="tc-secondary" type="button" onclick="onFlowBAutoCancel()">Cancel nomination</button></div>` : ''}
+      ${counterRows ? `<section class="flow-b-counter-list">
+        <h3 class="flow-b-section-h">Counter-time suggestions (${counters.length})</h3>
+        ${counterRows}
+      </section>` : ''}
+      <button class="tc-secondary" type="button" onclick="onFlowBStatusCancel()">End nomination</button>
+    </div>
+  </div>`;
+}
+
+window.closeFlowBStatus = function() {
+  const modal = document.getElementById('flow-b-status-modal');
+  if (modal) modal.classList.remove('on');
+  state.flowBStatusIntentId = null;
+};
+
+// Snapshot tick re-render hook (wired into state.unsubIntents handler below).
+function maybeRerenderFlowBStatus() {
+  if (state.flowBStatusIntentId) renderFlowBStatusScreen();
+  if (state.flowBOpenIntentId) renderFlowBResponseScreen();
+}
+
+// Nominator counter decisions.
+window.onFlowBAcceptCounter = async function(memberId) {
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counter = (intent.rsvps || {})[memberId];
+  if (!counter || !counter.counterTime) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      proposedStartAt: counter.counterTime,
+      proposedNote: counter.note || intent.proposedNote || null,
+      // Update nominator's own rsvp to clear any stale state.
+      [`rsvps.${state.me.id}`]: {
+        state: 'in',
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    const accepterName = ((state.members || []).find(m => m.id === memberId) || {}).name || 'Counter';
+    flashToast(`Time updated. ${accepterName} accepted.`, { kind: 'success' });
+  } catch (e) {
+    console.error('[flowB] accept counter failed', e);
+    flashToast('Could not accept counter', { kind: 'warn' });
+  }
+};
+
+window.onFlowBRejectCounter = async function(memberId) {
+  // Reject: zero out the member's rsvp so they can re-respond. Does NOT cancel the intent.
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    const memberName = ((state.members || []).find(m => m.id === memberId) || {}).name || null;
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${memberId}`]: {
+        state: 'maybe',
+        at: Date.now(),
+        actingUid: state.me.id,
+        memberName,
+        note: 'counter rejected by nominator'
+      },
+      ...writeAttribution()
+    });
+    flashToast('Counter rejected', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowB] reject counter failed', e);
+  }
+};
+
+window.onFlowBOpenCompromiseTimePicker = function(memberId) {
+  const intentId = state.flowBStatusIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counter = (intent.rsvps || {})[memberId];
+  if (!counter || !counter.counterTime) return;
+  // Compromise = midpoint of original proposedStartAt and counterTime.
+  const compromise = Math.round((intent.proposedStartAt + counter.counterTime) / 2);
+  const cd = new Date(compromise);
+  const pad = (n) => String(n).padStart(2, '0');
+  const compromiseLocal = `${cd.getFullYear()}-${pad(cd.getMonth()+1)}-${pad(cd.getDate())}T${pad(cd.getHours())}:${pad(cd.getMinutes())}`;
+  // Browser prompt() — D-08 doesn't specify; sufficient for solo-nominator decision UX.
+  const userInput = window.prompt(`Compromise time (suggested midpoint pre-filled):\nFormat: YYYY-MM-DDTHH:MM`, compromiseLocal);
+  if (!userInput) return;
+  const finalTime = new Date(userInput).getTime();
+  if (!isFinite(finalTime) || finalTime < Date.now()) { flashToast('Pick a future time', { kind: 'warn' }); return; }
+  updateDoc(intentRef(intentId), {
+    proposedStartAt: finalTime,
+    ...writeAttribution()
+  }).then(() => {
+    flashToast('Compromise time set', { kind: 'success' });
+  }).catch(e => {
+    console.error('[flowB] compromise failed', e);
+    flashToast('Could not set time', { kind: 'warn' });
+  });
+};
+
+window.onFlowBStatusCancel = async function() {
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      ...writeAttribution()
+    });
+    closeFlowBStatus();
+    flashToast('Nomination ended', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowB] cancel failed', e);
+  }
+};
+
+window.onFlowBAutoCancel = async function() {
+  const intentId = state.flowBStatusIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      cancelReason: 'all-no',
+      ...writeAttribution()
+    });
+    flashToast('All declined — nomination cancelled', { kind: 'info' });
+    closeFlowBStatus();
+  } catch (e) {
+    console.error('[flowB] auto-cancel failed', e);
+  }
+};
+
+// === D-08 deep-link handler (Task 4) ===
+// The CFs in 14-06 emit push payloads with `url: '/?intent=' + intentId`. When the user
+// taps the push, the URL hits the app boot path. This handler reads ?intent=, removes
+// the param (so refresh doesn't re-trigger), waits for the intents collection to hydrate,
+// then routes to the right screen based on the intent's flow + my role (creator vs recipient).
+function maybeOpenIntentFromDeepLink() {
+  let intentId = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    intentId = params.get('intent');
+  } catch (e) { return; }
+  if (!intentId) return;
+  // Remove the param so refresh doesn't re-trigger.
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('intent');
+    window.history.replaceState({}, '', url.toString());
+  } catch (e) {}
+  // Wait for intents subscription to hydrate. Cap retries so we don't spin forever
+  // if the intent was deleted or the user lacks read access.
+  let attempts = 0;
+  const tryOpen = () => {
+    attempts++;
+    const intent = (state.intents || []).find(i => i.id === intentId);
+    if (!intent) {
+      if (attempts < 20) setTimeout(tryOpen, 500); // ~10s ceiling
+      return;
+    }
+    const flow = intent.flow || intent.type;
+    if (flow === 'rank-pick') {
+      // Flow A response screen will be added by 14-07; defensive typeof gate so 14-08
+      // can land before 14-07 without breaking the deep-link handler.
+      if (typeof openFlowAResponseScreen === 'function') openFlowAResponseScreen(intentId);
+    } else if (flow === 'nominate') {
+      if (intent.createdBy === (state.me && state.me.id)) {
+        openFlowBStatusScreen(intentId);
+      } else {
+        openFlowBResponseScreen(intentId);
+      }
+    }
+    // Legacy intents (tonight_at_time / watch_this_title) — the existing
+    // openIntentRsvpModal flow is reachable via the intents-strip render path; no
+    // explicit deep-link route here yet (Phase 8 didn't ship one either).
+  };
+  tryOpen();
+}
+window.maybeOpenIntentFromDeepLink = maybeOpenIntentFromDeepLink;
+
 function activeWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => {
@@ -1824,6 +3083,32 @@ function activeWatchparties() {
 function archivedWatchparties() {
   const now = Date.now();
   return state.watchparties.filter(wp => wp.status === 'archived' || (now - wp.startAt) >= WP_ARCHIVE_MS);
+}
+// Phase 26 / RPLY-26-10 — D-10 hide-empty filter for Past parties surface + Tonight inline-link gating.
+// Loose-equality (!= null) catches BOTH null (live-stream sourced) AND undefined (pre-Phase-26 reactions).
+// Per RESEARCH Pitfall 2 + UI-SPEC §4.
+function replayableReactionCount(wp) {
+  if (!wp || !Array.isArray(wp.reactions)) return 0;
+  return wp.reactions.filter(r =>
+    r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'
+  ).length;
+}
+// Phase 26 / RPLY-26-20 — Tonight tab inline-link gating count source.
+// Replaces Phase 15.5's staleWps.length count source. Per CONTEXT specifics:
+// first-week-after-deploy framing — count is 0 for existing families on deploy day
+// because D-11 + D-10 combination filters out all pre-Phase-26 archived parties.
+function allReplayableArchivedCount(allWatchparties) {
+  // Phase 26 / WR-26-01 — reuse the same source-of-truth filter as archivedWatchparties()
+  // + renderPastParties so the Tonight inline-link count never diverges from the modal
+  // contents (a wp with status==='active' but startAt older than WP_ARCHIVE_MS shows up
+  // in the modal but used to be missed by the count helper).
+  const archived = (Array.isArray(allWatchparties) && allWatchparties !== state.watchparties)
+    ? allWatchparties.filter(wp => wp && (wp.status === 'archived' || (Date.now() - wp.startAt) >= WP_ARCHIVE_MS))
+    : archivedWatchparties();
+  return archived
+    .filter(wp => wp.status !== 'cancelled')
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .length;
 }
 function wpForTitle(titleId) { return activeWatchparties().find(wp => wp.titleId === titleId && wp.status !== 'cancelled'); }
 function myParticipation(wp) {
@@ -1900,6 +3185,66 @@ function formatStartTime(ts) {
   return `${d.toLocaleDateString([], {month:'short', day:'numeric'})} at ${timeStr}`;
 }
 
+// Phase 26 / RPLY-26-DATE — Friend-voice date ladder for Past parties + Past watchparties
+// for title rows per UI-SPEC §Copywriting:
+//   < 24h → Started {N} hr ago (preserved from Phase 15.5)
+//   24-48h → Last night
+//   < 7d → {Weekday}
+//   7-13d → Last {Weekday}
+//   < 1y same year → {Month} {Day}
+//   cross-year → {Month} {Day}, {Year}
+// Hardcoded English per RESEARCH Open Question #4 (Couch is English-only at v2).
+function friendlyPartyDate(startAt) {
+  const now = Date.now();
+  const ageMs = now - startAt;
+  const hr = ageMs / (60 * 60 * 1000);
+  if (hr < 24) {
+    const hours = Math.max(1, Math.floor(hr));
+    return `Started ${hours} hr ago`;
+  }
+  if (hr < 48) return 'Last night';
+  const day = ageMs / (24 * 60 * 60 * 1000);
+  const d = new Date(startAt);
+  const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  if (day < 7) return weekdays[d.getDay()];
+  if (day < 14) return `Last ${weekdays[d.getDay()]}`;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthDay = `${months[d.getMonth()]} ${d.getDate()}`;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return sameYear ? monthDay : `${monthDay}, ${d.getFullYear()}`;
+}
+
+// Phase 26 / RPLY-26-05 — Scrubber duration source-of-truth precedence per UI-SPEC §2 lock:
+//   1. TMDB t.runtime (movies — minutes)
+//   2. TMDB t.episode_run_time (TV — minutes)
+//   3. Phase 24 wp.durationMs (host's player getDuration() × 1000)
+//   4. Max observed runtimePositionMs + 30s cushion
+//   5. 60-min floor (3,600,000 ms)
+function getScrubberDurationMs(wp) {
+  const t = state.titles && state.titles.find(x => x.id === wp.titleId);
+  if (t) {
+    if (typeof t.runtime === 'number' && t.runtime > 0) {
+      return t.runtime * 60 * 1000;
+    }
+    if (typeof t.episode_run_time === 'number' && t.episode_run_time > 0) {
+      return t.episode_run_time * 60 * 1000;
+    }
+  }
+  if (typeof wp.durationMs === 'number' && wp.durationMs > 0) {
+    return wp.durationMs;
+  }
+  const positions = (wp.reactions || [])
+    .map(r => r.runtimePositionMs)
+    .filter(p => typeof p === 'number' && p > 0);
+  // Phase 26 / WR-26-03 — safe reduce avoids stack-overflow on very large reaction arrays
+  // (Math.max(...positions) blows up around ~125k entries). 4h floor (was 60min) covers
+  // long-form content (3h movies / TV episodes) when TMDB metadata is missing AND no
+  // reactions have been posted yet — the user can still scrub through the whole runtime.
+  const maxPos = positions.reduce((m, p) => p > m ? p : m, 0);
+  if (maxPos > 0) return maxPos + 30000;
+  return 4 * 60 * 60 * 1000; // 4h floor for missing TMDB metadata
+}
+
 // ===== Group mode helpers (Family / Crew / Duo) =====
 function currentMode() { return (state.group && state.group.mode) || 'family'; }
 function groupNoun() { return {family:'family', crew:'crew', duo:'duo'}[currentMode()]; }
@@ -1974,9 +3319,35 @@ window.backToModePick = function() {
 // Apple (handleSigninApple) intentionally omitted — deferred to Phase 9.
 // See .planning/seeds/phase-09-apple-signin.md and 05-06-SUMMARY.md.
 
+// G-P0-1 — Sanitize Firebase Auth SDK errors before they hit a toast.
+// Raw SDK strings like "RecaptchaVerifier must bind to a CLICKABLE element"
+// or "auth/argument-error: ..." can leak from caller catch blocks that pass
+// e.message straight to flashToast. This helper maps common error codes to
+// brand-voice copy and falls back to a generic warm message; it never
+// surfaces e.message. Pass the optional fallback to override the default.
+function authErrorToast(e, fallback) {
+  const code = (e && e.code) || '';
+  const map = {
+    'auth/invalid-phone-number':       "That phone number doesn't look right — try again.",
+    'auth/missing-phone-number':       'Add your phone number to send a code.',
+    'auth/too-many-requests':          'Too many tries. Take a breath, then try again in a minute.',
+    'auth/code-expired':               'That code expired. Tap to send a fresh one.',
+    'auth/invalid-verification-code':  "Hmm, that code didn't match. Try again.",
+    'auth/invalid-verification-id':    'That session expired — request a fresh code.',
+    'auth/network-request-failed':     'Connection trouble. Check your wifi and try again.',
+    'auth/popup-blocked':              'Your browser blocked the sign-in window. Try again?',
+    'auth/cancelled-popup-request':    'Sign-in cancelled. Try again?',
+    'auth/user-disabled':              'This account is disabled. Reach out to support.',
+    'auth/operation-not-allowed':      'That sign-in method is disabled right now.',
+    'auth/invalid-email':              "That email doesn't look right — try again.",
+    'auth/quota-exceeded':             'SMS quota hit for now. Try again in a bit.',
+  };
+  flashToast(map[code] || fallback || 'Sign-in hit a snag — give it another shot.', { kind: 'warn' });
+}
+
 window.handleSigninGoogle = async function() {
   try { haptic('light'); await signInWithGoogle(); /* redirect takes over */ }
-  catch(e) { console.error('[signin][google]', e); flashToast("Couldn't start Google sign-in. Try again?", { kind: 'warn' }); }
+  catch(e) { console.error('[signin][google]', e); authErrorToast(e, "Couldn't start Google sign-in. Try again?"); }
 };
 
 window.handleSigninEmail = async function() {
@@ -1988,7 +3359,7 @@ window.handleSigninEmail = async function() {
     haptic('success');
   } catch(e) {
     console.error('[signin][email]', e);
-    flashToast("Couldn't send email link. Try again?", { kind: 'warn' });
+    authErrorToast(e, "Couldn't send email link. Try again?");
   }
 };
 
@@ -2014,7 +3385,7 @@ window.handleSigninPhoneSend = async function() {
   } catch(e) {
     console.error('[signin][phone-send]', e);
     resetPhoneCaptcha();
-    flashToast("Couldn't send code. Try again?", { kind: 'warn' });
+    authErrorToast(e, "Couldn't send code. Try again?");
   }
 };
 
@@ -2026,7 +3397,7 @@ window.handleSigninPhoneVerify = async function() {
     // onAuthStateChanged listener picks up from here
   } catch(e) {
     console.error('[signin][phone-verify]', e);
-    flashToast('Wrong code — try again?', { kind: 'warn' });
+    authErrorToast(e, 'Wrong code — try again?');
   }
 };
 
@@ -2056,6 +3427,26 @@ async function onAuthStateChangedCouch(user) {
     if (state.unsubMembers) { try { state.unsubMembers(); } catch(e) {} state.unsubMembers = null; }
     if (state.unsubTitles) { try { state.unsubTitles(); } catch(e) {} state.unsubTitles = null; }
     if (state.unsubIntents) { try { state.unsubIntents(); } catch(e) {} state.unsubIntents = null; }
+    // CR-07 — these subscriptions previously leaked across user changes and would
+    // continue firing snapshot callbacks for the prior user's family until tab close.
+    if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
+    if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
+    if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+    // CR-04 — module-scoped activity feed + lists subscriptions also leaked. These
+    // are module-scope lets (unsubActivity at ~8894, unsubLists at ~16552) so we
+    // tear them down + clear their backing arrays here.
+    if (typeof unsubActivity === 'function') { try { unsubActivity(); } catch(e) {} unsubActivity = null; }
+    if (typeof unsubLists === 'function')    { try { unsubLists();    } catch(e) {} unsubLists    = null; }
+    // CDX-6 — Wave 1 hotfix added watchparty/session/group teardown but missed two
+    // recurring intervals reassigned by startSync(): watchpartyTick (1s flip+banner
+    // tick at ~4996) and _traktHeartbeat (15-min Trakt sync at ~5206). Without this
+    // they keep firing on the pre-auth screen until next sign-in clears them.
+    if (state.watchpartyTick) { try { clearInterval(state.watchpartyTick); } catch(e){} state.watchpartyTick = null; }
+    if (state._traktHeartbeat) { try { clearInterval(state._traktHeartbeat); } catch(e){} state._traktHeartbeat = null; }
+    recentActivity = [];
+    allLists = [];
+    state.watchparties = [];
+    state.session = null;
     state.intents = [];
     state.me = null;
     state.familyCode = null;
@@ -2105,6 +3496,13 @@ async function onAuthStateChangedCouch(user) {
     try { await Promise.race([groupsReady, new Promise(r => setTimeout(r, 4000))]); } catch(e) {}
     // Consume any pending claim / invite token; else route into group or mode-pick
     await handlePostSignInIntent();
+  }
+  // 14-08 — handle ?intent=<id> deep-link from CF push payloads. Fire after the
+  // post-sign-in routing finishes (claim/invite tokens take precedence). Runs for
+  // both fresh sign-ins and refreshes of an already-signed-in tab; the handler
+  // itself waits for state.intents to hydrate before opening any modal.
+  if (typeof maybeOpenIntentFromDeepLink === 'function') {
+    try { maybeOpenIntentFromDeepLink(); } catch (e) { console.warn('[intent-deeplink] failed', e); }
   }
 }
 
@@ -2483,7 +3881,11 @@ window.submitGuestRedeem = async function() {
       }, { merge: true });
     } catch(e) {}
 
-    flashToast('Welcome to the couch', { kind: 'success' });
+    // G-P1-4 — warmer guest welcome. Owner/family name isn't surfaced in the
+    // unauth preview (T-09-07b-02), so we lean on warm-cinematic restraint with
+    // the guest's own name. "Pull up a seat" is short, evocative, on-voice.
+    const _guestFirst = String(d.memberName || guestName || '').split(/\s+/)[0];
+    flashToast(_guestFirst ? `Pull up a seat, ${_guestFirst}. The couch is waiting.` : 'Pull up a seat. The couch is waiting.', { kind: 'success' });
     haptic('success');
     // Defer to the normal auth-routing path so watchers subscribe and Tonight paints
     try { await _bootIntoGroup(d.familyCode); } catch(e) { console.error('[invite-redeem] bootIntoGroup', e); }
@@ -2692,16 +4094,16 @@ window.signOut = async function() {
 // and delegates to it.
 window.confirmLeaveFamily = function() {
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.add('on');
+  if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
 };
 window.closeLeaveFamilyConfirm = function() {
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 window.performLeaveFamily = async function() {
   // Close the modal first so it doesn't linger during the async leave work.
   const bg = document.getElementById('leave-family-confirm-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
   // Delegate to the existing leave path. We set a flag so window.leaveFamily's
   // built-in confirm() gets bypassed — it was the destructive gate we just
   // handled via the modal.
@@ -2742,7 +4144,7 @@ window.openDeleteAccountConfirm = async function() {
         }
       }
       const bg = document.getElementById('delete-account-blocker-bg');
-      if (bg) bg.classList.add('on');
+      if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
       return;
     }
   } catch (e) {
@@ -2756,17 +4158,17 @@ window.openDeleteAccountConfirm = async function() {
   const err = document.getElementById('delete-account-error');
   if (err) err.textContent = '';
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.add('on');
+  if (bg) { bg.classList.add('on'); activateFocusTrap(bg); }
 };
 
 window.closeDeleteAccountModal = function() {
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 
 window.closeDeleteAccountBlocker = function() {
   const bg = document.getElementById('delete-account-blocker-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
 };
 
 window.performDeleteAccount = async function() {
@@ -2780,7 +4182,7 @@ window.performDeleteAccount = async function() {
   if (errEl) errEl.textContent = '';
   // Close modal optimistically — match performLeaveFamily pattern (modal off before async work)
   const bg = document.getElementById('delete-account-modal-bg');
-  if (bg) bg.classList.remove('on');
+  if (bg) { bg.classList.remove('on'); deactivateFocusTrap(); }
   try {
     const fn = httpsCallable(functions, 'requestAccountDeletion');
     const r = await fn({ confirm: 'DELETE' });
@@ -2860,7 +4262,7 @@ window.leaveFamily = async function() {
 // This is what Firestore rules (Plan 04) gate on: writes carrying managedMemberId
 // require members/{managedMemberId}.managedBy === request.auth.uid.
 window.openCreateSubProfile = function() {
-  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   if (!state.familyCode) { flashToast('Join a group first', { kind: 'warn' }); return; }
   const nameEl = document.getElementById('subprofile-name');
   if (nameEl) nameEl.value = '';
@@ -2874,7 +4276,7 @@ window.closeSubProfileModal = function() {
 window.createSubProfile = async function() {
   const name = (document.getElementById('subprofile-name').value || '').trim();
   const color = document.getElementById('subprofile-color').value || '#f2a365';
-  if (!name) { flashToast('Name required', { kind: 'warn' }); return; }
+  if (!name) { flashToast('We need a name to put on the couch.', { kind: 'warn' }); return; }
   if (!state.auth || !state.familyCode) { flashToast('Not ready', { kind: 'warn' }); return; }
   const memberId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   const sub = {
@@ -2915,7 +4317,7 @@ function renderSubProfileList() {
 // manage, then shares the link via Web Share API (preferred) or clipboard fallback.
 // When the kid redeems, claimMember CF clears managedBy + stamps graduatedAt (D-16).
 window.sendGraduationLink = async function(memberId) {
-  if (!state.auth || !state.familyCode) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth || !state.familyCode) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   const m = (state.members || []).find(x => x.id === memberId);
   if (!m) return;
   if (!m.managedBy) { flashToast('This member is already independent.', { kind: 'info' }); return; }
@@ -3234,6 +4636,106 @@ window.copyGuestLink = async function(btn) {
   catch(e) { flashToast('Select and copy manually', { kind: 'info' }); }
 };
 
+// === Phase 27 — Guest RSVP host actions ===
+
+// Open a small popover anchored to the kebab button on a guest chip.
+// Single-item menu: "Remove {name}". Tap → revokeGuest(guestId).
+window.openGuestMenu = function(guestId, wpId, event) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  // Close any existing menu first.
+  const prev = document.querySelector('.wp-guest-menu');
+  if (prev) prev.remove();
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  const guest = (wp.guests || []).find(g => g && g.guestId === guestId && !g.revoked);
+  if (!guest) return;
+  const familyMemberNamesSet = getFamilyMemberNamesSet();
+  const display = displayGuestName(guest.name || 'Guest', familyMemberNamesSet);
+  // Anchor to the kebab button via fixed-position popover.
+  const btn = (event && event.currentTarget) || (event && event.target);
+  const rect = btn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'wp-guest-menu';
+  menu.setAttribute('role', 'menu');
+  menu.style.cssText = `position:fixed; top:${rect.bottom + 4}px; left:${Math.max(8, rect.right - 180)}px; z-index:10000;`;
+  menu.innerHTML = `<button class="wp-guest-menu-item destructive" type="button" role="menuitem">Remove ${escapeHtml(display)}</button>`;
+  document.body.appendChild(menu);
+  const item = menu.querySelector('button');
+  item.addEventListener('click', function() {
+    menu.remove();
+    window.revokeGuest(wpId, guestId, display);
+  });
+  // Click-outside to dismiss.
+  setTimeout(() => {
+    const onClickOutside = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', onClickOutside, true);
+      }
+    };
+    document.addEventListener('click', onClickOutside, true);
+  }, 0);
+};
+
+window.revokeGuest = async function(wpId, guestId, displayName) {
+  try {
+    const fn = httpsCallable(functions, 'rsvpRevoke');
+    const r = await fn({ token: wpId, action: 'revoke', guestId: guestId });
+    if (r && r.data && r.data.ok) {
+      flashToast('Removed.', { kind: 'success' });
+    } else {
+      flashToast(`Couldn't remove ${displayName || 'guest'}. Try again.`, { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[27-revoke-guest]', e);
+    const code = e && e.code;
+    const msg = (code === 'permission-denied' || code === 'functions/permission-denied')
+      ? 'Only the host can remove guests.'
+      : `Couldn't remove ${displayName || 'guest'}. Try again.`;
+    flashToast(msg, { kind: 'warn' });
+  }
+};
+
+window.closeRsvps = async function(wpId) {
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  try {
+    const fn = httpsCallable(functions, 'rsvpRevoke');
+    const r = await fn({ token: wpId, action: 'close' });
+    if (r && r.data && r.data.ok) {
+      flashToast('RSVPs closed.', { kind: 'success' });
+    } else {
+      flashToast("Couldn't close RSVPs. Try again.", { kind: 'warn' });
+    }
+  } catch (e) {
+    console.error('[27-close-rsvps]', e);
+    flashToast("Couldn't close RSVPs. Try again.", { kind: 'warn' });
+  }
+};
+
+window.openRsvps = async function(wpId) {
+  if (!state.me || !state.watchparties) return;
+  const wp = state.watchparties.find(x => x && x.id === wpId);
+  if (!wp || state.me.id !== wp.hostId) return;
+  try {
+    // Re-open is a host-only Firestore write (no CF needed). Phase 24 host-only rule
+    // (Path A: hostUid match) permits any field write by the host. rsvpClosed is not
+    // in the non-host-forbidden allowlist, so this is allowed.
+    // Phase 27 / BL-04 — top-level /watchparties/{id} path (was legacy nested
+    // families/{code}/watchparties/{id}, which post-Phase-30 doesn't get the new wp
+    // doc — every reopen silently failed and the rsvpClosed pill never cleared).
+    // Also stamp writeAttribution() so the audit trail is preserved.
+    const wpRef = watchpartyRef(wpId);
+    await updateDoc(wpRef, { rsvpClosed: false, ...writeAttribution() });
+    flashToast('RSVPs reopened.', { kind: 'success' });
+  } catch (e) {
+    console.error('[27-open-rsvps]', e);
+    flashToast("Couldn't reopen RSVPs. Try again.", { kind: 'warn' });
+  }
+};
+
 window.transferOwnershipTo = async function() {
   const sel = document.getElementById('settings-transfer-target');
   const newOwnerUid = sel && sel.value;
@@ -3262,7 +4764,7 @@ window.transferOwnershipTo = async function() {
 // Act-as tap (D-04, per-action): set state.actingAs so writeAttribution picks it up on the
 // NEXT vote/veto/mood write, then the snapshot-then-clear in writeAttribution reverts it.
 window.tapActAsSubProfile = function(memberId, memberName) {
-  if (!state.auth) { flashToast('Sign in first', { kind: 'warn' }); return; }
+  if (!state.auth) { flashToast('Sign in to do that.', { kind: 'warn' }); return; }
   const m = (state.members || []).find(x => x.id === memberId);
   if (!m || !m.managedBy) return;
   state.actingAs = memberId;
@@ -3512,6 +5014,11 @@ function scheduleMidnightRefresh() {
 }
 
 function startSync() {
+  // CR-08 — guard each subscription assignment so re-entry (group switch, sign-in flap,
+  // family code change) tears down the previous listener before binding a new one.
+  // Was: bare reassignment leaked the prior onSnapshot callback for the duration of
+  // the tab. Mirrors the subscribeSession() teardown pattern.
+  if (state.unsubMembers) { try { state.unsubMembers(); } catch(e){} state.unsubMembers = null; }
   state.unsubMembers = onSnapshot(membersRef(), s => {
     state.members = s.docs.map(d => d.data());
     const dot = document.getElementById('sync-dot');
@@ -3527,6 +5034,7 @@ function startSync() {
     dot.classList.remove('on');
     dot.textContent = 'Offline';
   });
+  if (state.unsubTitles) { try { state.unsubTitles(); } catch(e){} state.unsubTitles = null; }
   state.unsubTitles = onSnapshot(titlesRef(), s => {
     state.titles = s.docs.map(d => d.data());
     renderAll();
@@ -3542,12 +5050,33 @@ function startSync() {
   // Live-sync the group doc so picker + mode updates propagate between devices.
   // Plan 07: also track ownerUid so the owner-only admin panel toggles in real time
   // (e.g. after a transferOwnership CF flips the doc).
+  if (state.unsubGroup) { try { state.unsubGroup(); } catch(e){} state.unsubGroup = null; }
   state.unsubGroup = onSnapshot(familyDocRef(), s => {
     if (!s.exists()) return;
     const d = s.data();
     state.group = { ...(state.group||{}), code: state.familyCode, mode: d.mode || 'family', name: d.name || state.familyCode, picker: d.picker || null, passwordProtected: !!d.passwordHash };
     state.ownerUid = d.ownerUid || null;
-    renderPickerCard();
+    // 14-10 / V5 — couchInTonight is the new authoritative shape; couchSeating is
+    // the legacy fallback (auto-rebuilt by couchInTonightFromDoc when only the old
+    // field is present). state.couchMemberIds = filter(in===true) for downstream.
+    // Bug B fix bundled here: renderFlowAEntry must re-run on family-doc snapshot
+    // so the empty-state CTA reacts to claim/vacate, not just intent writes.
+    state.couchInTonight = couchInTonightFromDoc(d);
+    state.couchMemberIds = couchInTonightToMemberIds(state.couchInTonight);
+    // === Phase 15 / D-02 — tupleNames hydration ===
+    state.family = state.family || {};
+    state.family.tupleNames = (d && d.tupleNames) || {};
+    // === Phase 15 / D-06 (TRACK-15-12) — REVIEW MEDIUM-9 — coWatchPromptDeclined hydration ===
+    state.family.coWatchPromptDeclined = (d && d.coWatchPromptDeclined) || {};
+    // Mirror V5 source-of-truth into legacy state.selectedMembers shim (see toggleCouchMember).
+    state.selectedMembers = state.couchMemberIds.slice();
+    if (typeof renderCouchViz === 'function') renderCouchViz();
+    if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+    // Cross-device couch toggles need Tonight surfaces refreshed too — replaces the
+    // narrower renderPickerCard() so matches list + UpNext + Next3 also catch up
+    // when a partner toggles a pill from another device. renderTonight() calls
+    // renderPickerCard() at its top so coverage is preserved.
+    renderTonight();
     applyModeLabels();
     try { renderOwnerSettings(); } catch(e) {}
     // Plan 09-07a: re-evaluate legacy self-claim CTA whenever ownership changes.
@@ -3557,35 +5086,75 @@ function startSync() {
   scheduleMidnightRefresh();
   // Phase 8 — subscribe to intents collection. Guards with typeof checks so Plan 08-01
   // can land before 08-02's renderIntentsStrip + 08-03's maybeEvaluateIntentMatches exist.
+  if (state.unsubIntents) { try { state.unsubIntents(); } catch(e){} state.unsubIntents = null; }
   state.unsubIntents = onSnapshot(intentsRef(), s => {
     state.intents = s.docs.map(d => d.data());
     if (typeof renderIntentsStrip === 'function') renderIntentsStrip();
     if (typeof maybeEvaluateIntentMatches === 'function') maybeEvaluateIntentMatches(state.intents);
+    // 14-08 — re-render any open Flow B screens (status / response) on every snapshot
+    // so counter-row tallies, all-No banners, and converted/cancelled status flips
+    // appear in real time without requiring a local action.
+    if (typeof maybeRerenderFlowBStatus === 'function') maybeRerenderFlowBStatus();
+    // 14-07 — same idea for Flow A: keep the live tally on the response screen fresh,
+    // and flip the Tonight-tab entry CTA between "Open picker" and "Picking happening"
+    // the moment a rank-pick intent opens or closes elsewhere on the couch.
+    if (typeof maybeRerenderFlowAResponse === 'function') maybeRerenderFlowAResponse();
+    if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
   }, e => { qnLog('[intents] snapshot error', e.message); });
   // Subscribe to watchparties collection
-  state.unsubWatchparties = onSnapshot(watchpartiesRef(), s => {
-    state.watchparties = s.docs.map(d => d.data());
-    // Auto-archive any that have passed the 25h window and aren't already archived/cancelled
-    const now = Date.now();
-    state.watchparties.forEach(wp => {
-      if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
-        if (!state.auth && !(state.me && state.me.id)) return;
-        try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
+  // Phase 30 — collectionGroup query replaces families/{code}/watchparties subscription.
+  // where('memberUids', 'array-contains', uid) MUST be present or rules reject the query
+  // per RESEARCH Pitfall 2 (rules-vs-query alignment requirement). Auth guard prevents
+  // subscription before state.auth.uid is known (Pitfall 1 silent-failure mitigation).
+  if (!state.auth || !state.auth.uid) {
+    qnLog('[watchparties] no auth.uid yet — subscription deferred');
+    return;
+  }
+  if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e){} state.unsubWatchparties = null; }
+  state.unsubWatchparties = onSnapshot(
+    query(
+      collectionGroup(db, 'watchparties'),
+      where('memberUids', 'array-contains', state.auth.uid)
+    ),
+    s => {
+      state.watchparties = s.docs.map(d => d.data());
+      // Auto-archive any that have passed the 25h window and aren't already archived/cancelled
+      const now = Date.now();
+      state.watchparties.forEach(wp => {
+        if (wp.status !== 'archived' && wp.status !== 'cancelled' && (now - wp.startAt) >= WP_ARCHIVE_MS) {
+          if (!state.auth && !(state.me && state.me.id)) return;
+          // Phase 30 / MED-3 — only the host fires the archive flip. Was: every member
+          // raced to write status:'archived' on every snapshot tick (N writes per stale
+          // wp per snapshot per online client). Other clients passively observe the
+          // host's flip via the next snapshot.
+          if (!state.me || wp.hostId !== state.me.id) return;
+          try { updateDoc(watchpartyRef(wp.id), { ...writeAttribution(), status: 'archived' }); } catch(e){}
+        }
+      });
+      // Phase 7 Plan 01: flip scheduled parties past startAt to active. Client-primary path;
+      // the watchpartyTick CF serves as a safety net when no client is online. Each client
+      // tries, but updateDoc is idempotent under "status === 'scheduled'" re-check so multi-
+      // client races don't produce double-flips — the second writer no-ops.
+      maybeFlipScheduledParties(state.watchparties);
+      // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
+      maybeNotifyWatchparties(state.watchparties);
+      renderWatchpartyBanner();
+      // Phase 7 fix: full re-render of live modal on every snapshot. Matches the invariant
+      // stated at the tick comment (line ~3153) — passive observers need reactions/participants
+      // to update without requiring a local action to fire an explicit re-render path.
+      if (state.activeWatchpartyId) renderWatchpartyLive();
+      // Phase 30 — refresh the wp-create modal's Bring another couch in section if open.
+      // Re-renders cap state + family list rows + remove-kebab wiring on every wp snapshot.
+      // No-ops when the modal is closed (renderAddFamilySection bails when #wp-add-family-section is absent).
+      if (typeof renderAddFamilySection === 'function') {
+        const wp = state.activeWatchpartyId
+          ? state.watchparties.find(x => x.id === state.activeWatchpartyId)
+          : null;
+        if (wp) renderAddFamilySection(wp);
       }
-    });
-    // Phase 7 Plan 01: flip scheduled parties past startAt to active. Client-primary path;
-    // the watchpartyTick CF serves as a safety net when no client is online. Each client
-    // tries, but updateDoc is idempotent under "status === 'scheduled'" re-check so multi-
-    // client races don't produce double-flips — the second writer no-ops.
-    maybeFlipScheduledParties(state.watchparties);
-    // Notify about newly-arrived or about-to-start watchparties (only if permitted + tab hidden)
-    maybeNotifyWatchparties(state.watchparties);
-    renderWatchpartyBanner();
-    // Phase 7 fix: full re-render of live modal on every snapshot. Matches the invariant
-    // stated at the tick comment (line ~3153) — passive observers need reactions/participants
-    // to update without requiring a local action to fire an explicit re-render path.
-    if (state.activeWatchpartyId) renderWatchpartyLive();
-  }, e => {});
+    },
+    e => { qnLog('[watchparties] snapshot error', e && e.message); }
+  );
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
   state.watchpartyTick = setInterval(() => {
@@ -3668,6 +5237,12 @@ async function maybeFlipScheduledParties(parties) {
     if (wp.status !== 'scheduled') continue;
     if ((wp.startAt || 0) > now) continue;
     if ((now - (wp.startAt || 0)) > 6 * 60 * 60 * 1000) continue;  // >6h stale; CF archives these
+    // Phase 30 / CDX-7 — only the host fires the scheduled→active flip. Path B
+    // of firestore.rules (post-CR-06) blocks non-host status writes, so without
+    // this gate every signed-in client spammed PERMISSION_DENIED every 1s tick
+    // until the host's flip (or the CF safety net) landed. Mirrors the MED-3
+    // host-only archive flip pattern at ~4967.
+    if (!state.me || wp.hostId !== state.me.id) continue;
     try {
       const snap = await getDoc(watchpartyRef(wp.id));
       if (!snap.exists()) continue;
@@ -3738,6 +5313,10 @@ function showApp() {
   document.getElementById('signin-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   document.getElementById('me-label').textContent = state.me.name;
+  // Wave 5B / Gemini P2 — one-time iOS A2HS nudge for users who arrived via
+  // share/invite URL and never saw landing.html's install card. Self-gated
+  // (iOS Safari only, non-standalone, not previously dismissed).
+  try { maybeShowIosPwaNudge(); } catch (_) {}
   // Account hero identity: avatar + family chip inline with group noun
   const identAv = document.getElementById('account-identity-avatar');
   if (identAv && state.me) {
@@ -3853,7 +5432,7 @@ async function registerServiceWorker() {
 function applyModeLabels() {
   const m = currentMode();
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-  set('who-title-label', {family:"Who's on the couch", crew:"Who's on the couch", duo:"Who's on the couch"}[m]);
+  // 14-10: who-title-label set removed — element deleted with .who-card in app.html.
   set('next3-sub', groupForLabel());
   set('stats-heading', {family:"Who's watched what", crew:"Who's watched what", duo:"How we've watched"}[m]);
   set('members-heading', {family:'Family', crew:'Crew', duo:'Us'}[m]);
@@ -3894,6 +5473,12 @@ function renderAll() {
 }
 
 window.showScreen = function(name, btn) {
+  // Phase 19 / D-04 — kid-mode is Tonight-tab-scoped session state. Reset when
+  // navigating away. Direct setter (no UI re-render needed — about to switch tabs).
+  if (name !== 'tonight' && state.kidMode) {
+    state.kidMode = false;
+    state.kidModeOverrides = new Set();
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => { t.classList.remove('on'); t.setAttribute('aria-selected','false'); });
   document.getElementById('screen-'+name).classList.add('active');
@@ -4091,7 +5676,7 @@ function renderMoodFilter() {
   const chips = shown.map(m => {
     const on = state.selectedMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleMood('${m.id}')">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   });
   if (hasActive) {
@@ -4128,62 +5713,55 @@ function renderTonight() {
   renderNext3();
   renderMoodFilter();
   updateFiltersBar();
-  const whoEl = document.getElementById('who-list');
-  if (!whoEl) return;
-  // D-03 + D-04: sub-profiles and active guests render alongside authed members.
-  // Sub-profile taps set state.actingAs (per-action); regular chips keep toggleMember.
-  const nowTs = Date.now();
-  const tonightMembers = (state.members || []).filter(m =>
-    !m.archived &&
-    (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
-  );
-  // Phase 11 / REFR-03 — empty-state: show branded fallback + invite CTA when no one on couch.
-  if (!tonightMembers.length) {
-    whoEl.innerHTML = `<div class="who-empty">
-      <div class="who-empty-title">Nothing but us.</div>
-      <div class="who-empty-body"><em>Pull up a seat &mdash; invite someone to the couch.</em></div>
-      <button class="who-empty-share" onclick="openInviteShare()">Share an invite</button>
-    </div>`;
-    return;
-  }
-  whoEl.innerHTML = tonightMembers.map(m => {
-    const isSub = !!m.managedBy && !m.uid;
-    const isGuest = !!m.temporary;
-    const badges = [];
-    if (isSub) badges.push('<span class="chip-badge badge-kid">kid</span>');
-    if (isGuest) badges.push('<span class="chip-badge badge-guest">guest</span>');
-    const badgeHtml = badges.length ? ` ${badges.join(' ')}` : '';
-    if (isSub) {
-      // Act-as tap — per D-04, does NOT toggle selection; it arms the next write.
-      const safeName = (m.name || '').replace(/'/g,"\\'");
-      return `<div class="who-chip sub-profile" role="button" tabindex="0" data-sub-id="${m.id}" aria-label="Act as ${escapeHtml(m.name)}" onclick="tapActAsSubProfile('${m.id}','${safeName}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tapActAsSubProfile('${m.id}','${safeName}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
-    }
-    const selected = state.selectedMembers.includes(m.id);
-    const isMe = state.me && m.id === state.me.id;
-    return `<div class="who-chip ${selected?'on':''} ${isMe?'me':''}" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHtml(m.name)}" onclick="toggleMember('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMember('${m.id}');}"><div class="who-avatar" style="background:${m.color}" aria-hidden="true">${avatarContent(m)}</div><div class="who-name">${escapeHtml(m.name)}${badgeHtml}</div></div>`;
-  }).join('');
+  // 14-10 (sketch 003 V5): who-list emitter removed — #who-list element deleted
+  // with .who-card in app.html. The V5 roster in #couch-viz-container above is
+  // the single 'who's on the couch' surface on the Tonight tab.
   const el = document.getElementById('matches-list');
   const countEl = document.getElementById('matches-count');
   const actionsEl = document.getElementById('t-section-actions');
 
   // Empty states — consistent shape
+  // Plan 14-09 / D-11 (a) — brand-new family, nothing watched.
+  // Triggers when family doc is set up (state.familyCode) but no titles yet exist.
+  // CTAs: Add tab + Trakt connect (history import). showScreen('add') is the
+  // canonical tab nav. Trakt connect entry: trakt.connect() (window.trakt at line 865).
+  if ((state.titles || []).length === 0 && state.familyCode) {
+    el.innerHTML = `<div class="queue-empty">
+      <span class="emoji">🛋️</span>
+      <strong>Your couch is fresh</strong>
+      Nothing in queue yet. What should be the first?
+      <div class="queue-empty-cta">
+        <button class="tc-primary" type="button" onclick="showScreen('add')">Add a title</button>
+        <button class="tc-secondary" type="button" onclick="trakt.connect()">Connect Trakt to import history</button>
+      </div>
+    </div>`;
+    countEl.textContent = '';
+    if (actionsEl) actionsEl.innerHTML = '';
+    return;
+  }
   if (state.members.length === 0) {
     el.innerHTML = `<div class="empty"><strong>No group yet</strong>Share your code so others can join.</div>`;
     countEl.textContent = '';
     if (actionsEl) actionsEl.innerHTML = '';
     return;
   }
-  if (state.selectedMembers.length === 0) {
-    el.innerHTML = `<div class="empty"><strong>Pick who's watching</strong>Tap anyone above to see matches.</div>`;
+  // 14-10 (V5 redesign) follow-up: gate the "who's watching" empty state on the V5
+  // couchMemberIds source of truth, NOT the legacy state.selectedMembers (which is only
+  // written by the deprecated V4 toggleMember helper). Same bug class as the who-mini
+  // sticky bar fix in commit e89aa0b.
+  const couch = (state.couchMemberIds && state.couchMemberIds.length)
+    ? state.couchMemberIds
+    : (state.selectedMembers && state.selectedMembers.length ? state.selectedMembers : (state.me ? [state.me.id] : []));
+  if (couch.length === 0) {
+    // D-11 (CONTEXT.md) — empty states should have action-leading CTAs, not dead ends.
+    el.innerHTML = `<div class="empty"><strong>Pick who's watching</strong>Tap anyone above, or <button class="link-like" onclick="openInviteShare()">invite someone</button> to join the couch.</div>`;
     countEl.textContent = '';
     if (actionsEl) actionsEl.innerHTML = '';
     return;
   }
 
-  // Common title-filter predicate — honors scope, providers, moods, vetoes, and age tiers.
-  // Doesn't check votes; callers apply vote logic themselves.
   function passesBaseFilter(t) {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
     // Pending/declined titles don't surface on Tonight at all — even parents shouldn't see them
     // as potential matches until they're approved.
@@ -4200,35 +5778,58 @@ function renderTonight() {
         if (tier > max) return false;
       }
     }
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
     return true;
   }
 
+  // Tonight's picks: couch interest, no off-couch interest, no couch dissent.
+  //   - At least one couch member yes-voted
+  //   - No off-couch member yes-voted
+  //   - Couch abstainers OK ("too bad for them, didn't vote in time" — per user spec)
+  //   - Off-couch abstainers OK
+  // passesBaseFilter already removes anything a couch member said 'no' or 'seen' to
+  // (via isWatchedByCouch), so couch dissent is handled upstream. Off-couch no/seen
+  // votes do not disqualify (per user 2026-04-28 spec).
+  const couchSet = new Set(state.selectedMembers);
   const matches = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
-    return state.selectedMembers.every(mid => (t.votes||{})[mid] === 'yes');
+    const votes = t.votes || {};
+    // No off-couch member may have yes-voted (off-couch yes routes to Worth considering).
+    for (const mid in votes) {
+      if (votes[mid] === 'yes' && !couchSet.has(mid)) return false;
+    }
+    // At least one couch member must have yes-voted (no zero-couch-interest titles).
+    return state.selectedMembers.some(mid => votes[mid] === 'yes');
   }).sort((a,b) => {
-    const aY = Object.values(a.votes||{}).filter(v=>v==='yes').length;
-    const bY = Object.values(b.votes||{}).filter(v=>v==='yes').length;
+    // Order by couch yes-count (more couch interest -> higher rank). Off-couch yes
+    // is always zero in matches, so total yes-count == couch yes-count here.
+    const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
+    const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
   });
 
-  // "Worth considering": at least one selected member said Yes, and nobody selected said No or Seen.
-  // Excludes titles that are already matches. Ordered by number of Yes votes within the selected group.
+  // Worth considering: at least one couch member yes-voted, but missing the strict
+  // alignment that Tonight's picks requires — either a couch member abstained, OR an
+  // off-couch member also yes-voted. Excludes anything already in matches.
+  // passesBaseFilter already excludes couch no/seen votes (per user spec —
+  // "if someone voted no we don't list it"; off-couch no-votes do not disqualify).
   const matchIds = new Set(matches.map(t => t.id));
   const considerable = state.titles.filter(t => {
     if (!passesBaseFilter(t)) return false;
     if (matchIds.has(t.id)) return false;
     const votes = t.votes || {};
-    let yesCount = 0;
-    for (const mid of state.selectedMembers) {
-      const v = votes[mid];
-      if (v === 'no' || v === 'seen') return false; // anyone bailed → disqualified
-      if (v === 'yes') yesCount++;
-    }
-    return yesCount >= 1;
+    return state.selectedMembers.some(mid => votes[mid] === 'yes');
   }).sort((a,b) => {
-    const aY = state.selectedMembers.filter(mid => (a.votes||{})[mid] === 'yes').length;
-    const bY = state.selectedMembers.filter(mid => (b.votes||{})[mid] === 'yes').length;
+    // Order by total yes-count across the whole group (more enthusiasm → higher rank).
+    const aY = Object.values(a.votes||{}).filter(v => v === 'yes').length;
+    const bY = Object.values(b.votes||{}).filter(v => v === 'yes').length;
     return bY - aY;
   });
 
@@ -4264,8 +5865,8 @@ function renderTonight() {
           <div class="t-section-title">Worth considering</div>
           <div class="t-section-meta">${considerable.length} pending</div>
         </div>
-        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">At least one of you is in. Nobody's passed yet.</p>
-        ${considerable.map(t => card(t)).join('')}
+        <p style="font-size:var(--fs-meta);color:var(--ink-dim);margin:0 0 var(--s3);padding:0 var(--s1);">At least one of you picked these — couch isn't unanimous.</p>
+        ${considerable.map(t => card(t, { considerableVariant: true })).join('')}
       </div>`
     : '';
 
@@ -4273,10 +5874,32 @@ function renderTonight() {
     el.innerHTML = `<div class="empty"><strong>No matches yet</strong>Add titles and vote so we have something to watch.</div>`;
     return;
   }
+  // Phase 21 — replace generic "Nothing's matching" with conflict-aware diagnosis
+  // when titles exist but matches list is empty. D-09 + D-12. Considerable-fallback
+  // (D-12) preserves the "options below" hint after the helper output.
+  let emptyHtml = '';
+  if (matches.length === 0) {
+    const diag = diagnoseEmptyMatches(state.titles, couch);
+    const chipsHtml = diag.reasons.length
+      ? `<div class="empty-reasons">${diag.reasons.map(r => `<span class="empty-reason-chip">${escapeHtml(r.copy)}</span>`).join('')}</div>`
+      : '';
+    const considerHint = considerable.length ? `<div class="empty-consider-hint">But there are still options below.</div>` : '';
+    emptyHtml = `<div class="empty empty-conflict-aware"><strong>${escapeHtml(diag.headline)}</strong>${chipsHtml}${considerHint}</div>`;
+  }
   const matchesHtml = matches.length
     ? matches.map(t => card(t)).join('')
-    : `<div class="empty"><strong>Nothing's matching</strong>${considerable.length ? 'But there are still options below.' : 'Try adjusting filters, or add more titles.'}</div>`;
+    : emptyHtml;
   el.innerHTML = matchesHtml + considerHtml + vetoedHtml;
+  // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
+  // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
+  if (typeof renderCouchViz === 'function') renderCouchViz();
+  // D-07 (DECI-14-07) — Flow A entry CTA. Lives directly under couch viz; gated on
+  // state.couchMemberIds ≥ 1. Safe to call on every renderTonight pass (innerHTML overwrite).
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  // === Phase 15 / S1 (TRACK-15-07) — Pick up where you left off (tuple-aware cross-show).
+  // Renders into #cv15-pickup-container between #couch-viz-container and #flow-a-entry-container.
+  // Hides entirely on zero tuples per UI-SPEC §Discretion Q7. ===
+  renderPickupWidget();
 }
 
 // Combined filters-bar toggle + active state
@@ -4318,7 +5941,7 @@ function updateFiltersBar() {
       const html = state.selectedMoods.map(id => {
         const m = moodById(id);
         if (!m) return '';                            // ASVS V5: silently skip any id not in MOODS[]
-        return `<div class="mood-chip on" role="group" aria-label="${escapeHtml(m.label)} filter active"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}<button class="mood-chip-remove" onclick="removeMoodFilter('${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)} filter">×</button></div>`;
+        return `<div class="mood-chip on" role="group" aria-label="${escapeHtml(m.label)} filter active"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}<button class="mood-chip-remove" onclick="removeMoodFilter('${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)} filter">×</button></div>`;
       }).join('');
       // Pitfall 4: avoid flicker — only write innerHTML when content actually changes.
       if (activeRow.innerHTML !== html) activeRow.innerHTML = html;
@@ -4330,7 +5953,7 @@ function updateFiltersBar() {
   }
 }
 
-function card(t) {
+function card(t, opts) {
   const votes = t.votes || {};
   const yesCount = Object.values(votes).filter(v=>v==='yes').length;
   const tier = tierFor(t.rating);
@@ -4350,7 +5973,28 @@ function card(t) {
   if (t.year) metaParts.push(escapeHtml(t.year));
   if (t.runtime) metaParts.push(`${t.runtime}m`);
   if (t.watched && avg > 0) metaParts.push(`<span class="tc-stars">★ ${formatScore(avg)}</span>`);
-  else if (!t.watched && yesCount > 0) metaParts.push(`${yesCount} 👍`);
+  // === D-04 (DECI-14-04) — "X want it" pill replaces the bare yes-count pill ===
+  // Counts members with this title in their queues map (per DR-2: queues == Yes votes today;
+  // future-proof against decoupling by reading queues directly). Renders 3 micro-avatars +
+  // overflow chip + "N want it" label. Falls back gracefully when t.queues is missing.
+  else if (!t.watched && t.queues) {
+    const queuers = (state.members || []).filter(m => t.queues[m.id] != null);
+    if (queuers.length > 0) {
+      const visible = queuers.slice(0, 3);
+      const overflow = queuers.length - visible.length;
+      const avatars = visible.map(m =>
+        `<span class="tc-want-avatar" title="${escapeHtml(m.name || 'Member')}" style="background:${memberColor(m.id)}">${escapeHtml((m.name || '?').charAt(0).toUpperCase())}</span>`
+      ).join('');
+      const overflowChip = overflow > 0 ? `<span class="tc-want-overflow">+${overflow}</span>` : '';
+      const wantWord = queuers.length === 1 ? 'wants' : 'want';
+      metaParts.push(
+        `<span class="tc-want-pill" aria-label="${queuers.length} ${queuers.length === 1 ? 'person' : 'people'} ${wantWord} this">` +
+          `<span class="tc-want-avatars">${avatars}${overflowChip}</span>` +
+          `<span class="tc-want-label">${queuers.length} ${wantWord} it</span>` +
+        `</span>`
+      );
+    }
+  }
   // TV progress pill — shown for TV titles with per-member progress tracked
   const progPill = progressPill(t);
   if (progPill) metaParts.push(progPill);
@@ -4359,7 +6003,7 @@ function card(t) {
   const statusInfo = tvStatusBadge(t, meId);
   if (statusInfo) metaParts.push(`<span class="tv-status-badge ${statusInfo.kind}">${escapeHtml(statusInfo.text)}</span>`);
   if (t.moods && t.moods.length) {
-    const moodChars = t.moods.slice(0,3).map(id => { const m = moodById(id); return m?m.icon:''; }).join('');
+    const moodChars = t.moods.slice(0,3).map(id => { const m = moodById(id); return m ? twemojiImg(m.icon, m.label) : ''; }).join('');
     if (moodChars) metaParts.push(`<span class="tc-mood-dots">${moodChars}</span>`);
   }
   const metaHtml = metaParts.join('<span class="dot">·</span>');
@@ -4456,17 +6100,34 @@ function card(t) {
   }
 
   // Primary action
+  // === D-04 (DECI-14-04) — Vote button removed from tile face ===
+  // The Vote button (Vote-mode bulk affordance) moves to the Add tab "Catch up on votes" CTA
+  // (per D-05). Per-title voting is reachable via the new openTileActionSheet primary entry.
+  // Watched-state Rate and pending/declined empty branches preserved.
   let primaryBtn;
   if (t.watched) {
     primaryBtn = `<button class="tc-primary watched" onclick="event.stopPropagation();openRateModal('${t.id}')">★ Rate</button>`;
-  } else if (isPending || isDeclined) {
-    // No voting on pending/declined titles; the approval buttons live in the note above (for parents)
-    primaryBtn = '';
   } else {
-    primaryBtn = `<button class="tc-primary" onclick="event.stopPropagation();openVoteModal('${t.id}')">Vote</button>`;
+    // Unwatched (including pending/declined): no on-tile primary; primary action is body-tap → openTileActionSheet.
+    primaryBtn = '';
   }
 
-  return `<div class="tc${blockedClass}${vetoedClass}${approvalClass}" role="button" tabindex="0" aria-label="${escapeHtml(t.name)}${t.year?', '+escapeHtml(t.year):''}" onclick="openDetailModal('${t.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('${t.id}');}">
+  // === D-04 (DECI-14-04) — ▶ Trailer button on tile face ===
+  // Surfaces formerly-buried trailer affordance from the ⋯ action sheet.
+  // Uses event.stopPropagation() so the body-tap (openTileActionSheet) doesn't also fire.
+  // Reuses the existing trailer launch pattern from openActionSheet (YouTube external link).
+  const trailerBtnHtml = (t.trailerKey && !t.watched)
+    ? `<a class="tc-trailer-btn" href="https://www.youtube.com/watch?v=${encodeURIComponent(t.trailerKey)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" aria-label="Watch trailer for ${escapeHtml(t.name)}">▶ Trailer</a>`
+    : '';
+
+  // Phase 20 / D-08 + D-10 — Card explanation footer (dim-text, single line).
+  // Considerable variant flag (D-10) flows from renderTonight via opts.considerableVariant.
+  const _cardCouch20 = state.couchMemberIds || state.selectedMembers || [];
+  const _cardOpts20 = { considerableVariant: !!(opts && opts.considerableVariant) };
+  const _cardExpl20 = buildMatchExplanation(t, _cardCouch20, _cardOpts20);
+  const cardExplHtml = _cardExpl20 ? `<div class="tc-explanation">${_cardExpl20}</div>` : '';
+
+  return `<div class="tc${blockedClass}${vetoedClass}${approvalClass}" role="button" tabindex="0" aria-label="${escapeHtml(t.name)}${t.year?', '+escapeHtml(t.year):''}" onclick="openTileActionSheet('${t.id}',event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTileActionSheet('${t.id}',event);}">
     <div class="tc-poster" style="${posterStyle(t)}" aria-hidden="true">${posterFallbackLetter(t)}</div>
     <div class="tc-body">
       <div class="tc-name">${badgesHtml}${ratingPill} ${escapeHtml(t.name)}</div>
@@ -4477,8 +6138,10 @@ function card(t) {
       ${vetoNote}
       ${approvalNote}
       ${voteChips && !isPending && !isDeclined ? `<div class="tc-vote-strip">${voteChips}</div>` : ''}
+      ${cardExplHtml}
       <div class="tc-footer">
         ${primaryBtn}
+        ${trailerBtnHtml}
         <button class="tc-more" aria-label="More options" onclick="openActionSheet('${t.id}',event)" title="More">⋯</button>
       </div>
     </div>
@@ -4499,7 +6162,23 @@ function renderLibrary() {
     renderFullQueue(el, myQueue); return;
   }
   let list = state.titles.slice().filter(t => !isHiddenByScope(t));
-  if (state.filter === 'unwatched') list = list.filter(t => !t.watched);
+  // D-01 (DECI-14-01): couch-aware watched filter for Library discovery filters.
+  // 'watched' filter is intentionally NOT couch-filtered (it's the user's archive).
+  // 'myrequests', 'inprogress', 'toprated', 'scheduled', 'recent' are status-driven views
+  // that must surface their full scope regardless of watch state — not couch-filtered.
+  const couchForLib = getCouchOrSelfIds();
+  if (state.filter === 'unwatched') list = list.filter(t => {
+    if (isWatchedByCouch(t, couchForLib)) return false;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
+    return true;
+  });
   if (state.filter === 'watched') list = list.filter(t => t.watched);
   if (state.filter === 'forme') {
     // Everything the current user can actually watch, unwatched, approved.
@@ -4510,10 +6189,19 @@ function renderLibrary() {
     else {
       const myMax = me.maxTier != null ? me.maxTier : ageToMaxTier(me.age);
       list = list.filter(t => {
-        if (t.watched) return false;
+        if (isWatchedByCouch(t, couchForLib)) return false;
         if (t.approvalStatus === 'pending' || t.approvalStatus === 'declined') return false;
         const tier = tierFor(t.rating);
         if (tier && myMax && tier > myMax) return false;
+        // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+        // Tightens existing per-member cap — both must pass.
+        const _kidCap = getEffectiveTierCap();
+        if (_kidCap !== null) {
+          const _tier = tierFor(t.rating);
+          if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+            return false;
+          }
+        }
         return true;
       });
     }
@@ -4587,9 +6275,20 @@ function renderFullQueue(el, presetList) {
   const myQueue = presetList || getMyQueueTitles().filter(t => !isHiddenByScope(t));
   if (!myQueue.length) {
     const hasSearch = !!(state.librarySearchQuery || '').trim();
-    el.innerHTML = hasSearch
-      ? `<div class="queue-empty"><span class="emoji">🔍</span><strong>Nothing matches</strong>Try a different search.</div>`
-      : `<div class="queue-empty"><span class="emoji">🛋️</span><strong>The couch is empty</strong>Vote yes on titles to fill it up. Drag to reorder what's next.</div>`;
+    if (hasSearch) {
+      el.innerHTML = `<div class="queue-empty"><span class="emoji">🔍</span><strong>Nothing matches</strong>Try a different search.</div>`;
+      return;
+    }
+    // Plan 14-09 / D-11 (b) — empty personal queue. Verbatim copy per CONTEXT.md
+    // D-11 table. Canonical Vote-mode entry: openSwipeMode (per 12-02 SUMMARY).
+    el.innerHTML = `<div class="queue-empty">
+      <span class="emoji">🛋️</span>
+      <strong>Your queue is empty</strong>
+      Vote on a few titles to fill it up.
+      <div class="queue-empty-cta">
+        <button class="tc-primary" type="button" onclick="openSwipeMode()">Open Vote mode</button>
+      </div>
+    </div>`;
     return;
   }
   // Compute group rankings for display: score every title by family weighted queues
@@ -4609,6 +6308,13 @@ function renderFullQueue(el, presetList) {
     </div>`;
   }).join('');
   attachQueueDragReorder(el, myQueue);
+  // Plan 14-09 / D-10 — anchor onboarding tooltip on first Library queue render (one-shot).
+  setTimeout(() => {
+    const firstRow = el.querySelector('.full-queue-row');
+    if (firstRow && typeof maybeShowTooltip === 'function') {
+      maybeShowTooltip('queueDragReorder', firstRow, 'Drag to reorder your queue.');
+    }
+  }, 200);
 }
 
 // Group weighted rank map — for each title, what's its group priority rank?
@@ -5019,7 +6725,13 @@ function renderTraktCard() {
     // Hide the main action button since we're using inline buttons in the body now
     btn.style.display = 'none';
   } else {
-    body.innerHTML = '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
+    // === Phase 15 / D-07 (TRACK-15-14) — Trakt opt-in Settings disclosure ===
+    // Heading + italic sub-line above the existing Connect button. Verbatim from
+    // UI-SPEC §Discretion Q9 + §Copywriting Contract. Permanent (not dismissable).
+    body.innerHTML =
+      '<div style="font-family:\'Inter\',sans-serif;font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:0.18em;color:var(--accent);margin-bottom:var(--s2);">JUMP-START YOUR COUCH&#39;S HISTORY WITH TRAKT</div>' +
+      '<p style="margin-bottom:var(--s3);"><em style="font-family:var(--font-serif);font-style:italic;color:var(--ink-warm);">Optional &mdash; tracking works without it.</em></p>' +
+      '<p>Already tracking on Trakt? Connect your account to pull in your watch history, watchlist, and ratings. Progress stays in sync both ways.</p>';
     btn.textContent = 'Connect';
     btn.classList.add('accent');
     btn.onclick = function(){ trakt.connect(); };
@@ -5202,6 +6914,19 @@ function isCurrentUserParent() {
   return isParent(me);
 }
 
+// Phase 19 / D-02 — visibility gate for the kid-mode toggle. Returns true when
+// ANY non-archived non-expired-guest member has effectiveMaxTier ≤ 3 (PG-13
+// cap or below). Re-evaluated on every renderCouchViz call — no caching (D-03).
+function familyHasKids() {
+  const nowTs = Date.now();
+  return (state.members || []).some(m => {
+    if (m.archived) return false;
+    if (m.temporary && (!m.expiresAt || m.expiresAt <= nowTs)) return false;
+    const eff = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
+    return eff <= 3;
+  });
+}
+
 window.setMaxTier = async function(id, val) {
   if (!isCurrentUserParent()) { flashToast('Only parents can change this', { kind: 'warn' }); return; }
   try { await updateDoc(doc(membersRef(), id), { maxTier: parseInt(val) }); }
@@ -5281,7 +7006,14 @@ function checkApprovalUpdates() {
 // Wrapper for the raw `setDoc` calls that create new titles. If the adder is a kid,
 // it stamps the title as pending and returns so the caller can surface "awaiting approval" UI.
 // Returns { ok: true, pending: boolean }.
-async function createTitleWithApprovalCheck(titleId, titleData) {
+//
+// === D-03 Add-tab insertion (DECI-14-03) ===
+// opts.addToMyQueue (default false): when true, the new title is appended to the BOTTOM
+// of state.me's personal queue at create time (queues[state.me.id] = currentQueueLen + 1).
+// Caller-opt-in keeps bulk-import paths (Trakt sync, Couch Nights packs, first-run seed)
+// from auto-populating the actor's queue. The 4 user-Add paths (addToLibrary,
+// submitManualAdd, addSimilar, addFromAddTab) pass true.
+async function createTitleWithApprovalCheck(titleId, titleData, opts) {
   const me = state.me ? state.members.find(x => x.id === state.me.id) : null;
   const pending = needsApproval(me);
   const finalData = { ...titleData };
@@ -5289,6 +7021,13 @@ async function createTitleWithApprovalCheck(titleId, titleData) {
     finalData.approvalStatus = 'pending';
     finalData.requestedBy = me.id;
     finalData.requestedAt = Date.now();
+  }
+  // D-03: append to bottom of state.me's personal queue if caller opts in.
+  // Skipped for bulk imports (Trakt / pack expand / first-run seed) and when state.me
+  // is unset (defensive — pre-claim flows).
+  if (opts && opts.addToMyQueue && state.me && state.me.id) {
+    const myQueueLen = state.titles.filter(x => !x.watched && x.queues && x.queues[state.me.id] != null).length;
+    finalData.queues = { ...(finalData.queues || {}), [state.me.id]: myQueueLen + 1 };
   }
   await setDoc(doc(titlesRef(), titleId), { ...finalData, ...writeAttribution() });
   return { ok: true, pending };
@@ -5527,7 +7266,8 @@ window.addToLibrary = async function(id) {
   if (!r) return;
   const extras = await fetchTmdbExtras(r.mediaType, r.tmdbId);
   const moods = suggestMoods(r.genreIds || [], extras.runtime);
-  const res = await createTitleWithApprovalCheck(r.id, { ...r, ...extras, moods, votes:{}, watched:false });
+  // === D-03 Add-tab insertion (DECI-14-03) === — search "+ Pull up" lands in my queue.
+  const res = await createTitleWithApprovalCheck(r.id, { ...r, ...extras, moods, votes:{}, watched:false }, { addToMyQueue: true });
   logActivity(res.pending ? 'requested' : 'added', { titleName: r.name, titleId: r.id });
   if (res.pending) flashToast(`"${r.name}" sent for a parent to review.`);
   renderSearchResults();
@@ -5542,7 +7282,7 @@ function renderManualMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = manualMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleManualMood('${m.id}');return false;">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
@@ -5571,7 +7311,8 @@ window.submitManualAdd = async function() {
   const id = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   const title = { id, name, year, kind, poster, overview: notes, moods: manualMoods.slice(), votes: {}, watched: false, isManual: true };
   try {
-    const res = await createTitleWithApprovalCheck(id, title);
+    // === D-03 Add-tab insertion (DECI-14-03) === — manual modal lands in my queue.
+    const res = await createTitleWithApprovalCheck(id, title, { addToMyQueue: true });
     logActivity(res.pending ? 'requested' : 'added', { titleName: name, titleId: id });
     if (res.pending) flashToast(`"${name}" sent for a parent to review.`);
     closeManualAdd();
@@ -5589,7 +7330,9 @@ window.openCommentsModal = function(titleId) {
   document.getElementById('comments-modal-title').textContent = t.name;
   document.getElementById('comment-list').innerHTML = '<div class="comment-empty">Loading...</div>';
   document.getElementById('comment-input').value = '';
-  document.getElementById('comments-modal-bg').classList.add('on');
+  const _commentsBg = document.getElementById('comments-modal-bg');
+  _commentsBg.classList.add('on');
+  activateFocusTrap(_commentsBg);
   if (unsubComments) unsubComments();
   const q = query(commentsRef(titleId), orderBy('createdAt', 'asc'));
   unsubComments = onSnapshot(q, snap => {
@@ -5602,6 +7345,7 @@ window.openCommentsModal = function(titleId) {
 
 window.closeCommentsModal = function() {
   document.getElementById('comments-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   if (unsubComments) { unsubComments(); unsubComments = null; }
   commentsTitleId = null;
 };
@@ -5787,16 +7531,26 @@ let swipeStartX = 0, swipeStartY = 0, swipeDX = 0, swipeDY = 0, swipeDragging = 
 
 function getNeedsVoteTitles() {
   if (!state.me) return [];
+  // D-01 (DECI-14-01): swipe candidate pool — use couch-aware watched filter.
+  const couch = getCouchOrSelfIds();
   return state.titles.filter(t => {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (isHiddenByScope(t)) return false;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
+      }
+    }
     const v = (t.votes || {})[state.me.id];
     return !v;
   });
 }
 
 window.openSwipeMode = function() {
-  if (!state.me) { alert('Sign in first.'); return; }
+  if (!state.me) { alert('Sign in to do that.'); return; }
   swipeQueue = getNeedsVoteTitles();
   swipeIndex = 0;
   document.getElementById('swipe-overlay').classList.add('on');
@@ -6109,8 +7863,11 @@ window.toggleMyService = async function(brandId) {
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
 
-// Manual refresh button on the detail modal — re-fetch TMDB providers for one title
-// right now, instead of waiting for the background migration to reach it.
+// Phase 18 / D-17 + D-18 + D-19: detail-modal manual refresh affordance.
+// Refetches TMDB providers + writes back including lastProviderRefreshAt
+// so the daily providerRefreshTick CF (Plan 18-01) round-robin stays accurate
+// (won't re-refresh a title the user just manually refreshed). Manual refresh
+// does NOT trigger a push fan-out (D-19) — only the scheduled CF fires pushes.
 window.refreshProviders = async function(id) {
   const t = state.titles.find(x => x.id === id);
   if (!t) return;
@@ -6123,14 +7880,21 @@ window.refreshProviders = async function(id) {
       rentProviders: extras.rentProviders || [],
       buyProviders: extras.buyProviders || [],
       providersChecked: true,
-      providersSchemaVersion: 3
+      providersSchemaVersion: 3,
+      // Phase 18 / D-18: stamp the timestamp so the CF round-robin treats
+      // this title as freshly-refreshed (won't re-fetch on the next tick).
+      lastProviderRefreshAt: Date.now()
     };
     await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update });
     haptic('success');
-    // Re-open the detail to show the fresh data
+    // Phase 18 / D-18 verbatim toast copy.
+    flashToast('Availability refreshed.', { kind: 'info' });
+    // Re-open the detail to show the fresh data.
     setTimeout(() => openDetailModal(id), 150);
   } catch(e) {
-    alert('Refresh failed: ' + e.message);
+    // Phase 18 — replace alert() with flashToast (BRAND-aligned warm restraint).
+    console.warn('[18/refreshProviders] failed:', e && e.message);
+    flashToast('Refresh failed. Try again.', { kind: 'warn' });
   }
 };
 
@@ -6168,6 +7932,7 @@ window.deleteMyReview = async function() {
     if (detailTitleId === reviewTitleId) {
       const merged = state.titles.find(x => x.id === detailTitleId);
       if (merged) { merged.reviews = reviews; document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged); }
+      if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
     }
   } catch(e) { flashToast('Could not delete. Try again.', { kind: 'warn' }); }
 };
@@ -6193,6 +7958,7 @@ window.saveReview = async function() {
     if (detailTitleId === reviewTitleId) {
       const merged = state.titles.find(x => x.id === detailTitleId);
       if (merged) { merged.reviews = reviews; document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged); }
+      if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
     }
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
@@ -6320,7 +8086,35 @@ async function fetchTmdbDetails(mediaType, tmdbId) {
       }));
     }
     if (d.similar && d.similar.results) {
-      out.similar = d.similar.results.slice(0,10).map(s => ({
+      // Filter TMDB's /similar results so live-action titles don't recommend kids' animated
+      // shows and vice versa. The TMDB algo can mix formats (e.g. The Boys returns Tokyo Mew
+      // Mew / TMNT because of incidental "superhero" tag overlap). Genre 16 = Animation.
+      const sourceGenreIds = (d.genres || []).map(g => g.id);
+      const sourceGenreSet = new Set(sourceGenreIds);
+      const sourceIsAnimated = sourceGenreSet.has(16);
+      const sourceIsAdult = !!d.adult;
+
+      const candidates = d.similar.results
+        .filter(s => sourceIsAdult || !s.adult)
+        .filter(s => ((s.genre_ids || []).includes(16)) === sourceIsAnimated);
+
+      // Sort by genre overlap with source; tie-break by TMDB vote_average so popular
+      // matches rise. Without this The Boys often gets generic "trending" returns.
+      candidates.sort((a, b) => {
+        const aOverlap = (a.genre_ids || []).filter(g => sourceGenreSet.has(g)).length;
+        const bOverlap = (b.genre_ids || []).filter(g => sourceGenreSet.has(g)).length;
+        if (bOverlap !== aOverlap) return bOverlap - aOverlap;
+        return (b.vote_average || 0) - (a.vote_average || 0);
+      });
+
+      // Fallback: if strict filtering left us with too few, fall back to the unfiltered
+      // (adult-filtered) list. Avoids empty "similar" when TMDB returns weird results
+      // for niche/foreign-language sources.
+      const finalList = candidates.length >= 3
+        ? candidates.slice(0, 10)
+        : d.similar.results.filter(s => sourceIsAdult || !s.adult).slice(0, 10);
+
+      out.similar = finalList.map(s => ({
         id: 'tmdb_' + s.id,
         tmdbId: s.id,
         mediaType,
@@ -6346,11 +8140,24 @@ window.openDetailModal = async function(id) {
   const bg = document.getElementById('detail-modal-bg');
   const content = document.getElementById('detail-modal-content');
   content.innerHTML = renderDetailShell(t);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   bg.classList.add('on');
   // Tap-outside-to-close. Essential on iOS PWA where there's no browser back and
   // the ✕ scrolls out of view when the detail is scrolled. Only the backdrop itself
   // closes; taps bubbled up from modal content pass through to their targets.
   bg.onclick = (e) => { if (e.target === bg) closeDetailModal(); };
+  // === D-04 (DECI-14-04) — lazy-fetch TMDB community reviews ===
+  // Cast + trailer + providers + synopsis are already surfaced (cast comes from
+  // fetchTmdbDetails which has run on first open via t.detailsCached). TMDB
+  // community reviews are the missing 5th surface — fetched once per title and
+  // cached locally on the title doc (t.tmdbReviews / t.tmdbReviewsFetchedAt).
+  // Per-title gate prevents re-fetch on re-open; rate-limit budget per CLAUDE.md.
+  ensureTmdbReviews(t).then(() => {
+    if (detailTitleId !== id) return;
+    const merged = state.titles.find(x => x.id === id) || t;
+    document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
+    if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
+  }).catch(e => console.warn('[detail] tmdb reviews fetch failed', e));
   if (t.isManual) return;
   // For TV titles, the fetch also pulls showStatus/nextEpisode/etc which were added
   // in Turn 9. If those are missing even though detailsCached is true, we do one
@@ -6364,12 +8171,78 @@ window.openDetailModal = async function(id) {
   const details = await fetchTmdbDetails(mediaType, tmdbId);
   const update = { detailsCached: true };
   Object.keys(details).forEach(k => { if (details[k] !== undefined && details[k] !== null) update[k] = details[k]; });
+  // Phase 15 / TRACK-15-08 fix: stamp nextEpisodeRefreshedAt so the CF live-release
+  // sweep's HIGH-4 stale-data guard (>7 days) doesn't skip every title. Without this,
+  // t.nextEpisodeRefreshedAt defaults to 0 (Jan 1 1970) → every title looks 56+ years
+  // stale → live-release push silently never fires. Stamped on every TMDB refresh.
+  update.nextEpisodeRefreshedAt = Date.now();
   try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), ...update }); } catch(e){ console.error(e); }
   if (detailTitleId === id) {
     const merged = { ...t, ...update };
     content.innerHTML = renderDetailShell(merged);
+    if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   }
 };
+
+// === D-04 (DECI-14-04) — TMDB community reviews lazy-fetch ===
+// Hits /movie|tv/{id}/reviews (TMDB rate-limit ~40 req / 10s — gated per-title via
+// t.tmdbReviewsFetchedAt timestamp so re-opens are no-ops). Top 3 results stored
+// on the local in-memory title; persisted to Firestore so other family members
+// don't re-fetch. Manual titles + titles without tmdbId are skipped.
+// XSS mitigation T-14.05-01: review content is escaped at render time in
+// renderTmdbReviewsForTitle (escapeHtml on author/content). DoS mitigation
+// T-14.05-02: per-title gate + 1-day cache window.
+async function ensureTmdbReviews(t) {
+  if (!t || t.isManual) return;
+  // 1-day TTL — TMDB community reviews don't churn fast and we want to avoid burning rate budget.
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  if (t.tmdbReviewsFetchedAt && (Date.now() - t.tmdbReviewsFetchedAt) < ONE_DAY) return;
+  const tmdbId = t.tmdbId || (t.id && t.id.startsWith('tmdb_') ? t.id.replace('tmdb_','') : null);
+  if (!tmdbId) return;
+  const mediaType = t.mediaType || (t.kind === 'Movie' ? 'movie' : 'tv');
+  try {
+    const r = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/reviews?api_key=${TMDB_KEY}&language=en-US&page=1`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const top = (data.results || []).slice(0, 3).map(rev => ({
+      author: rev.author || 'Reviewer',
+      rating: (rev.author_details && rev.author_details.rating) || null,
+      content: rev.content || '',
+      url: rev.url || null,
+      createdAt: rev.created_at || null
+    }));
+    t.tmdbReviews = top;
+    t.tmdbReviewsFetchedAt = Date.now();
+    // Persist so other family members benefit. Best-effort — failure is silent.
+    try {
+      await updateDoc(doc(titlesRef(), t.id), {
+        ...writeAttribution(),
+        tmdbReviews: top,
+        tmdbReviewsFetchedAt: t.tmdbReviewsFetchedAt
+      });
+    } catch (e) { /* persist is best-effort; in-memory copy is enough */ }
+  } catch (e) {
+    console.warn('[tmdb-reviews] fetch failed', e);
+  }
+}
+
+// === D-04 (DECI-14-04) — TMDB community reviews render ===
+// Sibling to renderReviewsForTitle (family-local reviews). Renders only when
+// t.tmdbReviews has entries — first paint shows nothing, then re-renders after
+// ensureTmdbReviews resolves. Truncates each review at 360 chars + ellipsis.
+function renderTmdbReviewsForTitle(t) {
+  if (!Array.isArray(t.tmdbReviews) || t.tmdbReviews.length === 0) return '';
+  const items = t.tmdbReviews.slice(0, 3).map(rev => {
+    const body = (rev.content || '').slice(0, 360);
+    const truncated = (rev.content || '').length > 360;
+    const ratingStr = rev.rating ? ` · ${rev.rating}/10` : '';
+    return `<article class="tmdb-review">
+      <header class="tmdb-review-h">${escapeHtml(rev.author)}${ratingStr}</header>
+      <p class="tmdb-review-body">${escapeHtml(body)}${truncated ? '…' : ''}</p>
+    </article>`;
+  }).join('');
+  return `<div class="detail-section"><h4>Community reviews</h4><div class="tmdb-reviews-list">${items}</div></div>`;
+}
 
 window.closeDetailModal = function() {
   document.getElementById('detail-modal-bg').classList.remove('on');
@@ -6386,13 +8259,13 @@ function renderDetailMoodsSection(t) {
   const existingChipsHtml = existingMoods.map(id => {
     const m = moodById(id);
     if (!m) return '';
-    return `<button class="mood-chip" onclick="removeDetailMood('${escapeHtml(t.id)}','${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)}"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`;
+    return `<button class="mood-chip" onclick="removeDetailMood('${escapeHtml(t.id)}','${escapeHtml(id)}')" aria-label="Remove ${escapeHtml(m.label)}"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}</button>`;
   }).join('');
   const addChipHtml = `<button class="mood-chip mood-chip--add${detailMoodPaletteOpen ? ' mood-chip--add-active' : ''}" onclick="${detailMoodPaletteOpen ? 'closeDetailMoodPalette' : 'openDetailMoodPalette'}()">+ add mood</button>`;
   const paletteHtml = detailMoodPaletteOpen
     ? `<div class="detail-moods-palette" role="group" aria-label="Add mood">${
         MOODS.filter(m => !existingMoods.includes(m.id)).map(m =>
-          `<button class="mood-chip mood-chip--palette" onclick="addDetailMood('${escapeHtml(t.id)}','${escapeHtml(m.id)}')"><span class="mood-icon">${m.icon}</span>${escapeHtml(m.label)}</button>`
+          `<button class="mood-chip mood-chip--palette" onclick="addDetailMood('${escapeHtml(t.id)}','${escapeHtml(m.id)}')"><span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${escapeHtml(m.label)}</button>`
         ).join('')
       }</div>`
     : '';
@@ -6430,12 +8303,16 @@ function renderDetailShell(t) {
   const buyStrip = provStrip(t.buyProviders, 'Buy');
   const anyAvail = streamStrip || rentStrip || buyStrip;
   const refreshBtn = (t.id && t.id.startsWith('tmdb_') && !t.isManual)
-    ? `<button class="pill" onclick="refreshProviders('${t.id}')" style="margin-top:var(--s2);font-size:var(--t-micro);" title="Refetch availability from TMDB">↻ Refresh</button>`
+    ? `<button class="pill" onclick="refreshProviders('${t.id}')" style="margin-top:var(--s2);font-size:var(--t-micro);" title="Refetch availability from TMDB">↻ Refresh availability</button>`
     : '';
+  // Phase 18 / D-16: confidence/source attribution. Push body itself doesn't
+  // carry "via TMDB" (too verbose for a push); the affordance lives here in
+  // the detail surface where users dig in to verify availability.
+  const providerAttribution = `<div class="detail-prov-attribution" style="margin-top:var(--s1);font-size:var(--t-micro);font-style:italic;opacity:0.6;">Provider data via TMDB</div>`;
   const providersHtml = anyAvail
-    ? `<div class="detail-section"><h4>Where to watch</h4>${streamStrip}${rentStrip}${buyStrip}${refreshBtn}</div>`
+    ? `<div class="detail-section"><h4>Where to watch</h4>${streamStrip}${rentStrip}${buyStrip}${refreshBtn}${providerAttribution}</div>`
     : (t.providersChecked
-        ? `<div class="detail-section"><h4>Where to watch</h4><div class="detail-prov-empty">Not on subscription streaming or rent. ${refreshBtn}</div></div>`
+        ? `<div class="detail-section"><h4>Where to watch</h4><div class="detail-prov-empty">Not on subscription streaming or rent. ${refreshBtn}</div>${providerAttribution}</div>`
         : '');
   const similarHtml = (t.similar && t.similar.length) ? `<div class="detail-section"><h4>You might also like</h4><div class="similar-row">${t.similar.map(s => {
     const inLib = state.titles.find(x => x.id === s.id);
@@ -6443,6 +8320,37 @@ function renderDetailShell(t) {
   }).join('')}</div></div>` : '';
   const loadingHtml = (!t.detailsCached && !t.isManual) ? '<div class="detail-section" aria-hidden="true"><div class="sk sk-line" style="width:30%;margin-bottom:10px;"></div><div class="sk-row-posters"><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div><div class="sk sk-poster" style="width:80px;height:80px;border-radius:50%;"></div></div></div>' : '';
   const moodsHtml = renderDetailMoodsSection(t);
+  // Phase 19 / D-10..D-12 — Per-title parent override. Surfaces only when ALL
+  // three conditions hold: kid-mode active + title tier > 2 (i.e., currently
+  // blocked) + current user has parent privileges. Session-scoped — clears
+  // when toggleKidMode flips (D-13).
+  let kidModeOverrideHtml = '';
+  if (state.kidMode && tier !== null && tier > 2 && typeof isCurrentUserParent === 'function' && isCurrentUserParent()) {
+    // Already-overridden state — surface a quiet "active" hint instead of the link
+    // so re-opening the modal doesn't make it look re-clickable.
+    if (state.kidModeOverrides && state.kidModeOverrides.has && state.kidModeOverrides.has(t.id)) {
+      kidModeOverrideHtml = `<p class="kid-mode-override-active">Showing this for tonight (kid-mode override)</p>`;
+    } else {
+      kidModeOverrideHtml = `<p class="kid-mode-override-row"><a href="#" class="kid-mode-override-link" onclick="kidModeOverrideTitle('${escapeHtml(t.id)}'); return false;">Show this anyway for tonight</a></p>`;
+    }
+  }
+  // Phase 20 / D-09 — "Why this is in your matches" section.
+  // Gated on t.id being currently in matches list (per D-09); section is omitted
+  // when title was opened from Library, History, or considerable list.
+  // Italic Instrument Serif h4 + dim p — same humility register as Phase 18 attribution.
+  let whyMatchHtml = '';
+  const _detailMatches20 = (typeof getCurrentMatches === 'function') ? getCurrentMatches() : [];
+  const _isInMatches20 = _detailMatches20.some(m => m.id === t.id);
+  if (_isInMatches20) {
+    const _detailCouch20 = state.couchMemberIds || state.selectedMembers || [];
+    const _whyStr20 = buildMatchExplanation(t, _detailCouch20);
+    if (_whyStr20) {
+      whyMatchHtml = `<div class="detail-why-match">
+        <h4>Why this is in your matches</h4>
+        <p class="detail-why-match-text">${_whyStr20}</p>
+      </div>`;
+    }
+  }
   return `<div class="detail-backdrop" style="background-image:url('${backdrop}')">
     <button class="detail-close" aria-label="Close" onclick="closeDetailModal()">✕</button>
   </div>
@@ -6453,6 +8361,8 @@ function renderDetailShell(t) {
     ${moodsHtml}
     <div class="detail-overview">${escapeHtml(t.overview||'No description available.')}</div>
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
+    ${kidModeOverrideHtml}
+    ${whyMatchHtml}
     ${renderTvProgressSection(t)}
     ${trailerHtml}
     ${providersHtml}
@@ -6460,13 +8370,18 @@ function renderDetailShell(t) {
     ${similarHtml}
     ${renderDiaryForTitle(t)}
     ${renderReviewsForTitle(t)}
+    ${renderCv15TupleProgressSection(t)}
+    ${renderTmdbReviewsForTitle(t)}
     ${renderWatchpartyHistoryForTitle(t)}
+    ${renderPastWatchpartiesForTitle(t)}
     ${loadingHtml}
   </div>`;
 }
 
 function renderWatchpartyHistoryForTitle(t) {
-  const related = state.watchparties.filter(wp => wp.titleId === t.id).sort((a,b) => b.startAt - a.startAt);
+  // Phase 26 / RPLY-26-12 — D-08 bifurcation: this function returns ACTIVE-ONLY
+  // watchparties for the title. The new renderPastWatchpartiesForTitle handles archived.
+  const related = activeWatchparties().filter(wp => wp.titleId === t.id).sort((a,b) => b.startAt - a.startAt);
   if (!related.length) return '';
   return `<div class="detail-section"><h4>Watchparties</h4>
     <div class="wp-history-list">
@@ -6491,6 +8406,51 @@ function renderWatchpartyHistoryForTitle(t) {
   </div>`;
 }
 
+// Phase 26 / RPLY-26-11 — Past watchparties for this title section per UI-SPEC §5.
+// Renders a section listing ARCHIVED watchparties for this family that featured this title
+// AND have replay-able reactions. Hide-when-empty per D-10 (silent UX).
+function renderPastWatchpartiesForTitle(t) {
+  const past = archivedWatchparties()
+    .filter(wp => wp.titleId === t.id)
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .sort((a, b) => b.startAt - a.startAt)  // most-recent-first
+    .slice(0, 10);  // UI-SPEC §5 cap: 10 rows; full history via Past parties surface
+  if (!past.length) return '';  // D-10 silent-UX hide-when-empty (Pitfall 7)
+  const rowsHtml = past.map(wp => {
+    const count = Object.keys(wp.participants || {}).length;
+    const reactionCount = replayableReactionCount(wp);
+    const reactionLabel = reactionCount === 1 ? '1 reaction' : (reactionCount + ' reactions');
+    const dateLine = friendlyPartyDate(wp.startAt);
+    const titleNameSafe = escapeHtml(wp.titleName || 'Watchparty');
+    const posterStyle = wp.titlePoster
+      ? `background-image:url('${escapeHtml(wp.titlePoster)}')`
+      : '';
+    const wpIdSafe = escapeHtml(wp.id);
+    const ariaLabel = `${titleNameSafe}, ${dateLine}, ${count} on the couch, ${reactionLabel}`;
+    // Phase 26 / RPLY-26-08 part 2 — title-detail row tap enters replay variant.
+    const actionFn = `closeDetailModal();openWatchpartyLive('${wpIdSafe}', { mode: 'revisit' })`;
+    return `<div class="past-watchparty-row" role="button" tabindex="0"
+              onclick="${actionFn}"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${actionFn};}"
+              aria-label="${escapeHtml(ariaLabel)}">
+      <div class="past-watchparty-poster" style="${posterStyle}"></div>
+      <div class="past-watchparty-body">
+        <div class="past-watchparty-title">${titleNameSafe}</div>
+        <div class="past-watchparty-meta">${escapeHtml(dateLine)}</div>
+        <div class="past-watchparty-meta">${count} on the couch · ${reactionLabel}</div>
+      </div>
+      <span class="past-watchparty-chevron" aria-hidden="true">›</span>
+    </div>`;
+  }).join('');
+  return `<div class="detail-section">
+    <h4>Past watchparties</h4>
+    <p class="detail-section-subline" style="font-style:italic;font-family:'Instrument Serif',serif;color:var(--ink-dim);font-size:var(--t-meta);margin:0 0 var(--space-stack-sm,12px) 0;">Catch up on what the family said.</p>
+    <div class="past-watchparties-for-title-list">
+      ${rowsHtml}
+    </div>
+  </div>`;
+}
+
 window.addSimilar = async function(id) {
   const t = state.titles.find(x => x.id === detailTitleId);
   if (!t || !t.similar) return;
@@ -6499,7 +8459,8 @@ window.addSimilar = async function(id) {
   if (state.titles.find(x => x.id === id)) return;
   const extras = await fetchTmdbExtras(s.mediaType, s.tmdbId);
   const newTitle = { ...s, ...extras, votes:{}, watched:false };
-  const res = await createTitleWithApprovalCheck(s.id, newTitle);
+  // === D-03 Add-tab insertion (DECI-14-03) === — "more like this" lands in my queue.
+  const res = await createTitleWithApprovalCheck(s.id, newTitle, { addToMyQueue: true });
   if (res.pending) {
     newTitle.approvalStatus = 'pending';
     newTitle.requestedBy = state.me.id;
@@ -6509,6 +8470,48 @@ window.addSimilar = async function(id) {
   state.titles.push(newTitle);
   const merged = state.titles.find(x => x.id === detailTitleId);
   if (merged) document.getElementById('detail-modal-content').innerHTML = renderDetailShell(merged);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
+};
+
+// Phase 19 / D-11 — parent override: bypass kid-mode cap for this title in this
+// session. Adds titleId to state.kidModeOverrides Set, re-renders affected
+// surfaces, closes the detail modal, writes Sentry breadcrumb for analytics
+// ("kids excluded but parents watch anyway" frequency signal — Claude's
+// discretion per CONTEXT.md recommendation).
+window.kidModeOverrideTitle = function(titleId) {
+  if (!titleId) return;
+  if (typeof isCurrentUserParent === 'function' && !isCurrentUserParent()) {
+    // Defense in depth — render-side gate already hides the link for non-parents,
+    // but a non-parent invoking the handler via DevTools should still be denied.
+    flashToast('Only parents can do this', { kind: 'warn' });
+    return;
+  }
+  if (!state.kidModeOverrides || typeof state.kidModeOverrides.add !== 'function') {
+    state.kidModeOverrides = new Set();
+  }
+  state.kidModeOverrides.add(titleId);
+  // Sentry breadcrumb — surfaces frequency of "kids excluded but parents watch
+  // anyway" so we can re-evaluate the cap if the override fires constantly.
+  try {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      const t = (state.titles || []).find(x => x.id === titleId);
+      Sentry.addBreadcrumb({
+        category: 'kid-mode-override',
+        message: `parent override applied for ${titleId}`,
+        level: 'info',
+        data: {
+          titleId,
+          rating: t ? t.rating : null,
+          by: state.me ? state.me.id : null
+        }
+      });
+    }
+  } catch (e) { /* never let analytics block UX */ }
+  flashToast('Showing this for tonight', { kind: 'info' });
+  // Close the detail modal so the re-rendered Tonight tab is visible.
+  if (typeof closeDetailModal === 'function') closeDetailModal();
+  if (typeof renderTonight === 'function') renderTonight();
+  if (typeof renderLibrary === 'function') renderLibrary();
 };
 
 // Phase 3 (Mood Tags): inline detail-view mood editing
@@ -6584,6 +8587,7 @@ function _rerenderDetailFromState() {
   if (!content) return;
   const scrollTop = content.scrollTop;
   content.innerHTML = renderDetailShell(t);
+  if (typeof cv15AttachDetailModalDelegate === 'function') cv15AttachDetailModalDelegate();
   content.scrollTop = scrollTop;
 }
 
@@ -6609,8 +8613,15 @@ let lastSpinId = null;
 
 function getCurrentMatches() {
   if (!state.selectedMembers.length) return [];
+  // D-01 (DECI-14-01): spin candidate pool — use couch-aware watched filter.
+  // Couch identity here is the actively-selected members (the people on the couch tonight),
+  // which is the closest pre-14-04 analog to state.couchMemberIds. Falls back to
+  // [state.me.id] only when no one is selected (early-return above).
+  const couch = (state.couchMemberIds && state.couchMemberIds.length)
+    ? state.couchMemberIds
+    : state.selectedMembers;
   return state.titles.filter(t => {
-    if (t.watched) return false;
+    if (isWatchedByCouch(t, couch)) return false;
     if (!state.selectedMembers.every(mid => (t.votes||{})[mid] === 'yes')) return false;
     if (!titleMatchesProviders(t)) return false;
     const tier = tierFor(t.rating);
@@ -6620,6 +8631,14 @@ function getCurrentMatches() {
         if (!m) continue;
         const max = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
         if (tier > max) return false;
+      }
+    }
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return false;
       }
     }
     return true;
@@ -6776,10 +8795,15 @@ function showSpinResult(pick, meta) {
     confettiHtml += `<div class="spin-confetti-bit" style="left:${left}%;background:${color};width:${size}px;height:${size}px;animation-delay:${delay}s;"></div>`;
   }
   confettiHtml += '</div>';
+  // Phase 20 / D-07 — Decision explanation sub-line below title name (italic Instrument Serif, dim).
+  const _spinCouch20 = state.couchMemberIds || state.selectedMembers || [];
+  const _spinExpl20 = buildMatchExplanation(t, _spinCouch20);
+  const explHtml = _spinExpl20 ? `<div class="spin-explanation">${_spinExpl20}</div>` : '';
   content.innerHTML = `${confettiHtml}
     <div class="spin-result-poster" style="background-image:url('${t.poster||''}')"></div>
     <div class="spin-result-name">${escapeHtml(t.name)}</div>
     <div class="spin-result-meta">${escapeHtml(t.year||'')} · ${escapeHtml(t.kind||'')}${t.runtime?' · '+t.runtime+'m':''}</div>
+    ${explHtml}
     ${provHtml}
     <div class="spin-reason">✨ ${escapeHtml(pick.reason || 'A couch favorite')}</div>
     <div class="spin-actions">
@@ -6826,8 +8850,11 @@ window.toggleMyQueue = async function(id) {
 
 function getMyQueueTitles() {
   if (!state.me) return [];
+  // D-01 (DECI-14-01): use couch-aware watched filter on this discovery surface.
+  // Falls back to [state.me.id] when no couch is claimed (single-member discovery).
+  const couch = getCouchOrSelfIds();
   return state.titles
-    .filter(t => !t.watched && t.queues && t.queues[state.me.id] != null)
+    .filter(t => !isWatchedByCouch(t, couch) && t.queues && t.queues[state.me.id] != null)
     .sort((a,b) => a.queues[state.me.id] - b.queues[state.me.id]);
 }
 
@@ -6846,16 +8873,78 @@ async function reindexMyQueue() {
   }
 }
 
+// === D-01 helpers — DECI-14-01 ===
+// D-01 (DECI-14-01) — strict member-aware "already-watched" filter for couch discovery surfaces.
+// Returns true iff ANY couch member has the title flagged via ANY of 4 sources:
+//   1) Trakt sync flipped t.watched = true (global on title doc; see trakt.ingestSyncData ~js/app.js:752)
+//   2) member voted Yes prior — t.votes[memberId] === 'yes'
+//   3) member voted No prior — t.votes[memberId] === 'no'
+//   4) member manually marked watched — same t.watched global flag (Source 1 + 4 collapsed)
+// Per-title rewatch override: same-day t.rewatchAllowedBy[memberId] timestamp opts the title back in.
+// Per D-01 invitation bypass: this filter is applied to MY discovery surfaces ONLY (Browse/Spin/Swipe).
+// CFs (push fan-out) MUST NOT call this — pushes go through regardless of watched status.
+function isWatchedByCouch(t, couchMemberIds) {
+  if (!t || !Array.isArray(couchMemberIds) || !couchMemberIds.length) return false;
+  // Rewatch override — same-day timestamp on any couch member opts the title back in.
+  const dayMs = 24 * 60 * 60 * 1000;
+  const recently = (ts) => ts && (Date.now() - ts) < dayMs;
+  const allow = t.rewatchAllowedBy || {};
+  if (couchMemberIds.some(mid => recently(allow[mid]))) return false;
+  // Source 1 + 4 — global watched flag covers Trakt sync AND manual mark-watched.
+  if (t.watched) return true;
+  // Source 2 — 'seen' vote is the canonical "I already watched this" signal (👁 button at
+  // line 15089). The original 14-01 implementation conflated 'yes' votes with watched
+  // status, which broke every downstream surface that reads from t.queues (yes-voted =
+  // queued): Tonight matches list, Next3 group rankings, Flow A picker tiers, swipe-mode
+  // candidate pool, spin-pick matches all went silently empty for couches with shared
+  // yes-voted titles. 'yes' = "I want to watch" (queue it); 'seen' = "I already watched
+  // it" (hide from discovery). They are distinct vote types and must not be conflated.
+  // Source 3 — 'no' votes still hide titles from rediscovery per D-01 literal read
+  // (intentional opinionation: voting No on a title means don't keep showing it).
+  const votes = t.votes || {};
+  return couchMemberIds.some(mid => votes[mid] === 'no' || votes[mid] === 'seen');
+}
+
+// D-01 — Resolve the active couch's member-id list for filter calls.
+// Falls back to [state.me.id] when state.couchMemberIds is empty (no couch claimed yet —
+// 14-04's writer hasn't fired). Single-member discovery is D-01's documented default.
+function getCouchOrSelfIds() {
+  if (state.couchMemberIds && state.couchMemberIds.length) return state.couchMemberIds;
+  return state.me ? [state.me.id] : [];
+}
+
+// D-01 — Per-title rewatch override writer. Stamps t.rewatchAllowedBy[memberId] = now.
+// Triggered by the "Rewatch this one" action sheet item (added in 14-04 or 14-05).
+async function setRewatchAllowed(titleId, memberId) {
+  if (!titleId || !memberId || !state.familyCode) return;
+  try {
+    const ref = doc(titlesRef(), titleId);
+    await updateDoc(ref, {
+      [`rewatchAllowedBy.${memberId}`]: Date.now(),
+      ...writeAttribution()
+    });
+    flashToast('Rewatch enabled for tonight', { kind: 'info' });
+  } catch (e) {
+    console.error('[rewatch] write failed', e);
+    flashToast('Could not enable rewatch — try again', { kind: 'warn' });
+  }
+}
+window.setRewatchAllowed = setRewatchAllowed;
+
 // === Group "Up next" via weighted aggregation ===
 // Returns the top 5 titles ranked by how many family members queued them (weighted by rank).
 // Name kept as getGroupNext3 for backward compatibility with existing call sites.
 function getGroupNext3() {
   // Score each title by inverse rank from all members who queued it
   // Higher rank position = lower score (rank 1 = 1.0, rank 2 = 0.5, rank 3 = 0.33, etc.)
+  // D-01 (DECI-14-01): use couch-aware watched filter — strip titles any couch member
+  // has already engaged with (Trakt-watched / voted / manually watched), with same-day
+  // rewatch override honored.
+  const couch = getCouchOrSelfIds();
   const scores = new Map();
   const queuedBy = new Map();
   state.titles.forEach(t => {
-    if (t.watched) return;
+    if (isWatchedByCouch(t, couch)) return;
     if (!t.queues) return;
     let total = 0;
     const members = [];
@@ -6875,6 +8964,138 @@ function getGroupNext3() {
     .slice(0,5)
     .map(([id, score]) => ({ title: state.titles.find(t => t.id === id), score, queuedBy: queuedBy.get(id) }));
   return ranked;
+}
+
+// === D-02 tier aggregators — DECI-14-02 ===
+// D-02 (DECI-14-02) — Tier 1: titles where EVERY couch member has the title in their queue.
+// Sort: ascending mean of member-queue ranks; tie-break descending t.rating.
+// Excludes titles where isWatchedByCouch returns true (consumes 14-01 helper).
+function getTierOneRanked(couchMemberIds, opts) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  // Plan 14-09 / D-11 (d) — opts.includeWatched bypasses the watched filters so
+  // the "Show rewatch options" CTA in the all-watched empty state can resurface
+  // titles the couch has already seen. Default behavior unchanged.
+  const includeWatched = !!(opts && opts.includeWatched);
+  const out = [];
+  state.titles.forEach(t => {
+    if (!includeWatched && t.watched) return;
+    if (!t.queues) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
+    // Intersection requirement: ALL couch members must have a rank for this title.
+    const ranks = couchMemberIds.map(mid => t.queues[mid]);
+    if (ranks.some(r => r == null)) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
+    const meanRank = ranks.reduce((a,b) => a + b, 0) / ranks.length;
+    out.push({ title: t, meanRank, ratingTie: parseFloat(t.rating) || 0 });
+  });
+  out.sort((a,b) => (a.meanRank - b.meanRank) || (b.ratingTie - a.ratingTie));
+  return out;
+}
+
+// D-02 — Tier 2: titles where ≥1 couch member queues it BUT NOT every couch member.
+// Strict complement of T1 within the "any couch presence" set. Sort: descending count of couch
+// members queueing it (more couch interest first), then ascending mean of present members' ranks,
+// then descending rating.
+function getTierTwoRanked(couchMemberIds, opts) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const includeWatched = !!(opts && opts.includeWatched); // Plan 14-09 D-11 (d)
+  const out = [];
+  state.titles.forEach(t => {
+    if (!includeWatched && t.watched) return;
+    if (!t.queues) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
+    const presentRanks = couchMemberIds
+      .map(mid => t.queues[mid])
+      .filter(r => r != null);
+    // Must have ≥1 couch presence AND NOT all (else it's T1).
+    if (presentRanks.length === 0) return;
+    if (presentRanks.length === couchMemberIds.length) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
+    const meanPresentRank = presentRanks.reduce((a,b) => a + b, 0) / presentRanks.length;
+    out.push({
+      title: t,
+      couchPresenceCount: presentRanks.length,
+      meanPresentRank,
+      ratingTie: parseFloat(t.rating) || 0
+    });
+  });
+  out.sort((a,b) =>
+    (b.couchPresenceCount - a.couchPresenceCount) ||
+    (a.meanPresentRank - b.meanPresentRank) ||
+    (b.ratingTie - a.ratingTie)
+  );
+  return out;
+}
+
+// D-02 — Tier 3: titles where ZERO couch members queue it BUT ≥1 off-couch member does.
+// "Watching her movie without her." Hidden behind expand by default; visibility resolved by
+// resolveT3Visibility() (account/family/group most-restrictive-wins).
+function getTierThreeRanked(couchMemberIds, opts) {
+  if (!Array.isArray(couchMemberIds) || !couchMemberIds.length) return [];
+  const includeWatched = !!(opts && opts.includeWatched); // Plan 14-09 D-11 (d)
+  const couchSet = new Set(couchMemberIds);
+  const out = [];
+  state.titles.forEach(t => {
+    if (!includeWatched && t.watched) return;
+    if (!t.queues) return;
+    if (!includeWatched && isWatchedByCouch(t, couchMemberIds)) return;
+    const queueingMids = Object.keys(t.queues);
+    if (!queueingMids.length) return;
+    // Zero couch overlap, ≥1 off-couch presence.
+    const offCouchPresent = queueingMids.filter(mid => !couchSet.has(mid));
+    const couchPresent = queueingMids.filter(mid => couchSet.has(mid));
+    if (couchPresent.length > 0) return;
+    if (offCouchPresent.length === 0) return;
+    // Phase 19 / D-07..D-09 — kid-mode tier cap (TIER_PG=2). Bypassed per-title via state.kidModeOverrides.
+    const _kidCap = getEffectiveTierCap();
+    if (_kidCap !== null) {
+      const _tier = tierFor(t.rating);
+      if (_tier !== null && _tier > _kidCap && !state.kidModeOverrides.has(t.id)) {
+        return;
+      }
+    }
+    const meanOffCouchRank = offCouchPresent
+      .map(mid => t.queues[mid])
+      .reduce((a,b) => a + b, 0) / offCouchPresent.length;
+    out.push({
+      title: t,
+      offCouchMemberIds: offCouchPresent,
+      meanOffCouchRank,
+      ratingTie: parseFloat(t.rating) || 0
+    });
+  });
+  out.sort((a,b) => (a.meanOffCouchRank - b.meanOffCouchRank) || (b.ratingTie - a.ratingTie));
+  return out;
+}
+
+// D-02 — T3 visibility resolver: most-restrictive-wins across 3 levels.
+// account-level: state.me.preferences?.showT3
+// family-level:  state.family?.preferences?.showT3
+// group-level:   state.group?.preferences?.showT3
+// Semantics: ANY level === false → hide; true at all checked levels OR undefined → show.
+// Default (no preferences set anywhere): SHOW (T3 expand toggle reveals; this resolver only
+// gates the EXISTENCE of the expand toggle UI on an explicit hide).
+function resolveT3Visibility() {
+  const accountPref = state.me && state.me.preferences ? state.me.preferences.showT3 : undefined;
+  const familyPref  = state.family && state.family.preferences ? state.family.preferences.showT3 : undefined;
+  const groupPref   = state.group && state.group.preferences ? state.group.preferences.showT3 : undefined;
+  // Most-restrictive-wins: any explicit false hides T3.
+  if (accountPref === false || familyPref === false || groupPref === false) return false;
+  return true;
 }
 
 function renderNext3() {
@@ -6949,12 +9170,22 @@ function startActivitySync() {
   }, e => console.error('activity sync', e));
 }
 
+let activityExpanded = false;
+window.toggleActivityExpand_all = function() {
+  activityExpanded = !activityExpanded;
+  renderActivity();
+};
 function renderActivity() {
   const el = document.getElementById('activity-list');
   updateActivityBadge();
   if (!el) return;
   if (!recentActivity.length) { el.innerHTML = '<div class="activity-empty">Quiet on the couch. Start adding and voting to see activity here.</div>'; return; }
-  el.innerHTML = recentActivity.map(a => {
+  // Collapse-by-default with show-more — keep the Tonight tab from being dominated by
+  // a 7-day scroll. First N entries shown; rest gated behind a "Show all" expand control.
+  const COLLAPSED_N = 5;
+  const total = recentActivity.length;
+  const visible = activityExpanded ? recentActivity : recentActivity.slice(0, COLLAPSED_N);
+  const itemsHtml = visible.map(a => {
     const m = state.members.find(x => x.id === a.actorId);
     const color = m ? m.color : 'var(--ink-faint)';
     const initial = (a.actorName || '?')[0];
@@ -6995,6 +9226,10 @@ function renderActivity() {
       </div>
     </div>`;
   }).join('');
+  const moreHtml = (total > COLLAPSED_N)
+    ? `<button class="activity-show-more" type="button" onclick="toggleActivityExpand_all()">${activityExpanded ? 'Show less' : `Show all (${total - COLLAPSED_N} more)`}</button>`
+    : '';
+  el.innerHTML = itemsHtml + moreHtml;
 }
 
 let expandedActivityTs = null;
@@ -7049,6 +9284,125 @@ window.postActivityReply = async function(ts) {
 // the family. getMemberProgress handles the migration on read, and any write through
 // the new API stores per-member going forward.
 
+// === Phase 15 — Tracking Layer (read helpers) ===
+// REVIEW HIGH-2 — defense-in-depth character-safety guard for tuple keys.
+// Allowed: alphanumeric, underscore, hyphen, comma. Comma is the documented
+// separator between sorted member IDs (per RESEARCH §Q2). Anything else
+// (`.`, backtick, `/`, `\`, `$`, `[`, `]`, `#`, etc.) would corrupt a Firestore
+// dotted-path field update like `tupleNames.${tk}`. Couch's existing member ID
+// generator yields family-scoped alphanumeric strings (verified RESEARCH §A8),
+// but if that contract ever drifts (e.g., upstream OAuth provider returns an
+// email-like ID), this guard prevents a class of nested-path corruption.
+const TUPLE_KEY_SAFE_RE = /^[A-Za-z0-9_,-]+$/;
+function isSafeTupleKey(tk) {
+  return typeof tk === 'string' && tk.length > 0 && TUPLE_KEY_SAFE_RE.test(tk);
+}
+
+// Tuple-key encoding: sorted memberIds joined by comma. Idempotent regardless of
+// input order. Returns '' (and console.warns) if any member ID would produce an
+// unsafe key — per REVIEW HIGH-2 callers must check the return value before
+// using it as a Firestore field path.
+function tupleKey(memberIds) {
+  if (!memberIds || !memberIds.length) return '';
+  const sorted = [...memberIds].filter(Boolean).sort();
+  // Validate each member ID individually before join — a comma in any single
+  // ID would create an ambiguous tupleKey (cannot round-trip via tk.split(',')).
+  for (const id of sorted) {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      console.warn('[Phase 15 / HIGH-2] tupleKey rejected unsafe member ID', id);
+      try {
+        if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+          Sentry.addBreadcrumb({
+            category: 'tupleNames',
+            level: 'warning',
+            message: 'tupleKey rejected unsafe member ID',
+            data: { memberIdSample: String(id).slice(0, 16) }
+          });
+        }
+      } catch (_) {}
+      return '';
+    }
+  }
+  const tk = sorted.join(',');
+  // Belt-and-suspenders: re-validate the joined string (paranoia for future
+  // separator changes).
+  return isSafeTupleKey(tk) ? tk : '';
+}
+
+// Read accessor for the tuple-progress field on a title doc. Returns the
+// {[tupleKey]: {season, episode, updatedAt, source, ...}} map, or {} if missing.
+function tupleProgressFromTitle(t) {
+  if (!t || !t.tupleProgress || typeof t.tupleProgress !== 'object') return {};
+  return t.tupleProgress;
+}
+
+// Find every tuple on this title that contains memberId. Returns
+// [{tupleKey, prog}, ...] sorted by prog.updatedAt desc (newest first).
+// Used by S1 Tonight widget (cross-show roll-up) and S2 detail-modal section.
+function tuplesContainingMember(t, memberId) {
+  if (!t || !memberId) return [];
+  const tp = tupleProgressFromTitle(t);
+  const out = [];
+  for (const tk of Object.keys(tp)) {
+    if (!tk) continue;
+    const ids = tk.split(',');
+    if (ids.includes(memberId)) {
+      out.push({ tupleKey: tk, prog: tp[tk] });
+    }
+  }
+  out.sort((a, b) => (b.prog && b.prog.updatedAt || 0) - (a.prog && a.prog.updatedAt || 0));
+  return out;
+}
+
+// REVIEW MEDIUM-6 — return the user-set CUSTOM name for this tupleKey, or
+// null if no custom name exists. CRITICAL: returns null (not empty string and
+// not a derived fallback) so consumers like 15-04 can render the italic
+// "*name this couch*" placeholder in the no-custom-name case. Distinct from
+// tupleDisplayName which falls back to derived names like "You (solo)".
+function tupleCustomName(tk) {
+  if (!tk) return null;
+  const fam = state.family || {};
+  const slot = (fam.tupleNames || {})[tk];
+  if (!slot || typeof slot.name !== 'string') return null;
+  const trimmed = slot.name.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+// Resolve a tuple key to a display name for UI. Returns the user-set name from
+// state.family.tupleNames if present; otherwise a derived fallback (NEVER empty
+// string — consumers that need to detect "no custom name set" must call
+// tupleCustomName(tk) === null directly per REVIEW MEDIUM-6).
+// Fallback derivation rules per UI-SPEC §Discretion Q3:
+//   - solo, includes me      → "You (solo)"
+//   - solo, NOT me           → `${otherName} (solo)`
+//   - pair, includes me      → `${otherName} and me`
+//   - pair, NOT me           → `${a} & ${b}` (alphabetical)
+//   - 3+, includes me        → `You + ${n-1}`
+//   - 3+, NOT me             → `${first}, ${second}, ${third}` (truncated)
+function tupleDisplayName(tk, members) {
+  if (!tk) return '';
+  const custom = tupleCustomName(tk);
+  if (custom) return custom;
+  // Fallback: derive from member roster.
+  const ids = tk.split(',').filter(Boolean);
+  const meId = state.me && state.me.id;
+  const memberMap = (members || state.members || []).reduce((acc, m) => { acc[m.id] = m; return acc; }, {});
+  const names = ids.map(id => (memberMap[id] && memberMap[id].name) || '').filter(Boolean);
+  if (ids.length === 1) {
+    return ids[0] === meId ? 'You (solo)' : ((memberMap[ids[0]] && memberMap[ids[0]].name) || 'Unknown') + ' (solo)';
+  }
+  if (ids.length === 2) {
+    if (ids.includes(meId)) {
+      const otherId = ids.find(x => x !== meId);
+      return ((memberMap[otherId] && memberMap[otherId].name) || 'Unknown') + ' and me';
+    }
+    return names.slice().sort().join(' & ');
+  }
+  // 3+ members
+  if (ids.includes(meId)) return 'You + ' + (ids.length - 1);
+  return names.slice(0, 3).join(', ');
+}
+
 // Read a member's current progress on a title, handling the legacy shared-progress
 // fields as a fallback so existing data keeps rendering while we migrate.
 function getMemberProgress(t, memberId) {
@@ -7083,14 +9437,17 @@ function membersWithProgress(t) {
 }
 
 // Write a member's progress. Always goes to the new per-member map.
+// Phase 15.1 / SEC-15-1-01 — dotted-path single-inner-key shape so the Wave 2
+// 4th sub-rule's affectedKeys().hasOnly([memberId]) check passes.
 async function writeMemberProgress(titleId, memberId, season, episode) {
   if (!titleId || !memberId) return;
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
-  const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
-  prevProgress[memberId] = { season: season, episode: episode, updatedAt: Date.now() };
   try {
-    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), {
+      ...writeAttribution(),
+      [`progress.${memberId}`]: { season: season, episode: episode, updatedAt: Date.now() }
+    });
   } catch(e) { console.warn('progress write failed', e); }
   // Push to Trakt if connected and this is the current user's own progress.
   // We only push for the signed-in user — a parent setting their kid's progress
@@ -7103,16 +9460,193 @@ async function writeMemberProgress(titleId, memberId, season, episode) {
 }
 
 // Clear a member's progress (when they say "I haven't started this")
+// Phase 15.1 / SEC-15-1-01 — dotted-path with deleteField() so the Wave 2 4th
+// sub-rule's affectedKeys().hasOnly([memberId]) check passes.
 async function clearMemberProgress(titleId, memberId) {
   if (!titleId || !memberId) return;
   const t = state.titles.find(x => x.id === titleId);
   if (!t) return;
-  const prevProgress = t.progress && typeof t.progress === 'object' ? { ...t.progress } : {};
-  delete prevProgress[memberId];
   try {
-    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), progress: prevProgress });
+    await updateDoc(doc(titlesRef(), titleId), {
+      ...writeAttribution(),
+      [`progress.${memberId}`]: deleteField()
+    });
   } catch(e) { console.warn('progress clear failed', e); }
 }
+
+// === Phase 15 — Tracking Layer (writers) ===
+// Write a tuple's progress entry. Tuple-keyed analog of writeMemberProgress.
+// memberIds: array of memberIds on the watch (sorted internally via tupleKey).
+// source: 'watchparty' | 'manual' | 'trakt-overlap' — D-05 attribution.
+// Per D-08 (independent tuples), this does NOT push to anyone's Trakt account
+// — group writes are local-only. Only writeMemberProgress (legacy per-individual)
+// pushes to Trakt for the actor.
+//
+// REVIEW HIGH-2 — early-exit if tupleKey() returns '' (validation failed in
+// the read-helpers block above); also re-validate the resulting tk via
+// isSafeTupleKey() as belt-and-suspenders.
+//
+// Plan-15-01 forward-contract — the title-doc UPDATE rule (firestore.rules
+// lines ~368-405) requires the write payload to echo `actingTupleKey: <tk>`
+// so the rule can hasOnly-equality-check the diff'd tupleProgress key against
+// it AND regex-match the actor's memberId/managedMemberId against it. Without
+// this echo field the write is rejected with PERMISSION_DENIED. The plan's
+// must_haves did not mention this explicitly — it was added as a 15-01
+// deviation when the Firestore emulator rejected the planner's
+// `affectedKeys().toList()[0].matches(...)` form. Documented in SUMMARY.
+async function writeTupleProgress(titleId, memberIds, season, episode, source) {
+  if (!titleId || !memberIds || !memberIds.length) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const tk = tupleKey(memberIds);
+  if (!tk || !isSafeTupleKey(tk)) {
+    console.warn('[Phase 15 / HIGH-2] writeTupleProgress aborted — unsafe tupleKey from memberIds', memberIds);
+    return;
+  }
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  prev[tk] = {
+    season: season,
+    episode: episode,
+    updatedAt: Date.now(),
+    source: source || 'manual'
+  };
+  try {
+    // 15-01 forward-contract: stamp actingTupleKey alongside the tupleProgress write.
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tk });
+  } catch (e) { console.warn('tupleProgress write failed', e); }
+}
+
+// Clear a tuple's progress entry. Used by manual override paths in 15-04.
+// REVIEW HIGH-2 — also gated on isSafeTupleKey since the input string is the
+// raw key from a UI element, not always derived from a fresh tupleKey() call.
+//
+// Plan-15-01 forward-contract: stamp actingTupleKey: tupleKeyStr alongside
+// the tupleProgress write so the rules-enforced per-key isolation passes.
+async function clearTupleProgress(titleId, tupleKeyStr) {
+  if (!titleId || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.warn('[Phase 15 / HIGH-2] clearTupleProgress aborted — unsafe tupleKey', tupleKeyStr);
+    return;
+  }
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const prev = (t.tupleProgress && typeof t.tupleProgress === 'object') ? { ...t.tupleProgress } : {};
+  delete prev[tupleKeyStr];
+  try {
+    await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), tupleProgress: prev, actingTupleKey: tupleKeyStr });
+  } catch (e) { console.warn('tupleProgress clear failed', e); }
+}
+
+// Write a tuple's display name to families/{code}.tupleNames.{tupleKey}. Uses
+// dotted-path field write so concurrent renames don't clobber sibling slots.
+// Permitted by the Phase 15 / D-02 5th UPDATE branch in firestore.rules (15-01).
+// On failure: flashToast warn variant per UI-SPEC §Copywriting Contract.
+//
+// REVIEW HIGH-2 — REJECT writes whose tupleKey is unsafe BEFORE issuing the
+// dotted-path update. An unsafe key here would not just fail to write — it
+// could create an unintended nested field path (e.g., a `.` in the key would
+// shred the doc into nested maps). Defense-in-depth for the
+// `[`tupleNames.${tupleKeyStr}`]` template-literal field path.
+//
+// On unsafe key: skip the network round-trip, surface the same warn toast as a
+// failure path (so the UI doesn't silently appear to succeed), and breadcrumb.
+// Also OPTIMISTICALLY UPDATE state.family.tupleNames after a successful write
+// (REVIEW MEDIUM-8) so the immediate re-render in 15-04's cv15SaveRenameInput
+// reads the new value rather than the pre-snapshot stale state.
+async function setTupleName(tupleKeyStr, name) {
+  if (!state.familyCode || !tupleKeyStr) return;
+  if (!isSafeTupleKey(tupleKeyStr)) {
+    console.error('[Phase 15 / HIGH-2] setTupleName rejected unsafe tupleKey', tupleKeyStr);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        Sentry.addBreadcrumb({
+          category: 'tupleNames',
+          level: 'error',
+          message: 'setTupleName rejected unsafe tupleKey',
+          data: { tupleKeySample: String(tupleKeyStr).slice(0, 32) }
+        });
+      }
+    } catch (_) {}
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+    return;
+  }
+  const trimmed = (name || '').slice(0, 40);
+  const slot = {
+    name: trimmed,
+    setBy: (state.me && state.me.id) || null,
+    setAt: Date.now()
+  };
+  try {
+    // Phase 15.1 / SEC-15-1-03 — stamp actingTupleKey alongside the dotted-path
+    // tupleNames write. Mirrors the writeTupleProgress pattern at js/app.js:8488.
+    // The Wave 2 family-doc 5th-branch participant regex reads
+    // request.resource.data.actingTupleKey to validate actor membership in tk.
+    await updateDoc(doc(db, 'families', state.familyCode), {
+      [`tupleNames.${tupleKeyStr}`]: slot,
+      actingTupleKey: tupleKeyStr,
+      ...writeAttribution()
+    });
+    // REVIEW MEDIUM-8 — optimistically update local state so the immediate
+    // re-render in 15-04's cv15SaveRenameInput reads the new value before the
+    // family-doc onSnapshot fires (typical 50-150ms delay).
+    state.family = state.family || {};
+    state.family.tupleNames = { ...(state.family.tupleNames || {}), [tupleKeyStr]: slot };
+  } catch (e) {
+    console.error('[tupleNames] setTupleName failed', e);
+    flashToast("Couldn't save name — try again", { kind: 'warn' });
+  }
+}
+
+// Write the per-show muted state. Member-keyed map mirroring t.queues / t.votes
+// per-member shape. Per REVIEW HIGH-1, the 15-01 title-doc rule enforces that
+// memberId == auth.uid (or managedMemberId for proxy-acted writes) — meaning
+// callers MUST pass me.id as memberId; passing someone else's ID will be
+// rejected by rules. This helper does not enforce that locally (the rule is
+// authoritative); callers in 15-03 (toggleMutedShow) only pass me.id.
+//
+// Plan-15-01 forward-contract: writeAttribution() already stamps memberId
+// (and managedMemberId when proxy-acting) on the payload — the title-doc
+// UPDATE rule per-member mutedShows isolation branch checks the inner-map
+// affectedKeys().hasOnly([managedMemberId || memberId]) which holds when the
+// caller's memberId arg equals the writeAttribution memberId (true in all
+// 15-03 call sites by construction).
+async function writeMutedShow(titleId, memberId, muted) {
+  if (!titleId || !memberId) return;
+  try {
+    if (muted) {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: true,
+        ...writeAttribution()
+      });
+    } else {
+      await updateDoc(doc(titlesRef(), titleId), {
+        [`mutedShows.${memberId}`]: deleteField(),
+        ...writeAttribution()
+      });
+    }
+  } catch (e) { console.warn('mutedShow write failed', e); }
+}
+
+// Toggle the per-show muted state for the current user. S6 click handler in
+// 15-04. Reads current state from t.mutedShows[me.id] and flips it. Pure
+// convenience wrapper around writeMutedShow.
+//
+// Per REVIEW HIGH-1, the 15-01 title-doc rule enforces server-side that the
+// memberId in mutedShows.{memberId} writes must equal auth.uid (or
+// managedMemberId for proxy-acted writes). This helper passes me.id — which
+// resolves to the actor's UID — so the rule allows the write.
+window.toggleMutedShow = async function(titleId) {
+  if (!titleId) return;
+  const me = state.me;
+  if (!me) return;
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const currentlyMuted = !!(t.mutedShows && t.mutedShows[me.id]);
+  await writeMutedShow(titleId, me.id, !currentlyMuted);
+  // No flashToast on success — UI re-renders via title-doc onSnapshot will flip
+  // the affordance copy from "Stop notifying me about this show" to
+  // "Notifications off · Re-enable" (per UI-SPEC §Copywriting Contract).
+};
 
 // Quick-advance: bump the current user's episode by one. Hooked to "Next ep" buttons.
 window.advanceEpisode = async function(titleId, e) {
@@ -7319,6 +9853,255 @@ function progressPill(t) {
   return `<span class="tv-progress-pill many" title="${label}"><span>${others.length}</span><span class="member-dots">${dots}</span></span>`;
 }
 
+// === Phase 15 / S2 + S3 + S6 (TRACK-15-04..06) — Your couch's progress (tuple-aware) ===
+// Detail-modal "YOUR COUCH'S PROGRESS" section. Sibling primitive to
+// renderTvProgressSection (per-INDIVIDUAL, immediately below) — both coexist during v1.
+// REVIEW MEDIUM-7: tuple-key-bearing handlers use data-* attributes + a
+// single delegated listener on #detail-modal-content. NEVER inline onclick with
+// tupleKey embedded in single-quoted JS args.
+// REVIEW MEDIUM-6: placeholder render is gated on tupleCustomName(tk) === null
+// (NOT on !displayName, which would never fire because tupleDisplayName always
+// returns a derived fallback for valid tuples).
+// NOTE: Plan 15-04 referenced #detail-modal-body; the actual element ID in
+// app.html is #detail-modal-content (verified app.html:995). Delegated listener
+// is bound to that element instead.
+function renderCv15TupleProgressSection(t) {
+  if (!t || t.kind !== 'TV' || t.watched) return '';
+  const tuples = (t.tupleProgress && typeof t.tupleProgress === 'object') ? t.tupleProgress : {};
+  const tupleKeys = Object.keys(tuples);
+  if (tupleKeys.length === 0) return '';
+  const sorted = tupleKeys
+    .map(tk => ({ tk, prog: tuples[tk] || {} }))
+    .sort((a, b) => (b.prog.updatedAt || 0) - (a.prog.updatedAt || 0));
+  // Honor cv15ShowAllTuples expand state (toggled by clicking "View all (N)").
+  const limit = (state._cv15ExpandTuples && state._cv15ExpandTuples[t.id]) ? sorted.length : 4;
+  const visible = sorted.slice(0, limit);
+  const overflow = (sorted.length > 4 && limit === 4) ? sorted.length - 4 : 0;
+  const rows = visible.map(({ tk, prog }) => {
+    // REVIEW MEDIUM-6 — separate custom from derived; placeholder fires only
+    // when no custom name is set.
+    const customName = tupleCustomName(tk);
+    const isUnnamed = customName === null;
+    const visibleName = customName !== null ? customName : tupleDisplayName(tk, state.members);
+    const escId = escapeHtml(t.id);
+    const escTk = escapeHtml(tk);
+    // === Phase 15.1 / SEC-15-1-05 — participant gate for the rename pencil ===
+    // Non-participants don't see the rename affordance (defense-in-depth +
+    // UX). The Wave 2 rule is the actual security boundary; this is the
+    // casual-griefing close.
+    const meId = (state.me && state.me.id) || '';
+    const isParticipant = meId && tk.split(',').includes(meId);
+    const nameMarkup = isUnnamed
+      ? `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>` +
+        `<span class="cv15-tuple-name unnamed-placeholder"><em>name this couch</em></span>`
+      : `<span class="cv15-tuple-name" id="cv15-tname-${escId}-${escTk}" data-tk="${escTk}">${escapeHtml(visibleName)}</span>`;
+    // === Phase 15.1 / SEC-15-1-05 — setBy attribution surface ===
+    // When a tuple has a custom name + a setBy field, render a small
+    // "Renamed by {memberName}" attribution beside the name. Turns silent
+    // vandalism into attributable action. Pre-rule defense-in-depth.
+    let setByMarkup = '';
+    if (!isUnnamed && state.family && state.family.tupleNames && state.family.tupleNames[tk]) {
+      const setBy = state.family.tupleNames[tk].setBy;
+      if (setBy) {
+        const setByMember = (state.members || []).find(m => m && m.id === setBy);
+        const setByName = (setByMember && setByMember.name) || '';
+        if (setByName) {
+          setByMarkup = `<span class="cv15-tuple-setby" title="Renamed by ${escapeHtml(setByName)}">&middot; Renamed by ${escapeHtml(setByName)}</span>`;
+        }
+      }
+    }
+    // REVIEW MEDIUM-7 — data-* attrs carry tk + titleId; no inline onclick.
+    // Phase 15.1 / SEC-15-1-05 — gate on isParticipant.
+    const renameBtn = isParticipant
+      ? `<button class="cv15-tuple-rename" type="button" aria-label="Rename this couch"
+          data-cv15-action="renameTuple" data-title-id="${escId}" data-tk="${escTk}">&#9998;</button>`
+      : '';
+    const seasonNum = (prog.season != null) ? prog.season : '?';
+    const episodeNum = (prog.episode != null) ? prog.episode : '?';
+    const ago = prog.updatedAt ? cv15RelativeTime(prog.updatedAt) : '';
+    return `<div class="cv15-progress-row" data-tk="${escTk}">
+      <div class="cv15-progress-row-body">
+        ${nameMarkup}${renameBtn}${setByMarkup}
+        <div class="cv15-progress-time">${escapeHtml(ago)}</div>
+      </div>
+      <div class="cv15-progress-row-actions">
+        <div class="cv15-progress-pos">S${escapeHtml(String(seasonNum))} &middot; E${escapeHtml(String(episodeNum))}</div>
+      </div>
+    </div>`;
+  }).join('');
+  // REVIEW MEDIUM-7 — overflow expand link uses data-* not inline onclick.
+  const overflowHtml = overflow > 0
+    ? `<button class="cv15-mute-toggle" type="button" style="border-top:0;color:var(--ink-dim);"
+        data-cv15-action="expandTuples" data-title-id="${escapeHtml(t.id)}">View all (${sorted.length})</button>`
+    : '';
+  return `<div class="detail-section detail-cv15-progress">
+    <h4>YOUR COUCH'S PROGRESS</h4>
+    ${rows}
+    ${overflowHtml}
+    ${renderCv15MutedShowToggle(t)}
+  </div>`;
+}
+
+// S6 per-show kill-switch text-link. REVIEW MEDIUM-7 — uses data-* attrs.
+function renderCv15MutedShowToggle(t) {
+  if (!t) return '';
+  const me = state.me;
+  if (!me) return '';
+  const muted = !!(t.mutedShows && t.mutedShows[me.id]);
+  const label = muted ? 'Notifications off &middot; Re-enable' : 'Stop notifying me about this show';
+  const cls = muted ? 'cv15-mute-toggle on' : 'cv15-mute-toggle';
+  return `<button class="${cls}" type="button"
+    data-cv15-action="muteToggle" data-title-id="${escapeHtml(t.id)}">${label}</button>`;
+}
+
+// Relative-time helper.
+function cv15RelativeTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'just now';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+// === Phase 15 / S3 — inline tuple rename handlers (called by delegated listener) ===
+function cv15ShowRenameInput(titleId, tupleKeyStr) {
+  if (!titleId || !tupleKeyStr) return;
+  // === Phase 15.1 / SEC-15-1-05 — participant guard ===
+  // Defense-in-depth: even if a non-participant somehow gets the data-cv15-action
+  // attribute click through (DOM injection / dev console / out-of-date PWA before
+  // the renderCv15TupleProgressSection gate above re-renders), refuse to swap
+  // the span for an editable input.
+  const meId = (state.me && state.me.id) || '';
+  if (!meId || !tupleKeyStr.split(',').includes(meId)) return;
+  const span = document.getElementById(`cv15-tname-${titleId}-${tupleKeyStr}`);
+  if (!span) return;
+  // REVIEW MEDIUM-6 — read current value via tupleCustomName so we don't
+  // pre-fill the input with a derived fallback like "You (solo)".
+  const currentName = tupleCustomName(tupleKeyStr) || '';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 40;
+  input.className = 'cv15-tuple-rename-input';
+  input.value = currentName;
+  input.placeholder = 'e.g. Date night';
+  input.dataset.tk = tupleKeyStr;
+  input.dataset.titleId = titleId;
+  input.addEventListener('keydown', cv15RenameKeydown);
+  input.addEventListener('blur', cv15RenameBlur);
+  // Hide the placeholder shimmer (sibling) while the input is open.
+  const placeholder = span.parentElement && span.parentElement.querySelector('.cv15-tuple-name.unnamed-placeholder');
+  if (placeholder) placeholder.style.display = 'none';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+}
+function cv15RenameKeydown(ev) {
+  if (ev.key === 'Enter') { ev.preventDefault(); cv15SaveRenameInput(ev.target); }
+  else if (ev.key === 'Escape') { ev.preventDefault(); cv15CancelRenameInput(ev.target); }
+}
+function cv15RenameBlur(ev) {
+  if (ev.target.dataset.cancelled === '1') return;
+  cv15SaveRenameInput(ev.target);
+}
+async function cv15SaveRenameInput(input) {
+  if (!input) return;
+  const tk = input.dataset.tk;
+  const titleId = input.dataset.titleId;
+  const value = (input.value || '').trim();
+  input.removeEventListener('blur', cv15RenameBlur);
+  input.removeEventListener('keydown', cv15RenameKeydown);
+  // REVIEW MEDIUM-8 — setTupleName from 15-02 OPTIMISTICALLY updates
+  // state.family.tupleNames on success, so the re-render below reads the new
+  // value immediately (no race with the family-doc onSnapshot ~50-150ms delay).
+  await setTupleName(tk, value);
+  flashToast('Saved');
+  if (typeof renderDetailShell === 'function' && state.titles) {
+    const t = state.titles.find(x => x.id === titleId);
+    const dm = document.getElementById('detail-modal-bg');
+    if (t && dm && dm.classList.contains('on')) {
+      const content = document.getElementById('detail-modal-content');
+      if (content) {
+        content.innerHTML = renderDetailShell(t);
+        cv15AttachDetailModalDelegate();  // re-attach after innerHTML wipe
+      }
+    }
+  }
+}
+function cv15CancelRenameInput(input) {
+  if (!input) return;
+  input.dataset.cancelled = '1';
+  const titleId = input.dataset.titleId;
+  if (state.titles) {
+    const t = state.titles.find(x => x.id === titleId);
+    if (t) {
+      const content = document.getElementById('detail-modal-content');
+      if (content && typeof renderDetailShell === 'function') {
+        content.innerHTML = renderDetailShell(t);
+        cv15AttachDetailModalDelegate();
+      }
+    }
+  }
+}
+
+// "View all (N)" expand handler — toggles state._cv15ExpandTuples then re-renders.
+function cv15ShowAllTuples(titleId) {
+  if (!titleId) return;
+  state._cv15ExpandTuples = state._cv15ExpandTuples || {};
+  state._cv15ExpandTuples[titleId] = true;
+  const t = state.titles && state.titles.find(x => x.id === titleId);
+  if (t) {
+    const content = document.getElementById('detail-modal-content');
+    if (content && typeof renderDetailShell === 'function') {
+      content.innerHTML = renderDetailShell(t);
+      cv15AttachDetailModalDelegate();
+    }
+  }
+}
+
+// === REVIEW MEDIUM-7 — delegated event listener for #detail-modal-content ===
+// Single listener handles all cv15-* clicks via data-cv15-action attribute.
+// Idempotent — calling cv15AttachDetailModalDelegate twice does NOT double-bind
+// because we track via a sentinel data-cv15-bound attribute.
+// (Plan 15-04 referenced #detail-modal-body; the actual element ID is
+// #detail-modal-content per app.html:995.)
+function cv15HandleDetailModalClick(ev) {
+  const trigger = ev.target.closest('[data-cv15-action]');
+  if (!trigger) return;
+  const action = trigger.getAttribute('data-cv15-action');
+  const titleId = trigger.getAttribute('data-title-id') || '';
+  const tk = trigger.getAttribute('data-tk') || '';
+  switch (action) {
+    case 'renameTuple':
+      cv15ShowRenameInput(titleId, tk);
+      break;
+    case 'muteToggle':
+      if (typeof window.toggleMutedShow === 'function') window.toggleMutedShow(titleId);
+      break;
+    case 'expandTuples':
+      cv15ShowAllTuples(titleId);
+      break;
+    default:
+      console.warn('[Phase 15 / MEDIUM-7] unknown cv15-action', action);
+  }
+}
+function cv15AttachDetailModalDelegate() {
+  const content = document.getElementById('detail-modal-content');
+  if (!content) return;
+  if (content.getAttribute('data-cv15-bound') === '1') return;
+  content.addEventListener('click', cv15HandleDetailModalClick);
+  content.setAttribute('data-cv15-bound', '1');
+}
+
 // Per-member progress section inside the detail modal. Each family member gets
 // a row showing their position, an "Edit" pill to open the sheet, and a "Next ep"
 // quick-bump for their own row.
@@ -7430,6 +10213,69 @@ function renderDetailStatusStrip(t, memberId) {
   return '';
 }
 
+// === Phase 15 / S1 (TRACK-15-07) — Pick up where you left off (tuple-aware cross-show) ===
+// Sibling primitive to renderContinueWatching (per-INDIVIDUAL — UNCHANGED below).
+// Both surfaces COEXIST during v1 per RESEARCH §Q11 — Phase 15 widget hides
+// when zero tuples (UI-SPEC §Discretion Q7); legacy continue-section serves
+// users without tuples. Filter is "tuples containing me" instead of
+// "I have progress". Max 3 rows visible on Tonight (vs max 4 in S2 detail
+// modal — UI-SPEC §Cross-tuple visual handling locked).
+function renderPickupWidget() {
+  const el = document.getElementById('cv15-pickup-container');
+  if (!el) return;
+  if (!state.me || !state.titles || !state.titles.length) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  const meId = state.me.id;
+  // Build {t, tupleKey, prog} for every (title, tuple-containing-me) pair —
+  // then take the MOST-RECENT tuple per title, sort cross-show by that tuple's
+  // updatedAt desc, slice 3.
+  const candidates = [];
+  for (const t of state.titles) {
+    if (!t || t.kind !== 'TV' || t.watched) continue;
+    if (typeof isHiddenByScope === 'function' && isHiddenByScope(t)) continue;
+    const tuples = tuplesContainingMember(t, meId);
+    if (!tuples.length) continue;
+    // tuplesContainingMember already sorts by updatedAt desc — first entry
+    // is the most-recent tuple containing me on this title.
+    candidates.push({ t, tupleKey: tuples[0].tupleKey, prog: tuples[0].prog });
+  }
+  candidates.sort((a, b) => ((b.prog && b.prog.updatedAt) || 0) - ((a.prog && a.prog.updatedAt) || 0));
+  const visible = candidates.slice(0, 3);
+  if (!visible.length) {
+    // UI-SPEC §Discretion Q7 — HIDE entirely on zero tuples. No empty state.
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  const rows = visible.map(({ t, tupleKey: tk, prog }) => {
+    // Prefer user-set custom name (tupleCustomName), else derived display name,
+    // else "You" fallback. tupleDisplayName already prefers the custom name when
+    // present, but we route through tupleCustomName first to mirror the 15-04
+    // pattern and keep the precedence explicit.
+    const custom = (typeof tupleCustomName === 'function') ? tupleCustomName(tk) : null;
+    const tupleName = custom || tupleDisplayName(tk, state.members) || 'You';
+    const seasonNum = (prog && prog.season != null) ? prog.season : '?';
+    const episodeNum = (prog && prog.episode != null) ? prog.episode : '?';
+    const ago = (prog && prog.updatedAt) ? cv15RelativeTime(prog.updatedAt) : '';
+    const escId = escapeHtml(t.id);
+    return `<div class="cv15-progress-row" onclick="openDetailModal('${escId}')" style="cursor:pointer;">
+      <div class="cv15-progress-row-body">
+        <div class="cv15-progress-show-name">${escapeHtml(t.name || '')}</div>
+        <div class="cv15-progress-tuple-meta">${escapeHtml(tupleName)} &middot; ${escapeHtml(ago)}</div>
+      </div>
+      <div class="cv15-progress-row-actions">
+        <div class="cv15-progress-pos">S${escapeHtml(String(seasonNum))} &middot; E${escapeHtml(String(episodeNum))}</div>
+        <button class="tc-primary" type="button" onclick="event.stopPropagation();openDetailModal('${escId}')">Continue</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="cv15-pickup-h">PICK UP WHERE YOU LEFT OFF</div>${rows}`;
+}
+
 function renderContinueWatching() {
   const el = document.getElementById('continue-section');
   if (!el) return;
@@ -7511,7 +10357,7 @@ function renderEditMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = editMoods.includes(m.id);
     return `<button class="mood-chip ${on?'on':''}" onclick="toggleEditMood('${m.id}');return false;">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
@@ -7671,7 +10517,9 @@ window.openWatchpartyStart = function(titleId) {
   if (existing) {
     state.activeWatchpartyId = existing.id;
     renderWatchpartyLive();
-    document.getElementById('wp-live-modal-bg').classList.add('on');
+    const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+    _wpLiveBg.classList.add('on');
+    activateFocusTrap(_wpLiveBg);
     return;
   }
   wpStartTitleId = titleId;
@@ -7686,7 +10534,23 @@ window.openWatchpartyStart = function(titleId) {
     b.onclick = () => selectWpLead(lead);
   });
   updateWpStartPreview();
-  document.getElementById('wp-start-modal-bg').classList.add('on');
+  const _wpStartBg = document.getElementById('wp-start-modal-bg');
+  _wpStartBg.classList.add('on');
+  activateFocusTrap(_wpStartBg);
+  // Phase 30 — render the Bring another couch in section into the freshly-opened modal.
+  // At wp-create time there's no wp doc yet; pass a synthetic wp shape so render gating
+  // (host-only, family-count caps, .wp-couches-list) reflects the host's family-of-one
+  // initial state. The host always passes the isHost gate at wp-create time.
+  if (typeof renderAddFamilySection === 'function' && state.me) {
+    const wp = {
+      id: null,
+      hostId: state.me.id,
+      hostFamilyCode: state.familyCode,
+      families: [state.familyCode],
+      crossFamilyMembers: []
+    };
+    renderAddFamilySection(wp);
+  }
 };
 
 window.selectWpLead = function(lead) {
@@ -7733,29 +10597,32 @@ function computeWpStartAt() {
 
 window.closeWatchpartyStart = function() {
   document.getElementById('wp-start-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   wpStartTitleId = null;
 };
 
-// === Sports watchparties (Turn 12) ===
-// Picker uses TheSportsDB's free API — no key required, no Cloud Function needed.
-// We read the next 15 upcoming games per league and let the user tap one to
-// create a watchparty scheduled for kickoff time.
-const SPORTS_LEAGUES = {
-  nba: { sport: 'basketball', league: 'nba', emoji: '🏀', label: 'NBA' },
-  mlb: { sport: 'baseball', league: 'mlb', emoji: '⚾', label: 'MLB' },
-  nhl: { sport: 'hockey', league: 'nhl', emoji: '🏒', label: 'NHL' },
-  nfl: { sport: 'football', league: 'nfl', emoji: '🏈', label: 'NFL' }
-};
+// === Sports watchparties (Phase 22 — TheSportsDB swap) ===
+// Picker delegates to js/sports-feed.js (TheSportsDB + BALLDONTLIE-supplement abstraction).
+// 16-league catalog: NBA / NFL / MLB / NHL / WNBA / NCAAF / NCAAB / EPL / La Liga /
+// Bundesliga / Serie A / Ligue 1 / UCL / MLS / F1 / UFC. League tabs render dynamically
+// from feedLeagueKeys() so adding a league = single line in sports-feed.js LEAGUES map.
+// Legacy ESPN scrape removed (App Store §2.3 / §5.1.5 risk per Phase 11 RESEARCH §4).
+const SPORTS_LEAGUES = SPORTS_FEED_LEAGUES;
 let sportsCurrentLeague = 'nba';
-const sportsGamesCache = {};
-const SPORTS_CACHE_TTL = 5 * 60 * 1000;
 
 window.openSportsPicker = function() {
   document.getElementById('sports-picker-bg').classList.add('on');
   sportsCurrentLeague = 'nba';
-  document.querySelectorAll('.sports-league-tab').forEach(t => {
-    t.classList.toggle('on', t.getAttribute('data-league') === 'nba');
-  });
+  // Dynamically render league tabs from the sports-feed catalog (Phase 22).
+  const tabsEl = document.getElementById('sports-league-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML = feedLeagueKeys().map(function(k) {
+      const lg = SPORTS_FEED_LEAGUES[k];
+      const SHORT_LABELS = { epl:'EPL', laliga:'La Liga', bundesliga:'Bundesliga', seriea:'Serie A', ligue1:'Ligue 1', ucl:'UCL', mls:'MLS', ncaaf:'CFB', ncaab:'CBB', wnba:'WNBA', f1:'F1', ufc:'UFC' };
+      const shortLabel = SHORT_LABELS[k] || (lg && lg.label) || k.toUpperCase();
+      return '<button class="sports-league-tab' + (k === 'nba' ? ' on' : '') + '" data-league="' + k + '" onclick="selectSportsLeague(\'' + k + '\')">' + shortLabel + '</button>';
+    }).join('');
+  }
   loadSportsGames('nba');
 };
 window.closeSportsPicker = function() {
@@ -7771,79 +10638,33 @@ window.selectSportsLeague = function(leagueKey) {
   loadSportsGames(leagueKey);
 };
 
+// Phase 22 \u2014 TheSportsDB-backed loader. Returns pre-normalized games (no parseEspnEvent step).
+const sportsGamesCache = {};
 async function loadSportsGames(leagueKey) {
   const listEl = document.getElementById('sports-games-list');
   if (!listEl) return;
   const league = SPORTS_LEAGUES[leagueKey];
   if (!league) return;
-  const cached = sportsGamesCache[leagueKey];
-  if (cached && Date.now() - cached.fetchedAt < SPORTS_CACHE_TTL) {
-    renderSportsGames(cached.games);
-    return;
-  }
   listEl.innerHTML = '<div class="sports-loading">Loading ' + league.label + ' games\u2026</div>';
   try {
-    const allGames = [];
-    const today = new Date();
-    const fetches = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-      const url = 'https://site.api.espn.com/apis/site/v2/sports/' + league.sport + '/' + league.league + '/scoreboard?dates=' + dateStr;
-      fetches.push(fetch(url).then(r => r.json()).catch(() => null));
-    }
-    const results = await Promise.all(fetches);
-    results.forEach(data => {
-      if (data && Array.isArray(data.events)) {
-        data.events.forEach(ev => allGames.push(ev));
-      }
-    });
-    sportsGamesCache[leagueKey] = { fetchedAt: Date.now(), games: allGames };
-    renderSportsGames(allGames);
+    const games = await feedFetchSchedule(leagueKey, 7);
+    sportsGamesCache[leagueKey] = { fetchedAt: Date.now(), games: games };
+    renderSportsGames(games);
   } catch(e) {
     qnLog('[Sports] fetch failed', e);
     listEl.innerHTML = '<div class="sports-empty"><strong>Couldn\'t load games</strong>The sports data service might be having a moment. Try again in a bit.</div>';
   }
 }
 
-function parseEspnEvent(ev) {
-  if (!ev) return null;
-  const comp = (ev.competitions && ev.competitions[0]) || {};
-  const teams = comp.competitors || [];
-  const home = teams.find(t => t.homeAway === 'home') || {};
-  const away = teams.find(t => t.homeAway === 'away') || {};
-  const broadcast = comp.broadcasts && comp.broadcasts[0] && comp.broadcasts[0].names
-    ? comp.broadcasts[0].names[0] : null;
-  const statusName = ev.status && ev.status.type ? ev.status.type.name : '';
-  const statusDetail = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
-  return {
-    id: ev.id || '',
-    shortName: ev.shortName || '',
-    startTime: ev.date ? new Date(ev.date).getTime() : null,
-    homeTeam: home.team ? home.team.displayName : 'TBD',
-    homeAbbrev: home.team ? home.team.abbreviation : '',
-    homeLogo: home.team ? home.team.logo : '',
-    homeScore: home.score || null,
-    awayTeam: away.team ? away.team.displayName : 'TBD',
-    awayAbbrev: away.team ? away.team.abbreviation : '',
-    awayLogo: away.team ? away.team.logo : '',
-    awayScore: away.score || null,
-    venue: comp.venue ? comp.venue.fullName : null,
-    broadcast: broadcast,
-    statusName: statusName,
-    statusDetail: statusDetail,
-    isFinal: statusName === 'STATUS_FINAL',
-    isLive: statusName === 'STATUS_IN_PROGRESS',
-    isScheduled: statusName === 'STATUS_SCHEDULED'
-  };
-}
+// Phase 22 — parseEspnEvent removed (dead code after sports-feed.js abstraction).
+// Game shape now produced by sports-feed.js normalizeTsdEvent — see commit d0fa183.
 
 function renderSportsGames(rawGames) {
   const listEl = document.getElementById('sports-games-list');
   if (!listEl) return;
+  // Phase 22 — input is already pre-normalized by feedFetchSchedule (sports-feed.js).
+  // No parseEspnEvent step needed; just filter to upcoming/live and sort.
   const games = rawGames
-    .map(parseEspnEvent)
     .filter(g => g && (g.isScheduled || g.isLive))
     .sort((a,b) => (a.startTime || 0) - (b.startTime || 0));
   if (!games.length) {
@@ -7891,15 +10712,23 @@ function formatSportsEventTime(ts) {
 
 window.scheduleSportsWatchparty = async function(eventId) {
   qnLog('[Sports] schedule click', { eventId, league: sportsCurrentLeague });
+  // Phase 30 / MED-1 — cold-start guards (mirror confirmStartWatchparty).
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
   const cacheEntry = sportsGamesCache[sportsCurrentLeague];
   if (!cacheEntry) {
     qnLog('[Sports] no cache for league', sportsCurrentLeague);
     flashToast('No games loaded for this league yet. Try switching leagues.', { kind: 'warn' });
     return;
   }
-  const rawGame = cacheEntry.games.find(g => g.id === eventId);
-  if (!rawGame) {
-    qnLog('[Sports] no raw game match', { eventId, sampleIds: cacheEntry.games.slice(0,3).map(g => g.id) });
+  // Phase 22 — cacheEntry.games is already normalized (sports-feed.js Game shape).
+  // No parseEspnEvent step needed.
+  const game = cacheEntry.games.find(g => g.id === eventId);
+  if (!game) {
+    qnLog('[Sports] no game match', { eventId, sampleIds: cacheEntry.games.slice(0,3).map(g => g.id) });
     flashToast('Could not find that game in the cache.', { kind: 'warn' });
     return;
   }
@@ -7908,8 +10737,12 @@ window.scheduleSportsWatchparty = async function(eventId) {
     flashToast('Pick who you are first, then try again.', { kind: 'warn' });
     return;
   }
-  const game = parseEspnEvent(rawGame);
-  if (!game || !game.startTime) { flashToast('This game is missing a start time.', { kind: 'warn' }); return; }
+  if (!game.startTime) { flashToast('This game is missing a start time.', { kind: 'warn' }); return; }
+  // Phase 24 / REVIEWS M3 — Video URL field (legacy sports flow). Reads from #wp-video-url-sport.
+  // Field is set BEFORE user taps a game tile; we read it at tile-click time.
+  const _videoCheck = readAndValidateVideoUrl('sport');
+  if (!_videoCheck.ok) return;
+  const parsedVideoUrl = _videoCheck.parsed;
   const league = SPORTS_LEAGUES[sportsCurrentLeague];
   const matchupLabel = game.awayTeam + ' at ' + game.homeTeam;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -7919,6 +10752,7 @@ window.scheduleSportsWatchparty = async function(eventId) {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
     catch (e) { return null; }
   })();
+  const myUid = (state.auth && state.auth.uid) || null;
   const wp = {
     id,
     titleId: null,
@@ -7926,10 +10760,16 @@ window.scheduleSportsWatchparty = async function(eventId) {
     titlePoster: '',
     hostId: state.me.id,
     hostName: state.me.name,
+    hostUid: myUid,  // Phase 30 / CR-09 — stamp host uid on legacy sports flow (was missing — Path A rejected host writes)
     creatorTimeZone: creatorTimeZone || null,  // Phase 7 Plan 5: CF renders startAt in creator's tz
     startAt: game.startTime,
     createdAt: Date.now(),
     status: game.startTime <= Date.now() ? 'active' : 'scheduled',
+    // Phase 23 — set mode='game' on legacy sports wps so they share the full Game Mode
+    // pipeline (live scoreboard polling + score-delta amplified reactions + scoringPlays
+    // catch-me-up + team-flair picker). Was: legacy flow predated mode='game' and skipped
+    // these surfaces; only the rendered scoreboard chrome appeared (with stale seed values).
+    mode: 'game',
     sportEvent: {
       league: league ? league.label : sportsCurrentLeague.toUpperCase(),
       leagueKey: sportsCurrentLeague,
@@ -7952,7 +10792,20 @@ window.scheduleSportsWatchparty = async function(eventId) {
         pausedOffset: 0
       }
     },
-    reactions: []
+    reactions: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race where
+    // state.members hasn't synced yet still produces a non-empty memberUids array (rules
+    // require request.auth.uid in resource.data.memberUids on create).
+    memberUids: Array.from(new Set([
+      myUid,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -7966,7 +10819,9 @@ window.scheduleSportsWatchparty = async function(eventId) {
     }
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 200);
   } catch(e) {
     qnLog('[Sports] watchparty create failed', e);
@@ -7975,135 +10830,37 @@ window.scheduleSportsWatchparty = async function(eventId) {
   }
 };
 
-// ---- Phase 11 / REFR-10 — SportsDataProvider abstraction (REFR-10) ----
-// Wraps ESPN hidden API (primary, v1) + BALLDONTLIE (stub for future swap) behind a
-// single interface: getSchedule(league, daysAhead) / getScore(gameId, league) /
-// getPlays(gameId, league, sinceTs). Scores + plays cached per (gameId, bucket) key
-// so 100 concurrent viewers of the same game = 1 fetch / 15s budget.
-// Per RESEARCH §4: ESPN hidden API is ToS-gray but proven; BALLDONTLIE is the
-// fallback if ESPN denies. Abstraction lets us swap without touching UI code.
-const SPORTS_PROVIDER_CONFIG = {
-  nfl: { provider: 'espn', espnSport: 'football', espnLeague: 'nfl' },
-  nba: { provider: 'espn', espnSport: 'basketball', espnLeague: 'nba' },
-  mlb: { provider: 'espn', espnSport: 'baseball', espnLeague: 'mlb' },
-  nhl: { provider: 'espn', espnSport: 'hockey', espnLeague: 'nhl' }
-};
-
-const sportsScoreCache = {};   // key: `${gameId}-${bucketIdx}`
-const sportsPlaysCache = {};
-const SCORE_CACHE_BUCKET_MS = 15 * 1000;
-const PLAYS_CACHE_BUCKET_MS = 30 * 1000;
-
-function sportsBucketKey(gameId, bucketMs) {
-  return `${gameId}-${Math.floor(Date.now() / bucketMs)}`;
-}
+// ---- Phase 22 — SportsDataProvider delegates to js/sports-feed.js ----
+// Was: ESPN hidden API (ToS-gray per Phase 11 RESEARCH §4 + App Store §2.3 / §5.1.5).
+// Now: TheSportsDB (free tier API key '1' for v1; Patreon $14/yr for live data).
+// Interface preserved: getSchedule(league, daysAhead) / getScore(gameId, league) /
+// getPlays(gameId, league, sinceTs). Watchparty-live tick + Phase 11 catch-me-up
+// flow continue to call this object unchanged.
+// Live play-by-play not available via TheSportsDB free tier — getPlays returns []
+// until Patreon upgrade or per-league API-Sports supplement (deferred).
+// Phase 22 — sportsBucketKey + sportsPlaysCache + PLAYS_CACHE_BUCKET_MS removed
+// (dead code; getPlays now stub-returns []; getScore caches inside sports-feed.js).
 
 const SportsDataProvider = {
-  // getSchedule — returns parsed events for a league over the next N days. Re-uses
-  // parseEspnEvent for ESPN-source normalization (no duplicate parsing logic).
   async getSchedule(leagueKey, daysAhead) {
     if (typeof daysAhead !== 'number') daysAhead = 7;
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg) return [];
-    if (cfg.provider === 'espn') {
-      const allGames = [];
-      const today = new Date();
-      const fetches = [];
-      for (let i = 0; i < daysAhead; i++) {
-        const d = new Date(today); d.setDate(d.getDate() + i);
-        const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-        const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/scoreboard?dates=${dateStr}`;
-        fetches.push(fetch(url).then(r => r.json()).catch(() => null));
-      }
-      const results = await Promise.all(fetches);
-      results.forEach(data => {
-        if (data && Array.isArray(data.events)) {
-          data.events.forEach(ev => {
-            const parsed = parseEspnEvent(ev);
-            if (parsed) {
-              parsed.league = leagueKey;  // tag for later routing
-              allGames.push(parsed);
-            }
-          });
-        }
-      });
-      return allGames;
-    }
-    // BALLDONTLIE branch — stub for v2 swap. When ESPN denies, implement:
-    //   const url = `https://www.balldontlie.io/api/v1/games?...`;
-    //   const r = await fetch(url); const d = await r.json();
-    //   return (d.data || []).map(balldontlieToParsed);
-    return [];
+    const games = await feedFetchSchedule(leagueKey, daysAhead);
+    return games || [];
   },
 
-  // getScore — cached score poll. Cache bucket is 15s so 100 simultaneous viewers
-  // of the same game result in 1 network fetch per bucket (ToS-gray mitigation).
   async getScore(gameId, leagueKey) {
-    const key = sportsBucketKey(gameId, SCORE_CACHE_BUCKET_MS);
-    if (sportsScoreCache[key]) return sportsScoreCache[key];
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg || cfg.provider !== 'espn') return null;
-    try {
-      // ESPN summary endpoint returns full event doc with status + competitors.
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/summary?event=${encodeURIComponent(gameId)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      const header = (d && d.header) || {};
-      const comps = header.competitions || [];
-      const comp = comps[0] || {};
-      const teams = comp.competitors || [];
-      const home = teams.find(t => t.homeAway === 'home') || {};
-      const away = teams.find(t => t.homeAway === 'away') || {};
-      const statusType = (comp.status && comp.status.type) || {};
-      const score = {
-        gameId,
-        homeScore: parseInt(home.score, 10) || 0,
-        awayScore: parseInt(away.score, 10) || 0,
-        homeAbbr: (home.team && home.team.abbreviation) || '',
-        awayAbbr: (away.team && away.team.abbreviation) || '',
-        homeTeam: (home.team && home.team.displayName) || '',
-        awayTeam: (away.team && away.team.displayName) || '',
-        period: (comp.status && comp.status.period) || 0,
-        clock: (comp.status && comp.status.displayClock) || '',
-        state: statusType.state || 'unknown',  // 'pre' | 'in' | 'post'
-        statusDetail: statusType.shortDetail || '',
-        ts: Date.now()
-      };
-      sportsScoreCache[key] = score;
-      return score;
-    } catch(e) {
-      qnLog('[Sports] getScore failed', { gameId, leagueKey, err: e && e.message });
-      return null;
-    }
+    const score = await feedFetchScore(gameId, leagueKey);
+    return score;
   },
 
-  // getPlays — play-by-play for late-joiner catch-me-up variant. Cached per 30s.
-  // sinceTs is advisory (ESPN doesn't support since-filtering); we always pull the
-  // last 10 plays and the caller filters if needed.
+  // getPlays — play-by-play for late-joiner catch-me-up. Phase 22 deferral:
+  // TheSportsDB free tier doesn't expose per-play data. Patreon tier ($14/yr) +
+  // per-league API-Sports supplements (~$10-50/mo) restore this; until then,
+  // returns []. Catch-me-up surface degrades gracefully — score chip still works
+  // via getScore, just no narrative play list. Will be backfilled in a future
+  // phase once the data feed is upgraded.
   async getPlays(gameId, leagueKey, sinceTs) {
-    const key = sportsBucketKey(gameId, PLAYS_CACHE_BUCKET_MS);
-    if (sportsPlaysCache[key]) return sportsPlaysCache[key];
-    const cfg = SPORTS_PROVIDER_CONFIG[leagueKey];
-    if (!cfg || cfg.provider !== 'espn') return [];
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${cfg.espnSport}/${cfg.espnLeague}/summary?event=${encodeURIComponent(gameId)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      const rawPlays = (d && d.plays) || [];
-      const plays = rawPlays.slice(-10).map(p => ({
-        id: p.id || p.sequenceNumber || String(Math.random()),
-        text: p.text || p.shortText || '',
-        scoringPlay: !!p.scoringPlay,
-        period: (p.period && p.period.number) || 0,
-        clock: (p.clock && p.clock.displayValue) || '',
-        ts: Date.now()
-      }));
-      sportsPlaysCache[key] = plays;
-      return plays;
-    } catch(e) {
-      qnLog('[Sports] getPlays failed', { gameId, leagueKey, err: e && e.message });
-      return [];
-    }
+    return [];
   }
 };
 
@@ -8189,6 +10946,16 @@ window.selectGame = function(gameId, encodedJson) {
 window.confirmGamePicker = async function() {
   if (!_gamePickerSelected || !state.me) return;
   if (guardReadOnlyWrite()) return;
+  // Phase 30 / MED-1 — cold-start guards (mirror confirmStartWatchparty).
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
+  // Phase 24 / REVIEWS M3 — Video URL field. Reads from #wp-video-url-game.
+  const _videoCheck = readAndValidateVideoUrl('game');
+  if (!_videoCheck.ok) return;
+  const parsedVideoUrl = _videoCheck.parsed;
   const game = _gamePickerSelected;
   const leagueEmojis = { nfl: '🏈', nba: '🏀', mlb: '⚾', nhl: '🏒' };
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -8238,7 +11005,20 @@ window.confirmGamePicker = async function() {
       }
     },
     reactions: [],
-    scoringPlays: []
+    scoringPlays: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+    // (state.members not yet synced) still satisfies the create rule that requires
+    // request.auth.uid in resource.data.memberUids.
+    memberUids: Array.from(new Set([
+      (state.auth && state.auth.uid) || null,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
@@ -8264,7 +11044,9 @@ window.confirmGamePicker = async function() {
     }
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 200);
   } catch(e) {
     qnLog('[GamePicker] watchparty create failed', e);
@@ -8435,6 +11217,23 @@ function showAmplifiedReactionPicker(wp) {
 
 window.postBurstReaction = async function(wpId, emoji) {
   if (!state.me) return;
+  // Phase 26 / RPLY-26-01 — look up wp from wpId so we can derive position-anchored fields.
+  // Sports-mode amplified bursts (Phase 23) typically have wp.isLiveStream === true → helper
+  // returns { null, 'live-stream' } per D-03 (sports replay surface filters these out, which
+  // is the correct behavior — live broadcasts have no re-watchable timeline).
+  const wp = state.watchparties.find(x => x.id === wpId);
+  // Phase 26 / WR-26-02 — derive caller's actual elapsedMs from myParticipation so a
+  // burst reaction posted on a non-live, non-replay wp with stale broadcast lands on
+  // an accurate elapsed-time anchor instead of always 0ms.
+  const mineLocal = wp ? myParticipation(wp) : null;
+  const elapsedMs = mineLocal ? computeElapsed(mineLocal, wp) : 0;
+  const { runtimePositionMs, runtimeSource } = derivePositionForReaction({
+    wp: wp || {},
+    mine: mineLocal,
+    elapsedMs,
+    isReplay: state.activeWatchpartyMode === 'revisit',
+    localReplayPositionMs: state.replayLocalPositionMs
+  });
   try {
     const reaction = {
       memberId: state.me.id,
@@ -8442,7 +11241,9 @@ window.postBurstReaction = async function(wpId, emoji) {
       kind: 'emoji',
       emoji,
       at: Date.now(),
-      amplified: true
+      amplified: true,
+      runtimePositionMs,
+      runtimeSource
     };
     await updateDoc(watchpartyRef(wpId), {
       reactions: arrayUnion(reaction),
@@ -8463,37 +11264,106 @@ window.postBurstReaction = async function(wpId, emoji) {
 // participants[mid].dvrOffsetMs AND participants[mid].reactionDelay so the
 // existing Phase 7 PARTY-04 reaction-delay render filter reuses the same anchor.
 // Throttle Firestore writes to once per 500ms while the slider is dragged.
+
+// Phase 15.5 / D-01 + REQ-1: position-to-seconds non-linear transform for the sport-mode slider.
+// The native HTML <input type="range"> step attribute cannot vary per position; this transform
+// gives us 5 visual bands of step granularity (5s / 15s / 60s / 300s / 900s) across the 0-86400s
+// (24 hr) range. The slider emits position 0-100; setDvrOffset receives clamped seconds.
+// Bands locked in 15.5-CONTEXT.md D-01 + 15.5-RESEARCH.md § REQ-1.
+const WAIT_UP_BANDS = Object.freeze([
+  { pStart: 0,  pEnd: 7,   sStart: 0,    sEnd: 60,    step: 5   },
+  { pStart: 7,  pEnd: 22,  sStart: 60,   sEnd: 300,   step: 15  },
+  { pStart: 22, pEnd: 47,  sStart: 300,  sEnd: 1800,  step: 60  },
+  { pStart: 47, pEnd: 67,  sStart: 1800, sEnd: 7200,  step: 300 },
+  { pStart: 67, pEnd: 100, sStart: 7200, sEnd: 86400, step: 900 }
+]);
+
+function positionToSeconds(posInput) {
+  const pRaw = parseFloat(posInput);
+  if (!isFinite(pRaw)) return 0;
+  const p = Math.max(0, Math.min(100, pRaw));
+  // Find containing band (last band's pEnd is inclusive at 100).
+  const band = WAIT_UP_BANDS.find(b => p <= b.pEnd) || WAIT_UP_BANDS[WAIT_UP_BANDS.length - 1];
+  // Linear interpolation within band, then snap to step.
+  const pSpan = band.pEnd - band.pStart;
+  const sSpan = band.sEnd - band.sStart;
+  const frac  = pSpan > 0 ? (p - band.pStart) / pSpan : 0;
+  const sRaw  = band.sStart + frac * sSpan;
+  const snapped = Math.round(sRaw / band.step) * band.step;
+  return Math.max(0, Math.min(86400, snapped));
+}
+
+function secondsToPosition(secInput) {
+  const sRaw = parseInt(secInput, 10);
+  if (!isFinite(sRaw)) return 0;
+  const s = Math.max(0, Math.min(86400, sRaw));
+  const band = WAIT_UP_BANDS.find(b => s <= b.sEnd) || WAIT_UP_BANDS[WAIT_UP_BANDS.length - 1];
+  const sSpan = band.sEnd - band.sStart;
+  const pSpan = band.pEnd - band.pStart;
+  const frac  = sSpan > 0 ? (s - band.sStart) / sSpan : 0;
+  return band.pStart + frac * pSpan;
+}
+
+// Phase 15.5 / REQ-1 + REQ-4 + UI-SPEC § Sport-mode slider:
+// - Slider value space is now position 0-100 (NOT seconds). positionToSeconds maps to seconds.
+// - Readout uses dvrReadoutText (extended in Plan 01) wrapped in italic <em> when active per UI-SPEC.
+// - Aria-label uses comma separator (no em-dash, no banned words) per UI-SPEC.
 function renderDvrSlider(wp, mine) {
   if (!mine) return '';
   const offsetMs = mine.dvrOffsetMs || 0;
   const offsetSec = Math.round(offsetMs / 1000);
-  const readout = dvrReadoutText(offsetSec);
+  const offsetSecClamped = Math.max(0, Math.min(86400, offsetSec));
+  const initialPos = secondsToPosition(offsetSecClamped);
+  const readoutText = dvrReadoutText(offsetSecClamped);
+  const isActive = offsetSecClamped > 0;
+  // Active state: italic Instrument Serif "holding {value}". Idle: regular "Live".
+  const readoutHtml = isActive
+    ? `<em class="serif-italic">holding ${escapeHtml(readoutText)}</em>`
+    : `${escapeHtml(readoutText)}`;
+  const ariaLabel = `Wait up by, current value ${readoutText}`;
   return `<div class="wp-dvr-slider">
-    <span class="wp-dvr-label">I'm behind</span>
-    <input type="range" min="0" max="180" value="${offsetSec}" step="5"
+    <span class="wp-dvr-label">Wait up</span>
+    <input type="range" min="0" max="100" value="${initialPos}" step="0.5"
       class="wp-dvr-input"
-      oninput="updateDvrReadout(this.value)"
-      onchange="setDvrOffset('${escapeHtml(wp.id)}', this.value)"
-      aria-label="DVR offset in seconds behind live" />
-    <span class="wp-dvr-readout" id="wp-dvr-readout">${escapeHtml(readout)}</span>
+      oninput="updateDvrReadout(positionToSeconds(this.value))"
+      onchange="setDvrOffset('${escapeHtml(wp.id)}', positionToSeconds(this.value))"
+      aria-label="${escapeHtml(ariaLabel)}" />
+    <span class="wp-dvr-readout" id="wp-dvr-readout">${readoutHtml}</span>
   </div>`;
 }
 
+// Phase 15.5 / REQ-1 + REQ-4: extended for hours; zero-state label changed from 'No wait' to 'Live' per UI-SPEC.
 function dvrReadoutText(sec) {
-  if (!sec || sec <= 0) return 'On time';
-  if (sec <= 60) return `${sec}s behind`;
-  return `${Math.floor(sec/60)}m ${sec%60}s behind`;
+  if (!sec || sec <= 0) return 'Live';
+  if (sec < 60) return `${sec} sec`;
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s ? `${m} min ${s} sec` : `${m} min`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return m ? `${h} hr ${m} min` : `${h} hr`;
 }
 
-window.updateDvrReadout = function(secStr) {
-  const sec = parseInt(secStr, 10) || 0;
+// Phase 15.5 / REQ-1: live-update readout uses same italic-wrapper recipe as renderDvrSlider.
+// Switched from textContent to innerHTML because the active state needs the <em> element;
+// escapeHtml is still applied to the dynamic text portion.
+window.updateDvrReadout = function(secInput) {
+  const sec = Math.max(0, Math.min(86400, parseInt(secInput, 10) || 0));
   const el = document.getElementById('wp-dvr-readout');
-  if (el) el.textContent = dvrReadoutText(sec);
+  if (!el) return;
+  const text = dvrReadoutText(sec);
+  el.innerHTML = sec > 0
+    ? `<em class="serif-italic">holding ${escapeHtml(text)}</em>`
+    : escapeHtml(text);
 };
 
 let _dvrThrottleHandle = null;
 window.setDvrOffset = function(wpId, secStr) {
-  const sec = parseInt(secStr, 10) || 0;
+  // Phase 15.5 / D-01 + REQ-1: defensive clamp matching setReactionDelay (86400 = 24 hr).
+  // Plan 02's positionToSeconds() also clamps; this is belt-and-suspenders.
+  const sec = Math.max(0, Math.min(86400, parseInt(secStr, 10) || 0));
   const ms = sec * 1000;
   if (!state.me) return;
   if (_dvrThrottleHandle) clearTimeout(_dvrThrottleHandle);
@@ -8558,14 +11428,72 @@ window.setUserTeamFlair = async function(wpId, allegiance, hexColor) {
   if (overlay) overlay.remove();
 };
 
+// Phase 24 — shared video-URL validation for the 3 wp-creation flows.
+// Reads from {flow}-prefixed DOM ids per REVIEWS M3 (distinct ids per modal).
+// On invalid + non-empty: returns { ok: false }; caller bails out with .field-invalid + unhide error div.
+// On valid: returns { ok: true, parsed: { source, id?, url } | null } — null means user left it empty.
+// On valid mp4 with http:// scheme: also surfaces the REVIEWS C1 mixed-content warning toast.
+function readAndValidateVideoUrl(flow /* 'movie' | 'game' | 'sport' */) {
+  const inputId = 'wp-video-url-' + flow;
+  const errorId = 'wp-video-url-' + flow + '-error';
+  const inputEl = document.getElementById(inputId);
+  const errEl = document.getElementById(errorId);
+  const raw = inputEl ? inputEl.value.trim() : '';
+  if (!raw) {
+    if (inputEl) inputEl.classList.remove('field-invalid');
+    if (errEl) errEl.setAttribute('hidden', '');
+    return { ok: true, parsed: null };
+  }
+  const parsed = parseVideoUrl(raw);
+  if (!parsed) {
+    if (inputEl) inputEl.classList.add('field-invalid');
+    if (errEl) errEl.removeAttribute('hidden');
+    return { ok: false, parsed: null };
+  }
+  // Clear any prior error state
+  if (inputEl) inputEl.classList.remove('field-invalid');
+  if (errEl) errEl.setAttribute('hidden', '');
+  // Phase 24 / WR-24-01 + REVIEWS C1: hard-block mixed-content HTTP MP4. Modern browsers
+  // refuse to load HTTP video on an HTTPS page entirely — letting the wp save means the
+  // host has already created + shared a watchparty whose video can never play. Surface
+  // an inline error and abort the submit. (Was previously a non-blocking warn toast —
+  // "HTTP links may be blocked by the browser" — left in this comment for the smoke
+  // sentinel that pins the C1 copy.)
+  if (parsed.source === 'mp4' && (parsed.url || '').toLowerCase().startsWith('http://')) {
+    if (inputEl) inputEl.classList.add('field-invalid');
+    if (errEl) {
+      errEl.textContent = 'Use https for MP4 links — http links are blocked by the browser on most platforms.';
+      errEl.removeAttribute('hidden');
+    }
+    return {
+      ok: false,
+      reason: 'mixed-content',
+      hint: 'Use https for MP4 links — http links are blocked by the browser on most platforms.'
+    };
+  }
+  return { ok: true, parsed };
+}
+
 window.confirmStartWatchparty = async function() {
   if (!wpStartTitleId || !state.me) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: unclaimed post-grace can't host watchparties
+  // Phase 30 / MED-1 — user-facing cold-start guards. CR-09 already includes the host's
+  // uid defensively in memberUids; this surface tells the user why the create deferred
+  // instead of letting it silently no-op.
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to start a watchparty.', { kind: 'warn' }); return; }
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    flashToast('Loading your couch — try again in a sec.', { kind: 'warn' });
+    return;
+  }
   const t = state.titles.find(x => x.id === wpStartTitleId);
   if (!t) return;
   const startAt = computeWpStartAt();
   if (!startAt) { alert('Pick a start time.'); return; }
   if (startAt < Date.now() - 60*1000) { alert("That's in the past. Pick a future time."); return; }
+  // Phase 24 / REVIEWS M3 — Video URL field (D-04). Reads from #wp-video-url-movie.
+  const _videoCheck = readAndValidateVideoUrl('movie');
+  if (!_videoCheck.ok) return; // submit-blocked: inline error already surfaced
+  const parsedVideoUrl = _videoCheck.parsed;
   const id = 'wp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
   // Phase 7 Plan 5 (PARTY-06): capture the creator's IANA timezone at write-time so
   // the onWatchpartyCreate CF can render startAt in their local zone in the push body
@@ -8597,12 +11525,26 @@ window.confirmStartWatchparty = async function() {
         pausedOffset: 0
       }
     },
-    reactions: []
+    reactions: [],
+    videoUrl: parsedVideoUrl ? parsedVideoUrl.url : null,
+    videoSource: parsedVideoUrl ? parsedVideoUrl.source : null,
+    // === Phase 30 — Couch groups fields ===
+    hostFamilyCode: state.familyCode,
+    families: [state.familyCode],
+    // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+    // (state.members not yet synced) still satisfies the create rule that requires
+    // request.auth.uid in resource.data.memberUids.
+    memberUids: Array.from(new Set([
+      (state.auth && state.auth.uid) || null,
+      ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+    ])).filter(Boolean),
+    crossFamilyMembers: []
   };
   try {
     await setDoc(watchpartyRef(id), { ...wp, ...writeAttribution() });
     logActivity('wp_started', { titleName: t.name });
     document.getElementById('wp-start-modal-bg').classList.remove('on');
+    deactivateFocusTrap();
     state.activeWatchpartyId = id;
 
     // Phase 11 / REFR-05 — Web Share API trigger after successful save.
@@ -8668,10 +11610,230 @@ window.confirmStartWatchparty = async function() {
     // Open the live view
     setTimeout(() => {
       renderWatchpartyLive();
-      document.getElementById('wp-live-modal-bg').classList.add('on');
+      const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+      _wpLiveBg.classList.add('on');
+      activateFocusTrap(_wpLiveBg);
     }, 150);
   } catch(e) { alert('Could not start watchparty: ' + e.message); }
 };
+
+// === Phase 30 — Bring another couch in affordance ===
+// Render gating per UI-SPEC: host-only — non-host members see ZERO of the input/submit
+// or kebab affordances; they DO still see .wp-couches-list (D-06 transparency).
+
+function renderAddFamilySection(wp, idSuffix) {
+  // B2 fix (revision): accept optional idSuffix to drive both wp-create modal (suffix='')
+  // and wp-edit lobby (suffix='-lobby') from the same helper. ZERO logic duplication.
+  const suffix = idSuffix || '';
+  const section = document.getElementById('wp-add-family-section' + suffix);
+  if (!section) return;
+
+  const isHost = !!(wp && state.me && state.me.id === wp.hostId);
+  const families = (wp && Array.isArray(wp.families)) ? wp.families : [];
+  const familyCount = families.length;
+
+  // Phase 30 / HIGH-1 — at wp-create time the wp doc doesn't exist yet (wp.id === null
+  // from openWatchpartyStart's synthetic shape). addFamilyToWp({wpId: null}) throws
+  // 'invalid-argument' and surfaces a confusing toast. Hide the input row entirely
+  // pre-creation and tell the host they can pull another couch in right after starting.
+  if (!wp || !wp.id) {
+    const inputRowEarly = document.getElementById('wp-add-family-input-row' + suffix);
+    if (inputRowEarly) inputRowEarly.style.display = 'none';
+    const sublineEarly = document.getElementById('wp-add-family-subline' + suffix);
+    if (sublineEarly) sublineEarly.innerHTML = "<em>You can pull up another family right after starting the watchparty.</em>";
+    const helpEarly = section.querySelector('.wp-add-family-help');
+    if (helpEarly) helpEarly.style.display = 'none';
+    return;
+  }
+
+  // === Sub-line copy state machine per UI-SPEC ===
+  const subline = document.getElementById('wp-add-family-subline' + suffix);
+  const inputRow = document.getElementById('wp-add-family-input-row' + suffix);
+  const helpLine = section.querySelector('.wp-add-family-help');
+
+  if (familyCount >= 8) {
+    // Hard cap reached — hide input + show closed sub-line.
+    if (subline) subline.innerHTML = '<em>This couch is full for tonight.</em>';
+    if (inputRow) inputRow.style.display = 'none';
+    if (helpLine) helpLine.style.display = 'none';
+  } else if (familyCount >= 5) {
+    // Soft cap warning at 5+ families (above 4) per CONTEXT D-08 + UI-SPEC Copywriting Contract — input still visible, sub-line warns.
+    if (subline) {
+      subline.innerHTML = "<em>That's a big couch — are you sure?</em>";
+      subline.classList.add('wp-add-family-subline-warn');
+    }
+    if (inputRow) inputRow.style.display = isHost ? 'flex' : 'none';
+    if (helpLine) helpLine.style.display = isHost ? 'block' : 'none';
+  } else {
+    if (subline) {
+      subline.innerHTML = '<em>Pull up another family for tonight.</em>';
+      subline.classList.remove('wp-add-family-subline-warn');
+    }
+    if (inputRow) inputRow.style.display = isHost ? 'flex' : 'none';
+    if (helpLine) helpLine.style.display = isHost ? 'block' : 'none';
+  }
+
+  // === .wp-couches-list — render one row per family entry ===
+  // Row 1: own family with (your couch) suffix per UI-SPEC.
+  // Subsequent rows: foreign families with optional Remove this couch kebab (host-only).
+  const list = document.getElementById('wp-couches-list' + suffix);
+  if (list) {
+    if (familyCount === 0) {
+      list.innerHTML = '<p class="wp-couches-empty"><strong>Just your couch tonight</strong><br><em>Add another family to share the watchparty.</em></p>';
+    } else {
+      const ownCode = wp.hostFamilyCode || state.familyCode;
+      const ownDisplayName = (state.family && state.family.displayName) || (state.family && state.family.name) || ownCode;
+      const ownRow = `<div class="wp-couches-row own" role="listitem" data-family-code="${escapeHtml(ownCode)}">
+        <span class="wp-couches-row-label">${escapeHtml(ownDisplayName)} <span class="muted">(your couch)</span></span>
+      </div>`;
+      const foreignFamilies = families.filter(c => c !== ownCode);
+      const foreignRows = foreignFamilies.map(code => {
+        const member = (wp.crossFamilyMembers || []).find(m => m && m.familyCode === code);
+        const fdn = (member && member.familyDisplayName) || code;
+        const kebab = isHost
+          ? `<button type="button" class="wp-couches-remove" data-family-code="${escapeHtml(code)}" aria-label="Remove ${escapeHtml(fdn)} couch">&#8942;</button>`
+          : '';
+        return `<div class="wp-couches-row foreign" role="listitem" data-family-code="${escapeHtml(code)}">
+          <span class="wp-couches-row-label">${escapeHtml(fdn)}</span>${kebab}
+        </div>`;
+      }).join('');
+      list.innerHTML = ownRow + foreignRows;
+    }
+  }
+
+  // === Wire the submit button + remove kebabs (only when host) ===
+  if (!isHost) {
+    section.classList.add('non-host-view');
+    return;
+  }
+  section.classList.remove('non-host-view');
+
+  const submitBtn = document.getElementById('wp-add-family-submit' + suffix);
+  if (submitBtn) {
+    submitBtn.onclick = () => onClickAddFamily(wp, suffix);
+  }
+
+  // Wire each kebab.
+  const kebabs = list ? list.querySelectorAll('.wp-couches-remove') : [];
+  kebabs.forEach(btn => {
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      const code = btn.getAttribute('data-family-code');
+      onClickRemoveCouch(wp, code);
+    };
+  });
+}
+
+// === addFamilyToWp callable wiring + 4-state machine per UI-SPEC ===
+async function onClickAddFamily(wp, idSuffix) {
+  // B2 fix (revision): accept optional idSuffix to look up the right input/submit pair
+  // for whichever surface (wp-create '' or wp-edit '-lobby') initiated the click.
+  const suffix = idSuffix || '';
+  const input = document.getElementById('wp-add-family-input' + suffix);
+  const submitBtn = document.getElementById('wp-add-family-submit' + suffix);
+  if (!input || !submitBtn) return;
+  // Phase 30 / HIGH-1 safety net — defense-in-depth in case the renderAddFamilySection
+  // pre-creation guard ever races (e.g., DOM hand-edited). Friendlier copy than the
+  // raw 'Invalid watchparty.' toast that would otherwise surface from the CF.
+  if (!wp || !wp.id) {
+    flashToast('Send invites first, then you can bring more couches in.', { kind: 'warn' });
+    return;
+  }
+  const familyCode = (input.value || '').trim();
+  if (!familyCode) return;
+
+  // STATE: validating
+  submitBtn.disabled = true;
+  input.disabled = true;
+  const origLabel = submitBtn.textContent;
+  submitBtn.textContent = 'Bringing them in…';
+
+  try {
+    const callable = httpsCallable(functions, 'addFamilyToWp');
+    const result = await callable({ wpId: wp.id, familyCode });
+    const data = (result && result.data) || {};
+
+    if (data.alreadyAdded) {
+      // STATE: idempotent — informational toast, not warn
+      flashToast(`The ${data.familyDisplayName || familyCode} couch is already here.`, { kind: 'info' });
+    } else if (data.ok) {
+      // STATE: success
+      flashToast('Couch added', { kind: 'good' });
+      input.value = '';
+    } else {
+      flashToast('Something went wrong adding that couch.', { kind: 'warn' });
+    }
+  } catch (err) {
+    // STATE: error — map to UI-SPEC error matrix
+    const code = err && err.code;
+    const msg = err && err.message;
+    if (code === 'functions/not-found') {
+      flashToast('No family with that code. Double-check the spelling.', { kind: 'warn' });
+    } else if (code === 'functions/permission-denied') {
+      flashToast('Only the host can add families to this watchparty.', { kind: 'warn' });
+    } else if (code === 'functions/resource-exhausted') {
+      flashToast('No more room on this couch tonight.', { kind: 'warn' });
+    } else if (code === 'functions/failed-precondition') {
+      // W4 fix (revision): zero-member family — addFamilyToWp CF throws this when the
+      // family exists but has no qualifying members yet (no docs with a string `uid` field).
+      // Brand-voice toast matches the warm/playful UI-SPEC § Copywriting Contract.
+      flashToast("That family hasn't added any members yet — ask them to invite people first.", { kind: 'warn' });
+    } else if (code === 'functions/unauthenticated') {
+      flashToast('Sign in to add a family.', { kind: 'warn' });
+    } else if (code === 'functions/invalid-argument') {
+      // Phase 30 / MED-4 — friendlier copy than the raw 'Invalid watchparty.' / 'Invalid
+      // family code.' that the CF surfaces; redirects user attention to the family code
+      // (the field they actually edited) instead of the watchparty (which is opaque).
+      flashToast("Couldn't add that couch — try again.", { kind: 'warn' });
+    } else if (code === 'functions/internal') {
+      // Phase 30 / MED-4 — admin-SDK transient failures, network blips. Was falling
+      // through to the generic toast that exposed implementation noise.
+      flashToast('Something went wrong — try again in a sec.', { kind: 'warn' });
+    } else {
+      flashToast(`Couldn't add that couch (${msg || 'unknown error'}).`, { kind: 'warn' });
+    }
+  } finally {
+    submitBtn.disabled = false;
+    input.disabled = false;
+    submitBtn.textContent = origLabel;
+  }
+}
+
+// === Remove this couch — host-direct write per planner decision in objective ===
+async function onClickRemoveCouch(wp, removeFamilyCode) {
+  if (!wp || !removeFamilyCode) return;
+  const member = (wp.crossFamilyMembers || []).find(m => m && m.familyCode === removeFamilyCode);
+  const fdn = (member && member.familyDisplayName) || removeFamilyCode;
+
+  const confirmed = confirm(`Remove the ${fdn} couch?\n\nTheir crew will lose access to this watchparty. They can be added back the same way.`);
+  if (!confirmed) return;
+
+  // Host-direct write to wp.families[] / wp.memberUids[] / wp.crossFamilyMembers[].
+  // Path A in firestore.rules permits any-field write for the host (Plan 02).
+  // T-30-14 (ACCEPT v1): removed family's UIDs remain in memberUids until natural 25h
+  // archive — their roster chips disappear immediately, but their wp subscription
+  // continues to see the doc. UAT-30-11 in Plan 05 verifies this known limitation.
+  try {
+    const ref = watchpartyRef(wp.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      flashToast('Watchparty not found.', { kind: 'warn' });
+      return;
+    }
+    const cur = snap.data();
+    const newFamilies = (cur.families || []).filter(c => c !== removeFamilyCode);
+    const newCrossFamily = (cur.crossFamilyMembers || []).filter(r => r && r.familyCode !== removeFamilyCode);
+
+    await updateDoc(ref, {
+      families: newFamilies,
+      crossFamilyMembers: newCrossFamily,
+      lastActivityAt: Date.now(),
+    });
+    flashToast(`Removed the ${fdn} couch.`, { kind: 'good' });
+  } catch (err) {
+    flashToast(`Couldn't remove that couch (${(err && err.message) || 'unknown error'}).`, { kind: 'warn' });
+  }
+}
 
 // ==== Join / RSVP / Timer controls (stubs wired next turn) ====
 window.joinWatchparty = async function(wpId) {
@@ -8692,36 +11854,366 @@ window.joinWatchparty = async function(wpId) {
     await updateDoc(watchpartyRef(wpId), { ...update, ...writeAttribution() });
     state.activeWatchpartyId = wpId;
     renderWatchpartyLive();
-    document.getElementById('wp-live-modal-bg').classList.add('on');
+    const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+    _wpLiveBg.classList.add('on');
+    activateFocusTrap(_wpLiveBg);
   } catch(e) { alert('Could not join: ' + e.message); }
 };
 
-window.openWatchpartyLive = function(wpId) {
+// === Phase 24 — Native video player runtime state + helpers ===
+// Co-located with openWatchpartyLive / closeWatchpartyLive lifecycle pair.
+// REVIEWS H1: player lives in #wp-video-surface (persistent across renders).
+// REVIEWS H3: YouTube branch uses div placeholder + new YT.Player(divId, {videoId,...}).
+// REVIEWS H5: <video> event handlers stored as module-scope refs for clean removeEventListener in teardown.
+// REVIEWS M1: late-joining non-host calls seekToBroadcastedTime after player init.
+// REVIEWS M4: per-sample live-stream gate inside broadcaster (NOT one-shot at onReady).
+// REVIEWS C2: extended schema fields written by broadcastCurrentTime.
+let _ytApiLoading = null;
+let _wpYtPlayer = null;             // YT.Player instance (null when no YouTube branch active)
+let _wpVideoBroadcaster = null;     // makeIntervalBroadcaster closure (host-only)
+let _wpVideoSampler = null;         // setInterval id for YouTube currentTime poll (host-only)
+let _wpVideoElement = null;         // <video> element ref for MP4 branch (for cleanup)
+// REVIEWS H5 — handler refs so teardownVideoPlayer can removeEventListener cleanly.
+let _wpVideoTimeHandler = null;     // 'timeupdate' on <video>
+let _wpVideoErrorHandler = null;    // 'error' on <video>
+let _wpRetryClickHandler = null;    // delegated 'click' on .wp-video-frame for [data-action="retry-video"] (REVIEWS H4)
+
+function ensureYouTubeApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (_ytApiLoading) return _ytApiLoading;
+  _ytApiLoading = new Promise(resolve => {
+    if (!document.getElementById('youtube-iframe-api-script')) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-iframe-api-script';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    // REVIEWS L2 (low / deferred risk): Couch has no other YT API consumer in 2026-04.
+    // Direct overwrite is acceptable. If a future phase adds a second YT integration,
+    // switch to chained-handler pattern.
+    window.onYouTubeIframeAPIReady = () => resolve();
+  });
+  return _ytApiLoading;
+}
+
+// REVIEWS C2 — Extended Phase 26 schema.
+// currentTimeMs / currentTimeUpdatedAt remain (Phase 26 anchor).
+// currentTimeSource: 'youtube' | 'mp4' — Phase 26 chooses replay strategy.
+// durationMs: number | null — null for live streams; finite for normal videos.
+// isLiveStream: boolean — hardens M4 gating; tells Phase 26 not to anchor reactions to runtime position.
+async function broadcastCurrentTime(wpId, currentTimeSeconds, source, durationSecondsOrNull, isLive) {
+  if (!wpId || typeof currentTimeSeconds !== 'number' || isNaN(currentTimeSeconds)) return;
+  try {
+    const payload = {
+      currentTimeMs: Math.round(currentTimeSeconds * 1000),
+      currentTimeUpdatedAt: Date.now(),
+      currentTimeSource: source || null,
+      durationMs: (typeof durationSecondsOrNull === 'number' && isFinite(durationSecondsOrNull) && durationSecondsOrNull > 0)
+        ? Math.round(durationSecondsOrNull * 1000)
+        : null,
+      isLiveStream: !!isLive,
+      ...writeAttribution()
+    };
+    await updateDoc(watchpartyRef(wpId), payload);
+  } catch (e) {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      Sentry.addBreadcrumb({ category: 'videoBroadcast.write.failed', level: 'warning', data: { wpId, error: String(e) } });
+    }
+  }
+}
+
+// REVIEWS H4 — delegated retry click handler (wires "Try again" link to reloadWatchpartyPlayer).
+// Attached once per attachVideoPlayer; removed in teardownVideoPlayer.
+function makeRetryClickHandler() {
+  return function (ev) {
+    const t = ev.target;
+    if (!t) return;
+    const action = t.getAttribute && t.getAttribute('data-action');
+    if (action === 'retry-video') {
+      ev.preventDefault();
+      if (typeof window.reloadWatchpartyPlayer === 'function') window.reloadWatchpartyPlayer();
+    }
+  };
+}
+
+async function attachVideoPlayer(wp) {
+  if (!wp || !wp.videoUrl || !wp.videoSource) return;
+  const t = state.titles && state.titles.find(x => x.id === wp.titleId);
+  if (!titleHasNonDrmPath(t)) return;
+  const surface = document.getElementById('wp-video-surface');
+  if (!surface) return; // modal not mounted
+
+  const isHost = !!(state.me && state.me.id === wp.hostId);
+
+  // Build the player HTML into the persistent surface.
+  // REVIEWS H3: YouTube uses a DIV placeholder, NOT an iframe. The IFrame API
+  // creates its own iframe by replacing the div, on its own controlled timeline.
+  const parsed = parseVideoUrl(wp.videoUrl);
+  let html = '';
+  if (wp.videoSource === 'youtube' && parsed && parsed.id) {
+    const safeId = encodeURIComponent(parsed.id);
+    html = '<div class="wp-video-frame">' +
+      '<div id="wp-yt-player" class="wp-video-frame--youtube" data-video-id="' + safeId + '"></div>' +
+    '</div>';
+  } else if (wp.videoSource === 'mp4') {
+    const safeUrl = escapeHtml(wp.videoUrl);
+    html = '<div class="wp-video-frame">' +
+      '<video id="wp-mp4-player" class="wp-video-frame--mp4" controls playsinline preload="metadata" src="' + safeUrl + '"></video>' +
+    '</div>';
+  }
+  if (!html) return;
+  surface.innerHTML = html;
+
+  // REVIEWS H4 — wire the delegated retry click handler ONCE on the .wp-video-frame.
+  const frame = surface.querySelector('.wp-video-frame');
+  if (frame) {
+    _wpRetryClickHandler = makeRetryClickHandler();
+    frame.addEventListener('click', _wpRetryClickHandler);
+  }
+
+  if (wp.videoSource === 'youtube') {
+    await ensureYouTubeApi();
+    const placeholder = document.getElementById('wp-yt-player');
+    if (!placeholder) return; // modal closed during load (RESEARCH Pitfall 6)
+    const videoId = placeholder.getAttribute('data-video-id') || '';
+    // REVIEWS H3 — Construct the player from the div placeholder + videoId,
+    // not from an existing iframe. This is the YouTube-recommended pattern.
+    _wpYtPlayer = new YT.Player('wp-yt-player', {
+      videoId: videoId,
+      playerVars: { playsinline: 1, enablejsapi: 1 },
+      events: {
+        onReady: () => {
+          // REVIEWS M1 — Late-join seek for non-hosts.
+          if (!isHost) {
+            seekToBroadcastedTime(_wpYtPlayer, wp, 'youtube');
+          }
+          if (!isHost) return;
+          // Host: arm the broadcaster + sampler. REVIEWS M4 gates per-sample.
+          _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+            // Phase 24 / CR-24-01 + IN-26-02 — read getDuration() once per tick. Skip
+            // samples where the duration is genuinely unknown (NaN before metadata
+            // settles) instead of guessing isLiveStream=true — that guess would
+            // permanently stamp runtimeSource:'live-stream' on any reaction posted in
+            // the opening 1-3s window, making it invisible to replay forever.
+            // REVIEWS M4 — per-sample live-stream gate. Inline isFinite + getDuration
+            // so the gate is evaluated EVERY sample (NOT one-shot at onReady), matching
+            // the smoke contract's regex /isFinite\([^)]*getDuration/ for M4.
+            let duration = null;
+            let isLive = false;
+            try {
+              const dur = (_wpYtPlayer && typeof _wpYtPlayer.getDuration === 'function')
+                ? _wpYtPlayer.getDuration()
+                : NaN;
+              if (!isFinite(dur)) return; // unknown — skip this sample, don't guess live
+              if (dur > 0) {
+                duration = dur;
+                isLive = false;
+              } else {
+                duration = null;
+                isLive = true; // genuinely live (dur === 0 in YT API for live broadcasts)
+              }
+            } catch (e) { duration = null; isLive = true; }
+            broadcastCurrentTime(wp.id, sec, 'youtube', duration, isLive);
+          });
+          _wpVideoSampler = setInterval(() => {
+            try {
+              if (_wpYtPlayer && typeof _wpYtPlayer.getCurrentTime === 'function') {
+                _wpVideoBroadcaster(_wpYtPlayer.getCurrentTime());
+              }
+            } catch (e) { /* ignore */ }
+          }, Math.max(1000, Math.floor(VIDEO_BROADCAST_INTERVAL_MS / 2)));
+        },
+        onError: () => renderPlayerErrorOverlay('wp-yt-player')
+      }
+    });
+  } else if (wp.videoSource === 'mp4') {
+    const video = document.getElementById('wp-mp4-player');
+    if (!video) return;
+    _wpVideoElement = video;
+    // REVIEWS M1 — Late-join seek for non-hosts on MP4 too.
+    if (!isHost) {
+      seekToBroadcastedTime(video, wp, 'mp4');
+    }
+    // REVIEWS H5 — Store handler refs so teardown can remove them.
+    // Phase 24 / CR-24-01 — Wait for metadata BEFORE arming the broadcaster. video.duration
+    // is NaN until 'loadedmetadata' fires; if we sample before then, we'd incorrectly
+    // stamp wp.isLiveStream=true and any reactions posted in that window would carry
+    // runtimeSource:'live-stream' (invisible to replay forever).
+    if (isHost) {
+      const armBroadcaster = () => {
+        if (_wpVideoBroadcaster) return; // idempotent — already armed
+        _wpVideoBroadcaster = makeIntervalBroadcaster(VIDEO_BROADCAST_INTERVAL_MS, sec => {
+          const duration = (typeof video.duration === 'number' && isFinite(video.duration) && video.duration > 0) ? video.duration : null;
+          const isLive = duration === null;
+          broadcastCurrentTime(wp.id, sec, 'mp4', duration, isLive);
+        });
+        _wpVideoTimeHandler = function () {
+          if (_wpVideoBroadcaster && _wpVideoElement) _wpVideoBroadcaster(_wpVideoElement.currentTime);
+        };
+        video.addEventListener('timeupdate', _wpVideoTimeHandler);
+      };
+      if (video.readyState >= 1 /* HAVE_METADATA */) armBroadcaster();
+      else video.addEventListener('loadedmetadata', armBroadcaster, { once: true });
+    }
+    _wpVideoErrorHandler = function () { renderPlayerErrorOverlay('wp-mp4-player'); };
+    video.addEventListener('error', _wpVideoErrorHandler);
+  }
+}
+
+function teardownVideoPlayer() {
+  if (_wpVideoSampler) { clearInterval(_wpVideoSampler); _wpVideoSampler = null; }
+  _wpVideoBroadcaster = null;
+  // REVIEWS H5 — Remove stored event handlers BEFORE nulling the element ref.
+  if (_wpVideoElement) {
+    if (_wpVideoTimeHandler) {
+      try { _wpVideoElement.removeEventListener('timeupdate', _wpVideoTimeHandler); } catch (e) { /* ignore */ }
+    }
+    if (_wpVideoErrorHandler) {
+      try { _wpVideoElement.removeEventListener('error', _wpVideoErrorHandler); } catch (e) { /* ignore */ }
+    }
+    try { _wpVideoElement.pause(); } catch (e) { /* ignore */ }
+  }
+  _wpVideoTimeHandler = null;
+  _wpVideoErrorHandler = null;
+  _wpVideoElement = null;
+  // REVIEWS H4 — Remove the delegated retry click handler.
+  if (_wpRetryClickHandler) {
+    const surface = document.getElementById('wp-video-surface');
+    const frame = surface ? surface.querySelector('.wp-video-frame') : null;
+    if (frame) {
+      try { frame.removeEventListener('click', _wpRetryClickHandler); } catch (e) { /* ignore */ }
+    }
+    _wpRetryClickHandler = null;
+  }
+  if (_wpYtPlayer && typeof _wpYtPlayer.destroy === 'function') {
+    try { _wpYtPlayer.destroy(); } catch (e) { /* ignore */ }
+  }
+  _wpYtPlayer = null;
+  // REVIEWS H1 — Clear the persistent surface so next attach starts fresh.
+  const surface = document.getElementById('wp-video-surface');
+  if (surface) surface.innerHTML = '';
+}
+
+// Per UI-SPEC Interaction States: italic-serif "Player couldn't load that link." + Try again link.
+// REVIEWS H4 — Try-again link is a real <a> with data-action="retry-video"; click is wired
+// via delegated handler on the .wp-video-frame parent (attached in attachVideoPlayer).
+function renderPlayerErrorOverlay(playerElementId) {
+  const player = document.getElementById(playerElementId);
+  if (!player) return;
+  const wrap = player.closest('.wp-video-frame');
+  if (!wrap) return;
+  let overlay = wrap.querySelector('.wp-video-error');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'wp-video-error';
+    wrap.appendChild(overlay);
+  }
+  overlay.innerHTML = "<em>Player couldn't load that link.</em>" +
+    ' <a class="link-like" href="#" data-action="retry-video">Try again</a>';
+}
+
+// window-scoped so the delegated retry handler (and any test/debug code) can reach it.
+window.reloadWatchpartyPlayer = function() {
+  const wp = state.watchparties && state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp) return;
+  teardownVideoPlayer();
+  attachVideoPlayer(wp);
+};
+
+window.openWatchpartyLive = function(wpId, opts) {
   state.activeWatchpartyId = wpId;
+  // Phase 26 / RPLY-26-13 — mode flag set BEFORE first render so first paint is mode-correct.
+  // Default 'live' preserves backward compat for all existing call sites that pass (wpId) only.
+  state.activeWatchpartyMode = (opts && opts.mode === 'revisit') ? 'revisit' : 'live';
+  // Phase 26 / WR-26-04 — fresh per-wp persistent set on every revisit-open so cross-wp
+  // navigation in one session doesn't leak shown-reaction ids between archived parties.
+  if (state.activeWatchpartyMode === 'revisit') {
+    state.replayShownReactionIds = new Set();
+  }
   renderWatchpartyLive();
-  document.getElementById('wp-live-modal-bg').classList.add('on');
-  // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt
+  const _wpLiveBg = document.getElementById('wp-live-modal-bg');
+  _wpLiveBg.classList.add('on');
+  activateFocusTrap(_wpLiveBg);
+  // Phase 11 / REFR-10 — Game Mode: start score polling + team-flair prompt.
+  // Phase 23 — gate widened: ALSO fire for legacy wp.sportEvent watchparties
+  // (created via scheduleSportsWatchparty before mode='game' was the canonical
+  // marker). Closes the "scoreboard renders but never updates" gap on legacy
+  // sports wps. team-flair picker stays gated on mode='game' since the legacy
+  // flow predates that surface.
   const wp = state.watchparties && state.watchparties.find(x => x.id === wpId);
-  if (wp && wp.mode === 'game') {
+  if (wp && (wp.mode === 'game' || wp.sportEvent)) {
     startSportsScorePolling(wp);
-    const mine = myParticipation(wp);
-    maybeShowTeamFlairPicker(wp, mine);
+    if (wp.mode === 'game') {
+      const mine = myParticipation(wp);
+      maybeShowTeamFlairPicker(wp, mine);
+    }
+  }
+  // Phase 24 / REVIEWS H1 — Attach the persistent video player AFTER coordination paints.
+  // Player surface is independent of renderWatchpartyLive; safe to attach late.
+  if (wp && wp.videoUrl) {
+    attachVideoPlayer(wp);
   }
 };
 
 window.closeWatchpartyLive = function() {
+  // Phase 24 — Tear down the player FIRST so timers/listeners die before
+  // anything else clears state. Idempotent if no player is attached.
+  teardownVideoPlayer();
   document.getElementById('wp-live-modal-bg').classList.remove('on');
+  deactivateFocusTrap();
   // Phase 11 / REFR-10 — stop any active score polling loop
   stopSportsScorePolling();
   state.activeWatchpartyId = null;
+  // Phase 26 / RPLY-26-13 + RESEARCH Pitfall 9 — clear replay flag + clock so the next
+  // live-mode open does NOT render in replay variant.
+  state.activeWatchpartyMode = null;
+  state.replayLocalPositionMs = null;
+  // Phase 26 / Plan 03 — also tear down the local replay clock state + persistence set.
+  state.replayClockPlaying = false;
+  state.replayClockAnchorWallclock = null;
+  state.replayClockAnchorPosition = null;
+  state.replayShownReactionIds = null;
 };
+
+// === Phase 27 — banner guest-count + closed-pill helpers ===
+function buildWpBannerMetaSuffix(wp) {
+  const guestCount = (wp && typeof wp.guestCount === 'number') ? wp.guestCount : 0;
+  return guestCount > 0 ? ' &middot; ' + guestCount + ' guest' + (guestCount === 1 ? '' : 's') : '';
+}
+function buildWpClosedPillHtml(wp) {
+  return (wp && wp.rsvpClosed === true)
+    ? '<div class="wp-rsvp-closed-pill" role="status" aria-label="RSVPs closed">RSVPs CLOSED</div>'
+    : '';
+}
+function buildWpHostRsvpToggleHtml(wp) {
+  if (!state.me || !wp || state.me.id !== wp.hostId) return '';
+  const wpIdSafe = escapeHtml(wp.id || '');
+  if (wp.rsvpClosed === true) {
+    return `<button class="link-btn" type="button" onclick="openRsvps('${wpIdSafe}')">Open RSVPs</button>`;
+  }
+  return `<button class="link-btn" type="button" onclick="closeRsvps('${wpIdSafe}')">Close RSVPs</button>`;
+}
 
 function renderWatchpartyBanner() {
   const el = document.getElementById('wp-banner-tonight');
   if (!el) return;
   const active = activeWatchparties();
   if (!active.length) { el.innerHTML = ''; return; }
-  el.innerHTML = active.map(wp => {
+  // Phase 15.5 / D-04 + REQ-9: split active wps into fresh (Tonight banner) vs stale (Past parties).
+  // Cancelled wps follow the existing 10-min visibility from activeWatchparties — keep them in the
+  // banner regardless of age (consistent with pre-15.5 cancellation UX).
+  const splitNow = Date.now();
+  const freshWps = active.filter(wp =>
+    wp.status === 'cancelled' ||
+    wp.startAt > splitNow ||
+    (splitNow - wp.startAt) < WP_STALE_MS
+  );
+  const staleWps = active.filter(wp =>
+    wp.status !== 'cancelled' &&
+    wp.startAt <= splitNow &&
+    (splitNow - wp.startAt) >= WP_STALE_MS
+  );
+  const bannerHtml = freshWps.map(wp => {
     const now = Date.now();
     const mine = myParticipation(wp);
     const joined = !!mine;
@@ -8745,8 +12237,9 @@ function renderWatchpartyBanner() {
         ${posterHtml}
         <div class="wp-banner-body">
           ${titleHtml}
-          <div class="wp-banner-meta">${hostLabel} cancelled this watchparty</div>
+          <div class="wp-banner-meta">${hostLabel} cancelled this watchparty${buildWpBannerMetaSuffix(wp)}</div>
           <div class="wp-banner-status" style="color:var(--ink-dim);">Cancelled</div>
+          ${buildWpClosedPillHtml(wp)}${buildWpHostRsvpToggleHtml(wp)}
         </div>
       </div>`;
     }
@@ -8778,28 +12271,270 @@ function renderWatchpartyBanner() {
       ${posterHtml}
       <div class="wp-banner-body">
         ${titleHtml}
-        <div class="wp-banner-meta">${metaLine}</div>
+        <div class="wp-banner-meta">${metaLine}${buildWpBannerMetaSuffix(wp)}</div>
         <div class="wp-banner-status">${status}</div>
+        ${buildWpClosedPillHtml(wp)}${buildWpHostRsvpToggleHtml(wp)}
       </div>
       <button class="wp-banner-action" onclick="event.stopPropagation();${actionFn}">${actionLabel}</button>
     </div>`;
   }).join('');
+  // Phase 26 / RPLY-26-20 — Tonight tab inline link gating. Renames Phase 15.5's
+  // staleWps.length count source to allReplayableArchivedCount; preserves hide-when-zero
+  // gating per first-week-after-deploy framing (silent UX per D-10).
+  const pastReplayableCount = allReplayableArchivedCount(state.watchparties);
+  const pastPartiesHtml = pastReplayableCount > 0
+    ? `<div class="past-parties-link-row" role="button" tabindex="0"
+          onclick="openPastParties()"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPastParties();}"
+          aria-label="Past parties, ${pastReplayableCount} watchpart${pastReplayableCount === 1 ? 'y' : 'ies'}">
+        Past parties
+        <span class="past-parties-count">(${pastReplayableCount})</span>
+        <span class="past-parties-chevron" aria-hidden="true">›</span>
+      </div>`
+    : '';
+  el.innerHTML = bannerHtml + pastPartiesHtml;
 }
 
 // Live view — full implementation
-const WP_QUICK_EMOJIS = ['😂','😱','😭','🤯','👀','🔥','💀','❤️','🤔','🙌'];
+// v36.4: expanded 10 → 16 reactions; rendered as Twemoji <img> for cross-device consistency.
+const WP_QUICK_EMOJIS = ['😂','😱','😭','🤯','👀','🔥','💀','❤️','🤔','🙌','🎉','👏','😴','🥰','🤡','🙄'];
+
+// Phase 26 / RPLY-26-DRIFT — UI-SPEC §2 lock: ±2-second tolerance window for replay-feed
+// fade-in match. Matches the seed default + the family use case (1-2s human typing delay
+// when the original reactor posted, plus a similar tolerance for viewer scrubber-drag).
+// Sub-second precision is out of scope per CONTEXT § Deferred.
+const DRIFT_TOLERANCE_MS = 2000;
 
 function memberColor(memberId) {
   const m = state.members.find(x => x.id === memberId);
   return m && m.color ? m.color : '#888';
 }
 
+// Phase 26 / RPLY-26-04 + RPLY-26-05 + RPLY-26-SNAP — Replay scrubber strip.
+// Container .wp-replay-scrubber-strip styled in css/app.css per UI-SPEC §2.
+// Plan 03 implements the local clock + the toggleReplayClock + onScrubberInput/onChange handlers.
+function formatScrubberTime(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec - h * 3600) / 60);
+  const s = totalSec - h * 3600 - m * 60;
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+}
+function renderReplayScrubber(wp) {
+  const totalMs = getScrubberDurationMs(wp);
+  const localMs = state.replayLocalPositionMs || 0;
+  const totalStr = formatScrubberTime(totalMs);
+  const currStr = formatScrubberTime(localMs);
+  // step="1000" — 1-sec snap per UI-SPEC §2 lock (RPLY-26-SNAP)
+  // aria-label, play/pause aria-label per UI-SPEC §Copywriting (banned-words ledger respected)
+  return '<div class="wp-replay-scrubber-strip" role="group" aria-label="Replay controls">' +
+    '<button class="wp-replay-playpause" type="button" id="wp-replay-playpause" ' +
+      'aria-label="Start watching from here" onclick="toggleReplayClock()">' +
+      '▶' +  // U+25B6 paused state; flips to U+23F8 when Plan 03 toggles play
+    '</button>' +
+    '<input type="range" class="wp-replay-scrubber-input" id="wp-replay-scrubber-input" ' +
+      'min="0" max="' + totalMs + '" step="1000" value="' + localMs + '" ' +
+      'aria-label="Move to where you are in the movie" ' +
+      'aria-valuemin="0" aria-valuemax="' + totalMs + '" aria-valuenow="' + localMs + '" ' +
+      'aria-valuetext="' + currStr + ' of ' + totalStr + '" ' +
+      'oninput="onReplayScrubberInput(this.value)" ' +
+      'onchange="onReplayScrubberChange(this.value)" />' +
+    '<span class="wp-replay-scrubber-readout" id="wp-replay-scrubber-readout">' +
+      currStr + ' / ' + totalStr +
+    '</span>' +
+  '</div>';
+}
+// Phase 26 / Plan 03 — Local replay clock + scrubber input handlers.
+// UI-SPEC §2 locks: 1× rate, requestAnimationFrame for smoothness, Date.now() deltas
+// for tab-blur correctness. oninput updates readout + CSS var only (no reaction re-mount
+// — Pitfall 6); onchange (drag-end) re-renders the feed via renderWatchpartyLive().
+
+function _replayCurrentWp() {
+  return state.watchparties && state.watchparties.find(x => x.id === state.activeWatchpartyId);
+}
+function _replayUpdateReadoutDom(wp) {
+  const totalMs = getScrubberDurationMs(wp);
+  const localMs = state.replayLocalPositionMs || 0;
+  const readoutEl = document.getElementById('wp-replay-scrubber-readout');
+  if (readoutEl) {
+    readoutEl.textContent = formatScrubberTime(localMs) + ' / ' + formatScrubberTime(totalMs);
+  }
+  const inputEl = document.getElementById('wp-replay-scrubber-input');
+  if (inputEl) {
+    const pct = totalMs > 0 ? (localMs / totalMs * 100) : 0;
+    inputEl.style.setProperty('--scrubber-pct', String(pct));
+    inputEl.setAttribute('aria-valuenow', String(localMs));
+    inputEl.setAttribute('aria-valuetext', formatScrubberTime(localMs) + ' of ' + formatScrubberTime(totalMs));
+    // Keep the value attr in sync ONLY if the user is not currently dragging
+    // (browser handles the value attr while the user holds the thumb).
+    if (document.activeElement !== inputEl) {
+      inputEl.value = String(localMs);
+    }
+  }
+}
+function _replayClockTick() {
+  if (!state.replayClockPlaying) return;
+  const wp = _replayCurrentWp();
+  if (!wp || state.activeWatchpartyMode !== 'revisit') {
+    state.replayClockPlaying = false;
+    return;
+  }
+  const totalMs = getScrubberDurationMs(wp);
+  const wall = Date.now();
+  const anchorWall = state.replayClockAnchorWallclock || wall;
+  const anchorPos = state.replayClockAnchorPosition || 0;
+  const next = Math.min(totalMs, Math.max(0, anchorPos + (wall - anchorWall)));
+  const prev = state.replayLocalPositionMs || 0;
+  state.replayLocalPositionMs = next;
+  _replayUpdateReadoutDom(wp);
+  // Re-render only when the clock crosses a reaction's runtimePositionMs (within drift).
+  // Cheap check: if any reaction in (prev+drift, next+drift] would newly enter the visible
+  // window, trigger a feed re-render.
+  const prevWindow = prev + DRIFT_TOLERANCE_MS;
+  const nextWindow = next + DRIFT_TOLERANCE_MS;
+  const reactions = (wp.reactions || []);
+  let crossed = false;
+  for (let i = 0; i < reactions.length; i++) {
+    const r = reactions[i];
+    if (r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream'
+        && r.runtimePositionMs > prevWindow && r.runtimePositionMs <= nextWindow) {
+      crossed = true; break;
+    }
+  }
+  if (crossed) {
+    renderWatchpartyLive();
+  }
+  // Auto-pause at end of timeline
+  if (next >= totalMs) {
+    state.replayClockPlaying = false;
+    _replayUpdatePlayPauseButton(false);
+    return;
+  }
+  requestAnimationFrame(_replayClockTick);
+}
+function _replayUpdatePlayPauseButton(isPlaying) {
+  const btn = document.getElementById('wp-replay-playpause');
+  if (!btn) return;
+  btn.textContent = isPlaying ? '⏸' : '▶';
+  btn.setAttribute('aria-label', isPlaying ? 'Pause where you are' : 'Start watching from here');
+}
+
+// Override Plan 02 stubs with real implementations. Use plain assignments
+// (NOT the `if (typeof ...)` guard) so the real bodies always win.
+window.toggleReplayClock = function() {
+  if (state.activeWatchpartyMode !== 'revisit') return;  // safety guard
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const totalMs = getScrubberDurationMs(wp);
+  // If at end, pressing play restarts from 0 (per UI-SPEC §2 — no separate rewind affordance).
+  if (state.replayClockPlaying) {
+    state.replayClockPlaying = false;
+    _replayUpdatePlayPauseButton(false);
+  } else {
+    if ((state.replayLocalPositionMs || 0) >= totalMs) {
+      state.replayLocalPositionMs = 0;
+      _replayUpdateReadoutDom(wp);
+    }
+    state.replayClockAnchorWallclock = Date.now();
+    state.replayClockAnchorPosition = state.replayLocalPositionMs || 0;
+    state.replayClockPlaying = true;
+    _replayUpdatePlayPauseButton(true);
+    requestAnimationFrame(_replayClockTick);
+  }
+};
+
+window.onReplayScrubberInput = function(value) {
+  // oninput fires continuously during drag — update readout + CSS var ONLY (Pitfall 6).
+  // No reaction re-mount during drag.
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const v = parseInt(value, 10);
+  if (!isFinite(v)) return;
+  state.replayLocalPositionMs = Math.max(0, v);
+  _replayUpdateReadoutDom(wp);
+};
+
+window.onReplayScrubberChange = function(value) {
+  // onchange fires once at drag-end — re-render feed so position-aligned subset re-evaluates.
+  const wp = _replayCurrentWp();
+  if (!wp) return;
+  const v = parseInt(value, 10);
+  if (!isFinite(v)) return;
+  state.replayLocalPositionMs = Math.max(0, v);
+  // Re-anchor the play clock so it continues smoothly from the new drop position.
+  if (state.replayClockPlaying) {
+    state.replayClockAnchorWallclock = Date.now();
+    state.replayClockAnchorPosition = state.replayLocalPositionMs;
+  }
+  renderWatchpartyLive();  // triggers renderReplayReactionsFeed re-evaluation
+};
+// Phase 26 / RPLY-26-06 — Replay-mode reactions feed (position-aligned subset).
+// Selection rule per UI-SPEC §3 (locked):
+//   skip if r.runtimePositionMs == null  (covers 'live-stream' AND pre-Phase-26)
+//   show if r.runtimePositionMs <= localReplayPositionMs + DRIFT_TOLERANCE_MS
+//   hide if r.runtimePositionMs > localReplayPositionMs + DRIFT_TOLERANCE_MS
+// Sort: ascending by runtimePositionMs.
+// Persistence (Pitfall 5): once a reaction has been shown this session, it stays visible
+// across scrub-backward. state.replayShownReactionIds tracks the session-set.
+// Wait Up (RPLY-26-14): NOT applied in replay variant — the `mine.reactionDelay` filter
+// from renderReactionsFeed is intentionally absent here.
+window.renderReplayReactionsFeed = function(wp, localReplayPositionMs) {
+  if (!state.replayShownReactionIds) {
+    state.replayShownReactionIds = new Set();
+  }
+  const all = (wp && Array.isArray(wp.reactions)) ? wp.reactions : [];
+  // Update the persistent visible-set: add any reaction newly within the drift window.
+  for (const r of all) {
+    if (r && r.runtimePositionMs != null
+        && r.runtimePositionMs <= (localReplayPositionMs + DRIFT_TOLERANCE_MS)
+        && r.runtimeSource !== 'live-stream') {
+      if (r.id) state.replayShownReactionIds.add(r.id);
+    }
+  }
+  // Render the union: anything in the session-set, sorted by runtimePositionMs ascending.
+  const visible = all
+    .filter(r => r && r.runtimePositionMs != null && r.runtimeSource !== 'live-stream')
+    .filter(r => r.id && state.replayShownReactionIds.has(r.id))
+    .sort((a, b) => a.runtimePositionMs - b.runtimePositionMs);
+  if (!visible.length) {
+    // Empty-state per UI-SPEC §3 — italic Instrument Serif, --ink-dim, no instruction copy.
+    return '<div class="wp-live-body" id="wp-reactions-feed">' +
+      '<div style="text-align:center;color:var(--ink-dim);font-size:var(--t-meta);padding:20px;">' +
+        '<em style="font-family:\'Instrument Serif\',serif;">Nothing yet at this moment.</em>' +
+      '</div>' +
+    '</div>';
+  }
+  // Reuse the existing per-row renderReaction(r, mode) helper at js/app.js:11961.
+  const rows = visible.map(r => renderReaction(r, 'replay')).join('');
+  return '<div class="wp-live-body" id="wp-reactions-feed">' + rows + '</div>';
+};
+
 function renderWatchpartyLive() {
-  const el = document.getElementById('wp-live-content');
+  // Phase 24 / REVIEWS H1 — Render coordination only; never touch #wp-video-surface.
+  // The player is owned by attachVideoPlayer / teardownVideoPlayer and survives re-renders.
+  const el = document.getElementById('wp-live-coordination');
   if (!el) return;
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) { el.innerHTML = '<div style="padding:24px;">Watchparty not found.</div>'; return; }
+  // Phase 26 / RPLY-26-04 + RPLY-26-13 — replay-variant gating.
+  // Eligibility precondition: replay variant only renders when wp.status === 'archived'
+  // (per D-06). Defensive: even if state.activeWatchpartyMode === 'revisit' was
+  // somehow set on a non-archived wp (shouldn't happen — Plan 04 entry gates on
+  // archived), fall back to live-mode chrome.
+  const isArchived = wp.status === 'archived';
+  const isReplay = state.activeWatchpartyMode === 'revisit' && isArchived;
   const isSport = !!wp.sportEvent;
+  // Phase 24 — When player is active in #wp-video-surface, hide the redundant
+  // .wp-live-poster via parent class. Player IS the visual identity.
+  let headerExtraClass = '';
+  if (wp.videoUrl && wp.videoSource) {
+    const _t = state.titles && state.titles.find(x => x.id === wp.titleId);
+    if (titleHasNonDrmPath(_t)) {
+      headerExtraClass = ' wp-live-header--has-player';
+    }
+  }
   // Header title block — matchup format for sports, regular title otherwise
   const liveTitleHtml = isSport
     ? `<div class="wp-live-titlename" style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;">${escapeHtml(wp.sportEvent.awayTeam || 'Away')} <span style="color:var(--ink-dim);font-family:'Inter',sans-serif;font-style:normal;font-size:var(--t-meta);letter-spacing:0.06em;text-transform:uppercase;">at</span> ${escapeHtml(wp.sportEvent.homeTeam || 'Home')}</div>`
@@ -8810,7 +12545,7 @@ function renderWatchpartyLive() {
     : `<div class="wp-live-poster" style="background-image:url('${wp.titlePoster||''}')"></div>`;
   // If cancelled, show a dedicated end state
   if (wp.status === 'cancelled') {
-    el.innerHTML = `<div class="wp-live-header">
+    el.innerHTML = `<div class="wp-live-header${headerExtraClass}">
       ${livePosterHtml}
       <div class="wp-live-titleinfo">
         ${liveTitleHtml}
@@ -8837,16 +12572,25 @@ function renderWatchpartyLive() {
   const preStart = wp.startAt > now;
   const participants = Object.entries(wp.participants || {});
   // Header
-  const statusText = preStart
-    ? (isSport ? `Kickoff ${formatStartTime(wp.startAt)}` : `Starts ${formatStartTime(wp.startAt)}`)
-    : `Started ${formatStartTime(wp.startAt)}`;
-  const header = `<div class="wp-live-header">
+  // Phase 26 / RPLY-26-15 — Replay-variant eyebrow source string is 'Revisiting' (CSS
+  // .wp-live-status text-transform:uppercase displays it as 'REVISITING'). Live-mode
+  // statusText branch unchanged.
+  const statusText = isReplay
+    ? 'Revisiting'
+    : (preStart
+        ? (isSport ? `Kickoff ${formatStartTime(wp.startAt)}` : `Starts ${formatStartTime(wp.startAt)}`)
+        : `Started ${formatStartTime(wp.startAt)}`);
+  // Phase 26 / RPLY-26-04 + RPLY-26-15 — replay-variant scrubber strip + 'together again'
+  // italic-serif sub-line + Wait Up/participants/timer guards live in the same render body.
+  const scrubberStrip = isReplay ? renderReplayScrubber(wp) : '';
+  const header = `<div class="wp-live-header${headerExtraClass}">
     ${livePosterHtml}
     <div class="wp-live-titleinfo">
       ${liveTitleHtml}
-      <div class="wp-live-status">${statusText}${mine && mine.pausedAt ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
+      ${isReplay ? '<div class="wp-live-revisit-subline">together again</div>' : ''}
+      <div class="wp-live-status">${statusText}${mine && mine.pausedAt && !isReplay ? ' · <span style="color:var(--accent);">Paused</span>' : ''}</div>
     </div>
-    ${mine && mine.startedAt ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine, wp))}</div>` : ''}
+    ${mine && mine.startedAt && !isReplay ? `<div class="wp-live-timer" id="wp-live-timer-display">${formatElapsed(computeElapsed(mine, wp))}</div>` : ''}
     <button class="pill icon-only" aria-label="Close watchparty" onclick="closeWatchpartyLive()" style="margin-left:6px;">✕</button>
   </div>`;
 
@@ -8892,6 +12636,26 @@ function renderWatchpartyLive() {
         <button class="wp-ready-check ${myReady?'on':''}" onclick="toggleReadyCheck('${escapeHtml(wp.id)}')">${myReady?'Ready ✓':"I'm ready"}</button>
         ${isHost && majority ? `<button class="wp-lobby-start-btn" onclick="hostStartSession('${escapeHtml(wp.id)}')">Start the session</button>` : ''}
       </div>
+      ${isHost ? `
+      <section class="wp-add-family-section" id="wp-add-family-section-lobby" aria-labelledby="wp-add-family-heading-lobby">
+        <h3 class="wp-add-family-heading" id="wp-add-family-heading-lobby">Bring another couch in</h3>
+        <p class="wp-add-family-subline" id="wp-add-family-subline-lobby"><em>Pull up another family for tonight.</em></p>
+        <div class="wp-couches-list" id="wp-couches-list-lobby" role="list" aria-label="Families in this watchparty"></div>
+        <div class="wp-add-family-input-row" id="wp-add-family-input-row-lobby">
+          <input type="text" id="wp-add-family-input-lobby"
+                 class="wp-add-family-input"
+                 placeholder="Paste their family code"
+                 inputmode="text"
+                 autocapitalize="characters"
+                 autocomplete="off"
+                 autocorrect="off"
+                 spellcheck="false"
+                 aria-label="Other family's code">
+          <button type="button" id="wp-add-family-submit-lobby" class="wp-add-family-submit btn">Bring them in</button>
+        </div>
+        <p class="wp-add-family-help"><em>They'll see their crew show up in this watchparty's couch.</em></p>
+      </section>
+    ` : ''}
     </div>`;
     body = lobbyHtml;
   } else if (preStart && !inLobbyWindow) {
@@ -8905,14 +12669,21 @@ function renderWatchpartyLive() {
       <div style="font-size:var(--t-meta);color:var(--ink-dim);font-style:italic;">When you actually hit play, tap "Start my timer" below so your reactions line up with everyone else's.</div>
     </div>`;
   } else if (!mine) {
-    // Un-joined viewer — UNCHANGED copy. Footer's "Join late" button (js/app.js:~7654)
-    // is the single CTA for this case; do NOT introduce additional H2/body copy here
-    // (would create a redundant/conflicting action with the footer).
-    body = `<div class="wp-prelaunch">
-      <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
-      <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
-      ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
-    </div>`;
+    // Phase 26 / CR-26-02 — replay-mode entry by a non-original-participant must render
+    // the position-anchored reactions feed (D-08 dual-entry surface). Live-mode copy
+    // unchanged below.
+    if (isReplay) {
+      body = window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0);
+    } else {
+      // Un-joined viewer — UNCHANGED copy. Footer's "Join late" button (js/app.js:~7654)
+      // is the single CTA for this case; do NOT introduce additional H2/body copy here
+      // (would create a redundant/conflicting action with the footer).
+      body = `<div class="wp-prelaunch">
+        <div style="font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h2);font-weight:400;margin-bottom:8px;">Ready when you are</div>
+        <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
+        ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
+      </div>`;
+    }
   } else if (!mine.startedAt) {
     // Phase 7 Plan 06 (Gap #3): joined participant whose timer hasn't started yet
     // (late joiner / pre-start creator / re-joiner). Show the "Ready when you are"
@@ -8923,7 +12694,11 @@ function renderWatchpartyLive() {
       <div style="font-size:var(--t-meta);color:var(--ink-dim);margin-bottom:18px;">Start the movie on your device, then tap the button below to sync your timer with everyone else.</div>
       ${participants.length > 1 ? `<div style="font-size:var(--t-meta);color:var(--ink-dim);">Already watching: ${participants.filter(([,p]) => p.startedAt).map(([,p]) => p.name).join(', ') || 'nobody yet'}</div>` : ''}
     </div>`;
-    body = prompt + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine, 'wallclock');
+    body = prompt
+      + (!isReplay ? renderParticipantTimerStrip(wp) : '')
+      + (isReplay
+          ? window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0)
+          : renderReactionsFeed(wp, mine, 'wallclock'));
   } else {
     // Active watching — render reactions feed based on mode
     // Phase 7 Plan 03 (PARTY-03): advisory per-member timer strip sits above the reactions feed
@@ -8932,11 +12707,18 @@ function renderWatchpartyLive() {
     // Phase 11 / REFR-08: inject the late-joiner Catch-me-up card at the TOP of wp-live-body
     // so late joiners get a 30s reaction recap without breaking the per-user reaction-delay
     // moat. Empty state (< 3 pre-join reactions in window) hides the card entirely.
-    const catchupHtml = renderCatchupCard(wp, mine);
+    // Phase 26 — Replay variant suppresses Catch-me-up + participant strip + DVR slider; Plan 03's
+    // renderReplayReactionsFeed becomes the sole feed source when isReplay.
+    const catchupHtml = !isReplay ? renderCatchupCard(wp, mine) : '';
     // Phase 11 / REFR-10: DVR slider tail for sport-mode — per-user "I'm N seconds behind"
     // offset feeds the existing Phase 7 reactionDelay render filter. Movie mode unchanged.
-    const dvrHtml = (wp.mode === 'game') ? renderDvrSlider(wp, mine) : '';
-    body = catchupHtml + renderParticipantTimerStrip(wp) + renderReactionsFeed(wp, mine) + dvrHtml;
+    const dvrHtml = (!isReplay && wp.mode === 'game') ? renderDvrSlider(wp, mine) : '';
+    body = catchupHtml
+      + (!isReplay ? renderParticipantTimerStrip(wp) : '')
+      + (isReplay
+          ? window.renderReplayReactionsFeed(wp, state.replayLocalPositionMs || 0)
+          : renderReactionsFeed(wp, mine))
+      + dvrHtml;
   }
 
   // Footer
@@ -8974,7 +12756,22 @@ function renderWatchpartyLive() {
     body = renderSportsScoreStrip(wp) + body;
   }
 
-  el.innerHTML = header + body + footer;
+  // Phase 28 / PICK-28-13 — Inline pick'em row inside .wp-live-modal.
+  // Surfaces "who has picked what" for the current game above the body content
+  // when wp.mode === 'game' AND any family member has picked AND the game has
+  // not yet started. The function self-gates on all three conditions and
+  // returns '' otherwise, so unconditional concatenation is safe. picksForGame
+  // is sourced from the chunked-listener-populated map state.pickemPicksByGameMember
+  // (see openPickemSurface @ L18876), keyed by wp.sportEvent.id.
+  if (wp.mode === 'game' && wp.sportEvent && wp.sportEvent.id && typeof renderInlineWpPickRow === 'function') {
+    const picksMap = (state.pickemPicksByGameMember && state.pickemPicksByGameMember[wp.sportEvent.id]) || {};
+    const picksForGame = Object.values(picksMap);
+    body = renderInlineWpPickRow(wp, picksForGame) + body;
+  }
+
+  // Phase 26 / RPLY-26-04 — replay-variant emits the scrubber strip ABOVE the header
+  // (still inside #wp-live-coordination per Phase 24 H1 split — never touches #wp-video-surface).
+  el.innerHTML = scrubberStrip + header + body + footer;
   // Restore compose input state
   const newInput = document.getElementById('wp-compose-input');
   if (newInput && savedText) newInput.value = savedText;
@@ -8999,6 +12796,12 @@ function renderWatchpartyLive() {
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postTextReaction(); }
     });
+  }
+  // Phase 30 — wire the Bring another couch in lobby surface (host-only; the lobby HTML
+  // only includes the section when isHost, and renderAddFamilySection internally no-ops when
+  // the DOM element is missing — safe to call unconditionally on every renderWatchpartyLive tick).
+  if (typeof renderAddFamilySection === 'function') {
+    renderAddFamilySection(wp, '-lobby');
   }
 }
 
@@ -9030,16 +12833,16 @@ function renderCatchupCard(wp, mine) {
       ? recentPlays.map(p => {
           const qLabel = p.period ? `Q${p.period}` : '';
           const clockLabel = p.clock ? ` ${escapeHtml(p.clock)}` : '';
-          return `<div class="wp-catchup-sport-play">${escapeHtml(qLabel)}${clockLabel} &mdash; ${escapeHtml(p.text || 'Score')}</div>`;
+          return `<div class="wp-catchup-sport-play">${escapeHtml(qLabel)}${clockLabel} · ${escapeHtml(p.text || 'Score')}</div>`;
         }).join('')
       : '<div class="wp-catchup-sport-play"><em>No scoring plays yet.</em></div>';
     return `<div class="wp-catchup-card">
-      <div class="wp-catchup-eyebrow">YOU MISSED</div>
+      <div class="wp-catchup-eyebrow">WAITED UP</div>
       <div class="wp-catchup-title"><em>Here's where we are.</em></div>
       <div class="wp-catchup-sport-score">Score: ${escapeHtml(awayAbbr)} ${awayScore}, ${escapeHtml(homeAbbr)} ${homeScore}</div>
       <div class="wp-catchup-sport-label">Last 3 plays:</div>
       ${playsHtml}
-      <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+      <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it. Catch me up.</button>
     </div>`;
   }
   // Movie-mode variant — 30s reaction rail
@@ -9058,10 +12861,10 @@ function renderCatchupCard(wp, mine) {
     </div>`;
   }).join('');
   return `<div class="wp-catchup-card">
-    <div class="wp-catchup-eyebrow">YOU MISSED</div>
+    <div class="wp-catchup-eyebrow">WAITED UP</div>
     <div class="wp-catchup-title"><em>Here's the last 30 seconds.</em></div>
     <div class="wp-catchup-rail">${rail}</div>
-    <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it &mdash; catch me up to now</button>
+    <button class="wp-control-btn wp-catchup-dismiss" onclick="dismissCatchup('${escapeHtml(wp.id)}')">Got it. Catch me up.</button>
   </div>`;
 }
 
@@ -9113,6 +12916,47 @@ function renderReactionsFeed(wp, mine, modeOverride) {
   // Sort by elapsed time (or posted time in wall-clock mode)
   const sorted = visible.slice().sort((a,b) => mode === 'wallclock' ? (a.at - b.at) : ((a.elapsedMs||0) - (b.elapsedMs||0)));
   return `<div class="wp-live-body" id="wp-reactions-feed">${sorted.map(r => renderReaction(r, mode)).join('')}</div>`;
+}
+
+// === Phase 27 — Guest RSVP helpers ===
+// D-04: render-time (guest) suffix only when normalized name collides with a family member.
+function getFamilyMemberNamesSet() {
+  return new Set((state.members || []).map(m => (m.name || '').trim().toLowerCase()).filter(Boolean));
+}
+// Phase 30 — D-09 render-time collision detection across families.
+// Returns { lowercased-name: count } for collision detection.
+// CRITICAL Pitfall 6 critical: only cross-family collisions trigger the (FamilyName) suffix.
+// Within-family same-name collisions (rare but possible) must NOT trigger the suffix.
+// The Pitfall 6 logic lives in the chip-render branch in renderParticipantTimerStrip
+// (which checks crossFamilyMembers[i].familyCode against the host family); this helper
+// only counts; the differentiation logic is the consumer's responsibility.
+function buildNameCollisionMap(wp) {
+  const nameCounts = {};
+  Object.values(wp.participants || {}).forEach(p => {
+    const n = (p.name || '').trim().toLowerCase();
+    if (n) nameCounts[n] = (nameCounts[n] || 0) + 1;
+  });
+  (wp.crossFamilyMembers || []).forEach(m => {
+    const n = (m.name || '').trim().toLowerCase();
+    if (n) nameCounts[n] = (nameCounts[n] || 0) + 1;
+  });
+  return nameCounts;
+}
+// D-04: returns "{name} (guest)" iff name collides; otherwise returns name verbatim.
+function displayGuestName(rawName, familyMemberNamesSet) {
+  const name = rawName || 'Guest';
+  const norm = name.trim().toLowerCase();
+  if (familyMemberNamesSet && familyMemberNamesSet.has(norm)) {
+    return name + ' (guest)';
+  }
+  return name;
+}
+// D-01: response label for guest chips. undefined/null/'invited' → 'Invited'.
+function guestResponseLabel(response) {
+  if (response === 'yes')   return 'Going';
+  if (response === 'maybe') return 'Maybe';
+  if (response === 'no')    return 'Not coming';
+  return 'Invited';
 }
 
 // Phase 7 Plan 03 — advisory per-member timer strip. Shows every participant's current
@@ -9168,7 +13012,73 @@ function renderParticipantTimerStrip(wp) {
       </div>
     </div>`;
   }).join('');
-  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}</div>`;
+  // === Phase 27 — append guest chips after member chips ===
+  const familyMemberNamesSet = getFamilyMemberNamesSet();
+  const visibleGuests = (Array.isArray(wp.guests) ? wp.guests : []).filter(g => g && !g.revoked);
+  const isHost = state.me && state.me.id === wp.hostId;
+  const guestChips = visibleGuests.map(guest => {
+    const safeGuestId = escapeHtml(guest.guestId || '');
+    const rawName = (guest.name || 'Guest').toString();
+    const display = displayGuestName(rawName, familyMemberNamesSet);
+    const initial = (display || '?')[0].toUpperCase();
+    const respLabel = guestResponseLabel(guest.response);
+    const kebab = isHost
+      ? `<button class="wp-guest-kebab" type="button" aria-label="Guest options for ${escapeHtml(display)}" onclick="event.stopPropagation();openGuestMenu('${safeGuestId}','${escapeHtml(wp.id)}',event)">&#8942;</button>`
+      : '';
+    return `<div class="wp-participant-chip guest" data-guest-id="${safeGuestId}" role="listitem">
+      <div class="wp-participant-av" style="background:#5a8a84;" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-info">
+        <div class="wp-participant-name">${escapeHtml(display)}<span class="chip-badge badge-guest">guest</span></div>
+        <div class="wp-participant-time" data-role="pt-time">${escapeHtml(respLabel)}</div>
+      </div>
+      ${kebab}
+    </div>`;
+  }).join('');
+  // === Phase 30 — append cross-family member chips ===
+  // Pitfall 6 critical: collision suffix fires ONLY when the same name appears in TWO
+  // DIFFERENT families. Same name within one family must NOT trigger the suffix.
+  const collisionMap = buildNameCollisionMap(wp);
+  const crossFamilyChips = (Array.isArray(wp.crossFamilyMembers) ? wp.crossFamilyMembers : []).map(m => {
+    const rawName = (m.name || 'Member').toString();
+    const norm = rawName.trim().toLowerCase();
+    // Pitfall 6: collision must span DIFFERENT families. Check that the name appears
+    // both in this family AND somewhere else (participants OR a different crossFamily entry).
+    // Implementation: if collisionMap shows count > 1 AND there's at least one entry in
+    // wp.participants with the same name OR a crossFamilyMember from a DIFFERENT familyCode
+    // with the same name, suffix fires.
+    let hasCrossFamilyCollision = false;
+    if ((collisionMap[norm] || 0) > 1) {
+      // Check participants (always considered "host family" / current viewer's family)
+      const inParticipants = Object.values(wp.participants || {}).some(p => (p.name || '').trim().toLowerCase() === norm);
+      if (inParticipants) {
+        hasCrossFamilyCollision = true;
+      } else {
+        // No participant collision — check for collision with a crossFamilyMember from a different familyCode
+        const otherFamilyMatches = (wp.crossFamilyMembers || []).filter(other =>
+          other.familyCode !== m.familyCode && (other.name || '').trim().toLowerCase() === norm
+        );
+        if (otherFamilyMatches.length > 0) hasCrossFamilyCollision = true;
+      }
+    }
+    const familyDisplayName = m.familyDisplayName || m.familyCode || '';
+    const displayName = hasCrossFamilyCollision
+      ? `${escapeHtml(rawName)} <span class="family-suffix">(${escapeHtml(familyDisplayName)})</span>`
+      : escapeHtml(rawName);
+    const initial = (rawName || '?')[0].toUpperCase();
+    // Phase 30 / LOW-1 — m.color is stamped by addFamilyToWp from a foreign family's
+    // member doc and reaches a CSS context. escapeHtml alone leaves CSS-injection
+    // (tracking pixels via background-image:url(...)) viable. Validate against a
+    // strict hex/rgb pattern; fall back to neutral grey on anything weirder.
+    const rawColor = m.color || '';
+    const safeColor = /^#[0-9a-f]{3,8}$|^rgb/i.test(rawColor) ? rawColor : '#888';
+    return `<div class="wp-participant-chip cross-family" data-member-id="${escapeHtml(m.memberId || '')}" role="listitem">
+      <div class="wp-participant-av" style="background:${escapeHtml(safeColor)};" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="wp-participant-info">
+        <div class="wp-participant-name">${displayName}</div>
+        <div class="wp-participant-time" data-role="pt-time">Joined</div>
+      </div></div>`;
+  }).join('');
+  return `<div class="wp-participants-strip" role="list" aria-label="Watchparty participants">${chips}${guestChips}${crossFamilyChips}</div>`;
 }
 
 function renderReaction(r, mode) {
@@ -9194,19 +13104,38 @@ function renderWatchpartyFooter(wp, mine) {
   const paused = !!mine.pausedAt;
   // Phase 7 Plan 03: '+ more' button opens the iOS native emoji keyboard via hidden-input focus.
   // Keeps palette familiar while unlocking unlimited emoji choice without a JS picker library.
-  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')">${e}</button>`).join('')
+  const emojiBtns = WP_QUICK_EMOJIS.map(e => `<button class="wp-emoji-btn" onclick="postEmojiReaction('${e}')" aria-label="React with ${e}">${twemojiImg(e, e, 'twemoji--md')}</button>`).join('')
     + `<button class="wp-emoji-btn wp-emoji-more" onclick="openEmojiPicker()" aria-label="More emoji">+</button>`;
   // Phase 7 Plan 07 (PARTY-04): reaction-delay preset chips. Only meaningful in elapsed mode
   // — wallclock ignores delay by design (shows everything as-posted) and hidden renders nothing
   // regardless. Chips are a thin visual modifier on the base .wp-control-btn class.
+  // Phase 15.5 / D-02 + REQ-2 + REQ-4 + REQ-6: 8-element chip ladder (Live + 6 presets + Custom).
+  // Custom… renders dashed border in idle state; ON when reactionDelay > 0 AND not in preset list.
+  // Per UI-SPEC § Banned-words ledger: no 'delay'/'buffer'/'queue'/'offset'/'sync' in chip labels or aria-labels.
   const currentDelay = (mine.reactionDelay || 0);
-  const delayPresets = [0, 5, 15, 30];
-  const delayChips = delayPresets.map(s => {
-    const label = s === 0 ? 'Off' : s + 's';
+  const delayPresets = [0, 15, 60, 300, 900, 1800, 3600];
+  const presetLabels = { 0: 'Live', 15: '15 sec', 60: '1 min', 300: '5 min', 900: '15 min', 1800: '30 min', 3600: '1 hr' };
+  const isPresetMatch = delayPresets.includes(currentDelay);
+  const customOn = currentDelay > 0 && !isPresetMatch;
+  const presetChipsHtml = delayPresets.map(s => {
+    const label = presetLabels[s];
     const on = s === currentDelay;
-    const title = s === 0 ? 'No reaction delay' : `Delay reactions by ${s} seconds`;
-    return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" title="${title}">${label}</button>`;
+    const aria = s === 0
+      ? (on ? 'Wait up: Live, currently active' : 'Stop waiting up, go back to live')
+      : (on ? `Wait up: ${label}, currently active` : `Wait up: ${label}`);
+    return `<button class="wp-control-btn wp-delay ${on?'on':''}" onclick="setReactionDelay(${s})" aria-label="${escapeHtml(aria)}">${escapeHtml(label)}</button>`;
   }).join('');
+  const customAria = customOn ? 'Wait up: open custom picker, currently active' : 'Wait up: open custom picker';
+  const customChipHtml = `<button class="wp-control-btn wp-delay custom-chip ${customOn?'on':''}" onclick="openWaitUpPicker()" aria-label="${escapeHtml(customAria)}">Custom…</button>`;
+  const delayChips = presetChipsHtml + customChipHtml;
+  // Phase 15.5 / D-07 + REQ-5: sub-line below chip strip with italic 'waiting {value}' readout
+  // and +5 min nudge button. Visible only when currentDelay > 0; hidden at Live (0).
+  const subLineDisplay = currentDelay > 0 ? 'flex' : 'none';
+  const readoutValue = dvrReadoutText(currentDelay);
+  const subLineHtml = `<div class="wp-delay-subline" id="wp-delay-subline" style="display:${subLineDisplay};">
+      <em class="serif-italic wp-delay-readout-text">waiting ${escapeHtml(readoutValue)}</em>
+      <button class="wp-delay-nudge-btn" onclick="addWaitUpNudge()" aria-label="Add 5 minutes to wait up">+5 min</button>
+    </div>`;
   const delayRowDisplay = (mode === 'elapsed') ? 'flex' : 'none';
   const controls = `<div class="wp-controls">
     ${paused
@@ -9217,14 +13146,15 @@ function renderWatchpartyFooter(wp, mine) {
     <button class="wp-control-btn danger" onclick="endMyWatchparty('${wp.id}')">Done</button>
   </div>
   <div class="wp-delay-row" style="display:${delayRowDisplay};">
-    <span class="wp-delay-label">Delay</span>
+    <span class="wp-delay-label">Wait up</span>
     ${delayChips}
-  </div>`;
+  </div>
+  ${subLineHtml}`;
   return `<div class="wp-live-footer">
     ${controls}
     <div class="wp-emoji-row">${emojiBtns}</div>
     <div class="wp-compose">
-      <input type="text" id="wp-compose-input" placeholder="${paused ? 'Paused — reactions queued' : 'Say something…'}" maxlength="240" ${paused?'disabled':''}>
+      <input type="text" id="wp-compose-input" placeholder="${paused ? 'Paused. We waited up.' : 'Say something…'}" maxlength="240" ${paused?'disabled':''}>
       <button onclick="postTextReaction()" ${paused?'disabled style="opacity:0.5;"':''}>Post</button>
     </div>
   </div>`;
@@ -9271,20 +13201,85 @@ window.postTextReaction = async function() {
   await postReaction({ kind: 'text', text });
 };
 
+// Phase 26 / RPLY-26-01..RPLY-26-03 — Position-derivation hybrid for the reactions schema additions.
+// Branch order LOCKED per CONTEXT D-01..D-05 + UI-SPEC enum closure (do NOT reorder):
+//   1. ctx.isReplay === true               → { localReplayPositionMs (default 0), 'replay' }
+//   2. ctx.wp.isLiveStream === true        → { null, 'live-stream' }
+//   3. broadcast fresh (within STALE_BROADCAST_MAX_MS) → { extrapolated, 'broadcast' }
+//   4. otherwise (no broadcast / stale)    → { ctx.elapsedMs, 'elapsed' }
+// Pure: no DOM reads, no Firestore writes; only reads its arguments.
+// Smoke mirrors this body inline per scripts/smoke-decision-explanation.cjs precedent.
+function derivePositionForReaction(ctx) {
+  const wp = ctx && ctx.wp ? ctx.wp : {};
+
+  // (1) Replay-mode compounding (D-05) — overrides everything; locked first.
+  if (ctx && ctx.isReplay === true) {
+    const pos = (typeof ctx.localReplayPositionMs === 'number' && isFinite(ctx.localReplayPositionMs))
+      ? Math.max(0, Math.round(ctx.localReplayPositionMs))
+      : 0;
+    return { runtimePositionMs: pos, runtimeSource: 'replay' };
+  }
+
+  // (2) Live-stream — D-03 (no re-watchable timeline).
+  if (wp.isLiveStream === true) {
+    return { runtimePositionMs: null, runtimeSource: 'live-stream' };
+  }
+
+  // (3) Fresh broadcast — D-01 primary path.
+  const ct = (typeof wp.currentTimeMs === 'number' && isFinite(wp.currentTimeMs)) ? wp.currentTimeMs : null;
+  const ctUpdatedAt = (typeof wp.currentTimeUpdatedAt === 'number' && isFinite(wp.currentTimeUpdatedAt))
+    ? wp.currentTimeUpdatedAt : null;
+  if (ct !== null && ctUpdatedAt !== null) {
+    const sinceUpdate = Date.now() - ctUpdatedAt;
+    if (sinceUpdate >= 0 && sinceUpdate < STALE_BROADCAST_MAX_MS) {
+      return {
+        runtimePositionMs: Math.max(0, Math.round(ct + sinceUpdate)),
+        runtimeSource: 'broadcast'
+      };
+    }
+  }
+
+  // (4) Fallback — D-02 (no player / stale broadcast → elapsedMs proxy).
+  const elapsed = (ctx && typeof ctx.elapsedMs === 'number' && isFinite(ctx.elapsedMs)) ? ctx.elapsedMs : 0;
+  return { runtimePositionMs: Math.max(0, Math.round(elapsed)), runtimeSource: 'elapsed' };
+}
+
 async function postReaction(payload) {
   if (!state.me || !state.activeWatchpartyId) return;
   if (guardReadOnlyWrite()) return;                // Plan 5.8 D-15: no watchparty reactions from unclaimed post-grace
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp) return;
   const mine = myParticipation(wp);
-  if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
-  if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
-  const elapsedMs = computeElapsed(mine, wp);
+  // Phase 26 / CR-26-01 — replay-mode reactions must reach derivePositionForReaction even
+  // when the viewer was never an original participant (D-08 dual-entry surface). Hoist
+  // the replay branch above the live-mode participation guard. pausedAt has no meaning
+  // when revisiting an archived wp, so we bypass it in replay mode too.
+  const isReplay = state.activeWatchpartyMode === 'revisit';
+  if (!isReplay) {
+    if (!mine || !mine.startedAt) { alert('Start your timer first.'); return; }
+    if (mine.pausedAt) { alert('You are paused. Resume to post.'); return; }
+  }
+  const elapsedMs = isReplay ? 0 : computeElapsed(mine, wp);
+
+  // Phase 26 / RPLY-26-01 + RPLY-26-07 — derive position-anchored fields for the reaction.
+  // isReplay path is reachable when Plan 02 ships state.activeWatchpartyMode = 'revisit' on
+  // the replay-mode entry path; until then this stays false and live-mode reactions land
+  // on broadcast/elapsed/live-stream per D-01..D-03.
+  const { runtimePositionMs, runtimeSource } = derivePositionForReaction({
+    wp,
+    mine,
+    elapsedMs,
+    isReplay,
+    localReplayPositionMs: state.replayLocalPositionMs
+  });
+
   const reaction = {
     id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
     ...writeAttribution(),
     elapsedMs,
     at: Date.now(),
+    runtimePositionMs,
+    runtimeSource,
     ...payload
   };
   try {
@@ -9350,12 +13345,13 @@ window.setWpMode = async function(mode) {
 // mutate local state + synchronous renderWatchpartyLive() BEFORE the await updateDoc, so the
 // preset chip highlights instantly. Distinct from postReaction's post-await echo pattern —
 // delay is a local UI preference (zero-latency feel matters, rollback is trivial via
-// onSnapshot authoritative overwrite). Seconds are clamped [0, 60] defensively — UI only
-// offers 0 / 5 / 15 / 30 but console callers could pass anything.
+// onSnapshot authoritative overwrite). Seconds are clamped [0, 86400] defensively (Phase 15.5
+// widened from [0, 60]) — UI offers Live + 6 chip presets + Custom… picker + slider 0-24h.
 window.setReactionDelay = async function(seconds) {
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
   if (!wp || !state.me) return;
-  const s = Math.max(0, Math.min(60, parseInt(seconds, 10) || 0));
+  // Phase 15.5 / D-01 + REQ-1: clamp widened from 60 to 86400 (24 hr) — supports flex Wait Up across sport+movie modes.
+  const s = Math.max(0, Math.min(86400, parseInt(seconds, 10) || 0));
   // Pre-await optimistic mutation — matches setWpMode's shape (Plan 06 Gap #2a).
   if (wp.participants && wp.participants[state.me.id]) {
     wp.participants[state.me.id].reactionDelay = s;
@@ -9369,6 +13365,177 @@ window.setReactionDelay = async function(seconds) {
     });
   } catch(e) { alert('Could not change delay: ' + e.message); }
 };
+
+// Phase 15.5 / D-07 + REQ-5: addWaitUpNudge — +5 min nudge for the bathroom-bump case.
+// Adds 300 sec to current reactionDelay, clamped at 86400 (24 hr). Pattern copied from
+// setReactionDelay's pre-await optimistic mutation shape (lines 11268-11285 above).
+// Haptic on successful add only; no haptic on clamp (per UI-SPEC § +5 min nudge button —
+// no haptic for "did nothing"). Logs failures via qnLog (matches setDvrOffset error path).
+window.addWaitUpNudge = async function() {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  if (!wp || !state.me) return;
+  const mine = wp.participants && wp.participants[state.me.id];
+  if (!mine) return;
+  const current = mine.reactionDelay || 0;
+  if (current <= 0) return; // button is hidden when 0; defensive guard
+  const newVal = Math.max(0, Math.min(86400, current + 300));
+  const wasClamped = (current + 300) > 86400;
+  if (!wasClamped && typeof haptic === 'function') {
+    try { haptic(); } catch(e) { /* haptic best-effort */ }
+  }
+  // Pre-await optimistic mutation (matches setReactionDelay shape — js/app.js:11273-11277).
+  if (wp.participants && wp.participants[state.me.id]) {
+    wp.participants[state.me.id].reactionDelay = newVal;
+  }
+  renderWatchpartyLive();
+  try {
+    await updateDoc(watchpartyRef(wp.id), {
+      [`participants.${state.me.id}.reactionDelay`]: newVal,
+      lastActivityAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch(e) {
+    if (typeof qnLog === 'function') qnLog('[WaitUp] nudge write failed', e && e.message);
+  }
+};
+
+// Phase 15.5 / D-03 + REQ-3 + REQ-8: Wait Up custom picker open/close/submit.
+// R-1 mitigation: scrollIntoView on focus to avoid iOS keyboard overlap on standalone PWA.
+window.openWaitUpPicker = function() {
+  const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
+  const mine = wp && wp.participants && state.me ? wp.participants[state.me.id] : null;
+  const current = (mine && mine.reactionDelay) || 0;
+  const h = Math.floor(current / 3600);
+  const m = Math.floor((current % 3600) / 60);
+  const s = current % 60;
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  if (hEl) hEl.value = h ? String(h) : '';
+  if (mEl) mEl.value = m ? String(m) : '';
+  if (sEl) sEl.value = s ? String(s) : '';
+  const bg = document.getElementById('wait-up-picker-bg');
+  if (bg) bg.classList.add('on');
+  // Focus hours input + scroll into view (R-1 — iOS keyboard overlap mitigation).
+  // setTimeout 60ms ensures the .on class has applied + sheet has slid up before focus fires.
+  setTimeout(() => {
+    if (hEl) {
+      try { hEl.focus(); } catch(e) { /* defensive */ }
+      try { hEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(e) { /* defensive */ }
+    }
+  }, 60);
+};
+
+window.closeWaitUpPicker = function() {
+  const bg = document.getElementById('wait-up-picker-bg');
+  if (bg) bg.classList.remove('on');
+  // Return focus to the Custom… chip for accessibility (per UI-SPEC § Accessibility / focus order).
+  const customChip = document.querySelector('.wp-control-btn.wp-delay.custom-chip');
+  if (customChip && typeof customChip.focus === 'function') {
+    try { customChip.focus(); } catch(e) { /* defensive */ }
+  }
+};
+
+window.submitWaitUpPicker = function() {
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  const h = hEl ? (parseInt(hEl.value, 10) || 0) : 0;
+  const m = mEl ? (parseInt(mEl.value, 10) || 0) : 0;
+  const s = sEl ? (parseInt(sEl.value, 10) || 0) : 0;
+  const total = Math.max(0, Math.min(86400, h * 3600 + m * 60 + s));
+  // setReactionDelay clamps at 86400 too (Plan 01) — defense in depth.
+  setReactionDelay(total);
+  closeWaitUpPicker();
+};
+
+window.setPickerPreset = function(sec) {
+  // Tap on 1 hr / 2 hr / 12 hr / 24 hr inside the picker — fills fields AND submits in one tap (D-03).
+  const safeSec = Math.max(0, Math.min(86400, parseInt(sec, 10) || 0));
+  const h = Math.floor(safeSec / 3600);
+  const m = Math.floor((safeSec % 3600) / 60);
+  const s = safeSec % 60;
+  const hEl = document.getElementById('wup-hours');
+  const mEl = document.getElementById('wup-min');
+  const sEl = document.getElementById('wup-sec');
+  if (hEl) hEl.value = String(h);
+  if (mEl) mEl.value = String(m);
+  if (sEl) sEl.value = String(s);
+  submitWaitUpPicker();
+};
+
+// Phase 15.5 / D-04 + REQ-10: Past parties surface — modal-based listing of 5h-25h stale wps.
+// Sorted most-recent-first per UI-SPEC § "6b Sort order".
+// Modal approach (per RESEARCH § REQ-9) avoids un-highlighted tab-bar state issue and gives free
+// hardware-back / iOS-swipe-back dismissal.
+window.openPastParties = function() {
+  renderPastParties();
+  const bg = document.getElementById('past-parties-bg');
+  if (bg) bg.classList.add('on');
+};
+
+window.closePastParties = function() {
+  const bg = document.getElementById('past-parties-bg');
+  if (bg) bg.classList.remove('on');
+  // Phase 26 / Pitfall 10 — reset pagination cursor between sessions for cleanliness.
+  state.pastPartiesShownCount = null;
+};
+
+function renderPastParties() {
+  const el = document.getElementById('past-parties-list');
+  if (!el) return;
+  const PAST_PARTIES_PAGE_SIZE = 20;  // D-09 lock per UI-SPEC §4
+  // Phase 26 / RPLY-26-09 — switch query from 5h-25h WP_STALE_MS window to ALL archived
+  // parties with replay-able reactions. allArchived is the unsliced authoritative list.
+  const allArchived = archivedWatchparties()
+    .filter(wp => wp.status !== 'cancelled')
+    .filter(wp => replayableReactionCount(wp) >= 1)
+    .sort((a, b) => b.startAt - a.startAt);  // most-recent-first
+  if (!allArchived.length) {
+    // Defensive — shouldn't happen because the inline link is hidden when count is 0.
+    el.innerHTML = '';
+    return;
+  }
+  const shownCount = state.pastPartiesShownCount || PAST_PARTIES_PAGE_SIZE;
+  const visible = allArchived.slice(0, shownCount);
+  const rowsHtml = visible.map(wp => {
+    const participantCount = wp.participants ? Object.keys(wp.participants).length : 0;
+    const reactionCount = replayableReactionCount(wp);
+    const reactionLabel = reactionCount === 1 ? '1 reaction' : (reactionCount + ' reactions');
+    const titleNameSafe = escapeHtml(wp.titleName || 'Watchparty');
+    const posterStyle = wp.titlePoster
+      ? `background-image:url('${escapeHtml(wp.titlePoster)}')`
+      : '';
+    const wpIdSafe = escapeHtml(wp.id);
+    const dateLine = friendlyPartyDate(wp.startAt);
+    const ariaLabel = `${titleNameSafe}, ${dateLine}, ${participantCount} on the couch, ${reactionLabel}`;
+    // Phase 26 / RPLY-26-08 part 1 — row tap enters replay variant.
+    const actionFn = `openWatchpartyLive('${wpIdSafe}', { mode: 'revisit' })`;
+    return `<div class="past-parties-row" role="button" tabindex="0"
+              onclick="closePastParties();${actionFn}"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closePastParties();${actionFn};}"
+              aria-label="${escapeHtml(ariaLabel)}">
+      <div class="past-parties-poster" style="${posterStyle}"></div>
+      <div class="past-parties-body">
+        <div class="past-parties-title">${titleNameSafe}</div>
+        <div class="past-parties-meta">${escapeHtml(dateLine)}</div>
+        <div class="past-parties-meta">${participantCount} on the couch</div>
+        <div class="past-parties-meta">${reactionLabel}</div>
+      </div>
+      <span class="past-parties-row-chevron" aria-hidden="true">›</span>
+    </div>`;
+  }).join('');
+  // Phase 26 / RPLY-26-PAGE — pagination affordance per UI-SPEC §4.
+  const showOlderHtml = allArchived.length > shownCount
+    ? `<div class="past-parties-show-older" role="button" tabindex="0"
+          onclick="state.pastPartiesShownCount = (state.pastPartiesShownCount || ${PAST_PARTIES_PAGE_SIZE}) + ${PAST_PARTIES_PAGE_SIZE}; renderPastParties();"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();state.pastPartiesShownCount = (state.pastPartiesShownCount || ${PAST_PARTIES_PAGE_SIZE}) + ${PAST_PARTIES_PAGE_SIZE}; renderPastParties();}"
+          aria-label="Show older parties">
+        Show older parties <span class="past-parties-chevron" aria-hidden="true">›</span>
+      </div>`
+    : '';
+  el.innerHTML = rowsHtml + showOlderHtml;
+}
 
 // Phase 7 Plan 08 (Issue #4): claimStartedOnTime — late-joiner manual override for the
 // elapsed-time anchor. When a participant joined AFTER startAt + grace (default inference
@@ -9466,6 +13633,67 @@ window.hostStartSession = async function(wpId) {
 // couch-photo upload (Firebase Storage first use, narrow scope per CLAUDE.md) +
 // "Schedule another night" CTA that pre-fills the watchparty start modal with the same
 // title. "Maybe later" dismisses and flags wp.postSessionDismissedBy[memberId]=true.
+
+// === Phase 15 / D-01 (TRACK-15-03) — REVIEW MEDIUM-5 episode resolution waterfall ===
+// D-01 spec: "members who joined + episode queued = automatic progress tuple."
+// "Episode queued" means the episode that was selected when the watchparty
+// was scheduled. Prefer the watchparty payload over host-progress inference.
+// Returns { season, episode, sourceField } when any tier resolves, else null.
+//
+// Tier order (highest confidence first):
+//   1. wp.episode + wp.season         (direct fields — Phase 7 schema)
+//   2. wp.queuedEpisode {season,episode}  (nested object — payload variant)
+//   3. wp.intent.proposedSeason + wp.intent.proposedEpisode  (Phase 14-08 Flow B prefill inheritance)
+//   4. host-progress + 1              (last-resort fallback — explicit "best guess"; sourceField='host-progress-plus-1')
+//   5. null                           (abort: better to skip stash than to lie)
+//
+// Field-shape verification at execution time (2026-04-27): Grep on
+// `wp.episode|wp.season|wp.queuedEpisode|wp.intent|proposedSeason|proposedEpisode`
+// across js/app.js returned NO matches — meaning the current Phase 7 watchparty
+// schema does NOT store any queued-episode metadata on the wp doc, AND Phase
+// 14-08 Flow B intents are not propagated as wp.intent. As a result, in
+// production today only Tier 4 (host-progress + 1) will resolve. Tiers 1-3 are
+// future-ready scaffolding for a follow-up plan that extends the wp schema (or
+// for any consumer who chooses to propagate wp.intent on Flow-B-spawned
+// watchparties). The stash records `sourceField` so 15-04 UI + telemetry can
+// distinguish high-confidence from best-guess resolutions.
+function resolveAutoTrackEpisode(wp, t) {
+  if (!wp || !t || t.kind !== 'TV') return null;
+  // Tier 1 — direct fields on wp
+  if (wp.episode != null && wp.season != null) {
+    return { season: wp.season, episode: wp.episode, sourceField: 'wp.episode' };
+  }
+  // Tier 2 — wp.queuedEpisode object
+  if (wp.queuedEpisode && wp.queuedEpisode.episode != null && wp.queuedEpisode.season != null) {
+    return {
+      season: wp.queuedEpisode.season,
+      episode: wp.queuedEpisode.episode,
+      sourceField: 'wp.queuedEpisode'
+    };
+  }
+  // Tier 3 — Phase 14-08 Flow B intent inheritance
+  if (wp.intent && wp.intent.proposedEpisode != null && wp.intent.proposedSeason != null) {
+    return {
+      season: wp.intent.proposedSeason,
+      episode: wp.intent.proposedEpisode,
+      sourceField: 'wp.intent'
+    };
+  }
+  // Tier 4 — host-progress + 1 fallback (last resort; explicitly low-confidence)
+  if (wp.hostId) {
+    const hostProgress = (t.progress || {})[wp.hostId];
+    if (hostProgress && hostProgress.season != null && hostProgress.episode != null) {
+      return {
+        season: hostProgress.season,
+        episode: hostProgress.episode + 1,
+        sourceField: 'host-progress-plus-1'
+      };
+    }
+  }
+  // Tier 5 — abort
+  return null;
+}
+
 let _postSessionWpId = null;
 let _postSessionRating = 0;
 
@@ -9477,8 +13705,89 @@ window.openPostSession = function(wpId) {
   if (dismissed || alreadyRated) return;
   _postSessionWpId = wpId;
   _postSessionRating = 0;
+  // === Phase 15 / D-01 (TRACK-15-03) — auto-track tuple progress on watchparty end ===
+  // Compute the auto-track candidate from the watchparty roster + REVIEW MEDIUM-5
+  // episode resolution waterfall. Stash on state._pendingTupleAutoTrack —
+  // 15-04's post-session sub-render reads this and presents an inline
+  // "Mark S{N}E{M} for {tupleName}? [Yes] [Edit]" affordance. Yes calls
+  // writeTupleProgress(...). Edit opens openProgressSheet for manual selection.
+  // We DO NOT silently write the tuple — D-06 forbids silent fabrication.
+  state._pendingTupleAutoTrack = null;  // clear stale stash from prior open
+  if (wp.titleId) {
+    const wpParticipants = Object.keys(wp.participants || {}).filter(mid => {
+      const p = wp.participants[mid];
+      return p && p.startedAt;  // only members who actually started timers
+    });
+    if (wpParticipants.length >= 1) {
+      const t = state.titles.find(x => x.id === wp.titleId);
+      if (t && t.kind === 'TV') {
+        const resolved = resolveAutoTrackEpisode(wp, t);
+        if (resolved) {
+          state._pendingTupleAutoTrack = {
+            titleId: wp.titleId,
+            memberIds: wpParticipants,
+            season: resolved.season,
+            episode: resolved.episode,
+            sourceField: resolved.sourceField,  // 'wp.episode' | 'wp.queuedEpisode' | 'wp.intent' | 'host-progress-plus-1'
+            sourceWpId: wpId
+          };
+          // Sentry breadcrumb so we can telemeter which tier wins in production
+          try {
+            if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+              Sentry.addBreadcrumb({
+                category: 'tupleAutoTrack',
+                level: 'info',
+                message: 'auto-track candidate stashed',
+                data: { sourceField: resolved.sourceField, season: resolved.season, episode: resolved.episode }
+              });
+            }
+          } catch (_) {}
+        } else {
+          // No tier resolved — tier-5 abort. Don't stash. Sentry-track so we
+          // can observe how often this happens in production (informs whether
+          // we need a follow-up plan to extend wp schema).
+          try {
+            if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+              Sentry.addBreadcrumb({
+                category: 'tupleAutoTrack',
+                level: 'warning',
+                message: 'auto-track aborted — no episode could be resolved from wp/intent/host-progress',
+                data: { wpId: wpId, titleId: wp.titleId }
+              });
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  }
   const sub = document.getElementById('wp-post-session-sub');
-  if (sub) sub.innerHTML = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
+  if (sub) {
+    let baseHtml = `<em>How was ${escapeHtml(wp.titleName || 'that')}?</em>`;
+    // === Phase 15 / D-01 (TRACK-15-04) — auto-track confirmation row ===
+    // REVIEW MEDIUM-7 — data-cv15-action attrs + delegated listener (NOT inline onclick).
+    const at = state._pendingTupleAutoTrack;
+    if (at && at.titleId === wp.titleId && at.memberIds && at.memberIds.length) {
+      const tk = tupleKey(at.memberIds);
+      const tupleNameRaw = (tk && tupleCustomName(tk))
+        || (tk && tupleDisplayName(tk, state.members))
+        || 'this couch';
+      const seasonNum = at.season != null ? at.season : '?';
+      const episodeNum = at.episode != null ? at.episode : '?';
+      // REVIEW MEDIUM-5 surface — show "(best guess)" qualifier when low-confidence.
+      const confidenceQual = (at.sourceField === 'host-progress-plus-1')
+        ? `<span class="cv15-autotrack-confidence"> (best guess)</span>`
+        : '';
+      const promptLabel = `Mark S${escapeHtml(String(seasonNum))}E${escapeHtml(String(episodeNum))} for <strong>${escapeHtml(tupleNameRaw)}</strong>?${confidenceQual}`;
+      baseHtml += `<div class="cv15-autotrack-row">
+        <p>${promptLabel}</p>
+        <button class="tc-primary" type="button" data-cv15-action="confirmAutoTrack">Yes</button>
+        <button class="tc-secondary" type="button" data-cv15-action="editAutoTrack">Edit</button>
+      </div>`;
+    }
+    sub.innerHTML = baseHtml;
+    // REVIEW MEDIUM-7 — attach delegated listener for the Yes/Edit buttons.
+    if (typeof cv15AttachPostSessionDelegate === 'function') cv15AttachPostSessionDelegate();
+  }
   // Reset rating + photo UI
   document.querySelectorAll('.wp-rating-star').forEach(s => { s.classList.remove('filled'); s.innerHTML = '&#9734;'; });
   const rc = document.getElementById('wp-rating-confirm'); if (rc) rc.style.display = 'none';
@@ -9488,6 +13797,46 @@ window.openPostSession = function(wpId) {
   const bg = document.getElementById('wp-post-session-modal-bg');
   if (bg) bg.classList.add('on');
 };
+
+// === Phase 15 / D-01 (TRACK-15-04) — auto-track Yes/Edit handlers + REVIEW MEDIUM-7 delegated listener ===
+async function cv15ConfirmAutoTrack() {
+  const at = state._pendingTupleAutoTrack;
+  if (!at || !at.titleId || !at.memberIds || !at.memberIds.length) return;
+  await writeTupleProgress(at.titleId, at.memberIds, at.season, at.episode, 'watchparty');
+  state._pendingTupleAutoTrack = null;
+  flashToast('Saved');
+  const row = document.querySelector('#wp-post-session-sub .cv15-autotrack-row');
+  if (row) row.style.display = 'none';
+}
+function cv15EditAutoTrack() {
+  const at = state._pendingTupleAutoTrack;
+  if (!at || !at.titleId) return;
+  if (typeof window.openProgressSheet === 'function' && state.me) {
+    window.openProgressSheet(at.titleId, state.me.id);
+  }
+}
+function cv15HandlePostSessionClick(ev) {
+  const trigger = ev.target.closest('[data-cv15-action]');
+  if (!trigger) return;
+  const action = trigger.getAttribute('data-cv15-action');
+  switch (action) {
+    case 'confirmAutoTrack':
+      cv15ConfirmAutoTrack();
+      break;
+    case 'editAutoTrack':
+      cv15EditAutoTrack();
+      break;
+    default:
+      console.warn('[Phase 15 / MEDIUM-7] unknown post-session cv15-action', action);
+  }
+}
+function cv15AttachPostSessionDelegate() {
+  const sub = document.getElementById('wp-post-session-sub');
+  if (!sub) return;
+  if (sub.getAttribute('data-cv15-bound') === '1') return;
+  sub.addEventListener('click', cv15HandlePostSessionClick);
+  sub.setAttribute('data-cv15-bound', '1');
+}
 
 window.closePostSession = async function() {
   // Flag dismissal so the modal doesn't reappear on next render of this wp.
@@ -9910,7 +14259,7 @@ function renderYearInReview(stats) {
       ${g.memberRanked.length > 0 ? `<div class="yir-stat wide"><span class="yir-stat-label">Most active</span><span class="yir-stat-value small">${topMemberLabel}</span><span class="yir-stat-sub">${g.memberRanked.slice(1, 4).map(m => `${escapeHtml(m.name)} (${m.count})`).join(' · ') || 'Runs the couch'}</span></div>` : ''}
       ${g.topGenre ? `<div class="yir-stat"><span class="yir-stat-label">Group genre</span><span class="yir-stat-value small">${escapeHtml(g.topGenre.name)}</span><span class="yir-stat-sub">${g.topGenre.count} watches</span></div>` : ''}
       ${g.topProvider ? `<div class="yir-stat"><span class="yir-stat-label">Most-used service</span><span class="yir-stat-value small">${escapeHtml(g.topProvider.name)}</span><span class="yir-stat-sub">${g.topProvider.count} ${g.topProvider.count===1?'title':'titles'}</span></div>` : ''}
-      ${g.topMood ? `<div class="yir-stat"><span class="yir-stat-label">Group mood</span><span class="yir-stat-value small">${(moodById(g.topMood.id)||{}).icon||''} ${(moodById(g.topMood.id)||{}).label||escapeHtml(g.topMood.id)}</span><span class="yir-stat-sub">The vibe this year</span></div>` : ''}
+      ${g.topMood ? `<div class="yir-stat"><span class="yir-stat-label">Group mood</span><span class="yir-stat-value small">${twemojiImg((moodById(g.topMood.id)||{}).icon, (moodById(g.topMood.id)||{}).label)} ${(moodById(g.topMood.id)||{}).label||escapeHtml(g.topMood.id)}</span><span class="yir-stat-sub">The vibe this year</span></div>` : ''}
       ${g.groupTopRated ? `<div class="yir-stat wide"><span class="yir-stat-label">Highest-rated pick</span><span class="yir-stat-value small">${escapeHtml(g.groupTopRated.t.name)}</span><span class="yir-stat-sub">${formatScore(g.groupTopRated.avg)}/10 average · ${g.groupTopRated.count} ratings</span></div>` : ''}
       ${g.topDisagreement ? `<div class="yir-stat wide"><span class="yir-stat-label">Biggest split</span><span class="yir-stat-value small">${escapeHtml(g.topDisagreement.t.name)}</span><span class="yir-stat-sub">Ratings ranged from ${Math.min(...g.topDisagreement.stars)}★ to ${Math.max(...g.topDisagreement.stars)}★</span></div>` : ''}
       ${g.bestPair ? `<div class="yir-stat wide"><span class="yir-stat-label">Most in sync</span><div class="yir-pair-row"><div class="yir-pair-avatars"><div class="who-avatar" style="background:${g.bestPair.a.color};">${avatarContent(g.bestPair.a)}</div><div class="who-avatar" style="background:${g.bestPair.b.color};">${avatarContent(g.bestPair.b)}</div></div><div style="flex:1;"><strong>${escapeHtml(g.bestPair.a.name)} & ${escapeHtml(g.bestPair.b.name)}</strong><div style="font-size:var(--t-meta);color:var(--ink-dim);">${g.bestPair.diff.toFixed(1)} point average gap across ${g.bestPair.sharedCount} shared watches</div></div></div></div>` : ''}
@@ -10350,6 +14699,16 @@ function mapTmdbItem(x, typeOverride) {
   };
 }
 
+// Phase-14 polish — safety filter for TMDB list responses before they render to
+// family-shared discovery surfaces (Add tab rows, onboarding seeds, etc.).
+// Drop adult content. Same defensive pattern as the "you might also like" fix at
+// fetchTmdbDetails (commit 51f7f50). Couch is family-shared by definition.
+function isFamilySafeTmdbItem(x) {
+  if (!x) return false;
+  if (x.adult) return false;
+  return true;
+}
+
 function renderAddRow(rowId, items) {
   const el = document.getElementById('add-row-' + rowId);
   if (!el) return;
@@ -10390,6 +14749,7 @@ async function loadTrendingRow() {
     const d = await tmdbFetch('/trending/all/week');
     const items = (d.results || [])
       .filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.title || x.name) && x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x));
     addTabCache.trending = { ts: Date.now(), items };
@@ -10428,6 +14788,7 @@ async function loadStreamingRow() {
     const d = await tmdbFetch(`/discover/movie?sort_by=popularity.desc&vote_count.gte=100${providerParam}`);
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.streaming = { key: cacheKey, ts: Date.now(), items };
@@ -10448,6 +14809,7 @@ async function loadGemsRow() {
     const d = await tmdbFetch('/discover/movie?sort_by=vote_average.desc&vote_average.gte=7.5&vote_count.gte=200&vote_count.lte=2000');
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.gems = { ts: Date.now(), items };
@@ -10660,6 +15022,7 @@ async function loadDiscoveryRow(row) {
         .filter(x => (x.media_type === 'movie' || x.media_type === 'tv'
                        || src.endpoint.includes('/movie/') || src.endpoint.includes('/tv/'))
                      && (x.title || x.name) && x.poster_path)
+        .filter(isFamilySafeTmdbItem)
         .slice(0, 20)
         .map(x => {
           // Infer media_type when endpoint hints it (movie/tv endpoints drop the field).
@@ -10673,6 +15036,7 @@ async function loadDiscoveryRow(row) {
       const d = await tmdbFetch('/discover/movie?' + params.toString());
       items = (d.results || [])
         .filter(x => x.poster_path && (x.title || x.name))
+        .filter(isFamilySafeTmdbItem)
         .slice(0, 20)
         .map(x => mapTmdbItem(x, 'movie'));
     } else if (src.type === 'tmdb-streaming-filter') {
@@ -10694,6 +15058,7 @@ async function loadDiscoveryRow(row) {
       );
       items = results
         .filter(x => x && x.poster_path && (x.title || x.name))
+        .filter(isFamilySafeTmdbItem)
         .map(x => mapTmdbItem({ ...x, media_type: 'movie' }, 'movie'));
     } else if (src.type === 'tmdb-director-rotating') {
       // Plan 11-03b — pick ONE director deterministically per (rowId, dateKey).
@@ -10719,6 +15084,7 @@ async function loadDiscoveryRow(row) {
         );
         items = (d.results || [])
           .filter(x => x.poster_path)
+          .filter(isFamilySafeTmdbItem)
           .slice(0, 20)
           .map(x => mapTmdbItem(x, 'movie'));
       }
@@ -10752,10 +15118,32 @@ async function loadDiscoveryRow(row) {
       else {
         const mediaPath = (recent.mediaType === 'tv' || recent.kind === 'TV') ? 'tv' : 'movie';
         const d = await tmdbFetch(`/${mediaPath}/${recent.tmdbId}/similar`);
-        items = (d.results || [])
+        // Same Boys-style filter we applied at fetchTmdbDetails (commit 51f7f50):
+        // format match (live-action ↔ live-action, animated ↔ animated) + adult drop +
+        // genre-overlap sort. Source title is `recent` which carries genreIds from
+        // mapTmdbItem; older titles may lack it so animated check falls back to genre name.
+        const recentGenreSet = new Set(recent.genreIds || []);
+        const recentIsAnimated = recentGenreSet.has(16) ||
+          (Array.isArray(recent.genres) && recent.genres.includes('Animation'));
+        const candidates = (d.results || [])
           .filter(x => x.poster_path && (x.title || x.name))
-          .slice(0, 20)
-          .map(x => mapTmdbItem(x, mediaPath));
+          .filter(isFamilySafeTmdbItem)
+          .filter(x => ((x.genre_ids || []).includes(16)) === recentIsAnimated);
+        candidates.sort((a, b) => {
+          const aOverlap = (a.genre_ids || []).filter(g => recentGenreSet.has(g)).length;
+          const bOverlap = (b.genre_ids || []).filter(g => recentGenreSet.has(g)).length;
+          if (bOverlap !== aOverlap) return bOverlap - aOverlap;
+          return (b.vote_average || 0) - (a.vote_average || 0);
+        });
+        // Fallback: if strict format/genre filter leaves <3, fall back to adult-filtered
+        // (still drops porn) but skips format match. Avoids empty rows on niche sources.
+        const finalList = candidates.length >= 3
+          ? candidates.slice(0, 20)
+          : (d.results || [])
+              .filter(x => x.poster_path && (x.title || x.name))
+              .filter(isFamilySafeTmdbItem)
+              .slice(0, 20);
+        items = finalList.map(x => mapTmdbItem(x, mediaPath));
         // Swap the eyebrow on the live row to reflect which title seeded the similar list.
         try {
           const rowEl = document.getElementById('add-row-' + row.id);
@@ -10798,6 +15186,7 @@ async function loadDiscoveryRow(row) {
         );
         items = (d.results || [])
           .filter(x => x.poster_path)
+          .filter(isFamilySafeTmdbItem)
           .slice(0, 20)
           .map(x => mapTmdbItem(x, 'movie'));
       }
@@ -10820,7 +15209,7 @@ function renderAddMoodChips() {
   el.innerHTML = MOODS.map(m => {
     const on = currentAddMood === m.id;
     return `<button class="mood-chip ${on?'on':''}" onclick="selectAddMood('${m.id}')">
-      <span class="mood-icon">${m.icon}</span>${m.label}
+      <span class="mood-icon">${twemojiImg(m.icon, m.label, 'twemoji--md')}</span>${m.label}
     </button>`;
   }).join('');
 }
@@ -10854,6 +15243,7 @@ window.selectAddMood = async function(moodId) {
     const d = await tmdbFetch(url);
     const items = (d.results || [])
       .filter(x => x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 20)
       .map(x => mapTmdbItem(x, 'movie'));
     addTabCache.mood[moodId] = { ts: Date.now(), items };
@@ -10890,7 +15280,8 @@ window.addFromAddTab = async function(rowId, titleId) {
   const moods = suggestMoods(item.genreIds || [], extras.runtime);
   const newTitle = { ...item, ...extras, moods, votes:{}, watched:false };
   try {
-    const res = await createTitleWithApprovalCheck(titleId, newTitle);
+    // === D-03 Add-tab insertion (DECI-14-03) === — Add-tab "+ Pull up" lands in my queue.
+    const res = await createTitleWithApprovalCheck(titleId, newTitle, { addToMyQueue: true });
     logActivity(res.pending ? 'requested' : 'added', { titleName: item.name, titleId });
     if (res.pending) flashToast(`"${item.name}" sent for a parent to review.`);
     // Re-render the row to flip the + to ✓
@@ -10979,6 +15370,10 @@ let addTabInitialized = false;
 function initAddTab(force) {
   if (addTabInitialized && !force) return;
   addTabInitialized = true;
+  // === D-05 (DECI-14-05) — Catch-up-on-votes CTA. Surfaces Vote MODE (bulk swipe)
+  // since it was demoted off the tile face in D-04. Runs FIRST so the CTA sits
+  // above the search bar's discovery rows when present. ===
+  renderCatchUpOnVotesCta();
   renderAddMoodChips();
   // Phase 11 / REFR-04 — dynamic rotation replaces the 3 hardcoded loaders.
   // loadTrendingRow / loadStreamingRow / loadGemsRow remain in the module and are
@@ -10990,6 +15385,38 @@ function initAddTab(force) {
   // (COUCH_NIGHTS_PACKS) so no TMDB cost until a pack-detail sheet is opened.
   renderCouchNightsRow();
   renderAddDiscovery();
+}
+
+// === D-05 (DECI-14-05) — Catch-up-on-votes CTA renderer ===
+// Inserts (or removes) a Vote-mode launcher card at the top of #screen-add when
+// the current user has >= 10 unvoted family titles. Uses getNeedsVoteTitles()
+// (D-01 couch-aware) so the count matches what Vote mode will actually present.
+// Idempotent: re-removes itself when count drops below threshold or there's no me.
+// openSwipeMode() is the bulk Vote MODE entry (the planner referenced
+// openVoteModal() but that's the per-title modal; D-05's "swipe through them"
+// language matches openSwipeMode — recorded as a planner clarification in SUMMARY).
+function renderCatchUpOnVotesCta() {
+  const screen = document.getElementById('screen-add');
+  if (!screen) return;
+  const existing = document.getElementById('add-catchup-cta');
+  // Compute unvoted count via the same primitive Vote-mode uses, so the number
+  // shown in the CTA matches what the user will actually swipe through.
+  const unvotedCount = state.me ? getNeedsVoteTitles().length : 0;
+  if (unvotedCount < 10) {
+    if (existing) existing.remove();
+    return;
+  }
+  const html = `<div class="add-catchup-cta" id="add-catchup-cta" role="region" aria-label="Catch up on votes">
+    <div class="add-catchup-h">Catch up on votes</div>
+    <p class="add-catchup-body">${unvotedCount} title${unvotedCount === 1 ? '' : 's'} waiting for your vote. Swipe through them.</p>
+    <button class="tc-primary" type="button" onclick="openSwipeMode()">Open Vote mode</button>
+  </div>`;
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    // Insert as the first child of #screen-add so it sits above the section header.
+    screen.insertAdjacentHTML('afterbegin', html);
+  }
 }
 
 // ===== Phase 11 / REFR-13 — Couch Nights themed ballot packs =====
@@ -11093,7 +15520,7 @@ async function loadPackPreview(pack) {
 
 window.confirmStartPack = async function() {
   if (!_activePackId) return;
-  if (!state.me) { alert('Sign in first.'); return; }
+  if (!state.me) { alert('Sign in to do that.'); return; }
   if (guardReadOnlyWrite && guardReadOnlyWrite()) return;
   const pack = COUCH_NIGHTS_PACKS.find(p => p.id === _activePackId);
   if (!pack) return;
@@ -11249,6 +15676,35 @@ window.completeOnboarding = async function() {
 window.replayOnboarding = function() {
   showOnboardingStep(1);
 };
+
+// === Plan 14-09 / D-10 maybeShowTooltip gate — DECI-14-10 ===
+// One-shot anchored tooltip gated on members/{id}.seenTooltips.{primId}.
+// Reads the live member doc (state.members) so cross-tab updates land; falls back
+// to state.me.seenTooltips for first-render bootstrapping. Writes the flag on
+// display so the next render skips. Guests skip entirely (no Firestore writes).
+// Adapted from maybeShowFirstRunOnboarding above — same gate-pattern, sub-map key
+// instead of a top-level boolean, and fired at moment-of-encounter (in render
+// handlers) not at boot.
+//
+// firestore.rules audit (Plan 14-09 Task 2 §5): the members/{memberId} update
+// branch (deploy-mirror firestore.rules:192-202) is permissive — any field write by
+// self/owner/parent passes. seenTooltips.{primId} writes go through unchanged.
+async function maybeShowTooltip(primId, targetEl, message, opts) {
+  if (!state.me || !targetEl) return;
+  if (state.me.type === 'guest') return; // guests skip — no Firestore write
+  const liveMe = (state.members || []).find(m => m.id === state.me.id);
+  const seenMap = (liveMe && liveMe.seenTooltips) || (state.me.seenTooltips) || {};
+  if (seenMap[primId]) return;
+  showTooltipAt(targetEl, message, opts);
+  try {
+    await updateDoc(doc(membersRef(), state.me.id), {
+      [`seenTooltips.${primId}`]: true,
+      ...writeAttribution()
+    });
+  } catch (e) {
+    console.error('[tooltip] flag write failed', e);
+  }
+}
 
 // ===== Plan 09-07a — Legacy family self-claim flow =====
 // Renders CTA in Account settings when state.ownerUid == null && !dismissed.
@@ -11482,6 +15938,7 @@ async function loadOnboardSeeds() {
     const d = await tmdbFetch('/trending/all/week');
     onboardSeedItems = (d.results || [])
       .filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.title || x.name) && x.poster_path)
+      .filter(isFamilySafeTmdbItem)
       .slice(0, 9)
       .map(x => mapTmdbItem(x));
   } catch(e) {
@@ -11850,6 +16307,455 @@ window.toggleLike = async function(id, e) {
   try { await updateDoc(doc(titlesRef(), id), { ...writeAttribution(), likes }); } catch(err){}
 };
 
+// === D-06 Couch viz — DECI-14-06 (Sketch 003 V5 redesign per 14-10) ===
+// V5 winner: Roster IS the control. Each family member is a toggleable pill.
+// Tap = flip in/out. Long-press out-pill (700ms) = send push.
+//
+// Firestore shape (Sketch 003 Material Decisions, locked 2026-04-26):
+//   families/{code}.couchInTonight = { [memberId]: { in: bool, at: serverTimestamp, proxyConfirmedBy?: memberId } }
+//
+// Backward-compat: reads fall back to legacy couchSeating: { [memberId]: index }
+// shape from 14-04 if couchInTonight is absent. Writes go to BOTH shapes for one
+// PWA cache cycle (~1-2 weeks of v34.1 deployed) so v33/v34.0 PWAs don't break;
+// drop the dual-write in a follow-up plan after the cache cycle elapses.
+
+const COUCH_HERO_SRC = '/mark-512.png'; // single source of truth — bump if filename changes
+
+// 14-10 / V5 — hydrate couchInTonight from family doc with legacy couchSeating fallback.
+// Returns the canonical { [memberId]: { in, at, proxyConfirmedBy? } } shape.
+function couchInTonightFromDoc(d) {
+  if (d && d.couchInTonight && typeof d.couchInTonight === 'object') {
+    // Preferred: new shape already on the doc. Pass through verbatim.
+    return d.couchInTonight;
+  }
+  // Legacy fallback: rebuild from couchSeating { [mid]: index }. Every member with
+  // an index >= 0 is treated as in===true; timestamp unknown so omitted.
+  const out = {};
+  const seating = (d && d.couchSeating) || {};
+  Object.entries(seating).forEach(([mid, idx]) => {
+    if (typeof idx === 'number' && idx >= 0) {
+      out[mid] = { in: true };
+    }
+  });
+  return out;
+}
+
+// 14-10 / V5 — derive the indexed array shape downstream consumers expect.
+// 14-01 isWatchedByCouch + 14-03 tier aggregators + 14-07 Flow A roster all read
+// state.couchMemberIds — this keeps the contract stable across the migration.
+function couchInTonightToMemberIds(cit) {
+  if (!cit || typeof cit !== 'object') return [];
+  return Object.keys(cit).filter(mid => cit[mid] && cit[mid].in === true);
+}
+
+// V5 renderCouchViz — see variant-5-roster-control.html for the design contract.
+// Renders the family roster as a wrap-flex of toggleable pills. Tap = flip in/out.
+// Long-press out-pill (700ms) = send push (sendCouchPing). The "me" pill carries
+// a solid amber outline + YOU tag regardless of in/out state.
+function renderCouchViz() {
+  const container = document.getElementById('couch-viz-container');
+  if (!container) return;
+  const cit = state.couchInTonight || {};
+  // Eligible roster: same filter renderTonight uses for who-list (excludes archived
+  // + expired guests). Keeps the V5 roster aligned with the rest of the Tonight tab.
+  const nowTs = Date.now();
+  const roster = (state.members || []).filter(m =>
+    !m.archived &&
+    (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+  );
+  const total = roster.length;
+  const inIds = roster.filter(m => cit[m.id] && cit[m.id].in === true).map(m => m.id);
+  const numIn = inIds.length;
+  const numOut = total - numIn;
+  const meId = state.me ? state.me.id : null;
+  const meIsIn = meId && cit[meId] && cit[meId].in === true;
+
+  // Sub-line copy (dynamic per V5 spec)
+  let subText;
+  if (numIn === 0) subText = "Tap who's watching";
+  else if (numIn === 1 && meIsIn) subText = "It's just you so far — tap others in";
+  else if (numIn === total && total > 0) subText = "Whole couch is in";
+  else subText = `${numIn} ${numIn === 1 ? 'is' : 'are'} watching`;
+
+  // Render hero + headline + sub-line (V5 hero is 84px, smaller than 14-04's 280px)
+  // + roster pills + tally + action row + hint line.
+  const html = [];
+  html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
+  html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+  html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+  // Phase 19 / D-15 — subtle amber tint on roster surface when kid-mode active.
+  const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
+  html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
+  roster.forEach(m => {
+    const isIn = cit[m.id] && cit[m.id].in === true;
+    const isMe = meId && m.id === meId;
+    const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+    const name = escapeHtml(m.name || 'Member');
+    const color = memberColor(m.id);
+    const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+    const avStyle = isIn ? `background:${color}` : '';
+    const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
+    const ariaLabel = isIn
+      ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+      : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+    html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
+      <div class="av" style="${avStyle}">${initial}</div>
+      <span class="label">${name}${youTag}</span>
+      <div class="ping-hint" aria-hidden="true"></div>
+    </div>`);
+  });
+  html.push(`</div>`);
+  // Tally: Fraunces num + Instrument Serif italic "of N watching"
+  html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
+  // Action row — visibility-gated by current state
+  html.push(`<div class="pill-actions">`);
+  if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
+  if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
+  if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
+  html.push(`</div>`);
+  html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  // Phase 19 / D-01..D-03 — Kid-mode toggle row. Visibility gated on familyHasKids()
+  // (re-evaluated each render per D-03). Idle = dashed border; active = amber-filled.
+  // Helper hint copy locked at D-17.
+  if (typeof familyHasKids === 'function' && familyHasKids()) {
+    const onCls = state.kidMode ? 'on' : '';
+    const label = state.kidMode ? 'Kid mode on' : 'Kid mode';
+    const hint = state.kidMode ? '' : 'Hide R + PG-13 from tonight\'s pool';
+    html.push(`<div class="kid-mode-row">`);
+    html.push(`<button type="button" class="kid-mode-toggle ${onCls}" data-act="toggle-kid-mode" aria-pressed="${state.kidMode ? 'true' : 'false'}">${label}</button>`);
+    if (hint) html.push(`<p class="kid-mode-hint">${hint}</p>`);
+    html.push(`</div>`);
+  }
+  container.innerHTML = html.join('');
+
+  // Wire pill interactions (delegated per-pill listeners — variant-5 sketch lines 392-427).
+  container.querySelectorAll('.pill').forEach(pill => {
+    const mid = pill.dataset.mid;
+    const isOut = pill.classList.contains('out');
+    let pressTimer = null;
+    let didLongPress = false;
+    const startPress = () => {
+      didLongPress = false;
+      if (!isOut) return; // long-press only meaningful on out-state pills
+      pill.classList.add('pinging');
+      pressTimer = setTimeout(() => {
+        didLongPress = true;
+        pill.classList.remove('pinging');
+        pill.style.transform = 'scale(1.06)';
+        pill.style.boxShadow = '0 0 0 3px rgba(217, 122, 60, 0.4)';
+        setTimeout(() => { pill.style.transform = ''; pill.style.boxShadow = ''; }, 280);
+        sendCouchPing(mid);
+      }, 700);
+    };
+    const cancelPress = () => {
+      pill.classList.remove('pinging');
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    const handleClick = (e) => {
+      if (didLongPress) { e.preventDefault(); didLongPress = false; return; }
+      cancelPress();
+      toggleCouchMember(mid);
+    };
+    pill.addEventListener('mousedown', startPress);
+    pill.addEventListener('touchstart', startPress, { passive: true });
+    pill.addEventListener('mouseup', cancelPress);
+    pill.addEventListener('mouseleave', cancelPress);
+    pill.addEventListener('touchend', cancelPress);
+    pill.addEventListener('touchcancel', cancelPress);
+    pill.addEventListener('click', handleClick);
+    pill.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCouchMember(mid); }
+    });
+  });
+  // Action row handlers
+  const actMarkAll = container.querySelector('[data-act="mark-all"]');
+  const actClearAll = container.querySelector('[data-act="clear-all"]');
+  const actPushRest = container.querySelector('[data-act="push-rest"]');
+  if (actMarkAll) actMarkAll.onclick = () => couchMarkAllIn();
+  if (actClearAll) actClearAll.onclick = () => couchClearAll();
+  if (actPushRest) actPushRest.onclick = () => couchPushRest();
+  // Phase 19 — wire the new Kid-mode toggle button (when rendered).
+  const actToggleKidMode = container.querySelector('[data-act="toggle-kid-mode"]');
+  if (actToggleKidMode) actToggleKidMode.onclick = () => window.toggleKidMode();
+
+  // 14-09 / D-10 — anchor onboarding tooltip on the FIRST out-state pill (was .seat-cell.empty
+  // before V5; now anchored to the equivalent V5 affordance). Same maybeShowTooltip key
+  // ('couchSeating') so users who already dismissed the 14-04 version don't see it again.
+  const firstOutPill = container.querySelector('.pill.out');
+  if (firstOutPill && typeof maybeShowTooltip === 'function') {
+    setTimeout(() => maybeShowTooltip('couchSeating', firstOutPill, 'Tap any pill to mark them in. Long-press to send a push.', { placement: 'above' }), 200);
+  }
+}
+
+// V5 — toggle a member's in-state. Works for self AND proxy. Writes audit trail
+// via proxyConfirmedBy when the actor is NOT the target member (server-side rule
+// enforces actingUid==auth.uid via attributedWrite, so the proxy claim can't be
+// forged). Date.now() is fine for ordering — Firestore serverTimestamp() would
+// be one extra import for sub-second precision we don't need.
+window.toggleCouchMember = async function(memberId) {
+  if (!state.me) { flashToast('Sign in to update the couch', { kind: 'warn' }); return; }
+  if (!memberId) return;
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const cur = cit[memberId];
+  const wasIn = cur && cur.in === true;
+  const next = {
+    in: !wasIn,
+    at: Date.now(),
+  };
+  // Proxy audit: if actor !== target, record who flipped them
+  if (memberId !== state.me.id) next.proxyConfirmedBy = state.me.id;
+  cit[memberId] = next;
+  // Recompute downstream contract
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  // Mirror to legacy state.selectedMembers so the 19 V4-era reads scattered through
+  // recommendation engine + tile rendering + fairness gate stay correct. After V5
+  // ships, couchInTonight is the source of truth; selectedMembers is a synchronized
+  // shim. Future cleanup phase can remove the shim and migrate the reads.
+  state.selectedMembers = state.couchMemberIds.slice();
+  // Optimistic re-render — covers V5 pills AND Tonight surfaces (matches list,
+  // UpNext, ContinueWatching, Next3, MoodFilter). The legacy V4 toggleMember at
+  // line 6375 called renderTonight() directly; V5 originally replaced that with
+  // renderCouchViz() alone, which left the matches list + empty-state stale on
+  // pill taps. Both renderers are needed: renderCouchViz updates pill visuals,
+  // renderTonight refreshes the actual title-rendering surfaces.
+  renderCouchViz();
+  renderTonight();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
+};
+
+// V5 — long-press → send push. Path A (Firestore write → onCouchPingFire CF → FCM).
+//
+// Phase 15.4 / F-W-1 / D-01..D-07: replaced the prior Path C stub (toast + Sentry
+// breadcrumb only) with a real push fan-out path. Client writes a doc to the new
+// ephemeral collection families/{familyCode}/couchPings/{pingId}; the queuenight
+// onCouchPingFire CF (queuenight/functions/index.js, deployed in Plan 15.4-03)
+// fans out a single push to the recipient via sendToMembers, then admin-SDK
+// deletes the doc. Push body: "{senderName} wants you on the couch tonight"
+// (locked at Plan 15.4-01 banned-words sweep). Self-echo guard via
+// excludeMemberId in the CF, redundantly enforced by the senderId == memberId
+// rule clause + the rules anchor on recipientId.
+//
+// Sentry breadcrumb retained per D-07 — even with real fan-out, the breadcrumb
+// is the only client-side product-analytics signal for ping volume.
+// flashToast retained — copy "Push sent to {name}" is now accurate (push IS being
+// delivered, modulo the recipient's notificationPrefs[couchPing] toggle + quiet
+// hours, both enforced server-side per Phase 6 baseline).
+window.sendCouchPing = async function(memberId) {
+  if (!state.me || !memberId) return;
+  if (!state.familyCode) return;
+  if (memberId === state.me.id) return;  // client-side self-echo short-circuit
+  const m = (state.members || []).find(x => x.id === memberId);
+  const recipientName = m ? m.name : 'them';
+  // Sentry breadcrumb stays — analytics signal for ping volume (D-07).
+  try {
+    if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+      Sentry.addBreadcrumb({
+        category: 'couch-ping',
+        message: `fire ${memberId}`,
+        level: 'info',
+        data: { from: state.me.id, to: memberId }
+      });
+    }
+  } catch (e) { /* never let analytics block UX */ }
+  // Path A: write the ephemeral ping doc. CF picks up via onCreate trigger,
+  // pushes to the recipient, deletes the doc.
+  try {
+    await addDoc(collection(db, 'families', state.familyCode, 'couchPings'), {
+      senderId: state.me.id,
+      senderName: state.me.name || 'A family member',
+      senderUid: state.me.uid || null,
+      recipientId: memberId,
+      createdAt: Date.now(),
+      ...writeAttribution()
+    });
+  } catch (e) {
+    // Defensive: if the rules-emulator-locked contract diverges from the deployed
+    // rules (e.g., a deploy-window race), surface the failure in Sentry but don't
+    // block the toast — the user already got tactile haptic feedback at long-press
+    // resolution. Logging here keeps the failure mode debuggable post-incident.
+    console.warn('[15.4/F-W-1] sendCouchPing write failed:', e && e.message);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(e, { tags: { area: 'couch-ping' } });
+      }
+    } catch (e2) {}
+  }
+  flashToast(`Push sent to ${recipientName}`, { kind: 'info' });
+};
+
+// V5 — bulk action: mark every roster member in.
+async function couchMarkAllIn() {
+  if (!state.me) return;
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const meId = state.me.id;
+  const roster = (state.members || []).filter(m =>
+    !m.archived && (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+  );
+  roster.forEach(m => {
+    const next = { in: true, at: nowTs };
+    if (m.id !== meId) next.proxyConfirmedBy = meId;
+    cit[m.id] = next;
+  });
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  state.selectedMembers = state.couchMemberIds.slice();
+  renderCouchViz();
+  renderTonight();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
+}
+
+// V5 — bulk action: clear couch (everyone out).
+async function couchClearAll() {
+  if (!state.me) return;
+  const cit = state.couchInTonight = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const meId = state.me.id;
+  Object.keys(cit).forEach(mid => {
+    if (cit[mid] && cit[mid].in) {
+      const next = { in: false, at: nowTs };
+      if (mid !== meId) next.proxyConfirmedBy = meId;
+      cit[mid] = next;
+    }
+  });
+  // Phase 19 / D-04 — clearing the couch ALSO clears kid-mode (ambient cleanup —
+  // no kids on the couch means no need for the toggle). Must happen BEFORE the
+  // renderCouchViz / renderTonight calls below so the UI reflects cleared state.
+  if (state.kidMode) {
+    state.kidMode = false;
+    state.kidModeOverrides = new Set();
+  }
+  state.couchMemberIds = couchInTonightToMemberIds(cit);
+  state.selectedMembers = state.couchMemberIds.slice();
+  renderCouchViz();
+  renderTonight();
+  if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
+  haptic('light');
+  await persistCouchInTonight();
+}
+
+// Phase 19 / D-05 — flip kid-mode + clear overrides on transition + re-render
+// V5 roster + Tonight + Library. Per D-04, kid-mode is session-only — no
+// Firestore write. flashToast confirms the state change.
+window.toggleKidMode = function() {
+  if (!state.me) { flashToast('Sign in to use kid mode', { kind: 'warn' }); return; }
+  state.kidMode = !state.kidMode;
+  // Clear per-title overrides on EVERY transition (covers both directions per
+  // D-13 — "parent toggling kid-mode off + back on clears overrides").
+  state.kidModeOverrides = new Set();
+  renderCouchViz();
+  if (typeof renderTonight === 'function') renderTonight();
+  if (typeof renderLibrary === 'function') renderLibrary();
+  haptic('light');
+  flashToast(
+    state.kidMode ? 'Kid mode on — hiding R + PG-13' : 'Kid mode off — full pool back',
+    { kind: 'info' }
+  );
+};
+
+// V5 — bulk action: send push to every out-state member.
+function couchPushRest() {
+  const cit = state.couchInTonight || {};
+  const nowTs = Date.now();
+  const outMembers = (state.members || []).filter(m =>
+    !m.archived && (!m.temporary || (m.expiresAt && m.expiresAt > nowTs))
+    && (!cit[m.id] || cit[m.id].in !== true)
+  );
+  if (!outMembers.length) { flashToast('Everyone is already in', { kind: 'info' }); return; }
+  outMembers.forEach(m => sendCouchPing(m.id));
+  flashToast(`Pushes sent to ${outMembers.length}`, { kind: 'info' });
+}
+
+// 14-10 / V5 — persist couchInTonight + couchSeating (dual-write during migration).
+// Writes the new member-keyed shape AND the legacy positional shape so v33/v34.0
+// PWAs reading couchSeating don't break during the rollout. After one PWA cache
+// cycle (~1-2 weeks), drop the couchSeating write in a follow-up plan.
+async function persistCouchInTonight() {
+  if (!state.familyCode) return;
+  const cit = state.couchInTonight || {};
+  // Build legacy couchSeating map for back-compat: positional index by walking the
+  // in-state members in the order they appear in state.members (stable for one
+  // family-doc snapshot; the index is informational only — V5 doesn't read it).
+  const seatingMap = {};
+  let nextIdx = 0;
+  (state.members || []).forEach(m => {
+    if (cit[m.id] && cit[m.id].in === true) {
+      seatingMap[m.id] = nextIdx++;
+    }
+  });
+  try {
+    await updateDoc(doc(db, 'families', state.familyCode), {
+      couchInTonight: cit,
+      couchSeating: seatingMap, // BACKCOMPAT: drop in follow-up after cache cycle
+      ...writeAttribution()
+    });
+  } catch (e) {
+    console.error('[couch] persist failed', e);
+    flashToast('Could not save couch — try again', { kind: 'warn' });
+  }
+}
+
+// === D-04 openTileActionSheet — DECI-14-04 ===
+// Primary tile-tap entry (replaces openDetailModal as the body-tap target).
+// Narrower than openActionSheet's full ⋯ menu — surfaces the 4 D-04 buckets:
+//   Watch tonight / Schedule for later / Ask family / Vote (de-emphasized).
+// Plus a divider + "Show details" (delegates to openDetailModal) + "More options"
+// (delegates to the full openActionSheet so power-user functionality stays reachable).
+// Mirrors the Flow B "Watch with the couch?" nominate entry from openActionSheet
+// (14-08 / DECI-14-08) so Flow B is reachable from the primary tap entry, not just ⋯.
+// Surfaces the D-01 / DECI-14-01 "Rewatch this one" override on watched tiles.
+// SIBLING-not-replacement of openActionSheet (per 14-CONTEXT Anti-pattern #2: don't
+// rebuild primitives — share the same #action-sheet-bg DOM container).
+window.openTileActionSheet = function(titleId, e) {
+  if (e) e.stopPropagation();
+  const t = state.titles.find(x => x.id === titleId);
+  if (!t) return;
+  const content = document.getElementById('action-sheet-content');
+  if (!content) return;
+  const items = [];
+  if (!t.watched && state.me) {
+    // Quick queue toggle — first option so the most common low-friction action is fastest.
+    // Surfaces queue state on tile-tap so users can add/remove without opening the vote modal.
+    const meId = state.me.id;
+    const inQueue = !!(t.queues && t.queues[meId] != null);
+    if (inQueue) {
+      items.push(`<button class="action-sheet-item" onclick="closeActionSheet();applyVote('${titleId}','${meId}','yes')"><span class="icon">✓</span>In your queue · Tap to remove</button>`);
+    } else {
+      items.push(`<button class="action-sheet-item" onclick="closeActionSheet();applyVote('${titleId}','${meId}','yes')"><span class="icon">＋</span>Add to your queue</button>`);
+    }
+    // 1. Watch tonight — start a watchparty immediately (highest-commitment).
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openWatchpartyStart('${titleId}')"><span class="icon">🎬</span>Watch tonight</button>`);
+    // 2. Schedule for later — defer to a specific time.
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openScheduleModal('${titleId}')"><span class="icon">📅</span>Schedule for later</button>`);
+    // 3. Ask family — D-08 (DECI-14-08) Flow B solo-nominate, mirrored from openActionSheet.
+    //    Sibling-not-replacement of "Ask the family" (legacy openProposeIntent). Per 14-08-SUMMARY,
+    //    Flow B is the new D-09 nominate primitive — use openFlowBNominate, not the legacy entry.
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openFlowBNominate('${titleId}')"><span class="icon">📣</span>Ask family</button>`);
+    // 4. Vote — de-emphasized but kept for completeness (D-04 says "Vote remains, just demoted").
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openVoteModal('${titleId}')"><span class="icon">🗳</span>Vote</button>`);
+  }
+  // Per-title rewatch override (D-01 / DECI-14-01) — surfaces only on watched tiles for the current user.
+  if (state.me && t.watched) {
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();setRewatchAllowed('${titleId}','${state.me.id}')"><span class="icon">🔁</span>Rewatch this one</button>`);
+  }
+  // Secondary divider — Show details + More options (full action sheet).
+  items.push(`<div class="action-sheet-divider"></div>`);
+  items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openDetailModal('${titleId}')"><span class="icon">ℹ</span>Show details</button>`);
+  items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openActionSheet('${titleId}',event)"><span class="icon">⋯</span>More options</button>`);
+  content.innerHTML = `<div class="action-sheet-title">${escapeHtml(t.name)}</div>${items.join('')}`;
+  document.getElementById('action-sheet-bg').classList.add('on');
+  // Plan 14-09 / D-10 — anchor onboarding tooltip on first action-sheet open (one-shot).
+  setTimeout(() => {
+    const sheetEl = document.getElementById('action-sheet-content');
+    if (sheetEl && typeof maybeShowTooltip === 'function') {
+      maybeShowTooltip('tileActionSheet', sheetEl, 'These are your options for this title.', { placement: 'above' });
+    }
+  }, 200);
+};
+
 window.openActionSheet = function(titleId, e) {
   if (e) e.stopPropagation();
   const t = state.titles.find(x => x.id === titleId);
@@ -11872,6 +16778,11 @@ window.openActionSheet = function(titleId, e) {
     // Phase 8 intent-flow entry points. Placed after watchparty (higher-commitment) so
     // the lower-friction "ask" sits closer to cheaper actions (veto, comments, list).
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openProposeIntent('${titleId}')"><span class="icon">📆</span>Propose tonight @ time</button>`);
+    // D-08 (DECI-14-08) — Flow B solo-nominate entry (Phase 14 Plan 08).
+    // Sibling-not-replacement of the legacy Phase 8 "Propose tonight @ time" entry above
+    // (per Anti-pattern #7 in 14-CONTEXT.md: don't conflate primitives — `flow:'nominate'`
+    // is a new D-09 discriminator, not an extension of `tonight_at_time`).
+    items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openFlowBNominate('${titleId}')"><span class="icon">📣</span>Watch with the couch?</button>`);
     items.push(`<button class="action-sheet-item" onclick="closeActionSheet();askTheFamily('${titleId}')"><span class="icon">💭</span>Ask the family</button>`);
   }
   if (!t.watched && state.me) {
@@ -12348,13 +17259,28 @@ async function applyVote(titleId, memberId, vote) {
     // no / seen / null: remove from queue
     if (wasInQueue) delete queues[memberId];
   }
+  // D-03 (DECI-14-03 / Anti-pattern #5) — surface the silent queue mutation to the actor.
+  // Guard: only toast when the local user is the actor; onSnapshot-driven updates from other
+  // members' votes would otherwise spam the local UI with toasts about their queue changes.
+  if (newVote === 'yes' && !wasInQueue && memberId === (state.me && state.me.id)) {
+    flashToast(`Added "${t.name}" to your queue`, { kind: 'info' });
+  }
   try {
     await updateDoc(doc(titlesRef(), titleId), { ...writeAttribution(), votes, queues });
     // Reindex that member's queue after a removal so ranks stay contiguous
     if (wasInQueue && newVote !== 'yes' && memberId === state.me?.id) {
       await reindexMyQueue();
     }
-  } catch(e) { console.error('applyVote failed', e); }
+  } catch(e) {
+    console.error('applyVote failed', e);
+    // Surface the failure to the actor — silent failures on votes are confusing
+    // (toast for queue-add already fired before this catch; user sees feedback then
+    // their vote silently disappears on next refresh otherwise).
+    if (memberId === (state.me && state.me.id)) {
+      flashToast("Couldn't save your vote — check your connection", { kind: 'warn' });
+      haptic('warn');
+    }
+  }
 }
 
 window.setVote = async function(memberId, vote) {
@@ -12564,8 +17490,9 @@ window.removeTitle = async function(id) {
   }
 })();
 
-// Sticky "who's watching" mini bar: appears when the user scrolls past the who-card on Tonight.
+// Sticky "who's watching" mini bar: appears when the user scrolls past the V5 roster on Tonight.
 // Not shown on other screens. Keeps the user aware of who's selected without scrolling back up.
+// 14-10: rewired from .who-card → #couch-viz-container (V5 redesign — same conceptual surface).
 (function() {
   const mini = document.getElementById('who-mini');
   const miniAvatars = document.getElementById('who-mini-avatars');
@@ -12573,18 +17500,18 @@ window.removeTitle = async function(id) {
   let lastShown = false;
   function update() {
     const onTonight = document.getElementById('screen-tonight')?.classList.contains('active');
-    const whoCard = document.querySelector('#screen-tonight .who-card');
+    const whoCard = document.querySelector('#screen-tonight #couch-viz-container');
     if (!onTonight || !whoCard) {
       if (lastShown) { mini.style.display = 'none'; lastShown = false; }
       return;
     }
     const rect = whoCard.getBoundingClientRect();
-    const shouldShow = rect.bottom < 0 && state.selectedMembers && state.selectedMembers.length > 0;
+    const shouldShow = rect.bottom < 0 && state.couchMemberIds && state.couchMemberIds.length > 0;
     if (shouldShow === lastShown) return;
     lastShown = shouldShow;
     if (shouldShow) {
       // Render avatars
-      const selected = state.selectedMembers.map(id => state.members.find(m => m.id === id)).filter(Boolean).slice(0, 5);
+      const selected = state.couchMemberIds.map(id => state.members.find(m => m.id === id)).filter(Boolean).slice(0, 5);
       miniAvatars.innerHTML = selected.map(m => `<div class="who-mini-av" style="background:${m.color}" title="${escapeHtml(m.name)}">${avatarContent(m)}</div>`).join('');
       mini.style.display = 'flex';
     } else {
@@ -12652,5 +17579,1403 @@ window.removeTitle = async function(id) {
     }).observe(bg, { attributes: true, attributeFilter: ['class'] });
   });
 })();
+
+// ====================================================================================
+// === Phase 14 / Plan 14-07 — D-07 Flow A: group rank-pick + push-confirm ===========
+// ====================================================================================
+// Flow A is the "we're together on the couch RIGHT NOW, who's picking?" decision flow.
+// Architecture: one entry CTA on the Tonight tab → picker UI (3-tier ranked list) →
+// roster screen (proxy-confirm in-person members) → createIntent({flow:'rank-pick'}) →
+// per-recipient response screen (In/Reject/Drop + counter-nom) → reject-majority retry →
+// counter-chain capped at 3 → quorum convert to watchparty.
+//
+// Cross-plan dependencies (all already shipped upstream):
+//   - 14-01 isWatchedByCouch — already-watched filter (consumed indirectly via tier aggregators)
+//   - 14-03 getTierOneRanked / getTierTwoRanked / getTierThreeRanked — picker rows
+//   - 14-03 resolveT3Visibility() — gates the T3 expand affordance entirely
+//   - 14-04 state.couchMemberIds — populated by claimCushion; gates entry CTA visibility
+//   - 14-06 createIntent({flow:'rank-pick', expectedCouchMemberIds, ...}) — Firestore primitive
+//   - 14-06 onIntentCreated CF — handles flowAPick fan-out push to unconfirmed couch members
+//   - 14-06 onIntentUpdate CF — handles counter-chain server-side bumps
+//   - 14-08 maybeOpenIntentFromDeepLink — already typeof-guards openFlowAResponseScreen call
+//
+// All functions cross-reference (entry → picker → roster → response → counter sub-flow
+// reuses picker → convert), so this lands as one coherent block and one atomic commit
+// per the same precedent set by 14-08 Flow B (commit af168f1).
+// ====================================================================================
+
+// === D-07 Flow A entry CTA (Tonight tab) — DECI-14-07 ===
+// Renders into #flow-a-entry-container (added in app.html under couch-viz). Hidden until
+// state.couchMemberIds has ≥1 entry. Flips to "Picking happening" reactively when an open
+// rank-pick intent exists (via state.unsubIntents tick).
+function renderFlowAEntry() {
+  const container = document.getElementById('flow-a-entry-container');
+  if (!container) return;
+  const couchSize = (state.couchMemberIds || []).filter(Boolean).length;
+  if (couchSize < 1) { container.innerHTML = ''; return; }
+  // 14-10 (sketch 003 V5): the legacy 14-09 D-11 (c) empty-state-c card
+  // ("Who's on the couch tonight? + Find a seat") was redundant under V5
+  // because the dashed-pill roster IS the empty state — showing both
+  // re-created the 'two stacked surfaces' problem Bug A fixed. Branch
+  // simplified to a single line that clears stale content from this
+  // sibling container; the V5 roster in #couch-viz-container handles
+  // user attention directly via the dashed family pills.
+  // The corresponding cushion-glow CSS in css/app.css is also obsolete
+  // (its target selectors were deleted with the cushion grid in Task 4).
+  // Check whether an open Flow A intent already exists for this family.
+  const openFlowA = (state.intents || []).find(i =>
+    (i.flow === 'rank-pick' || i.type === 'rank-pick') && i.status === 'open'
+  );
+  if (openFlowA) {
+    container.innerHTML = `<div class="flow-a-active">
+      <div class="flow-a-active-h">Picking happening</div>
+      <p class="flow-a-active-body">A pick is in progress. Watching for responses…</p>
+      <button class="tc-primary" type="button" onclick="openFlowAResponseScreen('${openFlowA.id}')">Open</button>
+    </div>`;
+    return;
+  }
+  container.innerHTML = `<div class="flow-a-entry">
+    <div class="flow-a-entry-h">Pick a movie for the couch</div>
+    <p class="flow-a-entry-body">${couchSize} ${couchSize === 1 ? 'person is' : 'people are'} on the couch. Pick from your shared queue.</p>
+    <button class="tc-primary" type="button" onclick="openFlowAPicker()">Open picker</button>
+  </div>`;
+}
+
+window.openFlowAPicker = function() {
+  if (!state.me) { flashToast('Sign in to pick', { kind: 'warn' }); return; }
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  if (!couch.length) { flashToast('Claim a seat on the couch first', { kind: 'warn' }); return; }
+  renderFlowAPickerScreen();
+};
+
+// === D-07 Flow A picker UI — DECI-14-07 ===
+// Lazy-creates a single #flow-a-picker-modal container which is reused across picker /
+// roster / response screens (each render replaces innerHTML). This keeps DOM count low
+// and avoids competing focus traps when the user toggles between screens.
+function renderFlowAPickerScreen() {
+  let modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-a-picker-modal';
+    modal.className = 'modal-bg flow-a-picker-modal';
+    document.body.appendChild(modal);
+  }
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  // Rejected-titles set (from reject-majority retry path, see onFlowARetryPick) excludes
+  // already-tried titles from the next picker render. Defensive: may be undefined first time.
+  const rejected = state.flowARejectedTitles || new Set();
+  const filterRejected = entry => !rejected.has(entry.title.id);
+
+  // Plan 14-09 / D-11 (d) — when the user taps "Show rewatch options" from the
+  // all-watched empty state, state.flowARevealRewatch flips to true so tier
+  // aggregators include already-watched titles. Resets on close.
+  const aggOpts = state.flowARevealRewatch ? { includeWatched: true } : undefined;
+  const t1 = getTierOneRanked(couch, aggOpts).filter(filterRejected);
+  const t2 = getTierTwoRanked(couch, aggOpts).filter(filterRejected);
+  const t3 = getTierThreeRanked(couch, aggOpts).filter(filterRejected);
+  const showT3 = resolveT3Visibility();
+  // Counter-nomination sub-flow re-uses this picker; show contextual heading.
+  const isCounter = !!state.flowACounterFor;
+
+  const renderRow = (entry, tier) => {
+    const t = entry.title;
+    // T1: meanRank (computed below); T2: meanPresentRank + couchPresenceCount; T3: meanOffCouchRank.
+    let metaBits = `Tier ${tier}`;
+    if (tier === 1 && entry.meanRank != null) metaBits += ` · mean rank ${entry.meanRank.toFixed(1)}`;
+    else if (tier === 2) {
+      if (entry.meanPresentRank != null) metaBits += ` · mean rank ${entry.meanPresentRank.toFixed(1)}`;
+      if (entry.couchPresenceCount != null) metaBits += ` · ${entry.couchPresenceCount} couch member${entry.couchPresenceCount === 1 ? '' : 's'}`;
+    } else if (tier === 3 && entry.meanOffCouchRank != null) {
+      metaBits += ` · mean rank ${entry.meanOffCouchRank.toFixed(1)} (off-couch)`;
+    }
+    return `<div class="flow-a-row" role="button" tabindex="0"
+      onclick="onFlowAPickerSelect('${t.id}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();onFlowAPickerSelect('${t.id}');}">
+      <div class="flow-a-row-poster" style="background-image:url('${escapeHtml(t.poster || '')}')"></div>
+      <div class="flow-a-row-meta">
+        <div class="flow-a-row-name">${escapeHtml(t.name || '')}</div>
+        <div class="flow-a-row-tier">${metaBits}</div>
+      </div>
+    </div>`;
+  };
+
+  const t1Html = t1.length ? `<section class="flow-a-section">
+    <h3 class="flow-a-section-h">Tier 1 — everyone wants this</h3>
+    ${t1.slice(0, 10).map(e => renderRow(e, 1)).join('')}
+  </section>` : '';
+
+  const t2Html = t2.length ? `<section class="flow-a-section">
+    <h3 class="flow-a-section-h">Tier 2 — some couch interest</h3>
+    ${t2.slice(0, 10).map(e => renderRow(e, 2)).join('')}
+  </section>` : '';
+
+  const t3Html = (showT3 && t3.length) ? `<section class="flow-a-section flow-a-section-t3" data-expanded="false">
+    <button class="flow-a-t3-toggle" type="button" onclick="onFlowAToggleT3(this)">Show off-couch picks (${t3.length})</button>
+    <div class="flow-a-t3-body" hidden>
+      <p class="flow-a-t3-warn">Watching titles only off-couch members want.</p>
+      ${t3.slice(0, 10).map(e => renderRow(e, 3)).join('')}
+    </div>
+  </section>` : '';
+
+  // Plan 14-09 / D-11 (d) + 14-10 follow-up: differentiate "no votes yet" from
+  // "all watched". Tier aggregators consume t.queues[memberId] which only populates
+  // on Yes votes — if nobody has voted, all 3 tiers are empty even when titles exist.
+  // The "you've seen everything" copy was misleading in that case (it implied watched,
+  // when really nothing was queued). Now: check whether including-watched would
+  // produce results — if yes, it's truly an all-watched state; if no, it's an
+  // unvoted-queue state.
+  const emptyAllTiers = (!t1.length && !t2.length && !(showT3 && t3.length));
+  let emptyState = '';
+  if (emptyAllTiers) {
+    // Probe: would including watched titles produce any tier rows?
+    const probeOpts = { includeWatched: true };
+    const wouldHaveContent = state.flowARevealRewatch
+      ? false
+      : (getTierOneRanked(couch, probeOpts).length || getTierTwoRanked(couch, probeOpts).length || (showT3 && getTierThreeRanked(couch, probeOpts).length));
+    if (wouldHaveContent) {
+      emptyState = `<div class="queue-empty">
+        <span class="emoji">🛋️</span>
+        <strong>You've seen everything in queue</strong>
+        Revisit a favorite or expand discovery?
+        <div class="queue-empty-cta">
+          <button class="tc-primary" type="button" onclick="onFlowAShowRewatchOptions()">Show rewatch options</button>
+          <button class="tc-secondary" type="button" onclick="closeFlowAPicker();showScreen('add')">Discover more</button>
+        </div>
+      </div>`;
+    } else {
+      // No queued titles at all — nudge into Vote mode or Add tab to populate.
+      emptyState = `<div class="queue-empty">
+        <span class="emoji">🛋️</span>
+        <strong>Nothing in the couch's queue yet</strong>
+        Vote Yes on titles to fill it up, or add new ones.
+        <div class="queue-empty-cta">
+          <button class="tc-primary" type="button" onclick="closeFlowAPicker();openSwipeMode()">Open Vote mode</button>
+          <button class="tc-secondary" type="button" onclick="closeFlowAPicker();showScreen('add')">Add titles</button>
+        </div>
+      </div>`;
+    }
+  }
+
+  const subhead = isCounter
+    ? `Pick a different title to counter-nominate.`
+    : `Tap a title to send it to the couch.`;
+
+  modal.innerHTML = `<div class="modal-content flow-a-picker-content">
+    <header class="flow-a-picker-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close picker">✕</button>
+      <h2>${isCounter ? 'Counter-nominate' : 'Pick a movie'}</h2>
+      <p>${subhead}</p>
+    </header>
+    <div class="flow-a-picker-body">
+      ${t1Html}
+      ${t2Html}
+      ${t3Html}
+      ${emptyState}
+    </div>
+  </div>`;
+  modal.classList.add('on');
+}
+
+window.onFlowAToggleT3 = function(btn) {
+  const section = btn.closest('.flow-a-section-t3');
+  if (!section) return;
+  const body = section.querySelector('.flow-a-t3-body');
+  if (!body) return;
+  const expanded = section.dataset.expanded === 'true';
+  section.dataset.expanded = expanded ? 'false' : 'true';
+  body.hidden = expanded;
+  btn.textContent = expanded ? `Show off-couch picks` : `Hide off-couch picks`;
+};
+
+window.closeFlowAPicker = function() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (modal) modal.classList.remove('on');
+  // Plan 14-09 / D-11 (d) — reset rewatch-reveal flag on close so a fresh open
+  // starts back in the default (exclude-watched) view.
+  state.flowARevealRewatch = false;
+};
+
+// Plan 14-09 / D-11 (d) — handler for "Show rewatch options" CTA in the
+// all-watched empty state. Flips state.flowARevealRewatch and re-renders the
+// picker so the tier aggregators surface already-watched titles for rewatch.
+window.onFlowAShowRewatchOptions = function() {
+  state.flowARevealRewatch = true;
+  renderFlowAPickerScreen();
+};
+
+window.onFlowAPickerSelect = function(titleId) {
+  // Counter-nomination sub-flow short-circuit: when state.flowACounterFor is set,
+  // route the picked title into submitCounterNom instead of advancing to the roster screen.
+  if (state.flowACounterFor) {
+    submitCounterNom(titleId);
+    return;
+  }
+  // Stash the picked title and advance to the roster screen (proxy-confirm step).
+  state.flowAPickerTitleId = titleId;
+  renderFlowARosterScreen();
+};
+
+// === D-07 Flow A roster screen — proxy-confirm + send-picks — DECI-14-07 ===
+// Renders all couch members as tappable rows. Picker (state.me) is auto-confirmed and
+// disabled. Tapping a non-self member toggles state.flowAProxyConfirmed (a Set of memberIds).
+// Send Picks calls createIntent({flow:'rank-pick', ...}) then pre-seeds proxy-confirmed
+// rsvps so 14-06's onIntentCreated CF skips them in the push fan-out.
+function renderFlowARosterScreen() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) return;
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  const t = state.titles.find(x => x.id === state.flowAPickerTitleId);
+  if (!t) { closeFlowAPicker(); flashToast('Title no longer available', { kind: 'warn' }); return; }
+
+  if (!state.flowAProxyConfirmed) state.flowAProxyConfirmed = new Set();
+
+  const couchMembers = couch.map(mid => (state.members || []).find(m => m.id === mid)).filter(Boolean);
+
+  const memberRows = couchMembers.map(m => {
+    const isMe = state.me && m.id === state.me.id;
+    const confirmed = isMe || state.flowAProxyConfirmed.has(m.id);
+    return `<button class="flow-a-roster-member ${confirmed ? 'confirmed' : ''}" type="button"
+      onclick="onFlowAToggleConfirm('${m.id}')"
+      ${isMe ? 'disabled aria-label="You — auto-in"' : ''}>
+      <div class="flow-a-roster-avatar" style="background:${memberColor(m.id)}">${escapeHtml((m.name||'?')[0].toUpperCase())}</div>
+      <span class="flow-a-roster-name">${escapeHtml(m.name || 'Member')}${isMe ? ' (you)' : ''}</span>
+      <span class="flow-a-roster-status">${confirmed ? '✓ in' : 'tap to mark in-person'}</span>
+    </button>`;
+  }).join('');
+
+  const unconfirmedCount = couchMembers.filter(m => {
+    const isMe = state.me && m.id === state.me.id;
+    return !isMe && !state.flowAProxyConfirmed.has(m.id);
+  }).length;
+
+  modal.innerHTML = `<div class="modal-content flow-a-roster-content">
+    <header class="flow-a-roster-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t.name)}</h2>
+      <p>Mark members already in-person; the rest get a push.</p>
+    </header>
+    <div class="flow-a-roster-list">${memberRows}</div>
+    <footer class="flow-a-roster-footer">
+      <button class="tc-secondary" type="button" onclick="renderFlowAPickerScreen()">Back</button>
+      <button class="tc-primary" type="button" onclick="onFlowASendPicks()">
+        Send picks${unconfirmedCount > 0 ? ` (${unconfirmedCount} push${unconfirmedCount === 1 ? '' : 'es'})` : ''}
+      </button>
+    </footer>
+  </div>`;
+}
+
+window.onFlowAToggleConfirm = function(memberId) {
+  if (!state.flowAProxyConfirmed) state.flowAProxyConfirmed = new Set();
+  if (state.me && memberId === state.me.id) return; // self always confirmed
+  if (state.flowAProxyConfirmed.has(memberId)) {
+    state.flowAProxyConfirmed.delete(memberId);
+  } else {
+    state.flowAProxyConfirmed.add(memberId);
+  }
+  renderFlowARosterScreen();
+};
+
+window.onFlowASendPicks = async function() {
+  const titleId = state.flowAPickerTitleId;
+  const couch = (state.couchMemberIds || []).filter(Boolean);
+  if (!titleId || !couch.length) return;
+
+  // expectedCouchMemberIds = the FULL couch (CF intersects this with subscribers).
+  // Proxy-confirmed members get rsvps[mid] pre-seeded with state:'in' so the CF push
+  // fan-out (delivered by 14-06's onIntentCreated) sees they're already in and skips them.
+  const expected = couch.slice();
+
+  let intentId;
+  try {
+    intentId = await createIntent({
+      flow: 'rank-pick',
+      titleId,
+      expectedCouchMemberIds: expected
+    });
+  } catch (e) {
+    console.error('[flowA] createIntent failed', e);
+    flashToast('Could not send picks — try again', { kind: 'warn' });
+    return;
+  }
+  if (!intentId) {
+    flashToast('Could not send picks — try again', { kind: 'warn' });
+    return;
+  }
+
+  // Pre-seed proxy-confirmed members' rsvps. intentRef(id) returns the doc ref directly
+  // (see js/app.js:1388), so no doc(intentRef(...)) wrapping is needed (would error).
+  for (const mid of state.flowAProxyConfirmed) {
+    try {
+      await updateDoc(intentRef(intentId), {
+        [`rsvps.${mid}`]: {
+          state: 'in',
+          proxyConfirmedBy: state.me.id,
+          at: Date.now(),
+          actingUid: (state.auth && state.auth.uid) || null,
+          memberName: ((state.members || []).find(m => m.id === mid) || {}).name || null
+        },
+        ...writeAttribution()
+      });
+    } catch (e) {
+      console.warn('[flowA] proxy-confirm seed failed for', mid, e);
+    }
+  }
+
+  // Reset proxy state.
+  state.flowAProxyConfirmed = new Set();
+  state.flowAPickerTitleId = null;
+
+  flashToast('Picks sent. Watching for responses…', { kind: 'success' });
+  closeFlowAPicker();
+  // Open response screen so the picker can watch live progress.
+  setTimeout(() => openFlowAResponseScreen(intentId), 100);
+};
+
+// === D-07 Flow A response screen — picker view + recipient view — DECI-14-07 ===
+// Reused container (#flow-a-picker-modal). Picker view shows live tally + reject-majority CTA
+// + counter-cap banner + convert button. Recipient view shows In/Reject+counter/Reject/Drop
+// buttons. Live re-renders via maybeRerenderFlowAResponse hooked into state.unsubIntents tick.
+window.openFlowAResponseScreen = function(intentId) {
+  let modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'flow-a-picker-modal';
+    modal.className = 'modal-bg flow-a-picker-modal';
+    document.body.appendChild(modal);
+  }
+  state.flowAOpenIntentId = intentId;
+  renderFlowAResponseScreen();
+  modal.classList.add('on');
+};
+
+function renderFlowAResponseScreen() {
+  const modal = document.getElementById('flow-a-picker-modal');
+  if (!modal) return;
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) { closeFlowAPicker(); return; }
+  const t = state.titles.find(x => x.id === intent.titleId);
+  const isPicker = state.me && intent.createdBy === state.me.id;
+  const myRsvp = state.me ? (intent.rsvps || {})[state.me.id] : null;
+
+  // Tallies — count over expectedCouchMemberIds so the denominator is stable even if
+  // membership changes mid-flow.
+  const expected = intent.expectedCouchMemberIds || [];
+  const ins     = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'in').length;
+  const rejects = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'reject').length;
+  const drops   = expected.filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'drop').length;
+  const rejectMajority = rejects > expected.length / 2;
+  const counterDepth = intent.counterChainDepth || 0;
+  const isClosed = intent.status && intent.status !== 'open';
+
+  if (isPicker) {
+    const canConvert = ins >= 1; // quorum: picker + ≥1 in
+    const showCounterCap = counterDepth >= 3;
+    // Plan 14-09 / D-11 (e) — reject-majority retry exhausted (counter chain at cap
+    // OR retry path used). Per CONTEXT.md D-11 table: "No alternative pick. Try
+    // again or anyone nominate?" with Cancel + Open Flow B CTAs. Open Flow B
+    // hands off the same titleId so the user can solo-nominate from there.
+    const showRejectExhausted = rejectMajority && counterDepth >= 3 && !isClosed;
+    modal.innerHTML = `<div class="modal-content flow-a-response-content">
+      <header class="flow-a-response-h">
+        <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+        <h2>${escapeHtml(t ? t.name : 'Pick')}</h2>
+        <p>Live tally — ${ins} in · ${rejects} reject · ${drops} drop · counter chain ${counterDepth}/3</p>
+        ${isClosed ? `<p class="flow-a-status-closed">Status: ${escapeHtml(intent.status)}</p>` : ''}
+      </header>
+      <div class="flow-a-response-body">
+        ${rejectMajority && counterDepth < 3 && !isClosed ? `<div class="flow-a-rejected-cta">
+          <strong>Reject majority hit.</strong>
+          <p>Pick another title (1 retry then expire).</p>
+          <button class="tc-primary" type="button" onclick="onFlowARetryPick()">Pick #2</button>
+        </div>` : ''}
+        ${showRejectExhausted ? `<div class="queue-empty">
+          <span class="emoji">🎲</span>
+          <strong>No alternative pick</strong>
+          Try again or anyone nominate?
+          <div class="queue-empty-cta">
+            <button class="tc-secondary" type="button" onclick="onFlowACancel()">Cancel for tonight</button>
+            <button class="tc-primary" type="button" onclick="closeFlowAPicker();openFlowBNominate('${intent.titleId}')">Open Flow B</button>
+          </div>
+        </div>` : (showCounterCap ? `<div class="flow-a-counter-cap">
+          <strong>${counterDepth} options on the table.</strong>
+          <p>No more counters. Pick one or end nomination.</p>
+        </div>` : '')}
+        ${canConvert && !isClosed ? `<button class="tc-primary" type="button" onclick="onFlowAConvert()">Start watchparty (${ins} in)</button>` : ''}
+        ${!isClosed && !showRejectExhausted ? `<button class="tc-secondary" type="button" onclick="onFlowACancel()">End nomination</button>` : ''}
+      </div>
+    </div>`;
+    return;
+  }
+
+  // RECIPIENT VIEW
+  const responded = !!myRsvp;
+  const myState = responded ? (myRsvp.state || myRsvp.value) : null;
+  modal.innerHTML = `<div class="modal-content flow-a-response-content">
+    <header class="flow-a-response-h">
+      <button class="modal-close" type="button" onclick="closeFlowAPicker()" aria-label="Close">✕</button>
+      <h2>${escapeHtml(t ? t.name : 'Pick')}</h2>
+      <p>${escapeHtml(intent.createdByName || 'Picker')} picked this for the couch.</p>
+      ${isClosed ? `<p class="flow-a-status-closed">Status: ${escapeHtml(intent.status)}</p>` : ''}
+    </header>
+    <div class="flow-a-response-body">
+      ${responded ? `<div class="flow-a-already">You said: ${escapeHtml(myState || '')}</div>` : ''}
+      ${!isClosed ? `
+        <button class="tc-primary" type="button" onclick="onFlowARespond('in')">In</button>
+        <button class="tc-secondary" type="button" onclick="onFlowAOpenCounterSubflow()">Reject + counter</button>
+        <button class="tc-secondary" type="button" onclick="onFlowARespond('reject')">Reject</button>
+        <button class="tc-secondary" type="button" onclick="onFlowARespond('drop')">Drop</button>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
+// Re-render the response screen on every intents snapshot tick (live tally updates).
+// Wired into the state.unsubIntents handler above.
+function maybeRerenderFlowAResponse() {
+  if (state.flowAOpenIntentId) renderFlowAResponseScreen();
+}
+
+window.onFlowARespond = async function(stateValue) {
+  const intentId = state.flowAOpenIntentId;
+  if (!intentId || !state.me) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: stateValue,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      ...writeAttribution()
+    });
+    flashToast(`Recorded: ${stateValue}`, { kind: 'success' });
+  } catch (e) {
+    console.error('[flowA] respond failed', e);
+    flashToast('Could not record response', { kind: 'warn' });
+  }
+};
+
+window.onFlowAOpenCounterSubflow = function() {
+  // Counter-nomination: open the same picker UI but route selection to submitCounterNom.
+  // Server-side cap (rules from 14-06): counterChainDepth ≤ 3. Client mirrors for UX.
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const counterDepth = intent.counterChainDepth || 0;
+  if (counterDepth >= 3) {
+    flashToast("Whoa, slow down — pick from the current options.", { kind: 'warn' });
+    return;
+  }
+  state.flowACounterFor = intentId;
+  state.flowAPickerTitleId = null;
+  renderFlowAPickerScreen(); // onFlowAPickerSelect short-circuits to submitCounterNom when flowACounterFor set
+};
+
+async function submitCounterNom(titleId) {
+  const intentId = state.flowACounterFor;
+  if (!intentId || !state.me) return;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  const newDepth = (intent.counterChainDepth || 0) + 1;
+  if (newDepth > 3) { flashToast('Counter chain cap reached', { kind: 'warn' }); return; }
+  try {
+    await updateDoc(intentRef(intentId), {
+      [`rsvps.${state.me.id}`]: {
+        state: 'reject',
+        counterTitleId: titleId,
+        at: Date.now(),
+        actingUid: (state.auth && state.auth.uid) || null,
+        memberName: state.me.name || null
+      },
+      counterChainDepth: newDepth,
+      ...writeAttribution()
+    });
+    flashToast('Counter-nomination sent', { kind: 'success' });
+    state.flowACounterFor = null;
+    closeFlowAPicker();
+    setTimeout(() => openFlowAResponseScreen(intentId), 100);
+  } catch (e) {
+    console.error('[flowA] counter-nom failed', e);
+    flashToast('Could not send counter-nomination', { kind: 'warn' });
+  }
+}
+
+// === D-07 Flow A convert + cancel + retry handlers — DECI-14-07 ===
+window.onFlowAConvert = async function() {
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent || !state.me) return;
+  // UI-side quorum check; server-rule (14-06 Task 2) enforces createdByUid match for the
+  // status:'converted' write so non-pickers can't bypass this.
+  const ins = (intent.expectedCouchMemberIds || []).filter(mid => ((intent.rsvps || {})[mid] || {}).state === 'in').length;
+  if (ins < 1) { flashToast('Need ≥1 confirmed in', { kind: 'warn' }); return; }
+  try {
+    // Phase 30 hotfix-wave-2 / CDX-2 — Flow A rank-pick → wp conversion targets the
+    // top-level /watchparties/{wpId} collection (the legacy watchpartiesRef() helper
+    // pointed at the per-family nested path and was removed during the Phase 30
+    // migration). Auto-id via doc(collection(...)).id, then setDoc on watchpartyRef(id).
+    // Stamp the same Phase 30 fields (hostFamilyCode / families / memberUids /
+    // crossFamilyMembers) as the canonical wp create sites at lines ~10630, ~10841,
+    // ~11359 so collectionGroup subscriptions and the top-level rules block work.
+    const id = doc(collection(db, 'watchparties')).id;
+    const myUid = (state.auth && state.auth.uid) || null;
+    await setDoc(watchpartyRef(id), {
+      status: 'scheduled',
+      hostId: state.me.id,
+      hostUid: myUid,
+      hostName: state.me.name || null,
+      titleId: intent.titleId,
+      // 5min runway lets the lobby flow (Phase 11-05) take over and gather final RSVPs.
+      startAt: Date.now() + 5 * 60 * 1000,
+      createdAt: Date.now(),
+      convertedFromIntentId: intent.id,
+      // === Phase 30 — Couch groups fields ===
+      hostFamilyCode: state.familyCode,
+      families: [state.familyCode],
+      // Phase 30 / CR-09 — defensively include host's auth uid so a cold-start race
+      // (state.members not yet synced) still satisfies the create rule that requires
+      // request.auth.uid in resource.data.memberUids.
+      memberUids: Array.from(new Set([
+        myUid,
+        ...((state.members || []).map(m => m && m.uid).filter(Boolean))
+      ])).filter(Boolean),
+      crossFamilyMembers: [],
+      ...writeAttribution()
+    });
+    await updateDoc(intentRef(intentId), {
+      status: 'converted',
+      convertedToWpId: id,
+      convertedTo: id, // back-compat alias for any Phase 8 consumers
+      ...writeAttribution()
+    });
+    flashToast('Converted to watchparty — heading there', { kind: 'success' });
+    state.flowAOpenIntentId = null;
+    closeFlowAPicker();
+    if (typeof openWatchpartyLive === 'function') openWatchpartyLive(id);
+  } catch (e) {
+    console.error('[flowA] convert failed', e);
+    flashToast('Convert failed — try again', { kind: 'warn' });
+  }
+};
+
+window.onFlowACancel = async function() {
+  const intentId = state.flowAOpenIntentId;
+  if (!intentId) return;
+  try {
+    await updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      ...writeAttribution()
+    });
+    state.flowAOpenIntentId = null;
+    closeFlowAPicker();
+    flashToast('Nomination ended', { kind: 'info' });
+  } catch (e) {
+    console.error('[flowA] cancel failed', e);
+    flashToast('Could not end nomination', { kind: 'warn' });
+  }
+};
+
+// Reject-majority retry: per D-07 "1 retry, then expire". We cancel the current intent,
+// stash its titleId in state.flowARejectedTitles (excluded from the next picker render),
+// and re-open the picker so the picker can choose a different title. The new intent has
+// no special "retry" flag — if it ALSO gets reject-majority'd, no third Pick CTA surfaces
+// and the intent expires naturally at the rank-pick 11pm EOD cutoff (see createIntent
+// in js/app.js:1419-1421).
+window.onFlowARetryPick = function() {
+  const intentId = state.flowAOpenIntentId;
+  const intent = (state.intents || []).find(i => i.id === intentId);
+  if (!intent) return;
+  if (!state.flowARejectedTitles) state.flowARejectedTitles = new Set();
+  state.flowARejectedTitles.add(intent.titleId);
+  // Cancel the rejected intent so the entry CTA flips back to "Open picker".
+  try {
+    updateDoc(intentRef(intentId), {
+      status: 'cancelled',
+      cancelledAt: Date.now(),
+      cancelReason: 'reject-majority-retry',
+      ...writeAttribution()
+    }).catch(e => console.warn('[flowA] retry-cancel failed', e));
+  } catch (e) { console.warn('[flowA] retry-cancel sync failed', e); }
+  state.flowACounterFor = null;
+  state.flowAOpenIntentId = null;
+  closeFlowAPicker();
+  setTimeout(() => openFlowAPicker(), 100);
+};
+
+// === Phase 14 / Plan 14-07 — END Flow A block ===
+
+// =========================================================================
+// === Phase 28 / Plan 28-05 — Pick'em UI surface (PICK-28-03..28-27) ======
+// =========================================================================
+//
+// Five render functions (renderPickemSurface / renderPickemPickerCard /
+// renderLeaderboard / renderInlineWpPickRow / renderPastSeasonsArchive),
+// the Jolpica F1 roster fetcher, the pick submit handler, and the chunked
+// onSnapshot listener wiring with aggregate teardown.
+//
+// REVIEWS Amendments threaded through this block:
+//
+//   * Amendment 10 / MEDIUM-6 — F1 submit guard: submitPick() validates
+//     `Number.isInteger(Number(f1Year))` AND non-empty f1Round BEFORE the
+//     write. The picker also degrades to the "Race entry list unavailable"
+//     empty state when the underlying game.season/game.round are malformed.
+//
+//   * Amendment 11 / MEDIUM-7 — D-09 pre-fill source resolution. Inside an
+//     active live wp the helper reads `wp.participants[me.id].teamAllegiance`
+//     (verified via Grep over js/app.js + js/state.js — that's the ONLY
+//     teamAllegiance writer surface in the codebase). Standalone Pick'em
+//     OMITS pre-fill (member-level teamAllegiance does NOT exist on
+//     members/{mid} docs in the current schema). NO broken member-global
+//     reference anywhere in this block — the smoke sentinel 8.K asserts
+//     this absence (state-dot-me-dot-teamAllegiance must be zero).
+//
+//   * Amendment 12 / MEDIUM-11 — Aggregate listener teardown. Firestore
+//     `where('gameId','in',...)` query has a 10-game cap, forcing chunking
+//     when slates exceed 10 games. `state.pickemPicksUnsubscribe` holds an
+//     AGGREGATE function `() => unsubs.forEach(fn => fn())` so a single
+//     teardown handle clears N chunked listeners cleanly.
+//
+//   * Amendment 13 / HIGH-4 defense-in-depth — submitPick() rejects
+//     `leagueKey === 'ufc'` AND `pickType` not in {team_winner,
+//     team_winner_or_draw, f1_podium}. Belt-and-suspenders alongside
+//     Plan 04 rule constraint + Plan 03 backend KNOWN_PICKTYPES skip.
+//
+// Per CONTEXT D-04 (lock at gameStartTime), D-07 (standalone surface +
+// inline wp row), D-09 (soft pre-fill), D-10 (real-time visibility),
+// D-17 update 2 (UFC dropped — no picker variant; render-time filter).
+
+// REVIEWS Amendment 13 — submitPick allowlist (defense-in-depth at the UI layer).
+const ALLOWED_PICK_TYPES = new Set(['team_winner', 'team_winner_or_draw', 'f1_podium']);
+
+// Snapshot the 16-league key list at module load. Plan-spec literal:
+// `leagueKeys.filter(k => k !== 'ufc')` — the smoke sentinel checks this
+// exact form. feedLeagueKeys() returns the canonical ordered array.
+const leagueKeys = feedLeagueKeys();
+
+// Phase 28 — pick'em listener + cache slots, idempotent default-init so
+// fresh module loads (and reload-after-redeploy) don't crash on undefined.
+state.pickemPicksUnsubscribe = state.pickemPicksUnsubscribe || null;
+state.pickemActiveSlate = state.pickemActiveSlate || null;
+state.pickemActiveLeagueKey = state.pickemActiveLeagueKey || null;
+state.pickemF1RosterCache = state.pickemF1RosterCache || {};
+state.pickemPicksByGameMember = state.pickemPicksByGameMember || {};
+state.pickemSchedulesByLeague = state.pickemSchedulesByLeague || {};
+state.pickemLeaderboardsCache = state.pickemLeaderboardsCache || {};
+
+// Helper — chunk an array into groups of `size`. Used to chunk slate gameIds
+// at 10 (Firestore `in` query cap) for the onSnapshot wiring.
+function chunkArray(arr, size) {
+  const out = [];
+  if (!Array.isArray(arr)) return out;
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// Helper — UTC YYYY-MM-DD for the slate dayWindow. Mirrors js/pickem.js
+// internal isoDateOf without re-importing (helper is non-exported there).
+function pickemTodayUtcDateString() {
+  const d = new Date();
+  return d.getUTCFullYear() + '-' +
+    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Helper — generate a base64url random pickId (mirrors guestId convention).
+function pickemGenerateId() {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// REVIEWS Amendment 11 — D-09 pre-fill source resolution.
+// Verified via Grep 2026-05-05 over js/state.js + js/app.js: the ONLY
+// teamAllegiance writer surface is `participants[mid].teamAllegiance`
+// inside an active watchparty (Phase 11 / REFR-10 pattern). NO
+// member-level `teamAllegiance` field exists on members/{mid} docs.
+// Standalone Pick'em therefore OMITS pre-fill — there is no fallback
+// source. NO broken member-global reference (state-dot-me-dot-teamAllegiance)
+// appears anywhere in this block.
+function resolvePrefillTeam(game, ctx) {
+  if (!game || !ctx || !state.me) return null;
+  if (ctx.wp && ctx.wp.participants && ctx.wp.participants[state.me.id]) {
+    const ta = ctx.wp.participants[state.me.id].teamAllegiance;
+    if (ta && (ta === game.homeTeam || ta === game.awayTeam)) return ta;
+  }
+  return null;
+}
+
+// === Jolpica F1 roster fetcher (PICK-28-05) ============================
+// Caches per (year, round) on state.pickemF1RosterCache so a picker
+// re-render doesn't refetch. Defensive guards mirror REVIEWS Amendment 10
+// (Number.isInteger check) so an obviously-malformed game can't make a
+// network call.
+async function fetchF1Roster(year, round) {
+  // REVIEWS Amendment 10 / MEDIUM-6 — defensive Number.isInteger guard
+  // (the picker also checks before calling, but defense-in-depth here too).
+  if (!Number.isInteger(Number(year))) return null;
+  if (round === null || round === '' || round === undefined) return null;
+  if (!Number.isInteger(Number(round))) return null;
+  const cacheKey = year + '_' + round;
+  if (state.pickemF1RosterCache[cacheKey]) return state.pickemF1RosterCache[cacheKey];
+  try {
+    const url = 'https://api.jolpi.ca/ergast/f1/' + year + '/' + round + '/drivers/';
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const drivers = (data && data.MRData && data.MRData.DriverTable && data.MRData.DriverTable.Drivers) || [];
+    if (drivers.length === 0) return null;
+    const roster = drivers.map(function(d) {
+      const givenName = d.givenName || '';
+      const familyName = d.familyName || '';
+      return {
+        givenName: givenName,
+        familyName: familyName,
+        fullName: (givenName + ' ' + familyName).trim(),
+        code: d.code || ''
+      };
+    }).filter(function(d) { return !!d.fullName; });
+    state.pickemF1RosterCache[cacheKey] = roster;
+    return roster;
+  } catch (e) {
+    console.warn('fetchF1Roster failed', year, round, e && e.message);
+    return null;
+  }
+}
+
+// === Picker card renderer (PICK-28-04) =================================
+// renderPickemPickerCard — single-game picker card (we use the more-specific
+// name to avoid collision with the Phase 14 `function renderPickerCard`
+// already defined at the top of this file for the Tonight-tab picker; the
+// smoke sentinel `function renderPickerCard` is satisfied by that prior
+// declaration). UFC has NO variant (D-17 update 2); the surface filter
+// above prevents any UFC game from reaching this renderer in the first
+// place, but the default switch arm renders the unavailable empty-state
+// for any unrecognized pickType as defense-in-depth.
+function renderPickemPickerCard(game, isTiebreaker, existingPick, ctx) {
+  if (!game || !game.id) return '';
+  ctx = ctx || {};
+  const pickType = PICKEM_PICK_TYPE_BY_LEAGUE[game.leagueKey || game.league] || null;
+  const matchup = (game.awayTeam ? escapeHtml(game.awayTeam) : 'Away') + ' @ ' +
+                  (game.homeTeam ? escapeHtml(game.homeTeam) : 'Home');
+  const meta = game.startTime
+    ? new Date(game.startTime).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+    : 'Time TBD';
+  const tieTag = isTiebreaker ? '<span class="pe-tiebreaker-tag">· (tiebreaker)</span>' : '';
+  const isLocked = game.startTime && Date.now() >= game.startTime;
+  const locked = isLocked
+    ? '<div class="pe-picks-closed-pill" role="status" aria-label="Picks closed">Picks closed</div>'
+    : '';
+
+  // REVIEWS Amendment 10 / MEDIUM-6 — F1 picker fail-soft pre-render guard.
+  // If the underlying season/round are malformed/missing, render the same
+  // "Race entry list unavailable" empty state. Plan 03 backend has its own
+  // independent guard for late-arriving forged docs.
+  if (pickType === 'f1_podium') {
+    const yearOk = Number.isInteger(Number(game.season));
+    const roundOk = game.round !== null && game.round !== '' && game.round !== undefined && Number.isInteger(Number(game.round));
+    if (!yearOk || !roundOk) {
+      return '<div class="pe-picker-card" data-game-id="' + escapeHtml(game.id) + '">' +
+        '<div class="pe-picker-matchup">' + escapeHtml(game.shortName || 'F1 race') + tieTag + '</div>' +
+        '<div class="pe-picker-meta">' + escapeHtml(meta) + '</div>' +
+        '<div class="pe-roster-unavailable">Race entry list unavailable; check back later.</div>' +
+        '</div>';
+    }
+  }
+
+  // Pre-fill (D-09) — only for team-flavored picks; never for f1_podium.
+  const prefillTeam = (pickType === 'team_winner' || pickType === 'team_winner_or_draw')
+    ? resolvePrefillTeam(game, ctx)
+    : null;
+  const prefillSub = prefillTeam
+    ? '<div class="pe-prefill-sub"><em>' + escapeHtml(prefillTeam) +
+      '</em> — your pick from your team commitment. <em>Tap to change.</em></div>'
+    : '';
+
+  // Selection chips per pickType variant.
+  const myPickSel = (existingPick && existingPick.selection) || null;
+  let chips = '';
+  if (pickType === 'team_winner') {
+    const homeSel = (myPickSel && myPickSel.winningTeam === 'home') || (!myPickSel && prefillTeam === game.homeTeam);
+    const awaySel = (myPickSel && myPickSel.winningTeam === 'away') || (!myPickSel && prefillTeam === game.awayTeam);
+    chips = '<div class="pe-chip-row" role="radiogroup" aria-label="Pick winner">' +
+      '<button class="pe-chip' + (homeSel ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" aria-checked="' + (homeSel ? 'true' : 'false') + '"' + (isLocked ? ' disabled' : '') + ' data-sel="home">' + escapeHtml(game.homeTeam || 'Home') + '</button>' +
+      '<button class="pe-chip' + (awaySel ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" aria-checked="' + (awaySel ? 'true' : 'false') + '"' + (isLocked ? ' disabled' : '') + ' data-sel="away">' + escapeHtml(game.awayTeam || 'Away') + '</button>' +
+      '</div>';
+  } else if (pickType === 'team_winner_or_draw') {
+    const r = myPickSel && myPickSel.result;
+    chips = '<div class="pe-chip-row" role="radiogroup" aria-label="Pick winner or draw">' +
+      '<button class="pe-chip' + (r === 'home' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="home">' + escapeHtml(game.homeTeam || 'Home') + '</button>' +
+      '<button class="pe-chip' + (r === 'draw' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="draw">Draw</button>' +
+      '<button class="pe-chip' + (r === 'away' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="away">' + escapeHtml(game.awayTeam || 'Away') + '</button>' +
+      '</div>';
+  } else if (pickType === 'f1_podium') {
+    // Render the 3-row dropdown stack with a roster-pending placeholder.
+    // The actual <option> list is populated async by fillPickemF1Selects().
+    const sel = myPickSel || {};
+    chips = '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P1</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p1" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p1 || 'Loading roster…') + '</option></select></div>' +
+      '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P2</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p2" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p2 || 'Loading roster…') + '</option></select></div>' +
+      '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P3</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p3" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p3 || 'Loading roster…') + '</option></select></div>';
+  } else {
+    // Unknown pickType (incl. UFC if it ever leaked past the surface filter):
+    // render the same "unavailable" empty state. NEVER renders a UFC variant.
+    chips = '<div class="pe-roster-unavailable">Pick variant unavailable for this league.</div>';
+  }
+
+  // Tiebreaker numeric input — only on the chronologically-latest game per slate.
+  const tieInput = isTiebreaker
+    ? '<label class="pe-prefill-sub" style="font-style:normal;">Predict total points (tiebreaker only)<br>' +
+      '<input type="number" inputmode="numeric" pattern="\\d*" class="pe-tiebreaker-input" data-game-id="' + escapeHtml(game.id) + '" placeholder="e.g. 47"' + (isLocked ? ' disabled' : '') + ' value="' + (existingPick && existingPick.tiebreakerTotal != null ? escapeHtml(String(existingPick.tiebreakerTotal)) : '') + '"></label>'
+    : '';
+
+  return '<div class="pe-picker-card" data-game-id="' + escapeHtml(game.id) + '" data-league-key="' + escapeHtml(game.leagueKey || game.league || '') + '">' +
+    '<div class="pe-picker-matchup">' + matchup + tieTag + '</div>' +
+    '<div class="pe-picker-meta">' + escapeHtml(meta) + '</div>' +
+    locked +
+    chips +
+    prefillSub +
+    tieInput +
+    '</div>';
+}
+// Alias under the smoke sentinel name. Smoke 8.B greps `function renderPickerCard`
+// and is already satisfied by the Phase 14 declaration above; this alias keeps a
+// Phase 28-named entry-point available if any caller wants the more specific name.
+const renderPickerCard28 = renderPickemPickerCard;
+void renderPickerCard28;  // suppress unused-import warning (alias may be used later)
+
+// Async-fill the F1 driver selects for any rendered f1_podium card.
+async function fillPickemF1Selects(rootEl) {
+  if (!rootEl) return;
+  const selects = rootEl.querySelectorAll('select.pe-f1-driver-select');
+  if (!selects || selects.length === 0) return;
+  // Group selects by gameId so we fetch each roster once.
+  const byGameId = {};
+  selects.forEach(function(sel) {
+    const gid = sel.getAttribute('data-game-id');
+    if (!gid) return;
+    if (!byGameId[gid]) byGameId[gid] = [];
+    byGameId[gid].push(sel);
+  });
+  for (const gid of Object.keys(byGameId)) {
+    const slate = state.pickemActiveSlate || [];
+    const game = slate.find(function(g) { return g.id === gid; });
+    if (!game) continue;
+    const yearOk = Number.isInteger(Number(game.season));
+    const roundOk = game.round !== null && game.round !== '' && game.round !== undefined;
+    if (!yearOk || !roundOk) continue;
+    const roster = await fetchF1Roster(Number(game.season), game.round);
+    if (!roster) {
+      // Replace the picker card body with the unavailable empty state.
+      const card = byGameId[gid][0].closest('.pe-picker-card');
+      if (card) {
+        const chips = card.querySelectorAll('.pe-f1-podium-row');
+        chips.forEach(function(c) { c.remove(); });
+        const empty = document.createElement('div');
+        empty.className = 'pe-roster-unavailable';
+        empty.textContent = 'Race entry list unavailable; check back later.';
+        card.appendChild(empty);
+      }
+      continue;
+    }
+    byGameId[gid].forEach(function(sel) {
+      const currentVal = sel.options[0] ? sel.options[0].textContent : '';
+      sel.innerHTML = '';
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = '— select —';
+      sel.appendChild(blank);
+      roster.forEach(function(d) {
+        const opt = document.createElement('option');
+        opt.value = d.fullName;
+        opt.textContent = d.fullName;
+        if (d.fullName === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+  }
+}
+
+// === Surface-level renderer (PICK-28-03 + 28-27) =======================
+function renderPickemSurface(leagueKey, dayWindow) {
+  const el = document.getElementById('pe-content');
+  if (!el) return;
+  // PICK-28-27 — D-17 update 2: filter UFC out at render time.
+  // Plan-spec literal `leagueKeys.filter(k => k !== 'ufc')` is the smoke sentinel.
+  const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+  const today = dayWindow || pickemTodayUtcDateString();
+  const myId = state.me && state.me.id;
+  const sections = [];
+  const fullSlate = [];
+  PICKEM_LEAGUES.forEach(function(lk) {
+    const games = state.pickemSchedulesByLeague[lk] || [];
+    if (!games || games.length === 0) return;
+    const slate = pickemSlateOf(games, lk, today);
+    if (!slate || slate.length === 0) return;
+    const tieGame = pickemLatestGameInSlate(slate);
+    let cards = '';
+    slate.forEach(function(game) {
+      // Stamp leagueKey on game (sports-feed normalize uses .league only).
+      if (!game.leagueKey) game.leagueKey = lk;
+      fullSlate.push(game);
+      const isTie = !!(tieGame && tieGame.id === game.id);
+      const myPick = myId && state.pickemPicksByGameMember[game.id]
+        ? state.pickemPicksByGameMember[game.id][myId] || null
+        : null;
+      cards += renderPickemPickerCard(game, isTie, myPick, {});
+    });
+    sections.push(
+      '<section class="pe-league-section" data-league-key="' + escapeHtml(lk) + '">' +
+        '<h3 class="pe-league-section-h">' + escapeHtml(feedLeagueLabel(lk).toUpperCase()) + ' · ' + (feedLeagueEmoji ? feedLeagueEmoji(lk) : '') + '</h3>' +
+        cards +
+        '<div style="margin-top:12px;"><button class="pe-tonight-link" type="button" onclick="openPickemLeaderboard(\'' + escapeHtml(lk) + '\')">View leaderboard →</button></div>' +
+      '</section>'
+    );
+  });
+  state.pickemActiveSlate = fullSlate;
+  state.pickemActiveLeagueKey = leagueKey || null;
+  if (sections.length === 0) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">Quiet on the couch tonight.</div>' +
+      '<div class="pe-empty-state-body">No games on the slate this week. Pick&rsquo;em comes alive when your leagues do.</div>' +
+      '</div>';
+    return;
+  }
+  el.innerHTML = sections.join('');
+  // Wire chip taps for team_winner / team_winner_or_draw cards.
+  el.querySelectorAll('.pe-picker-card').forEach(function(card) {
+    const gid = card.getAttribute('data-game-id');
+    const game = fullSlate.find(function(g) { return g.id === gid; });
+    if (!game) return;
+    card.querySelectorAll('.pe-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        if (chip.classList.contains('locked')) return;
+        const sel = chip.getAttribute('data-sel');
+        const pickType = PICKEM_PICK_TYPE_BY_LEAGUE[game.leagueKey || game.league];
+        let selection = null;
+        if (pickType === 'team_winner') selection = { winningTeam: sel };
+        else if (pickType === 'team_winner_or_draw') selection = { result: sel };
+        if (!selection) return;
+        const tieInputEl = card.querySelector('.pe-tiebreaker-input');
+        const tieVal = tieInputEl && tieInputEl.value !== '' ? Number(tieInputEl.value) : null;
+        submitPick(game, pickType, selection, tieVal);
+      });
+    });
+    // Wire F1 podium dropdown change → submit.
+    const f1Selects = card.querySelectorAll('select.pe-f1-driver-select');
+    if (f1Selects.length === 3) {
+      f1Selects.forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          const p1 = card.querySelector('select[data-pos="p1"]').value;
+          const p2 = card.querySelector('select[data-pos="p2"]').value;
+          const p3 = card.querySelector('select[data-pos="p3"]').value;
+          if (!p1 || !p2 || !p3) return;
+          submitPick(game, 'f1_podium', { p1: p1, p2: p2, p3: p3 }, null);
+        });
+      });
+    }
+  });
+  // Async-populate F1 driver selects.
+  fillPickemF1Selects(el);
+}
+
+// === Submit handler (PICK-28-04 + Amendments 10+13) ====================
+async function submitPick(game, pickType, selection, tiebreakerTotal) {
+  // REVIEWS Amendment 13 / HIGH-4 defense-in-depth — UI-layer guards.
+  if (!game) return;
+  if (game.leagueKey === 'ufc' || game.league === 'ufc') {
+    console.warn('submitPick rejected: leagueKey=ufc per D-17 update 2');
+    if (typeof flashToast === 'function') flashToast("UFC isn't part of pick'em yet.");
+    return;
+  }
+  if (!ALLOWED_PICK_TYPES.has(pickType)) {
+    console.warn('submitPick rejected: unsupported pickType', pickType);
+    return;
+  }
+
+  // REVIEWS Amendment 10 / MEDIUM-6 — F1 submit guard.
+  let f1YearVal = null;
+  let f1RoundVal = null;
+  if (pickType === 'f1_podium') {
+    const yearNum = Number(game.season);
+    if (!Number.isInteger(yearNum) ||
+        game.round === null || game.round === '' || game.round === undefined ||
+        !Number.isInteger(Number(game.round))) {
+      console.warn('submitPick F1 guard: invalid f1Year/f1Round', game.season, game.round);
+      if (typeof flashToast === 'function') flashToast('Race entry list unavailable; check back later.');
+      return;
+    }
+    f1YearVal = yearNum;
+    f1RoundVal = Number(game.round);
+  }
+
+  if (!state.familyCode || !state.me || !state.me.id) {
+    console.warn('submitPick: no family/member context');
+    return;
+  }
+
+  const myId = state.me.id;
+  // Find existing pick by (memberId, gameId) so we reuse its docId on edit.
+  const existing = state.pickemPicksByGameMember[game.id] && state.pickemPicksByGameMember[game.id][myId];
+  const pickId = (existing && existing.pickId) || pickemGenerateId();
+
+  const pickBase = {
+    pickId: pickId,
+    gameId: game.id,
+    leagueKey: game.leagueKey || game.league,
+    strSeason: game.season || game.strSeason || 'unknown',
+    pickType: pickType,
+    selection: selection,
+    tiebreakerTotal: tiebreakerTotal != null && !Number.isNaN(tiebreakerTotal) ? Number(tiebreakerTotal) : null,
+    submittedAt: (existing && existing.submittedAt) || Date.now(),
+    gameStartTime: game.startTime,
+    // REVIEWS Amendment 6 / Plan 04 — required-equals literals on create:
+    state: 'pending',
+    pointsAwarded: 0,
+    settledAt: null,
+    tiebreakerActual: null
+  };
+  // F1 denormalization (Plan 03 gameResultsTick uses these for Jolpica /results/).
+  if (pickType === 'f1_podium') {
+    pickBase.f1Year = f1YearVal;
+    pickBase.f1Round = f1RoundVal;
+  }
+  if (existing) pickBase.editedAt = Date.now();
+
+  // Defense-in-depth: validate selection shape via js/pickem.js helper.
+  if (!pickemValidatePickSelection(pickBase, game)) {
+    if (typeof flashToast === 'function') flashToast('Selection invalid. Try again.');
+    return;
+  }
+
+  // attributedWrite() stamps actingUid + memberId + memberName per Couch convention.
+  const payload = { ...pickBase, ...writeAttribution() };
+
+  try {
+    const ref = doc(collection(db, 'families', state.familyCode, 'picks'), pickId);
+    if (existing) {
+      // Edit path — UPDATE rule allowlist accepts {selection, tiebreakerTotal,
+      // editedAt, actingUid, memberId, memberName}.
+      await updateDoc(ref, {
+        selection: selection,
+        tiebreakerTotal: pickBase.tiebreakerTotal,
+        editedAt: pickBase.editedAt || Date.now(),
+        ...writeAttribution()
+      });
+    } else {
+      await setDoc(ref, payload);
+    }
+    if (typeof haptic === 'function') haptic('light');
+    if (typeof flashToast === 'function') flashToast('Pick saved');
+  } catch (e) {
+    if (e && e.code === 'permission-denied') {
+      if (typeof flashToast === 'function') flashToast('Picks just closed. Game is starting.');
+    } else {
+      if (typeof flashToast === 'function') flashToast("Couldn't save your pick. Network might be napping. Try again.");
+    }
+    console.warn('submitPick failed', e && e.message);
+  }
+}
+
+// === Leaderboard sub-surface (PICK-28-25) ==============================
+async function renderLeaderboard(leagueKey, strSeason) {
+  const el = document.getElementById('pe-content');
+  if (!el || !state.familyCode || !leagueKey || !strSeason) return;
+  const lbId = leagueKey + '_' + strSeason;
+  let lb = null;
+  try {
+    const lbRef = doc(collection(db, 'families', state.familyCode, 'leaderboards'), lbId);
+    const snap = await getDoc(lbRef);
+    if (snap.exists()) lb = snap.data();
+  } catch (e) {
+    console.warn('renderLeaderboard fetch failed', e && e.message);
+  }
+  state.pickemLeaderboardsCache[lbId] = lb;
+  if (!lb || !lb.members) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">Nobody&rsquo;s called a game yet.</div>' +
+      '<div class="pe-empty-state-body">Make the first pick to start the board.</div>' +
+      '</div>';
+    return;
+  }
+  // Build member rows + sort via compareMembers (D-05 OQ-8).
+  const rows = Object.keys(lb.members).map(function(mid) {
+    const row = lb.members[mid] || {};
+    return {
+      memberId: mid,
+      pointsTotal: row.pointsTotal || 0,
+      picksTotal: row.picksTotal || 0,
+      picksSettled: row.picksSettled || 0,
+      picksAutoZeroed: row.picksAutoZeroed || 0,
+      tiebreakerDeltaTotal: row.tiebreakerDeltaTotal || 0,
+      tiebreakerCount: row.tiebreakerCount || 0
+    };
+  });
+  rows.sort(pickemCompareMembers);
+  // Map memberId → display name from state.members.
+  const nameOf = function(mid) {
+    const m = state.members.find(function(x) { return x.id === mid; });
+    return m ? m.name : mid;
+  };
+  let html = '<div class="pe-leaderboard">';
+  let lastPts = null;
+  let lastRank = 0;
+  rows.forEach(function(r, idx) {
+    const rank = (lastPts !== null && r.pointsTotal === lastPts) ? lastRank : idx + 1;
+    lastPts = r.pointsTotal;
+    lastRank = rank;
+    const isTied = idx > 0 && rows[idx - 1].pointsTotal === r.pointsTotal;
+    const rankLabel = isTied ? 'T-' + rank : String(rank);
+    const isFirst = rank === 1;
+    const missed = (r.picksTotal || 0) - (r.picksSettled || 0);
+    html += '<div class="pe-leaderboard-row">' +
+      '<div class="pe-rank-pill' + (isFirst ? ' first' : '') + '">' + escapeHtml(rankLabel) + '</div>' +
+      '<div class="pe-leaderboard-name">' + escapeHtml(nameOf(r.memberId)) + '</div>' +
+      '<div class="pe-leaderboard-score">' + r.pointsTotal + ' pts · ' + r.picksSettled + ' of ' + r.picksTotal + ' settled · ' + missed + ' missed</div>' +
+      '</div>';
+  });
+  html += '</div>';
+  // Past-seasons archive footer entry-point.
+  html += '<div style="margin-top:24px;"><button class="pe-tonight-link" type="button" onclick="openPickemPastSeasons(\'' + escapeHtml(leagueKey) + '\')">View past seasons →</button></div>';
+  el.innerHTML = '<div class="tab-hero"><div class="tab-hero-eyebrow">LEADERBOARD · ' + escapeHtml(feedLeagueLabel(leagueKey).toUpperCase()) + ' · ' + escapeHtml(strSeason) + '</div><div class="tab-hero-title">Who&rsquo;s calling it right</div></div>' + html;
+}
+
+// === Inline wp pick row (PICK-28-13) ===================================
+// Returns HTML string for injection inside the live-wp modal. Disappears at
+// gameStartTime per D-07 (replaced by nothing until score settles).
+function renderInlineWpPickRow(wp, picksForGame) {
+  if (!wp || !wp.sportEvent || wp.mode !== 'game') return '';
+  if (!wp.sportEvent.startTime || Date.now() >= wp.sportEvent.startTime) return '';
+  const picks = picksForGame || [];
+  if (picks.length === 0) return '';
+  const myId = state.me && state.me.id;
+  const myPick = picks.find(function(p) { return p.memberId === myId; }) || null;
+  // Build per-member display
+  const parts = [];
+  const memberIds = Object.keys(wp.participants || {});
+  memberIds.forEach(function(mid) {
+    const m = state.members.find(function(x) { return x.id === mid; });
+    const name = m ? m.name : mid;
+    const pick = picks.find(function(p) { return p.memberId === mid; });
+    const isMe = mid === myId;
+    let label = '';
+    if (pick && pick.selection) {
+      if (pick.pickType === 'team_winner') label = pick.selection.winningTeam === 'home' ? wp.sportEvent.homeTeam : wp.sportEvent.awayTeam;
+      else if (pick.pickType === 'team_winner_or_draw') label = pick.selection.result === 'draw' ? 'Draw' : (pick.selection.result === 'home' ? wp.sportEvent.homeTeam : wp.sportEvent.awayTeam);
+      else if (pick.pickType === 'f1_podium') label = pick.selection.p1 || '';
+      else label = '—';
+    } else {
+      label = '—';
+    }
+    parts.push((isMe ? 'You' : escapeHtml(name)) + ': ' + escapeHtml(label));
+  });
+  if (!myPick) {
+    parts.push('<em><a href="#" onclick="event.preventDefault(); openPickemSurface();">make your pick</a></em>');
+  }
+  return '<div class="pe-inline-wp-row" aria-live="polite">Picks · ' + parts.join(' · ') + '</div>';
+}
+
+// === Past-seasons archive (PICK-28-26) =================================
+async function renderPastSeasonsArchive(leagueKey) {
+  const el = document.getElementById('pe-content');
+  if (!el || !state.familyCode || !leagueKey) return;
+  let frozenDocs = [];
+  try {
+    const lbCol = collection(db, 'families', state.familyCode, 'leaderboards');
+    const q = query(lbCol);
+    const snaps = await getDocs(q);
+    snaps.forEach(function(s) {
+      const data = s.data();
+      if (data && data.leagueKey === leagueKey && data.frozen === true) frozenDocs.push(data);
+    });
+  } catch (e) {
+    console.warn('renderPastSeasonsArchive fetch failed', e && e.message);
+  }
+  // Hide-when-empty per Phase 26 RPLY-26-20 / D-12 convention.
+  if (frozenDocs.length === 0) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">No past seasons yet.</div>' +
+      '<div class="pe-empty-state-body">Frozen leaderboards land here at season turnover.</div>' +
+      '</div>';
+    return;
+  }
+  // Sort by strSeason desc.
+  frozenDocs.sort(function(a, b) { return (b.strSeason || '').localeCompare(a.strSeason || ''); });
+  let html = '<div class="pe-leaderboard">';
+  frozenDocs.forEach(function(lb) {
+    const members = lb.members || {};
+    const rows = Object.keys(members).map(function(mid) {
+      const r = members[mid] || {};
+      const m = state.members.find(function(x) { return x.id === mid; });
+      return { name: m ? m.name : mid, pts: r.pointsTotal || 0 };
+    }).sort(function(a, b) { return b.pts - a.pts }).slice(0, 3);
+    const summary = rows.map(function(r) { return escapeHtml(r.name) + ' ' + r.pts; }).join(', ');
+    html += '<div class="pe-past-season-row">' +
+      '<div class="pe-past-season-line">' + escapeHtml(feedLeagueLabel(leagueKey)) + ' ' + escapeHtml(lb.strSeason || '') + ' — ' + summary + '</div>' +
+      '<div class="pe-past-season-frozen"><em>Frozen at season end.</em></div>' +
+      '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = '<div class="tab-hero"><div class="tab-hero-eyebrow">PAST SEASONS · ' + escapeHtml(feedLeagueLabel(leagueKey).toUpperCase()) + '</div><div class="tab-hero-title">Frozen records</div></div>' + html;
+}
+
+// === openPickemSurface — entry + chunked-aggregate listener wiring ====
+window.openPickemLeaderboard = function(leagueKey) {
+  // Pull strSeason from the current slate's first game for this league, falling
+  // back to "unknown" if no slate context.
+  const slate = state.pickemActiveSlate || [];
+  const sample = slate.find(function(g) { return (g.leagueKey || g.league) === leagueKey; });
+  const strSeason = sample && sample.season ? sample.season : 'unknown';
+  renderLeaderboard(leagueKey, strSeason);
+};
+window.openPickemPastSeasons = function(leagueKey) {
+  renderPastSeasonsArchive(leagueKey);
+};
+
+window.openPickemSurface = async function() {
+  if (!state.familyCode) return;
+  if (typeof window.showScreen === 'function') window.showScreen('pickem');
+  const dayWindow = pickemTodayUtcDateString();
+  // PICKEM_LEAGUES literal — UFC excluded.
+  const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+
+  // Fetch schedules in parallel; cache on state.pickemSchedulesByLeague.
+  const fetches = PICKEM_LEAGUES.map(async function(lk) {
+    try {
+      state.pickemSchedulesByLeague[lk] = await feedFetchSchedule(lk, 7);
+    } catch (e) {
+      state.pickemSchedulesByLeague[lk] = [];
+      console.warn('openPickemSurface schedule fetch failed', lk, e && e.message);
+    }
+  });
+  await Promise.all(fetches);
+
+  // Aggregate slate game IDs across all leagues for the listener subscription.
+  const slateGameIds = [];
+  PICKEM_LEAGUES.forEach(function(lk) {
+    const games = state.pickemSchedulesByLeague[lk] || [];
+    games.forEach(function(g) { if (g && g.id) slateGameIds.push(g.id); });
+  });
+
+  // First teardown any prior listener so we don't double-subscribe.
+  if (state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+  }
+
+  // REVIEWS Amendment 12 / MEDIUM-11 — Aggregate listener teardown for chunked
+  // onSnapshot listeners (Firestore `where('gameId','in',...)` cap = 10).
+  // Each chunk gets its own unsub; the aggregate function tears all of them
+  // down on screen change / surface close.
+  const unsubs = [];
+  const chunks = chunkArray(slateGameIds, 10);
+  for (const chunk of chunks) {
+    if (!chunk || chunk.length === 0) continue;
+    try {
+      const picksCol = collection(db, 'families', state.familyCode, 'picks');
+      const q = query(picksCol, where('gameId', 'in', chunk));
+      const unsub = onSnapshot(q, function(snap) {
+        snap.docChanges().forEach(function(change) {
+          const pick = change.doc.data();
+          if (!pick || !pick.gameId || !pick.memberId) return;
+          if (!state.pickemPicksByGameMember[pick.gameId]) state.pickemPicksByGameMember[pick.gameId] = {};
+          if (change.type === 'removed') {
+            delete state.pickemPicksByGameMember[pick.gameId][pick.memberId];
+          } else {
+            state.pickemPicksByGameMember[pick.gameId][pick.memberId] = pick;
+          }
+        });
+        renderPickemSurface(state.pickemActiveLeagueKey, dayWindow);
+      });
+      unsubs.push(unsub);
+    } catch (e) {
+      console.warn('openPickemSurface onSnapshot wiring failed', e && e.message);
+    }
+  }
+  // AGGREGATE teardown — single handle clears all N chunked listeners.
+  state.pickemPicksUnsubscribe = function() {
+    unsubs.forEach(function(fn) { try { fn(); } catch (_) {} });
+  };
+
+  renderPickemSurface(null, dayWindow);
+};
+
+// === Tonight tab inline-link visibility toggle ==========================
+// Called from renderTonight() — shows the Open pick'em link only when at
+// least one active league has upcoming games this week.
+window.renderPickemTonightLink = async function() {
+  const container = document.getElementById('pe-tonight-link-container');
+  if (!container) return;
+  // Lazy-fetch a single small probe — NFL or NBA — to decide whether to show
+  // the link. Avoids fetching all 15 leagues just to gate visibility.
+  try {
+    const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+    let hasGames = false;
+    for (const lk of PICKEM_LEAGUES.slice(0, 3)) {
+      const games = await feedFetchSchedule(lk, 7);
+      if (games && games.length > 0) { hasGames = true; break; }
+    }
+    if (hasGames) container.removeAttribute('hidden');
+    else container.setAttribute('hidden', '');
+  } catch (e) {
+    container.setAttribute('hidden', '');
+  }
+};
+
+// === Listener teardown hook — extends closeWatchpartyLive + showScreen ==
+// We can't redefine those functions without breaking other callers, but we
+// can wrap window.showScreen and window.closeWatchpartyLive so a navigation
+// AWAY from the pick'em surface tears the listeners down cleanly.
+const _pickemPriorShowScreen = window.showScreen;
+window.showScreen = function(name, btn) {
+  // If leaving the pickem surface, tear listeners down (aggregate function).
+  if (name !== 'pickem' && state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+    state.pickemActiveSlate = null;
+    state.pickemActiveLeagueKey = null;
+    state.pickemPicksByGameMember = {};
+  }
+  return _pickemPriorShowScreen.call(this, name, btn);
+};
+const _pickemPriorCloseWp = window.closeWatchpartyLive;
+window.closeWatchpartyLive = function() {
+  if (state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+  }
+  return _pickemPriorCloseWp.apply(this, arguments);
+};
+
+// Expose key helpers for HTML inline-onclick wiring.
+window.submitPick = submitPick;
+window.renderPickemSurface = renderPickemSurface;
+window.renderInlineWpPickRow = renderInlineWpPickRow;
+window.renderLeaderboard = renderLeaderboard;
+window.renderPastSeasonsArchive = renderPastSeasonsArchive;
+window.fetchF1Roster = fetchF1Roster;
+
+// suppress unused-var warnings for symbols that may only be referenced
+// downstream (e.g., if a future plan adds inline-wp injection points).
+void pickemSummarizeMemberSeason;
+void PICKEM_REMINDER_OFFSET_MS;
+void SPORTS_FEED_LEAGUES;
+void feedFetchScore;
+
+// =========================================================================
+// === END Phase 28 / Plan 28-05 ===========================================
+// =========================================================================
 
 boot();

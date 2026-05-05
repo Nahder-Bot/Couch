@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "watchparties",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "mode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "hostFamilyCode",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "picks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gameStartTime",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

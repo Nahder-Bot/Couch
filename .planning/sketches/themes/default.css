@@ -1,0 +1,90 @@
+/* Sketch theme — derived from Couch brand: warm dark, cinematic restraint, lived-in.
+   Source: ./CLAUDE.md (Fraunces + Instrument Serif + Inter; warm dark palette #14110f) */
+
+:root {
+  /* Couch brand colors — warm dark */
+  --color-bg: #14110f;
+  --color-bg-soft: #1c1815;
+  --color-surface: #221d19;
+  --color-surface-raised: #2a241f;
+  --color-border: #3a322c;
+  --color-border-soft: #2e2823;
+  --color-text: #f5ede1;
+  --color-text-muted: #b3a797;
+  --color-text-dim: #7a705f;
+
+  /* Brand brown leather palette (couch object) */
+  --leather-deep: #1f130a;          /* deepest shadow */
+  --leather-dark: #2d1c10;          /* couch base shadow */
+  --leather-mid: #4a2c18;           /* couch body main */
+  --leather-warm: #6b3d20;          /* couch highlight */
+  --leather-cognac: #8b5a32;        /* upper rim / catch-light */
+  --leather-glow: #b07a48;          /* sharpest highlight */
+  --leather-stitch: #2a1808;        /* stitching line */
+  --leather-button: #1a0e05;        /* tufted button */
+
+  /* Accent — Couch ember (used sparingly per brand restraint) */
+  --color-primary: #d97a3c;         /* warm ember orange */
+  --color-primary-soft: #b6602a;
+  --color-primary-glow: rgba(217, 122, 60, 0.35);
+  --color-success: #7fa56a;
+  --color-danger: #c25a4a;
+
+  /* Member-color preview (matches js/app.js memberColor() palette family) */
+  --member-1: #c95f4a;
+  --member-2: #d99a3c;
+  --member-3: #7fa56a;
+  --member-4: #6c8db8;
+  --member-5: #b07ac9;
+  --member-6: #d97a3c;
+  --member-7: #b3937a;
+  --member-8: #88a89c;
+
+  /* Typography */
+  --font-display: 'Fraunces', 'Instrument Serif', Georgia, serif;
+  --font-serif: 'Instrument Serif', 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --text-xs: 0.72rem;
+  --text-sm: 0.85rem;
+  --text-base: 1rem;
+  --text-lg: 1.15rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.85rem;
+  --text-3xl: 2.4rem;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shapes */
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 18px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  /* Shadows — moody, lived-in */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 6px 14px rgba(0,0,0,0.45);
+  --shadow-lg: 0 18px 38px rgba(0,0,0,0.55);
+  --shadow-glow: 0 0 24px var(--color-primary-glow);
+}
+
+/* Optional Google Fonts loader (sketch-only — production uses local) */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+}

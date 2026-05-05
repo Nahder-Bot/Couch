@@ -58,7 +58,7 @@
      Explicit-fields PII strip in beforeSend per RESEARCH.md Pattern 4 + review fix MEDIUM-9.
      Session Replay DISABLED for v1 (review fix MEDIUM-6); re-enable post-launch +30 days
      after privacy review — tracked in TECH-DEBT.md "Sentry Replay deferred".
-     CSP-compatible: js.sentry-cdn.com is allow-listed in queuenight/firebase.json (Plan 13-05).
+     CSP-compatible: js.sentry-cdn.com is allow-listed in the deploy-mirror sibling repo's firebase.json (Plan 13-05).
      DSN is public-by-design (rate-limited per project per docs.sentry.io). -->
 <script>
   window.sentryOnLoad = function () {
@@ -133,7 +133,7 @@
      Land a guest on Tonight with a temporary member doc — no onboarding, no sign-in flow. -->
 <section id="invite-redeem-screen" class="wrap has-leather" style="display:none;">
   <div class="brand large brand-hero-large">
-    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch — a film-reel forming the letter C" width="423" height="200">
   </div>
   <p class="page-title" id="invite-redeem-title">Join the couch</p>
   <p class="page-sub" id="invite-redeem-sub">You've been invited as a guest.</p>
@@ -150,7 +150,7 @@
 
 <section id="invite-expired-screen" class="wrap has-leather" style="display:none;">
   <div class="brand large brand-hero-large">
-    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch — a film-reel forming the letter C" width="423" height="200">
   </div>
   <p class="page-title">This invite has expired</p>
   <p class="page-sub">Ask the family owner for a new invite link.</p>
@@ -215,7 +215,7 @@
 
 <div id="screen-mode" class="wrap has-leather" style="display:none;">
   <div class="brand hero brand-hero-mode">
-    <img class="brand-logo" src="/logo-h300.png" alt="Couch" width="634" height="300">
+    <img class="brand-logo" src="/logo-h300.png" alt="Couch — a film-reel forming the letter C" width="634" height="300">
   </div>
   <p class="page-tagline">Who's on the couch?</p>
   <div class="mode-cards">
@@ -240,7 +240,7 @@
 
 <div id="screen-family-join" class="wrap has-leather" style="display:none;">
   <div class="brand large brand-hero-large">
-    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch — a film-reel forming the letter C" width="423" height="200">
   </div>
   <p class="page-title" id="screen-family-title">Pull up a seat on the couch tonight</p>
   <p class="page-sub" id="screen-family-sub">Enter a shared code. Everyone on the couch uses the same one.</p>
@@ -252,7 +252,7 @@
 
 <div id="screen-name" class="wrap has-leather" style="display:none;">
   <div class="brand large brand-hero-large">
-    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch — a film-reel forming the letter C" width="423" height="200">
   </div>
   <div class="family-label" id="name-family-label">Joining the</div>
   <div class="family-name" id="name-family-name"></div>
@@ -273,7 +273,7 @@
 <!-- Display managed manually (not via showScreen) since this is a post-auth, pre-shell screen. -->
 <div id="claim-confirm-screen" class="wrap has-leather" style="display:none;">
   <div class="brand large brand-hero-large">
-    <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    <img class="brand-logo" src="/logo-h200.png" alt="Couch — a film-reel forming the letter C" width="423" height="200">
   </div>
   <div class="claim-confirm-body">
     <h2 class="page-title">Is this you?</h2>
@@ -311,6 +311,28 @@
       <p>This account is pending claim. Ask the group owner for a claim link to keep voting.</p>
       <button class="link-btn" onclick="dismissClaimPrompt()">Dismiss</button>
     </div>
+    <!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by renderCouchViz() in js/app.js
+         (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
+         above the picker card, so "who's on the couch" is the first thing the user sees. -->
+    <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
+    <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface inline-link affordance.
+         Hidden by default; renderPickemTonightLink() in js/app.js toggles visibility based
+         on whether the current week's slate has upcoming games for any active league
+         (UFC excluded per D-17 update 2). Tap → openPickemSurface() in js/app.js. -->
+    <div id="pe-tonight-link-container" class="tab-hero-sub-row" hidden>
+      <!-- JS rewrites the inner content with slate context once renderPickemTonightLink() runs.
+           Static fallback copy "Open pick'em" lives here so the smoke contract `contains` check
+           sees the literal even before any user opens the app. -->
+      <a class="pe-tonight-link" href="#" onclick="event.preventDefault(); openPickemSurface();">Open pick'em</a>
+    </div>
+    <!-- Phase 15 / S1 (TRACK-15-07) — "Pick up where you left off" tuple-aware cross-show widget.
+         Sits between couch viz and Flow A entry per UI-SPEC §Surface insertion order.
+         Renderer: renderPickupWidget() in js/app.js (called from renderTonight()).
+         HIDES ENTIRELY when zero tuples (UI-SPEC §Discretion Q7) — renderer sets style.display='none'. -->
+    <div id="cv15-pickup-container" class="t-section cv15-pickup-container" aria-label="Pick up where you left off"></div>
+    <!-- D-07 (DECI-14-07) — Flow A entry CTA. Sits directly under couch viz so the "claim a seat
+         then pick a movie" gradient feels like a single composition. Hidden until couch ≥1. -->
+    <div id="flow-a-entry-container" class="flow-a-entry-container"></div>
     <div class="picker-card" id="picker-card" style="display:none;" onclick="openPickerSheet()">
       <div class="picker-left">
         <div class="picker-eyebrow" id="picker-eyebrow">Tonight's pick goes to</div>
@@ -319,15 +341,19 @@
       <div class="picker-avatar" id="picker-avatar"></div>
     </div>
 
+    <!-- Phase 27: watchparty banner is JS-rendered; renderWatchpartyBanner in js/app.js
+         appends ' · {N} guest(s)' to .wp-banner-meta when wp.guestCount > 0, and injects
+         .wp-rsvp-closed-pill ('RSVPs CLOSED') + host-only Close/Open RSVPs .link-btn into
+         .wp-banner-body via buildWpBannerMetaSuffix / buildWpClosedPillHtml /
+         buildWpHostRsvpToggleHtml helpers. -->
     <div id="wp-banner-tonight"></div>
 
     <!-- Phase 8: Open intents strip. Populated by renderIntentsStrip() from onSnapshot handler. -->
     <div id="tonight-intents-strip"></div>
 
-    <div class="who-card">
-      <div class="who-title" id="who-title-label">Who's on the couch</div>
-      <div class="who-list" id="who-list"></div>
-    </div>
+    <!-- 14-10 (sketch 003 V5): legacy Phase 11 .who-card removed. The V5 roster
+         in #couch-viz-container above is now the single 'who's on the couch'
+         surface on the Tonight tab. -->
 
     <div class="t-filters" id="t-filters">
       <button class="t-filter-toggle" id="t-filter-toggle" onclick="toggleFiltersBar()">
@@ -384,6 +410,21 @@
     </div>
   </div>
 
+  <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface (#screen-pickem).
+       Renderer: renderPickemSurface() in js/app.js. Entry from Tonight inline-link
+       (#pe-tonight-link-container above). Surface lists upcoming games per active
+       league (UFC excluded per D-17 update 2) with picker cards + leaderboard CTA
+       + past-seasons archive (hide-when-empty). #pe-content is the renderer's
+       injection target; renderPickemSurface() rewrites it on every onSnapshot tick. -->
+  <section class="screen pe-surface" id="screen-pickem">
+    <div class="tab-hero">
+      <div class="tab-hero-eyebrow" id="pe-hero-eyebrow">PICK'EM</div>
+      <div class="tab-hero-title" id="pe-hero-title">Your pick'em</div>
+      <div class="tab-hero-sub" id="pe-hero-sub"><em>Pick a winner. Earn a point. Tease the rest of the couch.</em></div>
+    </div>
+    <div id="pe-content"></div>
+  </section>
+
   <div class="screen" id="screen-library">
     <div class="add-row">
       <button class="vote-mode-btn" onclick="openSwipeMode()">⚡ Vote mode <span id="needs-vote-count" style="display:none;" class="needs-vote-badge"></span></button>
@@ -432,25 +473,15 @@
       <button id="search-btn" onclick="doSearch()">Find</button>
     </div>
 
-    <!-- Sports: schedule a game as a watchparty. Quiet entry under the search. -->
-    <div class="sports-entry" onclick="openSportsPicker()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSportsPicker();}">
-      <div class="sports-entry-icon">🏈</div>
-      <div class="sports-entry-body">
-        <div class="sports-entry-title">Schedule a game</div>
-        <div class="sports-entry-sub">NFL, NBA, MLB, NHL · Browse upcoming</div>
-      </div>
-      <div class="sports-entry-chev">›</div>
-    </div>
-
-    <!-- Phase 11 / REFR-10 — Dedicated Game Mode entry. Distinct from "Schedule a game"
-         above: this flow creates a wp with mode='game' which unlocks the live score strip,
-         score-delta amplified reactions, DVR slider, team-flair badges, and sports
-         Catch-me-up variant. Legacy sports entry stays for compatibility. -->
+    <!-- Sports entry. Single tile for live + upcoming games. mode='game' watchparty unlocks
+         live score strip, score-delta amplified reactions, Wait Up slider, team-flair badges,
+         and sports catchup card. Legacy openSportsPicker tile retired 2026-04-28 (was a
+         Phase-11 compatibility hedge that outlived its window). -->
     <div class="sports-entry" onclick="openGamePicker()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGamePicker();}">
       <div class="sports-entry-icon">📺</div>
       <div class="sports-entry-body">
         <div class="sports-entry-title">Watch a game live</div>
-        <div class="sports-entry-sub">Live score · amplified reactions · DVR offset</div>
+        <div class="sports-entry-sub">Wait up. We'll hold the moment until it's yours.</div>
       </div>
       <div class="sports-entry-chev">›</div>
     </div>
@@ -802,7 +833,7 @@
   </div>
 
   <!-- Phase 11 / REFR-12: Leave-family confirmation modal (two-tap destructive per UI-SPEC §Destructive actions) -->
-  <div class="modal-bg" id="leave-family-confirm-bg" onclick="if(event.target.id==='leave-family-confirm-bg')closeLeaveFamilyConfirm()">
+  <div class="modal-bg" id="leave-family-confirm-bg" role="dialog" aria-modal="true" aria-label="Leave this group" onclick="if(event.target.id==='leave-family-confirm-bg')closeLeaveFamilyConfirm()">
     <div class="modal modal--w-440">
       <h3>Leave this group?</h3>
       <p class="meta">You'll lose access to this couch on this device. Your votes and reactions stay with the group. You can rejoin with the code.</p>
@@ -814,7 +845,7 @@
   </div>
 
   <!-- Phase 13 / COMP-13-01: Delete-account typed-DELETE confirmation modal -->
-  <div class="modal-bg" id="delete-account-modal-bg" onclick="if(event.target.id==='delete-account-modal-bg')closeDeleteAccountModal()">
+  <div class="modal-bg" id="delete-account-modal-bg" role="dialog" aria-modal="true" aria-label="Delete account confirmation" onclick="if(event.target.id==='delete-account-modal-bg')closeDeleteAccountModal()">
     <div class="modal modal--w-440">
       <h3>Delete your Couch account?</h3>
       <p class="meta">This permanently deletes your account, your votes, your reactions, your watchparty history, and any photos you uploaded. <strong>You have 14 days to undo this. After that, it cannot be reversed.</strong> Other members' data is unaffected.</p>
@@ -829,7 +860,7 @@
   </div>
 
   <!-- Phase 13 / COMP-13-01: Owner-of-family blocker modal (Pitfall 1 surface) -->
-  <div class="modal-bg" id="delete-account-blocker-bg" onclick="if(event.target.id==='delete-account-blocker-bg')closeDeleteAccountBlocker()">
+  <div class="modal-bg" id="delete-account-blocker-bg" role="dialog" aria-modal="true" aria-label="Transfer ownership before deleting account" onclick="if(event.target.id==='delete-account-blocker-bg')closeDeleteAccountBlocker()">
     <div class="modal modal--w-440">
       <h3>Transfer ownership first</h3>
       <p class="meta">You own one or more families. Before you can delete your account, transfer ownership of each so the family can keep going without you.</p>
@@ -841,7 +872,7 @@
   </div>
 
   <!-- Phase 13 / COMP-13-01: Sign-in deletion-pending banner (rendered above app shell when soft-delete active) -->
-  <div class="modal-bg" id="deletion-pending-bg" onclick="/* no-op — must explicitly choose */">
+  <div class="modal-bg" id="deletion-pending-bg" role="dialog" aria-modal="true" aria-label="Account scheduled for deletion" onclick="/* no-op — must explicitly choose */">
     <div class="modal modal--w-440">
       <h3>Your account is scheduled for deletion</h3>
       <p class="meta">Hard-delete on <strong id="deletion-pending-date">—</strong>. Sign in here just to cancel deletion, or let it complete.</p>
@@ -852,7 +883,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="picker-sheet-bg" onclick="if(event.target.id==='picker-sheet-bg')closePickerSheet()">
+  <div class="modal-bg" id="picker-sheet-bg" role="dialog" aria-modal="true" aria-label="Who's picking" onclick="if(event.target.id==='picker-sheet-bg')closePickerSheet()">
     <div class="modal modal--w-440">
       <h3 class="modal-h2">Who's picking?</h3>
       <div class="meta modal-sub-rhythm" id="picker-sheet-sub">Rotate who decides, so everyone gets a turn on the couch.</div>
@@ -869,7 +900,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="progress-sheet-bg" onclick="if(event.target.id==='progress-sheet-bg')closeProgressSheet()">
+  <div class="modal-bg" id="progress-sheet-bg" role="dialog" aria-modal="true" aria-labelledby="progress-sheet-title" onclick="if(event.target.id==='progress-sheet-bg')closeProgressSheet()">
     <div class="modal progress-sheet">
       <h3 class="progress-sheet-title" id="progress-sheet-title">Show title</h3>
       <div class="progress-sheet-sub" id="progress-sheet-sub"></div>
@@ -900,7 +931,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="group-switcher-bg" onclick="if(event.target.id==='group-switcher-bg')closeGroupSwitcher()">
+  <div class="modal-bg" id="group-switcher-bg" role="dialog" aria-modal="true" aria-label="Group switcher" onclick="if(event.target.id==='group-switcher-bg')closeGroupSwitcher()">
     <div class="modal modal--w-440">
       <h3 class="modal-h2">Your groups</h3>
       <div class="meta modal-sub-rhythm">Switch between family, crew, and duo.</div>
@@ -912,7 +943,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="modal-bg">
+  <div class="modal-bg" id="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal">
       <h3 id="modal-title"></h3>
       <div class="meta" id="modal-meta"></div>
@@ -922,7 +953,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="manual-modal-bg">
+  <div class="modal-bg" id="manual-modal-bg" role="dialog" aria-modal="true" aria-label="Add a title">
     <div class="modal manual-modal">
       <h3>Add a title</h3>
       <div class="meta">No search needed. Add anything your family wants to watch.</div>
@@ -940,7 +971,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="comments-modal-bg">
+  <div class="modal-bg" id="comments-modal-bg" role="dialog" aria-modal="true" aria-labelledby="comments-modal-title">
     <div class="modal">
       <h3 id="comments-modal-title"></h3>
       <div class="meta">Comments (no notifications sent)</div>
@@ -953,7 +984,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="schedule-modal-bg">
+  <div class="modal-bg" id="schedule-modal-bg" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
     <div class="modal schedule-modal">
       <h3 id="schedule-modal-title"></h3>
       <div class="meta">Pick a date and time, then add to your calendar.</div>
@@ -971,6 +1002,57 @@
     </div>
   </div>
 
+  <!-- Phase 15.5 / D-03 + REQ-3 + REQ-8: Wait Up custom picker bottom-sheet modal.
+       Reuses .modal / .modal-bg base scaffold (BRAND.md §7 / css/app.css:478-491).
+       Open via openWaitUpPicker() from movie-mode Custom… chip; close via Cancel, backdrop tap, or Set wait commit. -->
+  <div class="modal-bg" id="wait-up-picker-bg" role="dialog" aria-modal="true" aria-labelledby="wait-up-picker-title" onclick="if(event.target.id==='wait-up-picker-bg')closeWaitUpPicker()">
+    <div class="modal wait-up-picker-modal" id="wait-up-picker-content" role="dialog" aria-labelledby="wait-up-picker-title" aria-modal="true">
+      <h3 id="wait-up-picker-title" class="wait-up-picker-h">How long should we wait up?</h3>
+      <div class="wup-input-row">
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-hours" placeholder="0" aria-label="Hours" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">HOURS</span>
+        </div>
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-min" placeholder="0" aria-label="Minutes" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">MIN</span>
+        </div>
+        <div class="wup-field">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="wup-sec" placeholder="0" aria-label="Seconds" maxlength="2" autocomplete="off">
+          <span class="wup-field-label">SEC</span>
+        </div>
+      </div>
+      <p class="wup-helper"><em>Only changes when you see reactions. Never anyone else's view.</em></p>
+      <div class="wup-preset-eyebrow">Or jump to</div>
+      <div class="wup-preset-row">
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(3600)">1 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(7200)">2 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(43200)">12 hr</button>
+        <button type="button" class="wp-control-btn wp-delay" onclick="setPickerPreset(86400)">24 hr</button>
+      </div>
+      <div class="wup-actions">
+        <button type="button" class="wup-cancel" onclick="closeWaitUpPicker()">Cancel</button>
+        <button type="button" class="wup-submit modal-close" onclick="submitWaitUpPicker()">Set wait</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 15.5 / D-04 + REQ-10: Past parties tall-sheet modal. List of stale wps (5h-25h since startAt).
+       Reuses .modal / .modal-bg base scaffold; subclassed via .past-parties-surface for full-height layout.
+       Open via openPastParties() from the inline Tonight tab link; close via Close button or backdrop tap. -->
+  <div class="modal-bg" id="past-parties-bg" role="dialog" aria-modal="true" aria-labelledby="past-parties-title" onclick="if(event.target.id==='past-parties-bg')closePastParties()">
+    <div class="modal past-parties-surface" id="past-parties-content" role="dialog" aria-labelledby="past-parties-title" aria-modal="true">
+      <div class="past-parties-header">
+        <span class="past-parties-eyebrow">Still rolling</span>
+        <h3 id="past-parties-title" class="past-parties-h">Past parties</h3>
+        <button type="button" class="past-parties-close" onclick="closePastParties()" aria-label="Close past parties">✕</button>
+      </div>
+      <div class="past-parties-list" id="past-parties-list">
+        <!-- Populated by renderPastParties() at open time -->
+      </div>
+    </div>
+  </div>
+
   <div class="swipe-overlay" id="swipe-overlay">
     <div class="swipe-header">
       <button class="close" aria-label="Close vote mode" onclick="closeSwipeMode()">✕</button>
@@ -985,19 +1067,19 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="detail-modal-bg">
+  <div class="modal-bg" id="detail-modal-bg" role="dialog" aria-modal="true" aria-label="Title details">
     <div class="modal detail-modal" id="detail-modal-content"></div>
   </div>
 
-  <div class="modal-bg" id="spin-modal-bg">
+  <div class="modal-bg" id="spin-modal-bg" role="dialog" aria-modal="true" aria-label="Spin to pick">
     <div class="modal spin-modal" id="spin-modal-content"></div>
   </div>
 
-  <div class="modal-bg" id="profile-modal-bg">
+  <div class="modal-bg" id="profile-modal-bg" role="dialog" aria-modal="true" aria-label="Member profile">
     <div class="modal profile-modal" id="profile-modal-content"></div>
   </div>
 
-  <div class="modal-bg" id="svc-suggest-bg" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
+  <div class="modal-bg" id="svc-suggest-bg" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
     <div class="modal svc-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title">
       <div class="svc-suggest-icon" aria-hidden="true">📺</div>
       <h3 id="svc-suggest-title" class="svc-suggest-title"></h3>
@@ -1009,7 +1091,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="avatar-picker-bg">
+  <div class="modal-bg" id="avatar-picker-bg" role="dialog" aria-modal="true" aria-label="Choose your avatar">
     <div class="modal avatar-picker-modal">
       <button class="detail-close" aria-label="Close" onclick="closeAvatarPicker()">✕</button>
       <h3>Choose your avatar</h3>
@@ -1022,7 +1104,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="review-modal-bg">
+  <div class="modal-bg" id="review-modal-bg" role="dialog" aria-modal="true" aria-labelledby="review-modal-title">
     <div class="modal review-editor">
       <h3 id="review-modal-title"></h3>
       <div class="meta">Write a full review</div>
@@ -1036,7 +1118,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="veto-modal-bg">
+  <div class="modal-bg" id="veto-modal-bg" role="dialog" aria-modal="true" aria-label="Veto for tonight">
     <div class="modal">
       <h3>Not tonight</h3>
       <div class="meta" id="veto-modal-meta">Pass on this one just for tonight. Everyone else will see it.</div>
@@ -1051,7 +1133,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="sports-picker-bg" onclick="if(event.target.id==='sports-picker-bg')closeSportsPicker()">
+  <div class="modal-bg" id="sports-picker-bg" role="dialog" aria-modal="true" aria-label="Pick a game" onclick="if(event.target.id==='sports-picker-bg')closeSportsPicker()">
     <div class="modal sports-picker-modal">
       <h3 class="modal-h2">Pick a game</h3>
       <div class="meta modal-meta-sub">Upcoming and live, from the major leagues</div>
@@ -1064,6 +1146,18 @@
       <div class="sports-games-list" id="sports-games-list">
         <div class="sports-loading">Loading games…</div>
       </div>
+      <div class="field">
+        <label for="wp-video-url-sport">Video URL (optional, set before picking a game)</label>
+        <input type="url" inputmode="url" id="wp-video-url-sport"
+          placeholder="YouTube link or .mp4 URL"
+          autocomplete="off" spellcheck="false" />
+        <div class="field-help" id="wp-video-url-sport-help">
+          Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+        </div>
+        <div class="field-error" id="wp-video-url-sport-error" role="alert" hidden>
+          That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+        </div>
+      </div>
       <div class="modal-actions-row">
         <button class="pill" onclick="closeSportsPicker()">Close</button>
       </div>
@@ -1074,7 +1168,7 @@
        (the legacy sports watchparty entry). This modal creates a wp with mode='game'
        and attaches a live score strip + score-delta polling + DVR slider + team-flair
        badges on render. -->
-  <div class="modal-bg" id="game-picker-modal-bg" onclick="if(event.target.id==='game-picker-modal-bg')closeGamePicker()">
+  <div class="modal-bg" id="game-picker-modal-bg" role="dialog" aria-modal="true" aria-label="Tonight's game" onclick="if(event.target.id==='game-picker-modal-bg')closeGamePicker()">
     <div class="modal game-picker-modal">
       <h3 class="modal-h2">Tonight's game</h3>
       <div class="meta modal-meta-sub">Pick a live or upcoming game</div>
@@ -1087,6 +1181,18 @@
       <div id="game-picker-list" class="game-picker-list">
         <div class="game-picker-empty"><em>Pick a league to see games.</em></div>
       </div>
+      <div class="field">
+        <label for="wp-video-url-game">Video URL (optional)</label>
+        <input type="url" inputmode="url" id="wp-video-url-game"
+          placeholder="YouTube link or .mp4 URL"
+          autocomplete="off" spellcheck="false" />
+        <div class="field-help" id="wp-video-url-game-help">
+          Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+        </div>
+        <div class="field-error" id="wp-video-url-game-error" role="alert" hidden>
+          That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+        </div>
+      </div>
       <div class="modal-actions-row">
         <button class="pill" onclick="closeGamePicker()">Cancel</button>
         <button class="pill game-picker-confirm" id="game-picker-confirm" onclick="confirmGamePicker()" disabled>Use this game</button>
@@ -1094,7 +1200,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="wp-start-modal-bg">
+  <div class="modal-bg" id="wp-start-modal-bg" role="dialog" aria-modal="true" aria-label="Start a watchparty">
     <div class="modal">
       <h3>Start a watchparty</h3>
       <div class="meta" id="wp-start-meta">Everyone watches separately, reactions flow live</div>
@@ -1115,20 +1221,64 @@
           <input type="datetime-local" id="wp-schedule-input" class="form-input-block">
         </div>
         <div id="wp-start-preview" class="wp-start-preview"></div>
+        <div class="field">
+          <label for="wp-video-url-movie">Video URL (optional)</label>
+          <input type="url" inputmode="url" id="wp-video-url-movie"
+            placeholder="YouTube link or .mp4 URL"
+            autocomplete="off" spellcheck="false" />
+          <div class="field-help" id="wp-video-url-movie-help">
+            Paste a YouTube watch link or a direct .mp4 URL. We'll play it together.
+          </div>
+          <div class="field-error" id="wp-video-url-movie-error" role="alert" hidden>
+            That link doesn't look like YouTube or an .mp4 file. Skip it or try another.
+          </div>
+        </div>
+        <!-- Phase 30 — Bring another couch in section. Render-time host-only gate
+             handled in js/app.js renderAddFamilySection — non-host gets entire section
+             hidden via .hidden class toggled in render. -->
+        <section class="wp-add-family-section" id="wp-add-family-section" aria-labelledby="wp-add-family-heading">
+          <h3 class="wp-add-family-heading" id="wp-add-family-heading">Bring another couch in</h3>
+          <p class="wp-add-family-subline" id="wp-add-family-subline"><em>Pull up another family for tonight.</em></p>
+          <div class="wp-couches-list" id="wp-couches-list" role="list" aria-label="Families in this watchparty"></div>
+          <div class="wp-add-family-input-row" id="wp-add-family-input-row">
+            <input type="text" id="wp-add-family-input"
+                   class="wp-add-family-input"
+                   placeholder="Paste their family code"
+                   inputmode="text"
+                   autocapitalize="characters"
+                   autocomplete="off"
+                   autocorrect="off"
+                   spellcheck="false"
+                   aria-label="Other family's code">
+            <button type="button" id="wp-add-family-submit" class="wp-add-family-submit btn">Bring them in</button>
+          </div>
+          <p class="wp-add-family-help"><em>They'll see their crew show up in this watchparty's couch.</em></p>
+        </section>
         <button class="modal-close" onclick="confirmStartWatchparty()">Send invites</button>
         <button class="pill modal-btn-block" onclick="closeWatchpartyStart()">Cancel</button>
       </div>
     </div>
   </div>
 
-  <div class="modal-bg" id="wp-live-modal-bg">
-    <div class="modal wp-live-modal" id="wp-live-content"></div>
+  <div class="modal-bg" id="wp-live-modal-bg" role="dialog" aria-modal="true" aria-label="Live watchparty">
+    <div class="modal wp-live-modal" id="wp-live-content">
+      <!-- Phase 24 / REVIEWS H1 — Persistent player surface (#wp-video-surface).
+           Only touched by attachVideoPlayer / teardownVideoPlayer.
+           renderWatchpartyLive MUST NOT touch #wp-video-surface. Empty by default;
+           player innerHTML is written here once on attach and stays put across
+           reaction/timer/snapshot re-renders. -->
+      <div id="wp-video-surface" class="wp-video-surface"></div>
+      <!-- Phase 24 / REVIEWS H1 — Re-renderable coordination surface (#wp-live-coordination).
+           renderWatchpartyLive writes the existing live-modal HTML (header,
+           reactions feed, footer) into #wp-live-coordination. Repaints freely on every state change. -->
+      <div id="wp-live-coordination" class="wp-live-coordination"></div>
+    </div>
   </div>
 
   <!-- Phase 11 / REFR-09 — Post-session modal: rating + photo upload + schedule-next.
        Triggered on wp.status transition to ended-equivalent (user taps "Done" on the
        live footer → endMyWatchparty opens this modal before diary). -->
-  <div class="modal-bg" id="wp-post-session-modal-bg" onclick="if(event.target.id==='wp-post-session-modal-bg')closePostSession()">
+  <div class="modal-bg" id="wp-post-session-modal-bg" role="dialog" aria-modal="true" aria-label="Rate this watch" onclick="if(event.target.id==='wp-post-session-modal-bg')closePostSession()">
     <div class="modal wp-post-session-modal">
       <h3 class="modal-h2 wp-post-session-title"><em>That's a wrap.</em></h3>
       <div class="wp-post-session-sub" id="wp-post-session-sub"><em>How was the movie?</em></div>
@@ -1156,32 +1306,32 @@
     aria-hidden="true" tabindex="-1" class="input-offscreen">
 
   <!-- Phase 8: Propose-tonight-at-time modal -->
-  <div class="modal-bg" id="intent-propose-modal-bg">
+  <div class="modal-bg" id="intent-propose-modal-bg" role="dialog" aria-modal="true" aria-label="Propose tonight at a time">
     <div class="modal" id="intent-propose-modal-content"></div>
   </div>
 
   <!-- Phase 8: RSVP modal (both flow types) -->
-  <div class="modal-bg" id="intent-rsvp-modal-bg">
+  <div class="modal-bg" id="intent-rsvp-modal-bg" role="dialog" aria-modal="true" aria-label="RSVP to tonight">
     <div class="modal" id="intent-rsvp-modal-content"></div>
   </div>
 
-  <div class="modal-bg" id="yir-modal-bg">
+  <div class="modal-bg" id="yir-modal-bg" role="dialog" aria-modal="true" aria-label="Year in review">
     <div class="modal yir-modal" id="yir-content"></div>
   </div>
 
-  <div class="modal-bg" id="yir-story-modal-bg">
+  <div class="modal-bg" id="yir-story-modal-bg" role="dialog" aria-modal="true" aria-label="Year in review story">
     <div class="modal yir-story-modal" id="yir-story-content"></div>
   </div>
 
-  <div class="modal-bg" id="onboard-modal-bg">
+  <div class="modal-bg" id="onboard-modal-bg" role="dialog" aria-modal="true" aria-label="Onboarding">
     <div class="modal onboard-modal" id="onboard-content"></div>
   </div>
 
-  <div class="modal-bg" id="share-title-modal-bg">
+  <div class="modal-bg" id="share-title-modal-bg" role="dialog" aria-modal="true" aria-label="Share title">
     <div class="modal share-title-modal" id="share-title-content"></div>
   </div>
 
-  <div class="modal-bg" id="edit-modal-bg">
+  <div class="modal-bg" id="edit-modal-bg" role="dialog" aria-modal="true" aria-label="Edit title">
     <div class="modal edit-modal">
       <h3>Edit title</h3>
       <div class="meta">Fix name, year or poster</div>
@@ -1206,7 +1356,7 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="diary-modal-bg">
+  <div class="modal-bg" id="diary-modal-bg" role="dialog" aria-modal="true" aria-labelledby="diary-modal-title">
     <div class="modal">
       <h3 id="diary-modal-title"></h3>
       <div class="meta">Log a watch date</div>
@@ -1230,11 +1380,11 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="list-modal-bg">
+  <div class="modal-bg" id="list-modal-bg" role="dialog" aria-modal="true" aria-label="List details">
     <div class="modal" id="list-modal-content"></div>
   </div>
 
-  <div class="modal-bg" id="share-modal-bg">
+  <div class="modal-bg" id="share-modal-bg" role="dialog" aria-modal="true" aria-label="Share review">
     <div class="modal">
       <h3>Share review</h3>
       <div class="meta">Copy or share with any app</div>
@@ -1247,12 +1397,12 @@
     </div>
   </div>
 
-  <div class="modal-bg" id="action-sheet-bg">
+  <div class="modal-bg" id="action-sheet-bg" role="dialog" aria-modal="true" aria-label="Actions">
     <div class="modal action-sheet" id="action-sheet-content"></div>
   </div>
 
   <!-- Sub-profile create modal (D-01) — opened from Account → Kids & sub-profiles -->
-  <div class="modal-bg" id="subprofile-modal-bg" onclick="if(event.target.id==='subprofile-modal-bg')closeSubProfileModal()">
+  <div class="modal-bg" id="subprofile-modal-bg" role="dialog" aria-modal="true" aria-label="Add a sub-profile" onclick="if(event.target.id==='subprofile-modal-bg')closeSubProfileModal()">
     <div class="modal modal--w-440">
       <h3>Add a sub-profile</h3>
       <div class="meta">Kids on the couch</div>
@@ -1369,7 +1519,7 @@
 <!-- Phase 11 / REFR-04 second half (Plan 11-03b) — Browse-all sheet.
      Lists every DISCOVERY_CATALOG row grouped by bucket with a per-row pin toggle.
      Pinned rows (max 3) render at the top of Add tab via #pinned-rows container. -->
-<div class="modal-bg" id="browse-all-sheet-bg" onclick="if(event.target.id==='browse-all-sheet-bg')closeBrowseAllSheet()">
+<div class="modal-bg" id="browse-all-sheet-bg" role="dialog" aria-modal="true" aria-label="Browse all rows" onclick="if(event.target.id==='browse-all-sheet-bg')closeBrowseAllSheet()">
   <div class="modal browse-all-sheet">
     <h3>Browse all rows</h3>
     <div class="meta"><em>Pin up to 3 to keep them at the top.</em></div>
@@ -1384,7 +1534,7 @@
      tapped; shows hero poster + title + description + horizontal preview of 8 included
      titles (lazy-hydrated from TMDB) + gradient "Start this pack" CTA that seeds the
      family ballot via existing addFromAddTab flow then launches Vote mode. -->
-<div class="modal-bg" id="couch-night-sheet-bg" onclick="if(event.target.id==='couch-night-sheet-bg')closeCouchNightSheet()">
+<div class="modal-bg" id="couch-night-sheet-bg" role="dialog" aria-modal="true" aria-labelledby="couch-night-sheet-title" onclick="if(event.target.id==='couch-night-sheet-bg')closeCouchNightSheet()">
   <div class="modal couch-night-sheet">
     <div class="couch-night-hero" id="couch-night-hero"></div>
     <h2 class="couch-night-sheet-title" id="couch-night-sheet-title"></h2>

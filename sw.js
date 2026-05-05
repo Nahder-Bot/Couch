@@ -5,7 +5,7 @@
 // Bump CACHE whenever you ship user-visible app changes so installed PWAs invalidate and
 // re-fetch the shell. Version naming convention: couch-v{N}-{milestone-or-fix-shorthand}.
 
-const CACHE = 'couch-v33.3-sentry-dsn';
+const CACHE = 'couch-v47-pickem';
 // Post-Phase-9 routing: landing.html at /, app.html at /app (via Firebase Hosting rewrites).
 // Pre-cache the app shell (primary PWA entry) + core CSS/JS so offline cold-launch works.
 // Other JS modules (js/firebase.js, js/constants.js, etc.) populate the cache via the
@@ -103,7 +103,20 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      if (self.clients.openWindow) {
+        // CR-13: validate that targetUrl resolves same-origin before opening.
+        // The push payload is attacker-controllable in principle (a hijacked VAPID
+        // key or rogue server could deliver data.url='https://evil.example/'),
+        // and openWindow on a cross-origin URL would launch an attacker page from
+        // a system notification. Strip to pathname+search+hash on same-origin and
+        // fall back to /app on anything else.
+        let safeUrl = '/app';
+        try {
+          const u = new URL(targetUrl, self.location.origin);
+          if (u.origin === self.location.origin) safeUrl = u.pathname + u.search + u.hash;
+        } catch (e) {}
+        return self.clients.openWindow(safeUrl);
+      }
     })
   );
 });

@@ -8,50 +8,142 @@
 #   ./scripts/deploy.sh --allow-dirty <tag>   # skip dirty-tree abort (Pitfall 7 escape hatch)
 #
 # Environment variables (review fix HIGH-4):
-#   QUEUENIGHT_PATH    Path to the queuenight sibling repo. Default: ../../queuenight
-#                      Set this in your shell profile if your queuenight clone lives elsewhere.
-#                      Example (git-bash):  export QUEUENIGHT_PATH="/c/path/to/queuenight"
+#   COUCH_DEPLOY_PATH  Path to the deploy-mirror sibling repo. Default: ../../couch-deploy
+#                      Set this in your shell profile if your deploy mirror lives elsewhere.
+#                      Example (git-bash):  export COUCH_DEPLOY_PATH="/c/path/to/couch-deploy"
+#                      (Legacy QUEUENIGHT_PATH is still accepted with a deprecation warning.)
 #
 # Review fixes applied:
-#   HIGH-4   No hardcoded user-specific path literal -- resolved via $QUEUENIGHT_PATH env var.
+#   HIGH-4   No hardcoded user-specific path literal -- resolved via $COUCH_DEPLOY_PATH env var.
 #   MEDIUM-5 Production deploys abort if app.html/landing.html still contain a literal
 #            Sentry DSN placeholder (catches Plan 13-02 placeholder-leak at deploy boundary).
-#   MEDIUM-8 BUILD_DATE auto-stamp targets the deploy mirror (queuenight/public/js/constants.js)
+#   MEDIUM-8 BUILD_DATE auto-stamp targets the deploy mirror (couch-deploy/public/js/constants.js)
 #            ONLY -- source tree js/constants.js is never mutated by deploy.sh, eliminating
 #            the dirty-tree-after-deploy failure mode.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Review fix HIGH-4: env-var-with-default. Set QUEUENIGHT_PATH in your shell profile
-# if your queuenight clone is not at ../../queuenight relative to this repo.
-QUEUENIGHT_ROOT_RAW="${QUEUENIGHT_PATH:-${REPO_ROOT}/../../queuenight}"
+# Review fix HIGH-4: env-var-with-default. Set COUCH_DEPLOY_PATH in your shell profile
+# if your deploy-mirror clone is not at ../../couch-deploy relative to this repo.
+# Legacy QUEUENIGHT_PATH still accepted with a deprecation warning (rename happened 2026-04-26).
+if [ -n "${QUEUENIGHT_PATH:-}" ] && [ -z "${COUCH_DEPLOY_PATH:-}" ]; then
+  echo "WARN: QUEUENIGHT_PATH is deprecated -- rename to COUCH_DEPLOY_PATH in your shell profile." >&2
+  COUCH_DEPLOY_PATH="${QUEUENIGHT_PATH}"
+fi
+COUCH_DEPLOY_ROOT_RAW="${COUCH_DEPLOY_PATH:-${REPO_ROOT}/../../couch-deploy}"
+# If env-var unset and the new-name path doesn't exist, fall back to the legacy queuenight/
+# path so deploy.sh keeps working before the user renames the directory.
+if [ -z "${COUCH_DEPLOY_PATH:-}" ] && [ ! -d "${COUCH_DEPLOY_ROOT_RAW}" ]; then
+  LEGACY_PATH="${REPO_ROOT}/../../queuenight"
+  if [ -d "${LEGACY_PATH}" ]; then
+    echo "WARN: ${COUCH_DEPLOY_ROOT_RAW} not found; falling back to legacy ${LEGACY_PATH}." >&2
+    echo "      Rename it to couch-deploy when convenient (the rename is purely cosmetic)." >&2
+    COUCH_DEPLOY_ROOT_RAW="${LEGACY_PATH}"
+  fi
+fi
 # Resolve to absolute path; fail loudly if the resolved directory does not exist.
-if [ ! -d "${QUEUENIGHT_ROOT_RAW}" ]; then
-  echo "ERROR: queuenight repo not found at: ${QUEUENIGHT_ROOT_RAW}" >&2
-  echo "       Either set QUEUENIGHT_PATH in your shell or clone queuenight at ../../queuenight" >&2
+if [ ! -d "${COUCH_DEPLOY_ROOT_RAW}" ]; then
+  echo "ERROR: deploy-mirror repo not found at: ${COUCH_DEPLOY_ROOT_RAW}" >&2
+  echo "       Either set COUCH_DEPLOY_PATH in your shell or clone the deploy mirror at ../../couch-deploy" >&2
   echo "       relative to the couch repo root. (Review fix HIGH-4.)" >&2
   exit 1
 fi
-QUEUENIGHT_ROOT="$(cd "${QUEUENIGHT_ROOT_RAW}" && pwd)"
+COUCH_DEPLOY_ROOT="$(cd "${COUCH_DEPLOY_ROOT_RAW}" && pwd)"
 
 cd "$REPO_ROOT"
 
-# 0. Pitfall 7 -- abort on dirty tree unless --allow-dirty
+# 0. Flag parsing -- accepts --allow-dirty and --sync-rules in any order, before <tag>
 ALLOW_DIRTY=0
-if [ "${1:-}" = "--allow-dirty" ]; then
-  ALLOW_DIRTY=1
-  shift
-fi
+SYNC_RULES=0
+while true; do
+  case "${1:-}" in
+    --allow-dirty) ALLOW_DIRTY=1; shift;;
+    --sync-rules)  SYNC_RULES=1;  shift;;
+    *) break;;
+  esac
+done
+
+# Pitfall 7 -- abort on dirty tree unless --allow-dirty
 if [ "$ALLOW_DIRTY" -eq 0 ]; then
   if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     echo "ERROR: working tree is dirty. Commit or stash before deploy.sh." >&2
-    echo "       (Or pass --allow-dirty as the first argument to skip this check.)" >&2
+    echo "       (Or pass --allow-dirty before <tag> to skip this check.)" >&2
     exit 1
   fi
 fi
 
 TAG="${1:-}"
+
+# 0.6. Wave 4 / CR-12 -- firestore.rules mirror sync gate.
+#      Source-of-truth lives in this repo at firestore.rules; queuenight repo holds
+#      the deploy mirror because Firebase rules are deployed from there. Pre-Wave-4,
+#      drift between the two was silent: today's deploy reported "released rules"
+#      while shipping a stale mirror, leaving CR-05 / CR-06 / CDX-1 / CDX-4
+#      protections unenforced for ~24h despite a successful-looking deploy. This
+#      block fails the deploy when the two files diverge, OR (with --sync-rules)
+#      mirrors + commits the new file in queuenight + runs the rules deploy from
+#      there before continuing the hosting deploy.
+REPO_RULES="${REPO_ROOT}/firestore.rules"
+MIRROR_RULES="${COUCH_DEPLOY_ROOT}/firestore.rules"
+if [ -f "$REPO_RULES" ] && [ -f "$MIRROR_RULES" ]; then
+  if ! diff -q "$REPO_RULES" "$MIRROR_RULES" >/dev/null 2>&1; then
+    if [ "$SYNC_RULES" -eq 1 ]; then
+      echo "Rules-mirror drift detected — mirroring couch/firestore.rules -> ${MIRROR_RULES} ..."
+      cp "$REPO_RULES" "$MIRROR_RULES"
+      (cd "$COUCH_DEPLOY_ROOT" && git add firestore.rules && \
+        git commit -m "chore(rules): auto-mirror couch firestore.rules ($(date -u +%Y-%m-%dT%H:%M:%SZ))" >/dev/null) \
+        || { echo "ERROR: failed to commit mirror in $COUCH_DEPLOY_ROOT" >&2; exit 1; }
+      echo "Mirror updated. Deploying firestore.rules from $COUCH_DEPLOY_ROOT ..."
+      (cd "$COUCH_DEPLOY_ROOT" && firebase deploy --only firestore:rules --project queuenight-84044) \
+        || { echo "ERROR: rules deploy failed" >&2; exit 1; }
+      echo "Rules deploy complete. Continuing with hosting deploy..."
+    else
+      echo "ERROR: couch/firestore.rules differs from ${MIRROR_RULES}" >&2
+      echo "       The source-of-truth (this repo) is ahead of the deploy mirror." >&2
+      echo "       Diff (mirror -> source-of-truth):" >&2
+      diff -u "$MIRROR_RULES" "$REPO_RULES" | head -40 | sed 's/^/         /' >&2
+      echo "" >&2
+      echo "       Re-run with --sync-rules to auto-mirror + deploy rules + continue:" >&2
+      echo "         bash scripts/deploy.sh --sync-rules ${TAG:-<tag>}" >&2
+      echo "" >&2
+      echo "       OR manually mirror, commit, deploy rules, then re-run this script:" >&2
+      echo "         cp '$REPO_RULES' '$MIRROR_RULES'" >&2
+      echo "         (cd '$COUCH_DEPLOY_ROOT' && git add firestore.rules && \\" >&2
+      echo "          git commit -m 'chore(rules): mirror couch')" >&2
+      echo "         (cd '$COUCH_DEPLOY_ROOT' && firebase deploy --only firestore:rules --project queuenight-84044)" >&2
+      echo "" >&2
+      echo "       (Wave 4 / CR-12 — closes the v44 deploy-mirror gap. See RUNBOOK §H.)" >&2
+      exit 1
+    fi
+  else
+    echo "Rules-mirror in sync."
+  fi
+fi
+
+# 0.5. Pre-flight: ensure port 8080 (Firestore emulator) is free.
+# Without this, the rules-tests step fails opaquely with "Could not start
+# Firestore Emulator, port taken" and the actual fix (kill the orphan Java
+# process) is buried under the firebase-tools output. Added 2026-05-02 after
+# a stuck emulator from a prior session blocked a couch-v40 deploy.
+node -e "
+const net = require('net');
+const s = net.createServer();
+s.once('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error('ERROR: port 8080 is in use; Firestore emulator cannot start.');
+    console.error('       Likely culprit: an orphan emulator from a prior session.');
+    console.error('       Find:   netstat -ano | findstr :8080      (Windows / git-bash)');
+    console.error('       Find:   lsof -ti:8080                     (Mac / Linux)');
+    console.error('       Kill:   taskkill /F /PID <pid>            (Windows)');
+    console.error('       Kill:   kill -9 <pid>                     (Mac / Linux)');
+    console.error('       Or close any local Firebase emulator UI / Java process and retry.');
+    process.exit(1);
+  }
+});
+s.once('listening', () => s.close());
+s.listen(8080, '127.0.0.1');
+" || exit 1
 
 # 1. Tests must pass (if a tests/ directory exists)
 if [ -d tests ]; then
@@ -64,10 +156,70 @@ for f in js/*.js sw.js scripts/stamp-build-date.cjs; do
   node --check "$f" || { echo "ERROR: node --check failed on $f" >&2; exit 1; }
 done
 
-# 3. Verify queuenight mirror exists (deploy target)
-if [ ! -d "${QUEUENIGHT_ROOT}/public" ]; then
-  echo "ERROR: ${QUEUENIGHT_ROOT}/public missing -- is the sibling repo at the right path?" >&2
-  echo "       QUEUENIGHT_PATH=${QUEUENIGHT_PATH:-(unset; using default)}" >&2
+# 2.5. Pure-function smoke gate -- contract tests for matches/considerable filters
+# (Phase 15.5.5+), positionToSeconds transform (Phase 15.5-02), and provider-diff
+# + push-body builders (Phase 18-03). Fast (~50-100ms total) and runs without
+# Firestore/auth/browser. Catches regressions in core matching / push-voice logic
+# before they reach production -- introduced after the v35.5.1->v35.5.5 deploy
+# ping-pong on the same surface.
+if [ -f scripts/smoke-position-transform.cjs ]; then
+  node scripts/smoke-position-transform.cjs > /dev/null \
+    || { echo "ERROR: smoke-position-transform failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-tonight-matches.cjs ]; then
+  node scripts/smoke-tonight-matches.cjs > /dev/null \
+    || { echo "ERROR: smoke-tonight-matches failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-availability.cjs ]; then
+  node scripts/smoke-availability.cjs > /dev/null \
+    || { echo "ERROR: smoke-availability failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-kid-mode.cjs ]; then
+  node scripts/smoke-kid-mode.cjs > /dev/null \
+    || { echo "ERROR: smoke-kid-mode failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-decision-explanation.cjs ]; then
+  node scripts/smoke-decision-explanation.cjs > /dev/null \
+    || { echo "ERROR: smoke-decision-explanation failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-conflict-aware-empty.cjs ]; then
+  node scripts/smoke-conflict-aware-empty.cjs > /dev/null \
+    || { echo "ERROR: smoke-conflict-aware-empty failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-sports-feed.cjs ]; then
+  node scripts/smoke-sports-feed.cjs > /dev/null \
+    || { echo "ERROR: smoke-sports-feed failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-native-video-player.cjs ]; then
+  node scripts/smoke-native-video-player.cjs > /dev/null \
+    || { echo "ERROR: smoke-native-video-player failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-position-anchored-reactions.cjs ]; then
+  node scripts/smoke-position-anchored-reactions.cjs > /dev/null \
+    || { echo "ERROR: smoke-position-anchored-reactions failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-guest-rsvp.cjs ]; then
+  node scripts/smoke-guest-rsvp.cjs > /dev/null \
+    || { echo "ERROR: smoke-guest-rsvp failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-pickem.cjs ]; then
+  node scripts/smoke-pickem.cjs > /dev/null \
+    || { echo "ERROR: smoke-pickem failed -- aborting deploy." >&2; exit 1; }
+fi
+# smoke-app-parse runs LAST in §2.5 because it's the foundation gate: any ES
+# module syntax error here means the app shell can't boot in the browser.
+# Added 2026-05-02 after a 1-paren mismatch in js/app.js shipped silently for
+# 3 days through 2 phase deploys (couch-v38, couch-v39).
+if [ -f scripts/smoke-app-parse.cjs ]; then
+  node scripts/smoke-app-parse.cjs > /dev/null \
+    || { echo "ERROR: smoke-app-parse failed -- aborting deploy." >&2; exit 1; }
+fi
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed + native-video-player + position-anchored-reactions + guest-rsvp + pickem + app-parse)."
+
+# 3. Verify couch-deploy mirror exists (deploy target)
+if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
+  echo "ERROR: ${COUCH_DEPLOY_ROOT}/public missing -- is the sibling repo at the right path?" >&2
+  echo "       COUCH_DEPLOY_PATH=${COUCH_DEPLOY_PATH:-(unset; using default)}" >&2
   exit 1
 fi
 
@@ -84,17 +236,17 @@ if [ -n "$TAG" ]; then
   fi
 fi
 
-# 5. Mirror to queuenight/public/ (file set per CLAUDE.md + PATTERNS.md)
+# 5. Mirror to couch-deploy/public/ (file set per CLAUDE.md + PATTERNS.md)
 for f in app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt; do
   if [ -f "$f" ]; then
-    cp -v "$f" "${QUEUENIGHT_ROOT}/public/"
+    cp -v "$f" "${COUCH_DEPLOY_ROOT}/public/"
   else
     echo "WARN: $f missing in repo root; skipping" >&2
   fi
 done
-mkdir -p "${QUEUENIGHT_ROOT}/public/css" "${QUEUENIGHT_ROOT}/public/js"
-cp -v css/*.css "${QUEUENIGHT_ROOT}/public/css/"
-cp -v js/*.js "${QUEUENIGHT_ROOT}/public/js/"
+mkdir -p "${COUCH_DEPLOY_ROOT}/public/css" "${COUCH_DEPLOY_ROOT}/public/js"
+cp -v css/*.css "${COUCH_DEPLOY_ROOT}/public/css/"
+cp -v js/*.js "${COUCH_DEPLOY_ROOT}/public/js/"
 
 # 6. Auto-stamp BUILD_DATE -- review fix MEDIUM-8: target the MIRROR copy of
 #    js/constants.js, NOT the source. stamp-build-date.cjs resolves its target
@@ -103,7 +255,7 @@ cp -v js/*.js "${QUEUENIGHT_ROOT}/public/js/"
 #    equivalent in-place sed directly on the mirror's constants.js.
 #    This is functionally identical to what stamp-build-date.cjs does internally:
 #    it finds the BUILD_DATE export line and replaces the date string with today.
-MIRROR_CONSTANTS="${QUEUENIGHT_ROOT}/public/js/constants.js"
+MIRROR_CONSTANTS="${COUCH_DEPLOY_ROOT}/public/js/constants.js"
 TODAY="$(date -u +%Y-%m-%d)"
 if [ ! -f "${MIRROR_CONSTANTS}" ]; then
   echo "ERROR: Mirror constants.js not found at: ${MIRROR_CONSTANTS}" >&2
@@ -123,7 +275,7 @@ fi
 #    but the operator forgot to substitute the real DSN before deploy.
 SENTRY_PLACEHOLDERS_REGEX='<SENTRY_PUBLIC_KEY>|<SENTRY_ORGID>|<SENTRY_PROJECTID>'
 SENTRY_VIOLATIONS=0
-for f in "${QUEUENIGHT_ROOT}/public/app.html" "${QUEUENIGHT_ROOT}/public/landing.html"; do
+for f in "${COUCH_DEPLOY_ROOT}/public/app.html" "${COUCH_DEPLOY_ROOT}/public/landing.html"; do
   if [ -f "$f" ]; then
     if grep -qE "${SENTRY_PLACEHOLDERS_REGEX}" "$f"; then
       echo "ERROR: ${f} still contains a Sentry DSN placeholder." >&2
@@ -138,7 +290,7 @@ if [ "$SENTRY_VIOLATIONS" -gt 0 ]; then
 fi
 
 # 8. Deploy hosting
-cd "${QUEUENIGHT_ROOT}"
+cd "${COUCH_DEPLOY_ROOT}"
 firebase deploy --only hosting --project queuenight-84044
 
 # 9. Smoke tests
