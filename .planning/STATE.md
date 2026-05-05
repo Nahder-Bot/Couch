@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: completed
-last_updated: "2026-05-04T00:00:00.000Z"
-last_activity: 2026-05-04
+status: executing
+last_updated: "2026-05-05T02:04:41.043Z"
+last_activity: 2026-05-05
 progress:
-  total_phases: 29
-  completed_phases: 21
-  total_plans: 124
-  completed_plans: 116
-  percent: 94
+  total_phases: 27
+  completed_phases: 20
+  total_plans: 113
+  completed_plans: 109
+  percent: 96
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 Phase: 30 — couch-groups-affiliate-hooks
 Plan: 05 SHIPPED + 5 hotfix waves SHIPPED
-**Status:** Phase 30 code-complete + deployed (`couch-v46-wave-5-hotfix`); PR #8 OPEN at https://github.com/Nahder-Bot/Couch/pull/8 (body sourced from `.planning/PR-BODY.md`; `gh` CLI now installed + authenticated locally). Phase 28 paused on `/gsd-plan-phase 28` replan — D-17 spike resolved 2026-05-04 with Option B locked: UFC dropped for v1, F1 via free Jolpica API, 14 team-leagues (15 of 16 LEAGUES). Total cost $0/yr.
+**Status:** Ready to execute
 
-**Resume signal:** (1) Real-device UAT for Phases 24/26/27/30 (~32 scripts) → `/gsd-verify-work` per phase. (2) For Phase 28: `/gsd-plan-phase 28` to regenerate Plans 03-06 against the new 3-pickType + Jolpica-F1 + 14-team-leagues scope (D-17 update 2 in 28-CONTEXT.md is the source of truth) → then `/gsd-execute-phase 28` to resume execution from Wave 2.
+**Resume signal:** (1) Real-device UAT for Phases 24/26/27/30 (~32 scripts) → `/gsd-verify-work` per phase. (2) For Phase 28: `/gsd-execute-phase 28` to resume execution from Wave 2 (Plans 03 + 04 in parallel → 05 → 06; replan completed 2026-05-05 via /gsd-plan-phase 28 against Option B scope; gsd-plan-checker verification PASSED first iteration; cross-repo deploy targets sw.js cache `couch-v47-pickem`).
 
-**Last Activity:** 2026-05-04
+**Last Activity:** 2026-05-05
 
 **Most recent close-out:** Phase 30 hotfix Wave 5 (deployed 2026-05-04 as `couch-v46-wave-5-hotfix`) — last 5 commits `1f65cc3` 44px hit-area minimum (Gemini P2) + `4154a06` richer hero alt text (Gemini P2) + `08612bf` iOS PWA Add-to-Home-Screen nudge banner (Gemini P2) + `9169a1b` Wave 5B summary (4 frontend fixes + 1 deferred) + `4ab283e` consolidated Wave 5 hotfix summaries + `166dbd0` sw.js cache bump commit. Combined with Wave 5A burndown of deferred items (MD-01 revoked-guest re-submit denied / MD-02 dead-sub prune endpoint match / MD-03 NFKC NBSP normalize on guest names / HI-02 in-memory rate limiter on Phase 27 unauth CFs / CR-10 onMemberDelete CF strips stale memberUids / G-P0-2 part 2 keyboard focus trap helper wired to 6 high-traffic modals). 9 of the original 67 review findings closed in Wave 5 alone; 61 of 67 closed across all 5 waves.
 
@@ -45,9 +45,9 @@ Plan: 05 SHIPPED + 5 hotfix waves SHIPPED
 
 **Previous close-out:** Phase 30 / Plan 05 — Phase-30 production close + UAT scaffold (deployed 2026-05-02/03 as `couch-v41-couch-groups`). 5 plans across 4 execution waves. New top-level `/watchparties/` collection-group query (Plans 02-03), addFamilyToWp + wpMigrate + rsvpSubmit Pitfall-5 fix CFs LIVE in queuenight-84044 (Plan 02), composite COLLECTION_GROUP index built/ready, firestore.rules top-level /watchparties block live, 4 new rules-test stubs activated (52 → 56 PASS), name-collision disambiguation (`buildNameCollisionMap` + `crossFamilyChips` Pitfall-6 render), `.wp-add-family-section` DOM hook + 4-state add-family flow + host-direct couch-remove (T-30-14 ACCEPT v1) + ~140 lines Phase 30 CSS. Smoke gate at 12 contracts (FLOOR=16; 53 assertions in smoke-couch-groups). 11 device-UAT scripts in 30-HUMAN-UAT.md (10 baseline + W5 follow-on Script 11 cross-referencing T-30-14 v1 limitation). wpMigrate execution DEFERRED — first Phase 30 deploy, no legacy nested wps exist; new wps go top-level natively, old nested wps fade within 25h archive window. All 8 GROUP-30-* requirements transitioned `Pending` → `Complete - HUMAN-VERIFY pending`.
 
-**D-17 spike resolved 2026-05-04 (Phase 28):** Both Patreon path (original D-17, $108/yr revealed) and API-Sports MMA free tier (Update 1, falsified by 3-day data window restriction) abandoned. **Option B locked:** drop UFC for v1, ship F1 via Jolpica (free, no key, verified working with 2026 driver list), keep 14 team-leagues. Total cost $0/yr. 28-CONTEXT.md updated with full spike journey + Update 2 final decision; D-01 (15 of 16 leagues), D-02 (3 pickTypes: team_winner / team_winner_or_draw / f1_podium), D-09 (non-team pre-fill = f1_podium only), and D-05 slate notes all updated to drop UFC. Plans 28-03..06 still PAUSED — need `/gsd-plan-phase 28` to regenerate against new scope.
+**Most recent close-out:** Phase 28 — Plans 03-06 REPLANNED 2026-05-05 against Option B scope. Triggered by D-17 spike resolution: Patreon path (108 USD/yr post-pricing-correction) and API-Sports MMA free tier (Update 1, falsified by 3-day data window restriction) both abandoned. **Option B locked 2026-05-04:** drop UFC pickType for v1, ship F1 via Jolpica (free, no key, verified working with 2026 driver list), keep 14 team-leagues + F1 = 15 of 16 LEAGUES. Total cost zero. Replan via `/gsd-plan-phase 28` produced 4 new plans (28-03..06) across 3 execution waves: Wave 2 (28-03 cross-repo CFs gameResultsTick + pickReminderTick with Jolpica F1 + TheSportsDB team-sport branches; 28-04 firestore.rules picks/leaderboards/picks_reminders blocks + 4 new rules-tests 78→82 PASS); Wave 3 (28-05 UI surface — 5 render functions + Jolpica F1 fetcher + onSnapshot listener + .pe-* CSS family); Wave 4 (28-06 phase-close — smoke FLOOR=13 lock + cross-repo deploy ritual + sw.js bump to couch-v47-pickem + 28-HUMAN-UAT.md scaffold with 11 device-UAT scripts including NO-UFC verification). gsd-plan-checker verification PASSED on first iteration across all 8 dimensions: frontmatter validity / anti-shallow rules / goal-backward must_haves / wave dependencies / scope assertions (no UFC anywhere; F1 source = Jolpica everywhere; 2-branch settlement; 3 picker variants; cache target couch-v47-pickem; smoke floor) / cross-repo deploy ritual / smoke contract integrity / Nyquist validation. New REQ IDs PICK-28-09..30 distributed across plans; old PICK-28-06 (UFC variant) gone with the dropped scope. 28-CONTEXT.md updated 2026-05-04 with D-17 update 2 + D-01 (15/16 leagues) + D-02 (3 pickTypes) + D-09 (non-team pre-fill = f1_podium only) + D-05 slate notes all updated to drop UFC. Ready for `/gsd-execute-phase 28` to resume execution from Wave 2 (Plans 01 + 02 already SHIPPED 2026-05-02).
 
-**Previous close-out:** Phase 28 / Plan 02 — Foundation + research-fork (paused 2026-05-02 per `2af8f1c` "pause after Wave 1 — D-17 TheSportsDB Patreon spike pending"). Plans 28-01 + 28-02 SHIPPED (smoke contracts + foundation helpers). Plans 28-03..06 PAUSED — see "D-17 spike resolved 2026-05-04" entry above for current status; original Patreon-spike resume signal is now superseded.
+**Previous close-out:** Phase 28 / Plan 02 — Foundation + research-fork (paused 2026-05-02 per `2af8f1c` "pause after Wave 1 — D-17 TheSportsDB Patreon spike pending"). Plans 28-01 + 28-02 SHIPPED (smoke contracts + foundation helpers). Plans 28-03..06 paused at the time, regenerated 2026-05-05 via /gsd-plan-phase 28 against Option B scope (see "Most recent close-out" above).
 
 **Previous close-out:** Phase 27 / Plan 05 — Cross-repo close-out + production deploy (5 atomic commits: queuenight `b2949c9` feat(27-05): rsvpRevoke gains action='attachPushSub' branch + `daa8e2a` feat(27-05): rsvpReminderTick adds guest loop with direct webpush + dead-sub prune; couch `b099baa` test(27-05): extend smoke-guest-rsvp.cjs to 47 assertions + bump sw.js cache + `fafdfae` docs(27-05): scaffold 27-HUMAN-UAT.md with 10 device-UAT scripts + `3c048f5` docs(27-05): plan summary). Cross-repo deploy: `firebase deploy --only functions` from queuenight → `bash scripts/deploy.sh --allow-dirty 39-guest-rsvp` from couch. Production curl-verified at couchtonight.app **2026-05-02T03:15:25Z**: `const CACHE = 'couch-v39-guest-rsvp';`. All 4 Phase 27 CFs (rsvpSubmit, rsvpStatus, rsvpRevoke, rsvpReminderTick) live in queuenight-84044 us-central1 with CORS-locked preflight 204. Smoke gate now 10 contracts; smoke-guest-rsvp.cjs at 47 assertions (29 production-code sentinels + floor meta-assertion ≥13 fails the deploy gate). Rules tests 52/52 PASS. All 15 RSVP-27-* IDs codified in production source. Phase 27 awaits device-UAT (10 scripts in 27-HUMAN-UAT.md covering iOS non-PWA push absent + Android push opt-in + two-device revoke + close/reopen + kebab UAT + browser matrix; resume signal `uat passed` → `/gsd-verify-work 27`).
 
