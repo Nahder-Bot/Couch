@@ -395,16 +395,43 @@ void QN_FUNCTIONS;
     }
   }
 
-  // === Group 9: Floor meta-assertion (locked by Plan 28-06) =============
-  // Wave 1 placeholder — will tighten to FLOOR=13 in Plan 28-06 after
-  // production-code sentinels land in Plans 02-05.
+  // === Group 9 — FLOOR meta-assertion (Plan 28-06 lock; REVIEWS Amendment 15 / LOW-15) ===
+  // Replaces the brittle pre-Plan-06 magic-number pattern with explicit named counters
+  // per group. Floor counts PRODUCTION-CODE sentinels only (Groups 5-8: cross-repo lockstep
+  // + CF + indexes + Firestore rules + UI render-function sentinels). Helper-behavior
+  // assertions (Groups 1-4b) and constants are pure-helper coverage; the floor doesn't
+  // gate on those.
+  //
+  // Group counts MUST stay in lockstep with the assertions above. If a Group 1-4b
+  // helper-behavior assertion is added/removed, update the matching GROUP_X_COUNT
+  // constant in the same edit. A drift surfaces as a wildly-off productionSentinels
+  // reading rather than a silent floor-met-but-wrong-by-N (REVIEWS Amendment 15 intent).
   {
-    const FLOOR = 1; // placeholder — Plan 28-06 raises to 13
-    if (passed >= FLOOR) {
-      console.log(`  ok floor met (${passed} >= ${FLOOR})`);
-      passed++;
+    const FLOOR = 13;  // mirrors RPLY-26-17 + RSVP-27-17 patterns
+
+    // Named-group counters per REVIEWS Amendment 15 — count by group for forward-reading clarity.
+    // Groups 1 + 2 + 3 + 4 + 4b = helper-behavior assertions.
+    // Constants K1-K2 = 2 helper assertions.
+    // Groups 5 + 6 + 7 + 8 = production-code sentinels.
+    // Total `passed` includes all of the above. The split below is by definition + explicit
+    // count so a future refactor can see exactly which group each assertion belongs to.
+
+    const GROUP_1_COUNT = 6;    // slateOf
+    const GROUP_2_COUNT = 3;    // latestGameInSlate
+    const GROUP_3_COUNT = 8;    // scorePick (Pitfall 6 partial-match closure)
+    const GROUP_4_COUNT = 4;    // compareMembers
+    const GROUP_4B_COUNT = 2;   // summarizeMemberSeason
+    const CONST_COUNT = 2;      // K1 + K2
+    const helperAssertions = GROUP_1_COUNT + GROUP_2_COUNT + GROUP_3_COUNT + GROUP_4_COUNT + GROUP_4B_COUNT + CONST_COUNT;
+
+    const productionSentinels = passed - helperAssertions;
+    const metaAssertions = 1;  // this floor block itself
+
+    if (productionSentinels >= FLOOR) {
+      console.log(`  ok floor met (productionSentinels=${productionSentinels} >= FLOOR=${FLOOR}; helperAssertions=${helperAssertions})`);
+      passed += metaAssertions;
     } else {
-      console.error(`  FAIL floor NOT met (${passed} < ${FLOOR})`);
+      console.error(`  FAIL floor NOT met (productionSentinels=${productionSentinels} < FLOOR=${FLOOR}; helperAssertions=${helperAssertions})`);
       failed++;
     }
   }
