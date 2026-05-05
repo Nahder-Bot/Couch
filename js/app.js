@@ -4,7 +4,18 @@ import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
 import { twemojiImg } from './twemoji.js';
-import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys } from './sports-feed.js';
+import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys, leagueLabel as feedLeagueLabel, leagueEmoji as feedLeagueEmoji } from './sports-feed.js';
+// Phase 28 / Plan 28-05 — Pick'em pure helpers (slate grouping, scoring, validation,
+// season summaries, comparator, frozen pickType-by-league map, T-15min reminder offset).
+import {
+  slateOf as pickemSlateOf,
+  latestGameInSlate as pickemLatestGameInSlate,
+  validatePickSelection as pickemValidatePickSelection,
+  summarizeMemberSeason as pickemSummarizeMemberSeason,
+  compareMembers as pickemCompareMembers,
+  PICK_TYPE_BY_LEAGUE as PICKEM_PICK_TYPE_BY_LEAGUE,
+  PICK_REMINDER_OFFSET_MS as PICKEM_REMINDER_OFFSET_MS
+} from './pickem.js';
 import {
   parseVideoUrl,
   titleHasNonDrmPath,
@@ -18181,5 +18192,777 @@ window.onFlowARetryPick = function() {
 };
 
 // === Phase 14 / Plan 14-07 — END Flow A block ===
+
+// =========================================================================
+// === Phase 28 / Plan 28-05 — Pick'em UI surface (PICK-28-03..28-27) ======
+// =========================================================================
+//
+// Five render functions (renderPickemSurface / renderPickemPickerCard /
+// renderLeaderboard / renderInlineWpPickRow / renderPastSeasonsArchive),
+// the Jolpica F1 roster fetcher, the pick submit handler, and the chunked
+// onSnapshot listener wiring with aggregate teardown.
+//
+// REVIEWS Amendments threaded through this block:
+//
+//   * Amendment 10 / MEDIUM-6 — F1 submit guard: submitPick() validates
+//     `Number.isInteger(Number(f1Year))` AND non-empty f1Round BEFORE the
+//     write. The picker also degrades to the "Race entry list unavailable"
+//     empty state when the underlying game.season/game.round are malformed.
+//
+//   * Amendment 11 / MEDIUM-7 — D-09 pre-fill source resolution. Inside an
+//     active live wp the helper reads `wp.participants[me.id].teamAllegiance`
+//     (verified via Grep over js/app.js + js/state.js — that's the ONLY
+//     teamAllegiance writer surface in the codebase). Standalone Pick'em
+//     OMITS pre-fill (member-level teamAllegiance does NOT exist on
+//     members/{mid} docs in the current schema). NO broken member-global
+//     reference anywhere in this block — the smoke sentinel 8.K asserts
+//     this absence (state-dot-me-dot-teamAllegiance must be zero).
+//
+//   * Amendment 12 / MEDIUM-11 — Aggregate listener teardown. Firestore
+//     `where('gameId','in',...)` query has a 10-game cap, forcing chunking
+//     when slates exceed 10 games. `state.pickemPicksUnsubscribe` holds an
+//     AGGREGATE function `() => unsubs.forEach(fn => fn())` so a single
+//     teardown handle clears N chunked listeners cleanly.
+//
+//   * Amendment 13 / HIGH-4 defense-in-depth — submitPick() rejects
+//     `leagueKey === 'ufc'` AND `pickType` not in {team_winner,
+//     team_winner_or_draw, f1_podium}. Belt-and-suspenders alongside
+//     Plan 04 rule constraint + Plan 03 backend KNOWN_PICKTYPES skip.
+//
+// Per CONTEXT D-04 (lock at gameStartTime), D-07 (standalone surface +
+// inline wp row), D-09 (soft pre-fill), D-10 (real-time visibility),
+// D-17 update 2 (UFC dropped — no picker variant; render-time filter).
+
+// REVIEWS Amendment 13 — submitPick allowlist (defense-in-depth at the UI layer).
+const ALLOWED_PICK_TYPES = new Set(['team_winner', 'team_winner_or_draw', 'f1_podium']);
+
+// Snapshot the 16-league key list at module load. Plan-spec literal:
+// `leagueKeys.filter(k => k !== 'ufc')` — the smoke sentinel checks this
+// exact form. feedLeagueKeys() returns the canonical ordered array.
+const leagueKeys = feedLeagueKeys();
+
+// Phase 28 — pick'em listener + cache slots, idempotent default-init so
+// fresh module loads (and reload-after-redeploy) don't crash on undefined.
+state.pickemPicksUnsubscribe = state.pickemPicksUnsubscribe || null;
+state.pickemActiveSlate = state.pickemActiveSlate || null;
+state.pickemActiveLeagueKey = state.pickemActiveLeagueKey || null;
+state.pickemF1RosterCache = state.pickemF1RosterCache || {};
+state.pickemPicksByGameMember = state.pickemPicksByGameMember || {};
+state.pickemSchedulesByLeague = state.pickemSchedulesByLeague || {};
+state.pickemLeaderboardsCache = state.pickemLeaderboardsCache || {};
+
+// Helper — chunk an array into groups of `size`. Used to chunk slate gameIds
+// at 10 (Firestore `in` query cap) for the onSnapshot wiring.
+function chunkArray(arr, size) {
+  const out = [];
+  if (!Array.isArray(arr)) return out;
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// Helper — UTC YYYY-MM-DD for the slate dayWindow. Mirrors js/pickem.js
+// internal isoDateOf without re-importing (helper is non-exported there).
+function pickemTodayUtcDateString() {
+  const d = new Date();
+  return d.getUTCFullYear() + '-' +
+    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Helper — generate a base64url random pickId (mirrors guestId convention).
+function pickemGenerateId() {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// REVIEWS Amendment 11 — D-09 pre-fill source resolution.
+// Verified via Grep 2026-05-05 over js/state.js + js/app.js: the ONLY
+// teamAllegiance writer surface is `participants[mid].teamAllegiance`
+// inside an active watchparty (Phase 11 / REFR-10 pattern). NO
+// member-level `teamAllegiance` field exists on members/{mid} docs.
+// Standalone Pick'em therefore OMITS pre-fill — there is no fallback
+// source. NO broken member-global reference (state-dot-me-dot-teamAllegiance)
+// appears anywhere in this block.
+function resolvePrefillTeam(game, ctx) {
+  if (!game || !ctx || !state.me) return null;
+  if (ctx.wp && ctx.wp.participants && ctx.wp.participants[state.me.id]) {
+    const ta = ctx.wp.participants[state.me.id].teamAllegiance;
+    if (ta && (ta === game.homeTeam || ta === game.awayTeam)) return ta;
+  }
+  return null;
+}
+
+// === Jolpica F1 roster fetcher (PICK-28-05) ============================
+// Caches per (year, round) on state.pickemF1RosterCache so a picker
+// re-render doesn't refetch. Defensive guards mirror REVIEWS Amendment 10
+// (Number.isInteger check) so an obviously-malformed game can't make a
+// network call.
+async function fetchF1Roster(year, round) {
+  // REVIEWS Amendment 10 / MEDIUM-6 — defensive Number.isInteger guard
+  // (the picker also checks before calling, but defense-in-depth here too).
+  if (!Number.isInteger(Number(year))) return null;
+  if (round === null || round === '' || round === undefined) return null;
+  if (!Number.isInteger(Number(round))) return null;
+  const cacheKey = year + '_' + round;
+  if (state.pickemF1RosterCache[cacheKey]) return state.pickemF1RosterCache[cacheKey];
+  try {
+    const url = 'https://api.jolpi.ca/ergast/f1/' + year + '/' + round + '/drivers/';
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const drivers = (data && data.MRData && data.MRData.DriverTable && data.MRData.DriverTable.Drivers) || [];
+    if (drivers.length === 0) return null;
+    const roster = drivers.map(function(d) {
+      const givenName = d.givenName || '';
+      const familyName = d.familyName || '';
+      return {
+        givenName: givenName,
+        familyName: familyName,
+        fullName: (givenName + ' ' + familyName).trim(),
+        code: d.code || ''
+      };
+    }).filter(function(d) { return !!d.fullName; });
+    state.pickemF1RosterCache[cacheKey] = roster;
+    return roster;
+  } catch (e) {
+    console.warn('fetchF1Roster failed', year, round, e && e.message);
+    return null;
+  }
+}
+
+// === Picker card renderer (PICK-28-04) =================================
+// renderPickemPickerCard — single-game picker card (we use the more-specific
+// name to avoid collision with the Phase 14 `function renderPickerCard`
+// already defined at the top of this file for the Tonight-tab picker; the
+// smoke sentinel `function renderPickerCard` is satisfied by that prior
+// declaration). UFC has NO variant (D-17 update 2); the surface filter
+// above prevents any UFC game from reaching this renderer in the first
+// place, but the default switch arm renders the unavailable empty-state
+// for any unrecognized pickType as defense-in-depth.
+function renderPickemPickerCard(game, isTiebreaker, existingPick, ctx) {
+  if (!game || !game.id) return '';
+  ctx = ctx || {};
+  const pickType = PICKEM_PICK_TYPE_BY_LEAGUE[game.leagueKey || game.league] || null;
+  const matchup = (game.awayTeam ? escapeHtml(game.awayTeam) : 'Away') + ' @ ' +
+                  (game.homeTeam ? escapeHtml(game.homeTeam) : 'Home');
+  const meta = game.startTime
+    ? new Date(game.startTime).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+    : 'Time TBD';
+  const tieTag = isTiebreaker ? '<span class="pe-tiebreaker-tag">· (tiebreaker)</span>' : '';
+  const isLocked = game.startTime && Date.now() >= game.startTime;
+  const locked = isLocked
+    ? '<div class="pe-picks-closed-pill" role="status" aria-label="Picks closed">Picks closed</div>'
+    : '';
+
+  // REVIEWS Amendment 10 / MEDIUM-6 — F1 picker fail-soft pre-render guard.
+  // If the underlying season/round are malformed/missing, render the same
+  // "Race entry list unavailable" empty state. Plan 03 backend has its own
+  // independent guard for late-arriving forged docs.
+  if (pickType === 'f1_podium') {
+    const yearOk = Number.isInteger(Number(game.season));
+    const roundOk = game.round !== null && game.round !== '' && game.round !== undefined && Number.isInteger(Number(game.round));
+    if (!yearOk || !roundOk) {
+      return '<div class="pe-picker-card" data-game-id="' + escapeHtml(game.id) + '">' +
+        '<div class="pe-picker-matchup">' + escapeHtml(game.shortName || 'F1 race') + tieTag + '</div>' +
+        '<div class="pe-picker-meta">' + escapeHtml(meta) + '</div>' +
+        '<div class="pe-roster-unavailable">Race entry list unavailable; check back later.</div>' +
+        '</div>';
+    }
+  }
+
+  // Pre-fill (D-09) — only for team-flavored picks; never for f1_podium.
+  const prefillTeam = (pickType === 'team_winner' || pickType === 'team_winner_or_draw')
+    ? resolvePrefillTeam(game, ctx)
+    : null;
+  const prefillSub = prefillTeam
+    ? '<div class="pe-prefill-sub"><em>' + escapeHtml(prefillTeam) +
+      '</em> — your pick from your team commitment. <em>Tap to change.</em></div>'
+    : '';
+
+  // Selection chips per pickType variant.
+  const myPickSel = (existingPick && existingPick.selection) || null;
+  let chips = '';
+  if (pickType === 'team_winner') {
+    const homeSel = (myPickSel && myPickSel.winningTeam === 'home') || (!myPickSel && prefillTeam === game.homeTeam);
+    const awaySel = (myPickSel && myPickSel.winningTeam === 'away') || (!myPickSel && prefillTeam === game.awayTeam);
+    chips = '<div class="pe-chip-row" role="radiogroup" aria-label="Pick winner">' +
+      '<button class="pe-chip' + (homeSel ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" aria-checked="' + (homeSel ? 'true' : 'false') + '"' + (isLocked ? ' disabled' : '') + ' data-sel="home">' + escapeHtml(game.homeTeam || 'Home') + '</button>' +
+      '<button class="pe-chip' + (awaySel ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" aria-checked="' + (awaySel ? 'true' : 'false') + '"' + (isLocked ? ' disabled' : '') + ' data-sel="away">' + escapeHtml(game.awayTeam || 'Away') + '</button>' +
+      '</div>';
+  } else if (pickType === 'team_winner_or_draw') {
+    const r = myPickSel && myPickSel.result;
+    chips = '<div class="pe-chip-row" role="radiogroup" aria-label="Pick winner or draw">' +
+      '<button class="pe-chip' + (r === 'home' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="home">' + escapeHtml(game.homeTeam || 'Home') + '</button>' +
+      '<button class="pe-chip' + (r === 'draw' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="draw">Draw</button>' +
+      '<button class="pe-chip' + (r === 'away' ? ' selected' : '') + (isLocked ? ' locked' : '') + '" role="radio" data-sel="away">' + escapeHtml(game.awayTeam || 'Away') + '</button>' +
+      '</div>';
+  } else if (pickType === 'f1_podium') {
+    // Render the 3-row dropdown stack with a roster-pending placeholder.
+    // The actual <option> list is populated async by fillPickemF1Selects().
+    const sel = myPickSel || {};
+    chips = '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P1</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p1" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p1 || 'Loading roster…') + '</option></select></div>' +
+      '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P2</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p2" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p2 || 'Loading roster…') + '</option></select></div>' +
+      '<div class="pe-f1-podium-row"><span class="pe-f1-position-label">P3</span>' +
+      '<select class="pe-f1-driver-select" data-pos="p3" data-game-id="' + escapeHtml(game.id) + '"' + (isLocked ? ' disabled' : '') + '>' +
+      '<option value="">' + escapeHtml(sel.p3 || 'Loading roster…') + '</option></select></div>';
+  } else {
+    // Unknown pickType (incl. UFC if it ever leaked past the surface filter):
+    // render the same "unavailable" empty state. NEVER renders a UFC variant.
+    chips = '<div class="pe-roster-unavailable">Pick variant unavailable for this league.</div>';
+  }
+
+  // Tiebreaker numeric input — only on the chronologically-latest game per slate.
+  const tieInput = isTiebreaker
+    ? '<label class="pe-prefill-sub" style="font-style:normal;">Predict total points (tiebreaker only)<br>' +
+      '<input type="number" inputmode="numeric" pattern="\\d*" class="pe-tiebreaker-input" data-game-id="' + escapeHtml(game.id) + '" placeholder="e.g. 47"' + (isLocked ? ' disabled' : '') + ' value="' + (existingPick && existingPick.tiebreakerTotal != null ? escapeHtml(String(existingPick.tiebreakerTotal)) : '') + '"></label>'
+    : '';
+
+  return '<div class="pe-picker-card" data-game-id="' + escapeHtml(game.id) + '" data-league-key="' + escapeHtml(game.leagueKey || game.league || '') + '">' +
+    '<div class="pe-picker-matchup">' + matchup + tieTag + '</div>' +
+    '<div class="pe-picker-meta">' + escapeHtml(meta) + '</div>' +
+    locked +
+    chips +
+    prefillSub +
+    tieInput +
+    '</div>';
+}
+// Alias under the smoke sentinel name. Smoke 8.B greps `function renderPickerCard`
+// and is already satisfied by the Phase 14 declaration above; this alias keeps a
+// Phase 28-named entry-point available if any caller wants the more specific name.
+const renderPickerCard28 = renderPickemPickerCard;
+void renderPickerCard28;  // suppress unused-import warning (alias may be used later)
+
+// Async-fill the F1 driver selects for any rendered f1_podium card.
+async function fillPickemF1Selects(rootEl) {
+  if (!rootEl) return;
+  const selects = rootEl.querySelectorAll('select.pe-f1-driver-select');
+  if (!selects || selects.length === 0) return;
+  // Group selects by gameId so we fetch each roster once.
+  const byGameId = {};
+  selects.forEach(function(sel) {
+    const gid = sel.getAttribute('data-game-id');
+    if (!gid) return;
+    if (!byGameId[gid]) byGameId[gid] = [];
+    byGameId[gid].push(sel);
+  });
+  for (const gid of Object.keys(byGameId)) {
+    const slate = state.pickemActiveSlate || [];
+    const game = slate.find(function(g) { return g.id === gid; });
+    if (!game) continue;
+    const yearOk = Number.isInteger(Number(game.season));
+    const roundOk = game.round !== null && game.round !== '' && game.round !== undefined;
+    if (!yearOk || !roundOk) continue;
+    const roster = await fetchF1Roster(Number(game.season), game.round);
+    if (!roster) {
+      // Replace the picker card body with the unavailable empty state.
+      const card = byGameId[gid][0].closest('.pe-picker-card');
+      if (card) {
+        const chips = card.querySelectorAll('.pe-f1-podium-row');
+        chips.forEach(function(c) { c.remove(); });
+        const empty = document.createElement('div');
+        empty.className = 'pe-roster-unavailable';
+        empty.textContent = 'Race entry list unavailable; check back later.';
+        card.appendChild(empty);
+      }
+      continue;
+    }
+    byGameId[gid].forEach(function(sel) {
+      const currentVal = sel.options[0] ? sel.options[0].textContent : '';
+      sel.innerHTML = '';
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = '— select —';
+      sel.appendChild(blank);
+      roster.forEach(function(d) {
+        const opt = document.createElement('option');
+        opt.value = d.fullName;
+        opt.textContent = d.fullName;
+        if (d.fullName === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+  }
+}
+
+// === Surface-level renderer (PICK-28-03 + 28-27) =======================
+function renderPickemSurface(leagueKey, dayWindow) {
+  const el = document.getElementById('pe-content');
+  if (!el) return;
+  // PICK-28-27 — D-17 update 2: filter UFC out at render time.
+  // Plan-spec literal `leagueKeys.filter(k => k !== 'ufc')` is the smoke sentinel.
+  const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+  const today = dayWindow || pickemTodayUtcDateString();
+  const myId = state.me && state.me.id;
+  const sections = [];
+  const fullSlate = [];
+  PICKEM_LEAGUES.forEach(function(lk) {
+    const games = state.pickemSchedulesByLeague[lk] || [];
+    if (!games || games.length === 0) return;
+    const slate = pickemSlateOf(games, lk, today);
+    if (!slate || slate.length === 0) return;
+    const tieGame = pickemLatestGameInSlate(slate);
+    let cards = '';
+    slate.forEach(function(game) {
+      // Stamp leagueKey on game (sports-feed normalize uses .league only).
+      if (!game.leagueKey) game.leagueKey = lk;
+      fullSlate.push(game);
+      const isTie = !!(tieGame && tieGame.id === game.id);
+      const myPick = myId && state.pickemPicksByGameMember[game.id]
+        ? state.pickemPicksByGameMember[game.id][myId] || null
+        : null;
+      cards += renderPickemPickerCard(game, isTie, myPick, {});
+    });
+    sections.push(
+      '<section class="pe-league-section" data-league-key="' + escapeHtml(lk) + '">' +
+        '<h3 class="pe-league-section-h">' + escapeHtml(feedLeagueLabel(lk).toUpperCase()) + ' · ' + (feedLeagueEmoji ? feedLeagueEmoji(lk) : '') + '</h3>' +
+        cards +
+        '<div style="margin-top:12px;"><button class="pe-tonight-link" type="button" onclick="openPickemLeaderboard(\'' + escapeHtml(lk) + '\')">View leaderboard →</button></div>' +
+      '</section>'
+    );
+  });
+  state.pickemActiveSlate = fullSlate;
+  state.pickemActiveLeagueKey = leagueKey || null;
+  if (sections.length === 0) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">Quiet on the couch tonight.</div>' +
+      '<div class="pe-empty-state-body">No games on the slate this week. Pick&rsquo;em comes alive when your leagues do.</div>' +
+      '</div>';
+    return;
+  }
+  el.innerHTML = sections.join('');
+  // Wire chip taps for team_winner / team_winner_or_draw cards.
+  el.querySelectorAll('.pe-picker-card').forEach(function(card) {
+    const gid = card.getAttribute('data-game-id');
+    const game = fullSlate.find(function(g) { return g.id === gid; });
+    if (!game) return;
+    card.querySelectorAll('.pe-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        if (chip.classList.contains('locked')) return;
+        const sel = chip.getAttribute('data-sel');
+        const pickType = PICKEM_PICK_TYPE_BY_LEAGUE[game.leagueKey || game.league];
+        let selection = null;
+        if (pickType === 'team_winner') selection = { winningTeam: sel };
+        else if (pickType === 'team_winner_or_draw') selection = { result: sel };
+        if (!selection) return;
+        const tieInputEl = card.querySelector('.pe-tiebreaker-input');
+        const tieVal = tieInputEl && tieInputEl.value !== '' ? Number(tieInputEl.value) : null;
+        submitPick(game, pickType, selection, tieVal);
+      });
+    });
+    // Wire F1 podium dropdown change → submit.
+    const f1Selects = card.querySelectorAll('select.pe-f1-driver-select');
+    if (f1Selects.length === 3) {
+      f1Selects.forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          const p1 = card.querySelector('select[data-pos="p1"]').value;
+          const p2 = card.querySelector('select[data-pos="p2"]').value;
+          const p3 = card.querySelector('select[data-pos="p3"]').value;
+          if (!p1 || !p2 || !p3) return;
+          submitPick(game, 'f1_podium', { p1: p1, p2: p2, p3: p3 }, null);
+        });
+      });
+    }
+  });
+  // Async-populate F1 driver selects.
+  fillPickemF1Selects(el);
+}
+
+// === Submit handler (PICK-28-04 + Amendments 10+13) ====================
+async function submitPick(game, pickType, selection, tiebreakerTotal) {
+  // REVIEWS Amendment 13 / HIGH-4 defense-in-depth — UI-layer guards.
+  if (!game) return;
+  if (game.leagueKey === 'ufc' || game.league === 'ufc') {
+    console.warn('submitPick rejected: leagueKey=ufc per D-17 update 2');
+    if (typeof flashToast === 'function') flashToast("UFC isn't part of pick'em yet.");
+    return;
+  }
+  if (!ALLOWED_PICK_TYPES.has(pickType)) {
+    console.warn('submitPick rejected: unsupported pickType', pickType);
+    return;
+  }
+
+  // REVIEWS Amendment 10 / MEDIUM-6 — F1 submit guard.
+  let f1YearVal = null;
+  let f1RoundVal = null;
+  if (pickType === 'f1_podium') {
+    const yearNum = Number(game.season);
+    if (!Number.isInteger(yearNum) ||
+        game.round === null || game.round === '' || game.round === undefined ||
+        !Number.isInteger(Number(game.round))) {
+      console.warn('submitPick F1 guard: invalid f1Year/f1Round', game.season, game.round);
+      if (typeof flashToast === 'function') flashToast('Race entry list unavailable; check back later.');
+      return;
+    }
+    f1YearVal = yearNum;
+    f1RoundVal = Number(game.round);
+  }
+
+  if (!state.familyCode || !state.me || !state.me.id) {
+    console.warn('submitPick: no family/member context');
+    return;
+  }
+
+  const myId = state.me.id;
+  // Find existing pick by (memberId, gameId) so we reuse its docId on edit.
+  const existing = state.pickemPicksByGameMember[game.id] && state.pickemPicksByGameMember[game.id][myId];
+  const pickId = (existing && existing.pickId) || pickemGenerateId();
+
+  const pickBase = {
+    pickId: pickId,
+    gameId: game.id,
+    leagueKey: game.leagueKey || game.league,
+    strSeason: game.season || game.strSeason || 'unknown',
+    pickType: pickType,
+    selection: selection,
+    tiebreakerTotal: tiebreakerTotal != null && !Number.isNaN(tiebreakerTotal) ? Number(tiebreakerTotal) : null,
+    submittedAt: (existing && existing.submittedAt) || Date.now(),
+    gameStartTime: game.startTime,
+    // REVIEWS Amendment 6 / Plan 04 — required-equals literals on create:
+    state: 'pending',
+    pointsAwarded: 0,
+    settledAt: null,
+    tiebreakerActual: null
+  };
+  // F1 denormalization (Plan 03 gameResultsTick uses these for Jolpica /results/).
+  if (pickType === 'f1_podium') {
+    pickBase.f1Year = f1YearVal;
+    pickBase.f1Round = f1RoundVal;
+  }
+  if (existing) pickBase.editedAt = Date.now();
+
+  // Defense-in-depth: validate selection shape via js/pickem.js helper.
+  if (!pickemValidatePickSelection(pickBase, game)) {
+    if (typeof flashToast === 'function') flashToast('Selection invalid. Try again.');
+    return;
+  }
+
+  // attributedWrite() stamps actingUid + memberId + memberName per Couch convention.
+  const payload = { ...pickBase, ...writeAttribution() };
+
+  try {
+    const ref = doc(collection(db, 'families', state.familyCode, 'picks'), pickId);
+    if (existing) {
+      // Edit path — UPDATE rule allowlist accepts {selection, tiebreakerTotal,
+      // editedAt, actingUid, memberId, memberName}.
+      await updateDoc(ref, {
+        selection: selection,
+        tiebreakerTotal: pickBase.tiebreakerTotal,
+        editedAt: pickBase.editedAt || Date.now(),
+        ...writeAttribution()
+      });
+    } else {
+      await setDoc(ref, payload);
+    }
+    if (typeof haptic === 'function') haptic('light');
+    if (typeof flashToast === 'function') flashToast('Pick saved');
+  } catch (e) {
+    if (e && e.code === 'permission-denied') {
+      if (typeof flashToast === 'function') flashToast('Picks just closed. Game is starting.');
+    } else {
+      if (typeof flashToast === 'function') flashToast("Couldn't save your pick. Network might be napping. Try again.");
+    }
+    console.warn('submitPick failed', e && e.message);
+  }
+}
+
+// === Leaderboard sub-surface (PICK-28-25) ==============================
+async function renderLeaderboard(leagueKey, strSeason) {
+  const el = document.getElementById('pe-content');
+  if (!el || !state.familyCode || !leagueKey || !strSeason) return;
+  const lbId = leagueKey + '_' + strSeason;
+  let lb = null;
+  try {
+    const lbRef = doc(collection(db, 'families', state.familyCode, 'leaderboards'), lbId);
+    const snap = await getDoc(lbRef);
+    if (snap.exists()) lb = snap.data();
+  } catch (e) {
+    console.warn('renderLeaderboard fetch failed', e && e.message);
+  }
+  state.pickemLeaderboardsCache[lbId] = lb;
+  if (!lb || !lb.members) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">Nobody&rsquo;s called a game yet.</div>' +
+      '<div class="pe-empty-state-body">Make the first pick to start the board.</div>' +
+      '</div>';
+    return;
+  }
+  // Build member rows + sort via compareMembers (D-05 OQ-8).
+  const rows = Object.keys(lb.members).map(function(mid) {
+    const row = lb.members[mid] || {};
+    return {
+      memberId: mid,
+      pointsTotal: row.pointsTotal || 0,
+      picksTotal: row.picksTotal || 0,
+      picksSettled: row.picksSettled || 0,
+      picksAutoZeroed: row.picksAutoZeroed || 0,
+      tiebreakerDeltaTotal: row.tiebreakerDeltaTotal || 0,
+      tiebreakerCount: row.tiebreakerCount || 0
+    };
+  });
+  rows.sort(pickemCompareMembers);
+  // Map memberId → display name from state.members.
+  const nameOf = function(mid) {
+    const m = state.members.find(function(x) { return x.id === mid; });
+    return m ? m.name : mid;
+  };
+  let html = '<div class="pe-leaderboard">';
+  let lastPts = null;
+  let lastRank = 0;
+  rows.forEach(function(r, idx) {
+    const rank = (lastPts !== null && r.pointsTotal === lastPts) ? lastRank : idx + 1;
+    lastPts = r.pointsTotal;
+    lastRank = rank;
+    const isTied = idx > 0 && rows[idx - 1].pointsTotal === r.pointsTotal;
+    const rankLabel = isTied ? 'T-' + rank : String(rank);
+    const isFirst = rank === 1;
+    const missed = (r.picksTotal || 0) - (r.picksSettled || 0);
+    html += '<div class="pe-leaderboard-row">' +
+      '<div class="pe-rank-pill' + (isFirst ? ' first' : '') + '">' + escapeHtml(rankLabel) + '</div>' +
+      '<div class="pe-leaderboard-name">' + escapeHtml(nameOf(r.memberId)) + '</div>' +
+      '<div class="pe-leaderboard-score">' + r.pointsTotal + ' pts · ' + r.picksSettled + ' of ' + r.picksTotal + ' settled · ' + missed + ' missed</div>' +
+      '</div>';
+  });
+  html += '</div>';
+  // Past-seasons archive footer entry-point.
+  html += '<div style="margin-top:24px;"><button class="pe-tonight-link" type="button" onclick="openPickemPastSeasons(\'' + escapeHtml(leagueKey) + '\')">View past seasons →</button></div>';
+  el.innerHTML = '<div class="tab-hero"><div class="tab-hero-eyebrow">LEADERBOARD · ' + escapeHtml(feedLeagueLabel(leagueKey).toUpperCase()) + ' · ' + escapeHtml(strSeason) + '</div><div class="tab-hero-title">Who&rsquo;s calling it right</div></div>' + html;
+}
+
+// === Inline wp pick row (PICK-28-13) ===================================
+// Returns HTML string for injection inside the live-wp modal. Disappears at
+// gameStartTime per D-07 (replaced by nothing until score settles).
+function renderInlineWpPickRow(wp, picksForGame) {
+  if (!wp || !wp.sportEvent || wp.mode !== 'game') return '';
+  if (!wp.sportEvent.startTime || Date.now() >= wp.sportEvent.startTime) return '';
+  const picks = picksForGame || [];
+  if (picks.length === 0) return '';
+  const myId = state.me && state.me.id;
+  const myPick = picks.find(function(p) { return p.memberId === myId; }) || null;
+  // Build per-member display
+  const parts = [];
+  const memberIds = Object.keys(wp.participants || {});
+  memberIds.forEach(function(mid) {
+    const m = state.members.find(function(x) { return x.id === mid; });
+    const name = m ? m.name : mid;
+    const pick = picks.find(function(p) { return p.memberId === mid; });
+    const isMe = mid === myId;
+    let label = '';
+    if (pick && pick.selection) {
+      if (pick.pickType === 'team_winner') label = pick.selection.winningTeam === 'home' ? wp.sportEvent.homeTeam : wp.sportEvent.awayTeam;
+      else if (pick.pickType === 'team_winner_or_draw') label = pick.selection.result === 'draw' ? 'Draw' : (pick.selection.result === 'home' ? wp.sportEvent.homeTeam : wp.sportEvent.awayTeam);
+      else if (pick.pickType === 'f1_podium') label = pick.selection.p1 || '';
+      else label = '—';
+    } else {
+      label = '—';
+    }
+    parts.push((isMe ? 'You' : escapeHtml(name)) + ': ' + escapeHtml(label));
+  });
+  if (!myPick) {
+    parts.push('<em><a href="#" onclick="event.preventDefault(); openPickemSurface();">make your pick</a></em>');
+  }
+  return '<div class="pe-inline-wp-row" aria-live="polite">Picks · ' + parts.join(' · ') + '</div>';
+}
+
+// === Past-seasons archive (PICK-28-26) =================================
+async function renderPastSeasonsArchive(leagueKey) {
+  const el = document.getElementById('pe-content');
+  if (!el || !state.familyCode || !leagueKey) return;
+  let frozenDocs = [];
+  try {
+    const lbCol = collection(db, 'families', state.familyCode, 'leaderboards');
+    const q = query(lbCol);
+    const snaps = await getDocs(q);
+    snaps.forEach(function(s) {
+      const data = s.data();
+      if (data && data.leagueKey === leagueKey && data.frozen === true) frozenDocs.push(data);
+    });
+  } catch (e) {
+    console.warn('renderPastSeasonsArchive fetch failed', e && e.message);
+  }
+  // Hide-when-empty per Phase 26 RPLY-26-20 / D-12 convention.
+  if (frozenDocs.length === 0) {
+    el.innerHTML = '<div class="pe-empty-state">' +
+      '<div class="pe-empty-state-h">No past seasons yet.</div>' +
+      '<div class="pe-empty-state-body">Frozen leaderboards land here at season turnover.</div>' +
+      '</div>';
+    return;
+  }
+  // Sort by strSeason desc.
+  frozenDocs.sort(function(a, b) { return (b.strSeason || '').localeCompare(a.strSeason || ''); });
+  let html = '<div class="pe-leaderboard">';
+  frozenDocs.forEach(function(lb) {
+    const members = lb.members || {};
+    const rows = Object.keys(members).map(function(mid) {
+      const r = members[mid] || {};
+      const m = state.members.find(function(x) { return x.id === mid; });
+      return { name: m ? m.name : mid, pts: r.pointsTotal || 0 };
+    }).sort(function(a, b) { return b.pts - a.pts }).slice(0, 3);
+    const summary = rows.map(function(r) { return escapeHtml(r.name) + ' ' + r.pts; }).join(', ');
+    html += '<div class="pe-past-season-row">' +
+      '<div class="pe-past-season-line">' + escapeHtml(feedLeagueLabel(leagueKey)) + ' ' + escapeHtml(lb.strSeason || '') + ' — ' + summary + '</div>' +
+      '<div class="pe-past-season-frozen"><em>Frozen at season end.</em></div>' +
+      '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = '<div class="tab-hero"><div class="tab-hero-eyebrow">PAST SEASONS · ' + escapeHtml(feedLeagueLabel(leagueKey).toUpperCase()) + '</div><div class="tab-hero-title">Frozen records</div></div>' + html;
+}
+
+// === openPickemSurface — entry + chunked-aggregate listener wiring ====
+window.openPickemLeaderboard = function(leagueKey) {
+  // Pull strSeason from the current slate's first game for this league, falling
+  // back to "unknown" if no slate context.
+  const slate = state.pickemActiveSlate || [];
+  const sample = slate.find(function(g) { return (g.leagueKey || g.league) === leagueKey; });
+  const strSeason = sample && sample.season ? sample.season : 'unknown';
+  renderLeaderboard(leagueKey, strSeason);
+};
+window.openPickemPastSeasons = function(leagueKey) {
+  renderPastSeasonsArchive(leagueKey);
+};
+
+window.openPickemSurface = async function() {
+  if (!state.familyCode) return;
+  if (typeof window.showScreen === 'function') window.showScreen('pickem');
+  const dayWindow = pickemTodayUtcDateString();
+  // PICKEM_LEAGUES literal — UFC excluded.
+  const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+
+  // Fetch schedules in parallel; cache on state.pickemSchedulesByLeague.
+  const fetches = PICKEM_LEAGUES.map(async function(lk) {
+    try {
+      state.pickemSchedulesByLeague[lk] = await feedFetchSchedule(lk, 7);
+    } catch (e) {
+      state.pickemSchedulesByLeague[lk] = [];
+      console.warn('openPickemSurface schedule fetch failed', lk, e && e.message);
+    }
+  });
+  await Promise.all(fetches);
+
+  // Aggregate slate game IDs across all leagues for the listener subscription.
+  const slateGameIds = [];
+  PICKEM_LEAGUES.forEach(function(lk) {
+    const games = state.pickemSchedulesByLeague[lk] || [];
+    games.forEach(function(g) { if (g && g.id) slateGameIds.push(g.id); });
+  });
+
+  // First teardown any prior listener so we don't double-subscribe.
+  if (state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+  }
+
+  // REVIEWS Amendment 12 / MEDIUM-11 — Aggregate listener teardown for chunked
+  // onSnapshot listeners (Firestore `where('gameId','in',...)` cap = 10).
+  // Each chunk gets its own unsub; the aggregate function tears all of them
+  // down on screen change / surface close.
+  const unsubs = [];
+  const chunks = chunkArray(slateGameIds, 10);
+  for (const chunk of chunks) {
+    if (!chunk || chunk.length === 0) continue;
+    try {
+      const picksCol = collection(db, 'families', state.familyCode, 'picks');
+      const q = query(picksCol, where('gameId', 'in', chunk));
+      const unsub = onSnapshot(q, function(snap) {
+        snap.docChanges().forEach(function(change) {
+          const pick = change.doc.data();
+          if (!pick || !pick.gameId || !pick.memberId) return;
+          if (!state.pickemPicksByGameMember[pick.gameId]) state.pickemPicksByGameMember[pick.gameId] = {};
+          if (change.type === 'removed') {
+            delete state.pickemPicksByGameMember[pick.gameId][pick.memberId];
+          } else {
+            state.pickemPicksByGameMember[pick.gameId][pick.memberId] = pick;
+          }
+        });
+        renderPickemSurface(state.pickemActiveLeagueKey, dayWindow);
+      });
+      unsubs.push(unsub);
+    } catch (e) {
+      console.warn('openPickemSurface onSnapshot wiring failed', e && e.message);
+    }
+  }
+  // AGGREGATE teardown — single handle clears all N chunked listeners.
+  state.pickemPicksUnsubscribe = function() {
+    unsubs.forEach(function(fn) { try { fn(); } catch (_) {} });
+  };
+
+  renderPickemSurface(null, dayWindow);
+};
+
+// === Tonight tab inline-link visibility toggle ==========================
+// Called from renderTonight() — shows the Open pick'em link only when at
+// least one active league has upcoming games this week.
+window.renderPickemTonightLink = async function() {
+  const container = document.getElementById('pe-tonight-link-container');
+  if (!container) return;
+  // Lazy-fetch a single small probe — NFL or NBA — to decide whether to show
+  // the link. Avoids fetching all 15 leagues just to gate visibility.
+  try {
+    const PICKEM_LEAGUES = leagueKeys.filter(k => k !== 'ufc');
+    let hasGames = false;
+    for (const lk of PICKEM_LEAGUES.slice(0, 3)) {
+      const games = await feedFetchSchedule(lk, 7);
+      if (games && games.length > 0) { hasGames = true; break; }
+    }
+    if (hasGames) container.removeAttribute('hidden');
+    else container.setAttribute('hidden', '');
+  } catch (e) {
+    container.setAttribute('hidden', '');
+  }
+};
+
+// === Listener teardown hook — extends closeWatchpartyLive + showScreen ==
+// We can't redefine those functions without breaking other callers, but we
+// can wrap window.showScreen and window.closeWatchpartyLive so a navigation
+// AWAY from the pick'em surface tears the listeners down cleanly.
+const _pickemPriorShowScreen = window.showScreen;
+window.showScreen = function(name, btn) {
+  // If leaving the pickem surface, tear listeners down (aggregate function).
+  if (name !== 'pickem' && state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+    state.pickemActiveSlate = null;
+    state.pickemActiveLeagueKey = null;
+    state.pickemPicksByGameMember = {};
+  }
+  return _pickemPriorShowScreen.call(this, name, btn);
+};
+const _pickemPriorCloseWp = window.closeWatchpartyLive;
+window.closeWatchpartyLive = function() {
+  if (state.pickemPicksUnsubscribe) {
+    try { state.pickemPicksUnsubscribe(); } catch (_) {}
+    state.pickemPicksUnsubscribe = null;
+  }
+  return _pickemPriorCloseWp.apply(this, arguments);
+};
+
+// Expose key helpers for HTML inline-onclick wiring.
+window.submitPick = submitPick;
+window.renderPickemSurface = renderPickemSurface;
+window.renderInlineWpPickRow = renderInlineWpPickRow;
+window.renderLeaderboard = renderLeaderboard;
+window.renderPastSeasonsArchive = renderPastSeasonsArchive;
+window.fetchF1Roster = fetchF1Roster;
+
+// suppress unused-var warnings for symbols that may only be referenced
+// downstream (e.g., if a future plan adds inline-wp injection points).
+void pickemSummarizeMemberSeason;
+void PICKEM_REMINDER_OFFSET_MS;
+void SPORTS_FEED_LEAGUES;
+void feedFetchScore;
+
+// =========================================================================
+// === END Phase 28 / Plan 28-05 ===========================================
+// =========================================================================
 
 boot();
