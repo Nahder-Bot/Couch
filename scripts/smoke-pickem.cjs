@@ -3,19 +3,21 @@
  * smoke-pickem.cjs — Phase 28 smoke contract (scaffold from Plan 28-01;
  * filled in across Plans 02-06 as production code lands).
  *
- * Pure-helper assertions for FIVE behavior families:
- *   1. slateOf + latestGameInSlate (slate grouping + tiebreaker designation)
- *   2. scorePick (all 4 pick types; partial-match edge cases per Pitfall 6)
- *   3. summarizeMemberSeason + compareMembers (OQ-8 tiebreaker arithmetic)
- *   4. Production-code sentinels (Firestore rules gameStartTime check;
- *      state === 'pending' guard; sw.js CACHE follows couch-v* convention
- *      — Plan 28-06 fills in via convention-check, NOT a hardcoded literal,
- *      because version-literal assertions go stale every subsequent cache bump.
- *      See scripts/smoke-app-parse.cjs and the 2026-05-02 deploy-receipt fix
- *      in scripts/smoke-guest-rsvp.cjs for the pattern.)
- *   5. Cross-repo lockstep grep for pickReminder/pickResults/pickemSeasonReset
- *      in BOTH js/app.js (DEFAULT_NOTIFICATION_PREFS + NOTIFICATION_EVENT_LABELS)
+ * Pure-helper assertions + production-code sentinels grouped by behavior:
+ *   Groups 1-4 — pure helpers (slateOf + latestGameInSlate; scorePick;
+ *      summarizeMemberSeason + compareMembers; OQ-8 tiebreaker arithmetic).
+ *   Group 5 — Cross-repo notification lockstep grep for pickReminder /
+ *      pickResults / pickemSeasonReset in BOTH js/app.js (PREFS + LABELS)
  *      and queuenight/functions/index.js (NOTIFICATION_DEFAULTS).
+ *   Group 6 — gameResultsTick + pickReminderTick CF sentinels + REVIEWS
+ *      Amendments 1/2/3/4/5 + Jolpica /results/ trailing-slash form +
+ *      composite-index declarations.
+ *   Group 7 — Firestore rules + rules-tests sentinels (Phase 28 picks /
+ *      leaderboards / picks_reminders blocks + REVIEWS Amendments 6/7/8/9).
+ *   Group 8 — UI render-function + CSS sentinels (Plan 28-05): 5 render
+ *      functions + Jolpica fetch + UFC filter + REVIEWS Amendments 10/11/
+ *      12/13 + .pe-* CSS family + #screen-pickem HTML shell.
+ *   Group 9 — Floor meta-assertion (Plan 28-06 locks to FLOOR=13).
  *
  * Imports js/pickem.js via dynamic await import() (same pattern as
  * smoke-native-video-player.cjs — REVIEWS.md H2 fix from Phase 24)
@@ -324,7 +326,64 @@ void QN_FUNCTIONS;
       rulesTest, '#28-10');
   }
 
-  // === Group 8: Floor meta-assertion (locked by Plan 28-06) ===
+  // === Group 8 — UI render-function + CSS sentinels =====================
+  //              (PICK-28-03..28-27 + REVIEWS Amendments 10/11/12/13)
+  // 19 assertions covering the 5 render functions + Jolpica F1 integration +
+  // UFC scope-drop (positive filter + negative no-variant) + listener
+  // teardown + REVIEWS Amendments 10/11/12/13 production-code literals +
+  // CSS class-family + HTML shell sentinels.
+  {
+    const appJs = readIfExists(path.join(COUCH_ROOT, 'js', 'app.js'));
+    const cssApp = readIfExists(path.join(COUCH_ROOT, 'css', 'app.css'));
+    const appHtml = readIfExists(path.join(COUCH_ROOT, 'app.html'));
+
+    eqContains('8.A renderPickemSurface declared', appJs, 'function renderPickemSurface');
+    eqContains('8.B renderPickerCard declared', appJs, 'function renderPickerCard');
+    eqContains('8.C renderLeaderboard declared', appJs, 'function renderLeaderboard');
+    eqContains('8.D renderInlineWpPickRow declared', appJs, 'function renderInlineWpPickRow');
+    eqContains('8.E renderPastSeasonsArchive declared', appJs, 'function renderPastSeasonsArchive');
+    eqContains('8.F fetchF1Roster uses Jolpica /drivers/ endpoint',
+      appJs, 'api.jolpi.ca/ergast/f1');
+    eqContains('8.G UFC filter at picker render (PICK-28-27 D-17 update 2)',
+      appJs, "leagueKeys.filter(k => k !== 'ufc')");
+    // 8.H — NEGATIVE sentinel: js/app.js must NOT contain a UFC pickType case.
+    eqContains("8.H NO UFC pickType in picker render switch (negative sentinel — D-17 update 2)",
+      appJs && !appJs.includes("case 'ufc_winner_method'") ? 'NO_UFC_PICKER' : null,
+      'NO_UFC_PICKER');
+    eqContains('8.I onSnapshot listener teardown wiring (state.pickemPicksUnsubscribe)',
+      appJs, 'state.pickemPicksUnsubscribe');
+
+    // REVIEWS Amendment 10 / MEDIUM-6 — F1 submit guard literal.
+    eqContains('8.J submitPick F1 guard validates Number.isInteger(Number(...)) (REVIEWS MEDIUM-6)',
+      appJs, 'Number.isInteger(Number(');
+
+    // REVIEWS Amendment 11 / MEDIUM-7 — broken member-global pre-fill source must NOT exist.
+    eqContains('8.K NO broken state.me.teamAllegiance reference (REVIEWS MEDIUM-7 — field does not exist)',
+      appJs && !appJs.includes('state.me.teamAllegiance') ? 'NO_BROKEN_PREFILL' : null,
+      'NO_BROKEN_PREFILL');
+
+    // REVIEWS Amendment 12 / MEDIUM-11 — aggregate listener teardown for chunked onSnapshots.
+    eqContains('8.L Aggregate listener teardown unsubs.forEach (REVIEWS MEDIUM-11)',
+      appJs, 'unsubs.forEach');
+
+    // REVIEWS Amendment 13 / HIGH-4 defense-in-depth — submitPick allowlist + UFC reject.
+    eqContains('8.M submitPick declares ALLOWED_PICK_TYPES allowlist (REVIEWS HIGH-4 D-i-D)',
+      appJs, 'ALLOWED_PICK_TYPES');
+    eqContains("8.N submitPick rejects leagueKey === 'ufc' (REVIEWS HIGH-4 D-i-D)",
+      appJs, "leagueKey === 'ufc'");
+
+    // CSS + HTML shell existence sentinels.
+    eqContains('8.O css/app.css has .pe-picker-card recipe', cssApp, '.pe-picker-card');
+    eqContains('8.P css/app.css has .pe-chip.prefilled (D-09 pre-fill)', cssApp, '.pe-chip.prefilled');
+    eqContains('8.Q css/app.css has reduced-motion .pe-* override',
+      cssApp, '@media (prefers-reduced-motion: reduce)');
+    eqContains('8.R app.html has #screen-pickem section',
+      appHtml, 'id="screen-pickem"');
+    eqContains('8.S app.html has #pe-tonight-link-container Tonight inline-link',
+      appHtml, 'pe-tonight-link');
+  }
+
+  // === Group 9: Floor meta-assertion (locked by Plan 28-06) =============
   // Wave 1 placeholder — will tighten to FLOOR=13 in Plan 28-06 after
   // production-code sentinels land in Plans 02-05.
   {
