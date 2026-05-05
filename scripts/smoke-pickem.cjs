@@ -216,15 +216,82 @@ void QN_FUNCTIONS;
   eq('K1: PICK_REMINDER_OFFSET_MS is 15min', PICK_REMINDER_OFFSET_MS, 15 * 60 * 1000);
   eq('K2: PICK_TYPE_BY_LEAGUE.f1 = f1_podium', PICK_TYPE_BY_LEAGUE.f1, 'f1_podium');
 
-  // === Group 5: Cross-repo lockstep (filled by Plan 28-03 — see PICK-28-17) ===
-  // === Group 6: sw.js CACHE convention sentinel (filled by Plan 28-06) ===
-  // IMPORTANT: assert the cache-naming CONVENTION ("const CACHE = 'couch-v"),
-  // NOT a specific literal like "couch-v40-pickem". Literal assertions go stale
-  // every subsequent cache bump and break the deploy gate (see scripts/smoke-
-  // guest-rsvp.cjs:193-195 for the relaxation done 2026-05-02 after this trap
-  // bit production). Pattern:
-  //   const swJs = readIfExists(path.join(COUCH_ROOT, 'sw.js'));
-  //   eqContains('6.X sw.js CACHE follows couch-v* convention', swJs, "const CACHE = 'couch-v");
+  // === Group 5 — Cross-repo lockstep for 3 pick'em push event keys (PICK-28-17) ===
+  // 9 assertions = 3 keys × 3 maps. Catches the "added key to client but not
+  // server" or vice-versa drift before deploy. Mirrors Phase 14 D-12 lockstep
+  // convention (DR-3 three-place add).
+  {
+    const appJs = readIfExists(path.join(COUCH_ROOT, 'js', 'app.js'));
+    const fnIdx = readIfExists(path.join(QN_FUNCTIONS, 'index.js'));
+    for (const key of ['pickReminder', 'pickResults', 'pickemSeasonReset']) {
+      eqContains(`5.lockstep client DEFAULT_NOTIFICATION_PREFS has ${key}`, appJs, `${key}: true`);
+      eqContains(`5.lockstep client NOTIFICATION_EVENT_LABELS has ${key}`, appJs, `${key}:`);
+      eqContains(`5.lockstep server NOTIFICATION_DEFAULTS has ${key}`, fnIdx, `${key}: true`);
+    }
+  }
+
+  // === Group 6 — gameResultsTick + pickReminderTick + indexes sentinels
+  //              (PICK-28-12/16/18/19/31/32/33/34/35) ===
+  // CF + REVIEWS-amendment sentinels grep production source files for the exact
+  // literal patterns required by 28-REVIEWS.md amendments 1-5 + 10. Assertions
+  // 6.D and 6.I are the negative + positive sides of REVIEWS HIGH-4 (backend
+  // UFC defense — must NOT scoreswitch on ufc_winner_method, MUST allowlist).
+  {
+    const grtPath = path.resolve(QN_FUNCTIONS, 'src', 'gameResultsTick.js');
+    const prtPath = path.resolve(QN_FUNCTIONS, 'src', 'pickReminderTick.js');
+    const grt = readIfExists(grtPath);
+    const prt = readIfExists(prtPath);
+    const idxJson = readIfExists(path.join(COUCH_ROOT, 'firestore.indexes.json'));
+    const fnIdx = readIfExists(path.join(QN_FUNCTIONS, 'index.js'));
+
+    eqContains('6.A gameResultsTick CF exists + onSchedule registration', grt, 'exports.gameResultsTick = onSchedule');
+    eqContains('6.B gameResultsTick uses Jolpica F1 results endpoint (D-17 update 2)', grt, 'api.jolpi.ca/ergast/f1');
+    eqContains('6.C gameResultsTick has db.runTransaction for atomic leaderboard update', grt, 'db.runTransaction');
+    eqContains("6.D gameResultsTick has NO 'ufc_winner_method' switch case (UFC dropped per D-17 update 2)",
+               grt && !grt.includes("case 'ufc_winner_method'") ? 'NO_UFC' : null, 'NO_UFC');
+
+    // REVIEWS Amendment 1 / HIGH-2 — counter ownership.
+    eqContains('6.E gameResultsTick declares processedFirstAt sentinel for picksTotal idempotency',
+      grt, 'processedFirstAt');
+    eqContains('6.F gameResultsTick increments memberRow.picksTotal inside processedFirstAt guard',
+      grt, 'memberRow.picksTotal = (memberRow.picksTotal || 0) + 1');
+    eqContains('6.G gameResultsTick sets memberRow.lastPickAt from pick.submittedAt',
+      grt, 'memberRow.lastPickAt = pickNow.submittedAt');
+
+    // REVIEWS Amendment 2 / HIGH-4 — backend UFC defense.
+    eqContains('6.H gameResultsTick declares KNOWN_PICKTYPES allowlist',
+      grt, 'KNOWN_PICKTYPES');
+    eqContains('6.I gameResultsTick continues BEFORE transaction for unsupported pickType (HIGH-4)',
+      grt, 'KNOWN_PICKTYPES.has(pick.pickType)');
+
+    // REVIEWS Amendment 3 / MEDIUM-5 — branch-aware grace.
+    eqContains('6.J gameResultsTick declares GRACE_BY_PICKTYPE map (MEDIUM-5)',
+      grt, 'GRACE_BY_PICKTYPE');
+    eqContains('6.K GRACE_BY_PICKTYPE.f1_podium uses 24h tolerance for Jolpica race-day lag',
+      grt, '24 * 60 * 60 * 1000');
+
+    // REVIEWS Amendment 4 / MEDIUM-10 — per-tick fetch cache.
+    eqContains('6.L gameResultsTick allocates scoreCacheByTick Map (MEDIUM-10)',
+      grt, 'scoreCacheByTick = new Map()');
+
+    // pickReminderTick + lockstep registration.
+    eqContains('6.M pickReminderTick CF exists + onSchedule registration', prt, 'exports.pickReminderTick = onSchedule');
+    eqContains('6.N pickReminderTick writes picks_reminders idempotency doc', prt, 'picks_reminders');
+    eqContains('6.O pickReminderTick uses PICK_REMINDER_OFFSET_MS literal', prt, 'PICK_REMINDER_OFFSET_MS');
+    eqContains('6.P index.js registers gameResultsTick CF', fnIdx, "exports.gameResultsTick = require('./src/gameResultsTick').gameResultsTick");
+    eqContains('6.Q index.js registers pickReminderTick CF', fnIdx, "exports.pickReminderTick = require('./src/pickReminderTick').pickReminderTick");
+
+    // REVIEWS Amendment 5 / HIGH-3 — composite indexes declared.
+    eqContains('6.R firestore.indexes.json declares watchparties (mode, hostFamilyCode) composite index',
+      idxJson, '"collectionGroup": "watchparties"');
+    eqContains('6.S firestore.indexes.json declares picks (state, gameStartTime) composite index',
+      idxJson, '"collectionGroup": "picks"');
+
+    // D-17 update 2 — Jolpica URL must end with /results/ trailing slash; the
+    // bare /results path 301-redirects which https.get treats as an error.
+    eqContains('6.T gameResultsTick uses Jolpica /results/ trailing-slash form',
+      grt, '/results/');
+  }
 
   // === Group 7: Floor meta-assertion (locked by Plan 28-06) ===
   // Wave 1 placeholder — will tighten to FLOOR=13 in Plan 28-06 after

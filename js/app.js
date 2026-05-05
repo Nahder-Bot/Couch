@@ -465,7 +465,14 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   // Mirror of queuenight NOTIFICATION_DEFAULTS in Plan 18-01. Default ON: low-volume
   // high-signal channel — fires only when a title in someone's queue becomes newly
   // watchable on a brand they own. Users opt out via Settings if noisy.
-  titleAvailable: true
+  titleAvailable: true,
+  // === Phase 28 / D-06 (PICK-28-17) — pick'em push categories (DR-3 client place 1 of 2).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS — must stay in lockstep. All three
+  // default ON: pick'em fires only when the user has actively engaged with the
+  // pick'em surface (submitted picks, joined a league season).
+  pickReminder: true,
+  pickResults: true,
+  pickemSeasonReset: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -514,7 +521,14 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // plan's Task 2 (D-20 + Phase-15.4 mirror approach), so it appears in BOTH the
   // legacy NOTIFICATION_EVENT_LABELS Settings UI AND the Phase 12 friendly-UI Settings UI
   // until the dual-Settings-screen consolidation lands (TD-8 / future polish).
-  titleAvailable: { label: 'Newly watchable', hint: 'When a title in your queue lands on a service in your pack.' }
+  titleAvailable: { label: 'Newly watchable', hint: 'When a title in your queue lands on a service in your pack.' },
+  // === Phase 28 / D-06 (PICK-28-17) — pick'em push category labels (DR-3 client place 2 of 2).
+  // BRAND-voice copy per CONTEXT D-06. Lockstep with DEFAULT_NOTIFICATION_PREFS above
+  // and queuenight NOTIFICATION_DEFAULTS server map. Friendly-UI parity deferred per
+  // Phase 14-09 DR-3 follow-up override (TD-8 dual-Settings-screen consolidation).
+  pickReminder:      { label: 'Game starting soon — make your pick',   hint: "Heads-up your pick'em deadline is in 15 minutes." },
+  pickResults:       { label: "Pick'em results",                       hint: 'When games you picked finish.' },
+  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
