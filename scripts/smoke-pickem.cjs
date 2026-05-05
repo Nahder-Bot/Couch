@@ -381,6 +381,18 @@ void QN_FUNCTIONS;
       appHtml, 'id="screen-pickem"');
     eqContains('8.S app.html has #pe-tonight-link-container Tonight inline-link',
       appHtml, 'pe-tonight-link');
+
+    // PICK-28-13 — renderInlineWpPickRow CALL-SITE inside renderWatchpartyLive.
+    // Asserts the function is actually invoked from the wp-live render body, not
+    // just declared + window-exposed. Multiline regex scoped to the function body
+    // (from `function renderWatchpartyLive(` up to the next top-level `function `
+    // declaration; the body MUST contain `renderInlineWpPickRow(wp` as a call-site).
+    {
+      const m = appJs && appJs.match(/function renderWatchpartyLive\(\)[\s\S]*?(?=\nfunction )/);
+      const wpLiveBody = m ? m[0] : '';
+      eqContains('8.T renderInlineWpPickRow CALL-SITE inside renderWatchpartyLive (PICK-28-13)',
+        wpLiveBody, 'renderInlineWpPickRow(wp');
+    }
   }
 
   // === Group 9: Floor meta-assertion (locked by Plan 28-06) =============

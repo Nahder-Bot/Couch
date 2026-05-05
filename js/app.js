@@ -12756,6 +12756,19 @@ function renderWatchpartyLive() {
     body = renderSportsScoreStrip(wp) + body;
   }
 
+  // Phase 28 / PICK-28-13 — Inline pick'em row inside .wp-live-modal.
+  // Surfaces "who has picked what" for the current game above the body content
+  // when wp.mode === 'game' AND any family member has picked AND the game has
+  // not yet started. The function self-gates on all three conditions and
+  // returns '' otherwise, so unconditional concatenation is safe. picksForGame
+  // is sourced from the chunked-listener-populated map state.pickemPicksByGameMember
+  // (see openPickemSurface @ L18876), keyed by wp.sportEvent.id.
+  if (wp.mode === 'game' && wp.sportEvent && wp.sportEvent.id && typeof renderInlineWpPickRow === 'function') {
+    const picksMap = (state.pickemPicksByGameMember && state.pickemPicksByGameMember[wp.sportEvent.id]) || {};
+    const picksForGame = Object.values(picksMap);
+    body = renderInlineWpPickRow(wp, picksForGame) + body;
+  }
+
   // Phase 26 / RPLY-26-04 — replay-variant emits the scrubber strip ABOVE the header
   // (still inside #wp-live-coordination per Phase 24 H1 split — never touches #wp-video-surface).
   el.innerHTML = scrubberStrip + header + body + footer;

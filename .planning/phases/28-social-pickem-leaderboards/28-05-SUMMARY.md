@@ -35,8 +35,8 @@ provides:
     REVIEWS Amendment 12 / MEDIUM-11"
   - "css/app.css .pe-* class family (~308 new lines) + @media (prefers-reduced-motion: reduce) guard"
   - "Tonight tab inline-link affordance (#pe-tonight-link-container) — 'Open pick\\'em'"
-  - "scripts/smoke-pickem.cjs Group 8 — 19 UI render-fn + REVIEWS sentinels
-    (smoke 65 → 84 passed)"
+  - "scripts/smoke-pickem.cjs Group 8 — 20 UI render-fn + REVIEWS sentinels
+    (smoke 65 → 85 passed; 8.T added in follow-up commit closing PICK-28-13)"
 affects:
   - "28-06 (phase-close): cross-repo deploy ritual + sw.js cache bump to
     couch-v47-pickem; smoke FLOOR raise from 1 to 13."
@@ -135,18 +135,20 @@ key-files:
       `() => unsubs.forEach(fn => fn())` per REVIEWS Amendment 12);
       window.showScreen + window.closeWatchpartyLive wrapped (extends, not
       replaces) for listener teardown on screen-change."
-    - "scripts/smoke-pickem.cjs — +59 / -13 lines: Group 8 inserted before
-      the floor block (renamed Group 9). 19 production-code grep sentinels
-      8.A through 8.S covering 5 render-function declarations + Jolpica URL
+    - "scripts/smoke-pickem.cjs — +71 / -13 lines: Group 8 inserted before
+      the floor block (renamed Group 9). 20 production-code grep sentinels
+      8.A through 8.T covering 5 render-function declarations + Jolpica URL
       literal + UFC filter (8.G positive + 8.H negative no `ufc_winner_method`
       case anywhere) + listener teardown (8.I) + REVIEWS Amendments
       10/11/12/13 production-code literals (8.J Number.isInteger guard /
       8.K NEGATIVE state-dot-me-dot-teamAllegiance == 0 / 8.L unsubs.forEach
       aggregate teardown / 8.M ALLOWED_PICK_TYPES + 8.N leagueKey === 'ufc')
       + CSS .pe-picker-card + .pe-chip.prefilled + @media reduced-motion
-      (8.O-Q) + HTML #screen-pickem + #pe-tonight-link-container (8.R-S).
-      Top-of-file comment block updated to enumerate Groups 1-9. Floor block
-      still FLOOR=1 (Plan 28-06 raises to 13)."
+      (8.O-Q) + HTML #screen-pickem + #pe-tonight-link-container (8.R-S) +
+      8.T (PICK-28-13 follow-up) renderInlineWpPickRow CALL-SITE inside
+      renderWatchpartyLive (multiline-regex scoped to fn body — distinguishes
+      call-site from declaration). Top-of-file comment block updated to
+      enumerate Groups 1-9. Floor block still FLOOR=1 (Plan 28-06 raises to 13)."
 
 key-decisions:
   - "REVIEWS Amendment 11 / MEDIUM-7 — D-09 pre-fill source verification
@@ -236,14 +238,14 @@ completed: 2026-05-05
 
 # Phase 28 Plan 05: Pick'em UI Surface Summary
 
-**5 render functions + Jolpica F1 fetcher + submit handler + chunked-onSnapshot listener with aggregate teardown — all 4 REVIEWS Amendments (10/11/12/13) threaded through production code; smoke-pickem grows 65 → 84 passed via 19 new Group 8 sentinels; CSS adds 308 lines of .pe-* recipes; HTML gains #screen-pickem section + Tonight inline-link.**
+**5 render functions + Jolpica F1 fetcher + submit handler + chunked-onSnapshot listener with aggregate teardown + renderInlineWpPickRow call-site wired into renderWatchpartyLive (PICK-28-13) — all 4 REVIEWS Amendments (10/11/12/13) threaded through production code; smoke-pickem grows 65 → 85 passed via 20 new Group 8 sentinels; CSS adds 308 lines of .pe-* recipes; HTML gains #screen-pickem section + Tonight inline-link.**
 
 ## Performance
 
-- **Duration:** ~10 min
+- **Duration:** ~10 min initial work + follow-up commit closing PICK-28-13
 - **Started:** 2026-05-05T03:52:54Z
-- **Completed:** 2026-05-05T04:02:25Z
-- **Tasks:** 3
+- **Completed:** 2026-05-05T04:02:25Z (initial); follow-up commit 2026-05-05T04:0X:XXZ
+- **Tasks:** 3 + 1 follow-up integration (PICK-28-13 call-site wiring)
 - **Files modified:** 4
 
 ## Accomplishments
@@ -263,6 +265,7 @@ completed: 2026-05-05
 1. **Task 5.1: app.html shell + css/app.css `.pe-*` class family** — `bf2bb93` (feat)
 2. **Task 5.2: 5 render functions + Jolpica fetch + submit + chunked-aggregate onSnapshot listener** — `77b7f19` (feat)
 3. **Task 5.3: smoke-pickem.cjs Group 8 — 19 UI render-fn + REVIEWS sentinels** — `0dca225` (test)
+4. **Task 5.4 (follow-up): renderInlineWpPickRow call-site wired into renderWatchpartyLive (PICK-28-13)** — TBD-SHA-FOLLOWUP (feat). Smoke contract grew 19 → 20 Group 8 sentinels via 8.T multiline-regex assertion that distinguishes the call-site from the declaration. Closes the gap originally documented (incorrectly) as "deferred to Plan 28-06" — Plan 28-06 is the deploy plan and has no feature-integration scope, so wiring this call-site was always Plan 28-05's responsibility.
 
 ## Files Created/Modified
 
@@ -341,6 +344,14 @@ js/app.js:11406:[`participants.${state.me.id}.teamAllegiance`]: allegiance,
 - **Files modified:** `app.html`
 - **Commit:** `bf2bb93`
 
+**5. [Follow-up — original closeout error] PICK-28-13 renderInlineWpPickRow call-site wired into renderWatchpartyLive**
+
+- **Found during:** post-Plan-28-05 audit — Grep confirmed zero call-sites of `renderInlineWpPickRow` despite the function being declared at js/app.js:18745 and exposed via `window.renderInlineWpPickRow` at line 18952.
+- **Issue:** Initial Plan 05 closeout incorrectly documented this integration as "deferred to Plan 28-06" — but Plan 28-06 is the DEPLOY plan (smoke FLOOR raise + sw.js cache bump + cross-repo deploy + UAT scaffold) with no feature-integration scope. Wiring this call-site was always Plan 28-05's responsibility; PICK-28-13 must_have requires it to actually render in `.wp-live-modal`.
+- **Fix:** Added a 6-line guarded call-site inside `renderWatchpartyLive` at js/app.js:12759-12770, immediately after the existing `renderSportsScoreStrip` prepend (lines 12755-12757). Same chrome neighborhood — both are game-mode-specific body prepends; natural reading order is score → "who picked what" → reactions feed. Source for `picksForGame`: `Object.values(state.pickemPicksByGameMember[wp.sportEvent.id] || {})` — converts the chunked-listener-populated map (key=memberId) to the array form `renderInlineWpPickRow` expects. The call is gated on `wp.mode === 'game' && wp.sportEvent && wp.sportEvent.id && typeof renderInlineWpPickRow === 'function'`, but the function self-gates on all three plan conditions (mode, picks.length > 0, Date.now() < startTime) and returns `''` otherwise — so unconditional concatenation is safe. Smoke contract grew with 8.T (multiline-regex scoped to `renderWatchpartyLive` body) to assert the call-site exists, not just the declaration.
+- **Files modified:** `js/app.js` (+12 / -0), `scripts/smoke-pickem.cjs` (+12 / -0)
+- **Commit:** TBD-SHA-FOLLOWUP
+
 ### No architectural deviations (Rule 4) — none required
 
 The plan was fully self-contained: 4 file modifications across 1 repo (couch). No new schemas, no auth changes, no Firestore rule additions (Plan 04 already shipped those), no Cloud Function changes (Plan 03 already shipped those). The cross-repo nature was anticipated by Plan 03; this plan reads from CF-settled documents.
@@ -378,8 +389,9 @@ None encountered. All work was local file edits + smoke runs in the already-clon
 | `grep -c ".pe-rank-pill" css/app.css`                            | 3                                               |
 | `grep -c "@media (prefers-reduced-motion: reduce)" css/app.css`  | 15 (existing 14 + 1 Phase 28)                   |
 | css/app.css line count delta                                     | 4917 → 5225 = +308 lines (≥140 required)        |
-| `node scripts/smoke-pickem.cjs`                                  | PASS — exit 0, **84 passed, 0 failed**          |
+| `node scripts/smoke-pickem.cjs`                                  | PASS — exit 0, **85 passed, 0 failed** (8.T added in PICK-28-13 follow-up) |
 | `npm run smoke` (full 11-contract aggregate)                     | PASS — no regressions; 0 FAIL lines anywhere    |
+| `grep -c "renderInlineWpPickRow(wp" js/app.js` (call-site count) | 1 (call-site at line 12769 inside renderWatchpartyLive) |
 
 ## Frontmatter must_haves verified
 
@@ -398,7 +410,7 @@ None encountered. All work was local file edits + smoke runs in the already-clon
 - ✅ "Listener teardown on screen change / surface close — state.pickemPicksUnsubscribe aggregate-function pattern" — wrapped `window.showScreen` + `window.closeWatchpartyLive` invoke the aggregate function
 - ✅ "Leaderboard sub-surface reads /families/{familyCode}/leaderboards/{leagueKey}_{strSeason} via single .get(), sorts via compareMembers, renders rank pills" — `renderLeaderboard` exact shape
 - ✅ "Past-seasons archive renders only when at least one frozen leaderboard doc exists" — `if (frozenDocs.length === 0)` shows hide-when-empty placeholder
-- ✅ "Inline wp pick row renders in .wp-live-modal when wp.mode==='game' AND any family member has picked AND Date.now() < wp.sportEvent.startTime" — `renderInlineWpPickRow` exact gate
+- ✅ "Inline wp pick row renders in .wp-live-modal when wp.mode==='game' AND any family member has picked AND Date.now() < wp.sportEvent.startTime" — `renderInlineWpPickRow` exact gate; CALL-SITE wired into `renderWatchpartyLive` at js/app.js:12759-12770 (PICK-28-13 follow-up; smoke 8.T enforces)
 
 ## Frontmatter artifacts verified
 
@@ -412,7 +424,7 @@ None encountered. All work was local file edits + smoke runs in the already-clon
 - ✅ `js/app.js renderPickemPickerCard (f1_podium variant)` → Jolpica `/drivers/` endpoint via `fetchF1Roster(year, round)` → `fetch('https://api.jolpi.ca/ergast/f1/' + year + '/' + round + '/drivers/')`
 - ✅ `js/app.js submitPick` → `/families/{familyCode}/picks/{pickId}` Firestore write via `setDoc(doc(collection(db, 'families', state.familyCode, 'picks'), pickId), payload)` (`collection('picks')` pattern — uses modular SDK form)
 - ✅ `js/app.js renderPickemSurface` → js/pickem.js helpers via static ES import (top-of-file)
-- ✅ `js/app.js renderInlineWpPickRow` → existing .wp-live-modal wiring — function exposed via `window.renderInlineWpPickRow`; ready for renderWatchpartyLive injection (deferred — see Deferred Items below)
+- ✅ `js/app.js renderInlineWpPickRow` → existing .wp-live-modal wiring — call-site at js/app.js:12759-12770 inside `renderWatchpartyLive`, prepended to body immediately after the score strip when `wp.mode === 'game'`; smoke 8.T enforces. Function declared at js/app.js:18745 and exposed via `window.renderInlineWpPickRow` for downstream callers.
 - ✅ `js/app.js submitPick (f1_podium branch)` → gameResultsTick CF (Plan 28-03) via stamping `f1Year` + `f1Round` on the pick doc; REVIEWS Amendment 10 validates BEFORE write
 - ✅ `js/app.js openPickemSurface (chunked onSnapshot wiring)` → `state.pickemPicksUnsubscribe` via AGGREGATE teardown function `() => unsubs.forEach(fn => fn())` per REVIEWS Amendment 12
 
@@ -433,12 +445,11 @@ No new threat-flag surfaces introduced beyond what the plan's `<threat_model>` e
 
 ## Deferred Items
 
-These items were intentionally NOT done in Plan 05 — they are owned by Plan 28-06 or are out-of-scope for v1:
+These items are intentionally NOT done in Plan 05 — they are owned by Plan 28-06 (the deploy plan) or are out-of-scope for v1. (Note: the original closeout incorrectly listed `renderInlineWpPickRow` integration here; that was a mis-attribution corrected in the follow-up commit — see Deviation 5 above.)
 
-- **renderWatchpartyLive injection of renderInlineWpPickRow** — `renderInlineWpPickRow` is implemented and exposed via `window.renderInlineWpPickRow`, but the injection call site inside `renderWatchpartyLive` (between participant strip and reactions area) was deferred to Plan 28-06 to keep this plan's scope focused on the standalone Pick'em surface. The function is fully testable and ready; integration is a single-line addition in renderWatchpartyLive.
 - **sw.js cache bump** — Plan 28-06 owns `couch-v47-pickem`.
 - **Cross-repo deploy** — Plan 28-06 owns the `firebase deploy --only functions` (queuenight) + `firebase deploy --only firestore:indexes` + `bash scripts/deploy.sh <tag>` (couch hosting) ritual.
-- **Smoke FLOOR raise from 1 to 13** — Plan 28-06 locks the floor.
+- **Smoke FLOOR raise from 1 to 13** — Plan 28-06 locks the floor (will become FLOOR ≥ 14 once 8.T is counted).
 - **28-HUMAN-UAT.md scaffold** — Plan 28-06 owns 11 device-UAT scripts including NO-UFC verification.
 
 ## Self-Check: PASSED
@@ -447,17 +458,18 @@ These items were intentionally NOT done in Plan 05 — they are owned by Plan 28
 - `app.html` — exists; contains `screen-pickem` (2x), `pe-surface` (1x), `Open pick'em` (2x), `pe-tonight-link` (3x). FOUND.
 - `css/app.css` — exists; +308 lines (4917 → 5225); all required `.pe-*` selectors present. FOUND.
 - `js/app.js` — exists; +784 lines (18185 → 18968); 5 render fns + Jolpica + submit + listener wiring + REVIEWS Amendments 10/11/12/13. FOUND.
-- `scripts/smoke-pickem.cjs` — exists; Group 8 has 19 production-code sentinels 8.A..8.S; placeholder block renamed Group 9. FOUND.
+- `scripts/smoke-pickem.cjs` — exists; Group 8 has 20 production-code sentinels 8.A..8.T (8.T added in PICK-28-13 follow-up); placeholder block renamed Group 9. FOUND.
 - `.planning/phases/28-social-pickem-leaderboards/28-05-SUMMARY.md` — this file. FOUND.
 
 **Commits verified:**
 - `bf2bb93` (feat 28-05 app.html + css/app.css) — present in `git log --oneline`. FOUND.
 - `77b7f19` (feat 28-05 js/app.js — 5 render fns + Jolpica + submit + listener) — present. FOUND.
 - `0dca225` (test 28-05 smoke Group 8) — present. FOUND.
+- `TBD-SHA-FOLLOWUP` (feat 28-05 renderInlineWpPickRow call-site wired into renderWatchpartyLive — PICK-28-13) — present after follow-up commit.
 
 **Verification commands re-run:**
 - `node --check js/app.js` → exit 0 (no syntax errors).
-- `node scripts/smoke-pickem.cjs` → exit 0 with 84 passed, 0 failed.
+- `node scripts/smoke-pickem.cjs` → exit 0 with **85 passed, 0 failed** (8.T added).
 - `npm run smoke` → all 11 contracts green; 0 FAIL lines anywhere.
 
 ---
