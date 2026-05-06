@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: Phase 28 code-shipped end-to-end across all 6 plans; UAT pending (11 scripts in 28-HUMAN-UAT.md)
-last_updated: "2026-05-06T05:12:01.587Z"
-last_activity: 2026-05-05 (Phase 28 production deploy completed — couchtonight.app live at `couch-v47-pickem`)
+status: executing
+last_updated: "2026-05-06T06:13:02.901Z"
+last_activity: 2026-05-06
 progress:
-  total_phases: 27
+  total_phases: 28
   completed_phases: 21
-  total_plans: 113
+  total_plans: 118
   completed_plans: 113
-  percent: 100
+  percent: 96
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 Phase: 28 — social-pickem-leaderboards (SHIPPED 2026-05-05 as `couch-v47-pickem`; UAT pending)
 Plan: 28-06 SHIPPED 2026-05-05 (smoke FLOOR=13 lock with REVIEWS Amendment 15 named-counter pattern + 28-HUMAN-UAT.md 11-script scaffold with NO-UFC verification + cross-repo deploy ritual queuenight CFs + indexes + rules + couch hosting + sw.js bump to couch-v47-pickem; production curl-verified 2026-05-05T04:28:47Z)
-**Status:** Phase 28 code-shipped end-to-end across all 6 plans; UAT pending (11 scripts in 28-HUMAN-UAT.md)
+**Status:** Ready to execute
 
 **Resume signal:** (1) Real-device UAT for Phase 28 (11 scripts in 28-HUMAN-UAT.md; resume signal `uat passed` → `/gsd-verify-work 28`). (2) Real-device UAT for Phases 24/26/27/30 (~32 scripts) → `/gsd-verify-work` per phase. (3) Next available scoped work: Phase 15.3 / 16 / 17.
 
-**Last Activity:** 2026-05-05 (Phase 28 production deploy completed — couchtonight.app live at `couch-v47-pickem`)
+**Last Activity:** 2026-05-06
 
 **Most recent close-out:** Phase 28 / Plan 06 — Phase close-out + cross-repo production deploy SHIPPED 2026-05-05 as `couch-v47-pickem`. 4 cross-repo commits: couch `7da6f0a` test(28-06) smoke FLOOR=13 lock with REVIEWS Amendment 15 / LOW-15 named-counter pattern (helperAssertions=25 / productionSentinels=59 / metaAssertions=1; brittle HELPER_ASSERTIONS=27 magic number eliminated; productionSentinels >= FLOOR gates the deploy via process.exit(1) on FAIL) / couch `64222db` docs(28-06) 28-HUMAN-UAT.md scaffold with 11 device-UAT scripts including Script 11 explicit NO-UFC verification with `DO NOT mark as bug` language per Phase 30 Script 11 T-30-14 v1 precedent (covers Tonight inline-link gating / 3 picker variants / Jolpica F1 happy + airplane-mode fail-soft / D-09 soft pre-fill brand-voice sub-line / D-04 lock at gameStartTime / inline wp pick row + listener teardown / leaderboard render + ARIA / past-seasons hide-when-empty / pickReminderTick T-15min push / NO UFC end-to-end across 4 layers) / queuenight `a3af760` chore(rules) mirror couch firestore.indexes.json (Phase 28 indexes — 2 composite: watchparties (mode, hostFamilyCode) + picks (state, gameStartTime)) / queuenight `050b4e8` chore(rules) auto-mirror couch firestore.rules via deploy.sh --sync-rules (drift detected mid-deploy → mirrored + committed + rules deploy succeeded inline). **REVIEWS Amendment 14 / LOW-13 pre-flight checks all green at execute time:** Check A `--sync-rules` 5 hits in deploy.sh; Check B firestore.indexes.json has 2 collectionGroup + 4 fieldPath; Check C current production cache curl returned `couch-v46-wave-5-hotfix` exactly as expected — `couch-v47-pickem` confirmed as next sequential. **Cross-repo deploy ritual executed in correct order:** Step 1 `firebase deploy --only functions` from queuenight (gameResultsTick + pickReminderTick CREATE successful at 2026-05-05T04:27:43Z; all other CFs updated cleanly with no errors) → Step 2 firestore.indexes.json mirrored (commit `a3af760`) + `firebase deploy --only firestore:indexes` succeeded (indexes BUILDING async; CFs fail-soft until READY per plan threat T-28-48) → Step 3 `bash scripts/deploy.sh --sync-rules 47-pickem` from couch (smoke gate green: 88 rules-tests + 12 contracts including smoke-pickem 85 passed with productionSentinels=59 >= FLOOR=13; sw.js auto-bumped from couch-v46-wave-5-hotfix → couch-v47-pickem; rules drift detected → auto-mirrored to queuenight commit `050b4e8` + deployed; mirrored to queuenight/public/; BUILD_DATE stamped 2026-05-05; firebase deploy --only hosting succeeded at 2026-05-05T04:28:43Z) → Step 4 production curl-verified at couchtonight.app **2026-05-05T04:28:47Z**: `const CACHE = 'couch-v47-pickem';` → Step 5 production deep-route smoke `curl https://couchtonight.app/app | grep -c 'screen-pickem'` returned 2 + `curl https://couchtonight.app/js/pickem.js | grep -c 'PICK_TYPE_BY_LEAGUE'` returned 2. **D-17 update 2 (UFC drop) verified end-to-end across 4 layers:** Plan 03 backend KNOWN_PICKTYPES allowlist + continue BEFORE transaction / Plan 04 firestore.rules `pickType in ['team_winner', 'team_winner_or_draw', 'f1_podium']` allowlist on create (rules-test #28-06 confirmed UFC create DENIED in deploy log) / Plan 05 client ALLOWED_PICK_TYPES + `leagueKey === 'ufc'` reject (smoke 8.M + 8.N) / Plan 06 smoke 6.D + 8.H NEGATIVE sentinels assert ZERO `case 'ufc_winner_method'` in source + UAT Script 11 user-facing verification with explicit DO NOT mark as bug language. **All 15 REVIEWS amendments (1-15) closed across Plans 03-06**: HIGH-1/HIGH-2/HIGH-3/HIGH-4(rules+backend+D-i-D)/HIGH-9 + MEDIUM-5/MEDIUM-6/MEDIUM-7/MEDIUM-8/MEDIUM-10/MEDIUM-11 + LOW-13/LOW-15. **All Phase 28 PICK-28-* requirements transitioned Pending → Complete - HUMAN-VERIFY pending**: 27 IDs total (PICK-28-01..30 from original plans + PICK-28-31..44 from REVIEWS-amendment-driven additions). Phase 28 awaits device-UAT (11 scripts in 28-HUMAN-UAT.md; resume signal `uat passed` → `/gsd-verify-work 28`).
 
