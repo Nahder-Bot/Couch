@@ -2308,6 +2308,7 @@ input.field-invalid{border-color:var(--bad)}
 .signin-header { text-align: center; margin: 40px 0 32px; }
 .signin-title { font-family: 'Fraunces', serif; font-size: 48px; margin: 0; letter-spacing: -0.02em; color: var(--ink); }
 .signin-tag { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--ink-warm); margin: 8px 0 0; font-style: italic; }
+.signin-subtag { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-warm); margin: 14px 0 0; opacity: 0.85; line-height: 1.45; }
 .signin-providers { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 .signin-divider { display: flex; align-items: center; gap: 12px; color: var(--ink-faint); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; margin: 4px 0; }
 .signin-divider::before, .signin-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-mid); }
