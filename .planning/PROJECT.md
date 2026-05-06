@@ -51,16 +51,16 @@ Turn "what do you want to watch?" from a 20-minute argument into a 30-second rit
 ### Active
 
 <!-- Scoped, awaiting kickoff. See ROADMAP.md for the authoritative list. -->
-- [ ] **Phase 15.3 — DESIGN-01 SVG logo + wordmark:** closes the only genuinely unsatisfied requirement from v33.3 audit (canonical SVG source never produced; PNGs wired to manifest but rebuild-from-source impossible). 3-task production phase. Per cross-AI review 2026-04-28: deferred until App Store work is imminent.
+- [ ] **Phase 31 — Marketing refresh:** close visibility gap between shipped product (28 phases / `couch-v47-pickem`) and public surface (Phase-9 / April-2026 marketing). Adds comparison section + features section + FAQ to landing.html; refreshes 5–6 screenshots against current build; refreshes og.png. Pre-Phase-17 dependency. Source-of-truth: `.planning/LAUNCH-REVIEW-2026-05-05.md`. Scoping: `.planning/phases/31-marketing-refresh/31-CONTEXT.md`. Per user direction 2026-05-05.
+- [ ] **Phase 17 — App Store Launch Readiness — REACTIVATED 2026-05-05:** native wrapper (Capacitor vs PWABuilder spike pending), Apple Sign-In ($99/yr Apple Developer Program; reject-on-sight blocker per ASR §4.8 since Couch ships Google + Email-link + Phone), App Store Connect + Google Play listings, privacy policy + ToS expansion, App Store name decision ("Couch" vs "Couch Tonight" — ASO collision risk argues for the latter), Apple Privacy nutrition labels + Google Data Safety form, App Preview video. Target: TestFlight + Play Internal Testing early June 2026; submission mid-June; public launch late June / early July 2026. Reactivated per user direction 2026-05-05 (was deferred 2026-04-29 per pre-launch milestone scope).
+- [ ] **Phase 15.3 — DESIGN-01 SVG logo + wordmark:** closes the only genuinely unsatisfied requirement from v33.3 audit (canonical SVG source never produced; PNGs wired to manifest but rebuild-from-source impossible). 3-task production phase. Cosmetic — does not block App Store launch (PNGs work fine for v1).
 - [ ] **Phase 16 — Calendar Layer:** recurring + multi-future watchparty scheduling ("Wife and daughter watch American Idol every Monday"). Per cross-AI review 2026-04-28: defer until usage signal proves recurring scheduling is felt-pain (calendars are expensive UX; families already have calendars).
-- [ ] **Phase 17 — App Store Launch Readiness:** native wrapper (Capacitor/PWABuilder) for iOS App Store + Google Play; Apple Sign-In ($99/yr Apple Developer Program); App Store Connect listings + privacy policy + ToS authoring. Per user 2026-04-29: deferred to next milestone (this milestone stays PWA-only).
 
 ### Backlog (cross-AI flagged 2026-04-28; ranked by Tier)
 
-- [ ] **Kid mode / age-gating** (Tier 2 — flagged by Gemini + Codex independently as P0 for the "family" brand): global "Kids on the couch" toggle that filters Tonight to G/PG; parent-approved pools; bedtime/runtime limits. Today the per-member age-tier rating cap exists but no global mode.
-- [ ] **Conflict-aware empty state** (Tier 2 — Codex): when Tonight matches is empty, surface WHY (no overlap / provider unavailable / runtime / rating-filtered) instead of generic "No matches yet".
+> 2026-05-05 cleanup: three items previously listed here have shipped — Kid mode (Phase 19, `couch-v36.1-kid-mode`), Conflict-aware empty state (Phase 21, `couch-v36.5-conflict-aware-empty`), and Async-replay (Phase 26, `couch-v38-async-replay`). Removed from backlog.
+
 - [ ] **Custom lists as family memory** (Tier 2 — Codex): "Dad's picks", "Holiday queue", "Movies the kids can watch". Reframed from Letterboxd feature to family-memory primitive.
-- [ ] **Async-replay** (Tier 3 — natural follow-on to 15.5 if Wait Up earns its keep): "Red Wedding" use case — feel original group's reactions days/weeks/years later. Risk: emotionally creepy if reactions appear out of context.
 - [ ] **Solo mode on-ramp** (Tier 3 — both AIs say defer): 50% addressable market expansion, but plural-brand dilution risk.
 - [ ] **Phase 10 — Year-in-Review** (Tier 3 — already deferred): needs accumulated history + audience to feel substantive. Revisit at v1 milestone close + ~3 months usage data.
 

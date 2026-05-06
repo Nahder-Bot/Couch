@@ -9,7 +9,7 @@
 
 **Full context:** `.planning/PROJECT.md` (read first)
 **Active scope:** `.planning/REQUIREMENTS.md` — v1 requirements across the GSD phases
-**Phase structure:** `.planning/ROADMAP.md` — authoritative source. As of 2026-04-26: Phases 3-14 SHIPPED (current cache: `couch-v34.1.1-touchcancel-fix`). Phases 15-17 (Tracking Layer / Calendar Layer / App Store Launch Readiness) scoped, awaiting kickoff.
+**Phase structure:** `.planning/ROADMAP.md` — authoritative source. As of 2026-05-05: 28 phases shipped (current cache: `couch-v47-pickem` per Phase 28 / Pick'em + Leaderboards). Active: Phase 31 (Marketing refresh — scoped 2026-05-05) + Phase 17 (App Store Launch Readiness — reactivated 2026-05-05; was deferred 2026-04-29). Source-of-truth for launch direction: `.planning/LAUNCH-REVIEW-2026-05-05.md`.
 **Current state:** `.planning/STATE.md`
 
 **Routing (live at couchtonight.app):** `/` serves `landing.html` (marketing page, zero-JS), `/app` serves `app.html` (PWA app shell). Firebase Hosting rewrites live in the deploy-mirror sibling repo's `firebase.json`. Deep links (`?invite=`, `?claim=`) arrive at `/`, landing's inline redirect forwards them to `/app` preserving query string.
@@ -24,7 +24,7 @@
   - `js/utils.js` — `escapeHtml`, `haptic`, `flashToast`, poster helpers
   - `js/app.js` — all feature logic (~15800 lines as of 2026-04-27 / Phase 15.1; imports from the above. Phases 14 + 15 + 15.1 added ~5500 lines — was ~10200 at end of Phase 13)
 - **CSS:** `css/app.css` (~2360 lines; warm-dark design system, 47-token semantic alias layer from 09-02, Phase 9/DESIGN-03 utility classes ~line 2210, desktop `@media (min-width:900px)` block ~line 2330) + `css/landing.css` (~86 lines; standalone for the marketing page).
-- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v34.1-roster-control` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
+- **Service worker:** `sw.js` at repo root (added in the post-09-05 audit). Bump `CACHE` const on every user-visible app change so installed PWAs invalidate on next online activation. Current version: `couch-v47-pickem` (auto-bumped via `bash scripts/deploy.sh <short-tag>`; see RUNBOOK §H).
 - **Backend:** Firebase Firestore (project `queuenight-84044`) for real-time family sync; Cloud Functions in sibling `queuenight/functions/` for push notifications (watchparty + intent + veto) and Trakt OAuth token exchange.
 - **Third-party data:** TMDB REST v3 for metadata/providers; Trakt API for watch-history sync.
 - **Delivery:** Firebase Hosting (deploy via sibling `queuenight/public/` mirror). PWA manifest inline as data URL in app.html. iOS/Android icon set wired.
