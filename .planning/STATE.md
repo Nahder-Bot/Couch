@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: completed
-last_updated: "2026-05-05T04:28:47Z"
-last_activity: 2026-05-05
+status: Phase 28 code-shipped end-to-end across all 6 plans; UAT pending (11 scripts in 28-HUMAN-UAT.md)
+last_updated: "2026-05-06T05:12:01.587Z"
+last_activity: 2026-05-05 (Phase 28 production deploy completed — couchtonight.app live at `couch-v47-pickem`)
 progress:
   total_phases: 27
   completed_phases: 21
