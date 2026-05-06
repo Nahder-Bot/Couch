@@ -10,15 +10,20 @@
 
 ## 1. Identity
 
-Couch is the movie-night app for families. The identity tells that story: a film-reel "C" fused with "ouch" set in italic display serif, over a warm leather backdrop. The logo is a single asset — `logo-h300.png` / `logo-h200.png` — not reconstructed from type.
+> **Identity refreshed 2026-05-06.** Original BRAND.md described a "film-reel C fused with ouch in italic display serif." Replaced with a 3D-rendered leather-cushion wordmark — see superseded note at end of section.
 
-- **Primary wordmark:** `logo-h300.png` (brand hero moments), `logo-h200.png` (hero-large entry screens).
-- **Mark only:** `mark-512.png` down to `mark-16.png` — PWA + favicon set. Apple-touch-icon at 180/152/144/128.
-- **Maskable variants** ship with the W3C 40 % safe-zone. Installed PWA on Android + iOS home-screen get the full mark.
-- **Clear-space rule:** at least one "C-counter" height on every side. Never set inside a colored rectangle; leather texture carries the lift.
-- **Source + regeneration:** raw SVGs live in `brand/`. On any re-cut, regenerate the full PNG size set + theme-color stays `#14110f`.
+Couch is the movie-night app for families. The identity tells that story literally: the wordmark *is* a couch. **"Couch"** rendered as photorealistic 3D-modelled leather cushions — capital "C" + lowercase "ouch" — each letter constructed from tubular over-stuffed leather segments with visible cream/white stitching at the panel seams, set against a warm-dark leather backdrop. The wordmark is a photographic asset, not typeset type.
+
+- **Primary wordmark:** `logo-h300.png` (brand hero moments, 634×300), `logo-h200.png` (entry screens, 423×200). Master source `logo-master.png` at 3000×1500 lives in `brand/`.
+- **Mark only:** standalone leather-cushion **capital "C"** (same material, lighting, backdrop as the wordmark) — used for app icons, favicons, notification icons. Master at `brand/mark-master.png` (1024×1024). Downscaled set: `mark-{16,29,32,40,48,58,60,76,80,87,96,120,128,144,152,167,180,192,384,512,1024}.png`. Apple-touch-icon at 128/144/152/180.
+- **Maskable variants** ship with the W3C 40% safe-zone (the C is centered with ~15% padding so adaptive-icon cropping never clips it). Installed PWA on Android + iOS home-screen get the full mark.
+- **Notification icon (Android):** flat white silhouette of the C on transparent background, ≤96×96, derived (not photographic). Required because Android notification strip can't render photorealistic icons.
+- **Clear-space rule:** at least one "C-counter" height on every side of the wordmark. Never set inside a colored rectangle other than the canonical warm-dark backdrop (`#14110f` to `#0e0a07`); the leather texture carries the lift.
+- **Source + regeneration:** PNG masters in `brand/` (`logo-master.png` + `mark-master.png`). The SVG plan was abandoned 2026-05-06 because the photorealistic 3D leather treatment can't be vectorized without losing the texture. Regeneration uses a `sharp` downscale script targeting the full size matrix; all PNG outputs are deterministic from the masters.
 
 **iOS PWA cache-bust** (REQUIRED after icon/logo changes): delete the PWA → Safari Settings → Advanced → Website Data → clear couchtonight.app → reinstall. Manifest caches otherwise linger.
+
+**Superseded direction (for historical reference):** the original Plan 09-01 brief described a "film-reel C fused with ouch in italic display serif." That direction was abandoned at brand refresh 2026-05-06 in favor of the leather-cushion wordmark. No assets from the original direction shipped to production.
 
 ---
 

@@ -77,13 +77,21 @@ Verified via Bash + Glob:
 6. **App Preview video** 15-30s — captures the user journey from sign-in → tonight → spin → watchparty join
 7. **Privacy Manifest** XML — author from data-collection survey (see PRIVACY-TERMS-AUDIT-2026-05-06.md)
 
-## Recommendation: Phase 15.3 promotion
+## Recommendation: Phase 15.3 promotion (REVISED 2026-05-06)
 
-Phase 15.3 (DESIGN-01: canonical SVG logo + wordmark sources) was deferred per LAUNCH-REVIEW §6 P2 list ("Cosmetic; PNGs work fine for v1 launch"). **This audit reverses that judgment for App Store launch.** Without a canonical SVG, generating clean 1024×1024 marketing icon + iOS device-icon set + Android adaptive-icon foreground requires re-vectorizing from existing PNG (lossy), or re-designing from scratch (slow).
+Phase 15.3 (DESIGN-01) was originally deferred per LAUNCH-REVIEW §6 P2 list ("Cosmetic; PNGs work fine for v1 launch"). **This audit reverses that judgment** AND **the brand-identity refresh on 2026-05-06 changes the scope.**
 
-**New recommendation:** Schedule Phase 15.3 as a Phase 17 Wave 0 dependency. ~1-2 days SVG production. Unlocks every downstream icon-generation task.
+**Revised scope:** Phase 15.3 pivots from "canonical SVG sources" to "**PNG masters + sharp downscale pipeline**" because the new leather-cushion brand identity is photorealistic 3D-render. SVG can't preserve the leather texture or stitching detail.
 
-Alternative: rasterize from `mark-512.png` to `mark-1024.png` via sharp upscale. Risk: visible blur or artifacting at 100% zoom. Apple reviewers don't typically reject for this, but visual quality drops on Retina displays.
+Phase 15.3 deliverables:
+- `brand/logo-master.png` — 3000×1500 high-resolution wordmark (the new leather-cushion "Couch" — user-generated)
+- `brand/mark-master.png` — 1024×1024 standalone leather-cushion **capital C** (user generating via ChatGPT 2026-05-06; same material/lighting/backdrop as wordmark, ~15% safe-zone padding)
+- `brand/notification-mark.png` — 96×96 flat white silhouette of the C on transparent background (Android notification icon — required because Android can't render photorealistic icons in the notification strip)
+- `scripts/regenerate-icons.sh` — sharp pipeline that generates the full Apple + Google + favicon + maskable size matrix from the masters
+
+**New recommendation:** Schedule Phase 15.3 as a Phase 17 **hard** Wave 0 dependency (was "soft"). Without `mark-1024.png` from the new identity, iOS App Store packaging is blocked.
+
+The previous fallback ("rasterize from `mark-512.png` via sharp upscale") is no longer relevant — the existing PNGs are the OLD brand identity (film-reel C concept) which has been superseded. Phase 15.3 replaces all of them in deploy.
 
 ## Asset workflow proposal for Phase 17
 
