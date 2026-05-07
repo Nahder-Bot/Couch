@@ -66,20 +66,35 @@ Wait for confirmation. Correct any misreadings before continuing.
 
 ---
 
-## Step 4 — Android notification icon (flat silhouette, different style)
+## Step 4 — Android notification icon (flat silhouette, leather-C proportions)
 
 > Now generate a completely different style of asset — a flat single-color silhouette for use as an Android notification icon.
 >
 > Specifications:
-> - Canvas: **96×96 pixels**, transparent background
-> - Subject: capital letter "C", silhouette only — same proportions as the reference C but rendered FLAT (no 3D, no leather texture, no stitching, no lighting, no shadow)
+> - Canvas: **1024×1024 pixels** (high-res for clean downscaling — we'll generate 24/32/48/72/96 variants programmatically), transparent background
+> - Subject: capital letter "C", silhouette only — **MUST match the leather C's exact proportions from the wordmark reference image**, NOT a generic font C. Look at where the C's stroke widens vs narrows in the leather original, where the terminus angles are (the cushion-end shapes), how open the C's mouth is — replicate ALL of that as a flat white silhouette. The output should be recognizably "the Couch C," not a stock typographic Helvetica/Arial C.
 > - Color: pure white (#FFFFFF), filled solid, no gradients
 > - Stroke weight: medium-thick — must remain readable when downscaled to 24×24 pixels
-> - Style: clean vector-like silhouette, geometric, designed for Android's notification strip where colored/textured icons can't be rendered
+> - **Composition: perfectly axis-aligned (no rotation, no tilt — vertical upright)**, centered both horizontally and vertically, fills ~80% of canvas with ~10% padding each side
+> - Style: clean vector-like silhouette, geometric, designed for Android's notification strip
 >
-> This is for Android system notifications which require flat white-on-transparent. DO NOT include any leather texture, 3D rendering, stitching, or backdrop. DO NOT add other letters or elements.
+> **CRITICAL — what to AVOID:**
+> - **NO drop shadow, glow, halo, fringe, soft-blur, or outer shadow of ANY kind.** Pure binary edges (or anti-aliased anti-aliasing for smooth curves only). The transparent background should be 100% transparent in every pixel that isn't part of the C — no faint ring, no haze, no soft falloff.
+> - NO leather texture, 3D rendering, stitching, lighting, or backdrop.
+> - NO rotation/tilt — the C must be perfectly upright on the canvas.
+> - NO other letters, words, text, watermarks, or decorative elements.
+>
+> **Why this matters:** Android auto-tints notification icons based on theme color. Any shadow/halo will tint along with the C and produce a weird ring around the icon on the notification strip. The icon must be a clean binary mask: opaque white where the C is, fully transparent everywhere else.
 
 **Save as:** `brand/notification-mark.png`
+
+**If the result has a visible halo/shadow, tilted C, or a generic-font letterform:**
+
+> Regenerate with these specific corrections:
+> 1. Match the leather C's PROPORTIONS exactly — look at the original wordmark's C and replicate its stroke-weight variation, terminus angles, and mouth opening as a flat silhouette. This is NOT a Helvetica/Arial C.
+> 2. ABSOLUTELY no drop shadow, no glow, no halo. Every pixel is either pure white or fully transparent — nothing in between except smooth-curve anti-aliasing.
+> 3. Axis-aligned — perfectly vertical, no rotation.
+> Keep everything else: 1024×1024, transparent background, pure white fill, ~80% canvas fill.
 
 ---
 
