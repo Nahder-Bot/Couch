@@ -247,6 +247,9 @@ done
 mkdir -p "${COUCH_DEPLOY_ROOT}/public/css" "${COUCH_DEPLOY_ROOT}/public/js"
 cp -v css/*.css "${COUCH_DEPLOY_ROOT}/public/css/"
 cp -v js/*.js "${COUCH_DEPLOY_ROOT}/public/js/"
+# Mirror all root-level icon PNGs (mark-*, favicon-*, logo-h*, notification-icon-*, mark-adaptive-*, mark-maskable-*).
+# Phase 15.3 added new variants (maskable + adaptive + 1024) that were silently 404'ing in production.
+cp -v *.png "${COUCH_DEPLOY_ROOT}/public/" 2>/dev/null || true
 
 # 6. Auto-stamp BUILD_DATE -- review fix MEDIUM-8: target the MIRROR copy of
 #    js/constants.js, NOT the source. stamp-build-date.cjs resolves its target
