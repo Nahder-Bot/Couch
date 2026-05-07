@@ -237,7 +237,7 @@ if [ -n "$TAG" ]; then
 fi
 
 # 5. Mirror to couch-deploy/public/ (file set per CLAUDE.md + PATTERNS.md)
-for f in app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt manifest.json privacy.html terms.html; do
+for f in app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt manifest.json privacy.html terms.html support.html; do
   if [ -f "$f" ]; then
     cp -v "$f" "${COUCH_DEPLOY_ROOT}/public/"
   else

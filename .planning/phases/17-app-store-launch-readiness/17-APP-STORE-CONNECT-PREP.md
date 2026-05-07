@@ -119,9 +119,9 @@ movie night,family,watch together,picker,what to watch,streaming,household,picke
 
 ### Support URL
 ```
-https://couchtonight.app/support
+https://couchtonight.app/support.html
 ```
-**Status:** TODO — `/support` doesn't exist yet. Easiest path: redirect to a `mailto:support@couchtonight.app` page OR create `support.html` with a contact form. App Review accepts both.
+**Status:** ✅ Live as of 2026-05-07. Contains FAQ + 4 contact destinations (general, bug, security, DMCA) + status/outage section + privacy/terms cross-links. Mirrors the privacy.html / terms.html visual treatment.
 
 ### Marketing URL (optional)
 ```
