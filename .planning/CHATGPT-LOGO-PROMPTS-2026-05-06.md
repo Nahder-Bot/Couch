@@ -18,23 +18,31 @@ Wait for confirmation. Correct any misreadings before continuing.
 
 ---
 
-## Step 2 — Standalone C app icon (PRIMARY DELIVERABLE)
+## Step 2 — Brand-storytelling app icon (PRIMARY DELIVERABLE) — leather C + glowing TV
 
-> Now generate a standalone capital letter "C" using the EXACT same material, lighting, color, and rendering style as the reference image.
+> Now generate the canonical Couch app icon: a leather-cushion capital "C" with a glowing TV nested in the C's opening, depicting a couch facing a TV (movie night).
+>
+> Use the SAME material, lighting, color, and rendering style as the wordmark reference image.
 >
 > Specifications:
-> - Canvas: **1024×1024 pixels**, square
+> - Canvas: **EXACTLY 1024×1024 pixels, perfectly SQUARE**
+> - **CRITICAL: NO rounded corners on the canvas itself.** The leather backdrop must fill ALL FOUR CORNERS of the square canvas edge-to-edge. iOS and Android apply their own rounded-corner masks to app icons at render time — if I submit an asset that already has rounded corners baked in, the system mask cuts INSIDE those rounded corners and the icon looks pinched. The square output should be ready for system masking.
 > - Letter: capital "C", same shape and proportions as the C in the reference wordmark
 > - Material: same warm brown leather with visible cream/white stitching at panel seams; same tubular over-stuffed cushion construction
 > - Color: match the brown of the reference letters exactly
-> - Backdrop: same warm-dark leather background as the reference (deep brown, near-black, photographic — not pure black)
+> - Backdrop: same warm-dark leather background as the reference (deep brown, near-black, photographic — not pure black), filling the entire square canvas
 > - Lighting: same soft top-down lighting with subtle rim light, photographic depth, soft cushion shadows on backdrop
-> - Composition: C is centered both horizontally and vertically; the C should fill roughly 70% of the canvas height/width, leaving ~15% padding on all sides as safe-zone for app-icon cropping
-> - Style: photorealistic 3D render, looks like a piece of overstuffed leather furniture
+> - **TV element:** a small modern flat-screen TV positioned in the C's opening (right side of the C where it "faces" outward), shown in profile/edge-on perspective so it looks like a thin rectangular screen. The TV emits a warm amber/orange glow that softly illuminates the surrounding leather. The TV should be roughly 8-10% of the canvas width — large enough to read at hero sizes but small enough that the C dominates the composition.
+> - Composition: C+TV combination centered both horizontally and vertically; the leather backdrop reaches all four canvas corners with NO inset margin or rounded shape; ~15% padding around the C silhouette as safe-zone for adaptive-icon cropping
+> - Style: photorealistic 3D render; the C looks like overstuffed leather furniture, the TV looks like a real electronic screen with light source
 >
-> DO NOT include any other letters, words, text, signatures, watermarks, frames, or graphical elements — just the standalone leather C on the dark backdrop. The output should look like a square cropped extract of the reference image showing only the C with proper safe-zone padding.
+> DO NOT include any other letters, words, text, signatures, watermarks, frames, rounded canvas borders, or decorative elements. DO NOT round the canvas corners — output must be a perfect square with content filling edge-to-edge.
 
 **Save as:** `brand/mark-master.png`
+
+**If the FIRST result has rounded corners baked into the canvas shape:**
+
+> Regenerate with the SAME composition but on a perfectly square canvas — the leather backdrop must fill all four corners of the 1024×1024 square edge-to-edge with NO rounded canvas shape, NO inset margin, NO highlighted edge effect. The image should look like a flat square cropped photograph, not like an already-styled app icon. iOS and Android round the corners themselves; if my source already has rounded corners, the mask cuts inside them and the icon looks pinched. Keep everything else identical: same leather C with glowing TV, same materials, same lighting, same colors. Only fix: square canvas with content reaching all four corners.
 
 ---
 

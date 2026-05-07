@@ -85,7 +85,7 @@ Phase 15.3 (DESIGN-01) was originally deferred per LAUNCH-REVIEW §6 P2 list ("C
 
 Phase 15.3 deliverables:
 - `brand/logo-master.png` — 3000×1500 high-resolution wordmark (the new leather-cushion "Couch" — user-generated)
-- `brand/mark-master.png` — 1024×1024 standalone leather-cushion **capital C** (user generating via ChatGPT 2026-05-06; same material/lighting/backdrop as wordmark, ~15% safe-zone padding)
+- `brand/mark-master.png` — 1024×1024 SQUARE — leather-cushion **capital C with glowing TV nested in C's opening** (canonical brand-storytelling icon: couch facing TV); same material/lighting/backdrop as wordmark + amber glow from TV; ~15% safe-zone padding; **NO baked-in rounded corners** — iOS/Android apply their own corner masks at render time, baking corners in causes "double-rounded" pinched look
 - `brand/notification-mark.png` — 96×96 flat white silhouette of the C on transparent background (Android notification icon — required because Android can't render photorealistic icons in the notification strip)
 - `scripts/regenerate-icons.sh` — sharp pipeline that generates the full Apple + Google + favicon + maskable size matrix from the masters
 
