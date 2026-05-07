@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.couchtonight.twa",
+    "sha256_cert_fingerprints": ["CC:C7:54:7C:27:A5:11:BF:28:65:CC:49:E8:15:76:9D:FF:90:4D:E2:38:22:B2:F0:8E:E7:06:6D:9C:AD:AE:BB"]
+  }
+}]

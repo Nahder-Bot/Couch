@@ -1,10 +1,12 @@
 {
+  "id": "/app",
   "name": "Couch",
   "short_name": "Couch",
   "description": "Who's on the Couch tonight? Pick what to watch, together.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
+  "categories": ["entertainment", "lifestyle", "social"],
   "background_color": "#14110f",
   "theme_color": "#14110f",
   "orientation": "portrait",

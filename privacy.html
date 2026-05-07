@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Privacy — Couch</title>
+<meta name="description" content="What Couch collects, what it doesn't, and what we do with it. No ads, no data sales, no trackers beyond crash diagnostics.">
+<meta name="theme-color" content="#14110f">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://couchtonight.app/privacy">
+
+<!-- OG / Twitter -->
+<meta property="og:site_name" content="Couch">
+<meta property="og:title" content="Privacy — Couch">
+<meta property="og:description" content="What Couch collects, what it doesn't, and what we do with it.">
+<meta property="og:url" content="https://couchtonight.app/privacy">
+<meta property="og:image" content="https://couchtonight.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+<link rel="manifest" href="/manifest.json">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;800&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+
+<style>
+  :root {
+    --bg: #14110f;
+    --ink: #f4ede1;
+    --dim: #a89c8a;
+    --rule: #2a2520;
+    --warm: #d9b88a;
+    --max: 720px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    padding: 0 20px;
+  }
+  main {
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 56px 0 96px;
+  }
+  header {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  header a.brand {
+    display: inline-block;
+    margin-bottom: 24px;
+    text-decoration: none;
+  }
+  header img { height: 48px; width: auto; display: block; }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 800;
+    font-size: 40px;
+    line-height: 1.1;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .meta { color: var(--dim); font-size: 14px; margin: 0; }
+  h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600;
+    font-size: 24px;
+    margin: 48px 0 12px;
+    letter-spacing: -0.005em;
+  }
+  h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 17px;
+    margin: 28px 0 8px;
+    color: var(--warm);
+  }
+  p, li { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; }
+  a { color: var(--warm); text-decoration: underline; text-underline-offset: 3px; }
+  a:hover { color: var(--ink); }
+  strong { color: var(--ink); font-weight: 600; }
+  em { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: 1.05em; }
+  .pull {
+    border-left: 2px solid var(--warm);
+    padding: 4px 0 4px 18px;
+    margin: 24px 0;
+    color: var(--ink);
+    font-size: 17px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 15px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th { color: var(--warm); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.never { color: var(--dim); }
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+    color: var(--dim);
+    font-size: 14px;
+  }
+  footer a { color: var(--warm); }
+  footer p { margin: 4px 0; }
+  @media (max-width: 540px) {
+    h1 { font-size: 32px; }
+    h2 { font-size: 21px; }
+    main { padding: 40px 0 64px; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <a class="brand" href="/"><img src="/logo-h100.png" alt="Couch"></a>
+    <h1>Privacy</h1>
+    <p class="meta">Effective 2026-05-07 &nbsp;·&nbsp; Last updated 2026-05-07</p>
+  </header>
+
+  <p class="pull">Couch is a free family app for picking what to watch together. We don't run ads, we don't sell data, and we don't share your activity with anyone outside the small list of services named below. Your couch isn't anyone's data.</p>
+
+  <h2>1. What this covers</h2>
+  <p>This policy explains what Couch (the website at <a href="https://couchtonight.app">couchtonight.app</a>, the iOS app, the Android app, and the installable PWA) collects, why we collect it, and the third parties involved. By using Couch you agree to this policy alongside the <a href="/terms">Terms of Service</a>.</p>
+
+  <h2>2. The short version</h2>
+  <table>
+    <thead><tr><th>What</th><th>Where it lives</th><th>Who sees it</th></tr></thead>
+    <tbody>
+      <tr><td>Your account (email, display name, auth method)</td><td>Firebase (Google Cloud)</td><td>You + Couch</td></tr>
+      <tr><td>Your family code, members, votes, queue, watchparties, pick'em picks</td><td>Firestore (Google Cloud)</td><td>You + your family + Couch</td></tr>
+      <tr><td>Movie/show metadata (titles, posters, runtimes, where-to-watch)</td><td>Fetched from TMDB</td><td>TMDB sees your IP at fetch time</td></tr>
+      <tr><td>Watch history sync (optional)</td><td>Trakt (your account)</td><td>Trakt — only if you explicitly connect</td></tr>
+      <tr><td>Crash + error reports (PII removed before send)</td><td>Sentry</td><td>Couch only</td></tr>
+      <tr><td>Push notifications</td><td>Firebase Cloud Messaging + Apple Push / web-push providers</td><td>Apple / Google for delivery</td></tr>
+      <tr><td class="never">Anything we sell to advertisers or data brokers</td><td class="never">—</td><td class="never">Never</td></tr>
+      <tr><td class="never">Location, contacts, browsing history outside Couch</td><td class="never">—</td><td class="never">Never collected</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Account data</h2>
+  <p>To save your progress across devices and sync with the people on your couch, Couch creates an account. Depending on which sign-in method you choose, the data we receive is:</p>
+  <ul>
+    <li><strong>Email link:</strong> your email address.</li>
+    <li><strong>Phone:</strong> your phone number.</li>
+    <li><strong>Sign in with Google:</strong> Google sends us your email address, display name, and a stable user ID. Google sees that you signed into Couch.</li>
+    <li><strong>Sign in with Apple:</strong> Apple sends us a stable user ID and (if you allow it) your email — or a private relay address that forwards to your real email. Apple sees that you signed into Couch.</li>
+  </ul>
+  <p>You pick the display name shown to your family. We don't collect age, address, payment info, government ID, contact lists, or precise location.</p>
+
+  <h2>4. Family data</h2>
+  <p>Couch is built around small shared spaces called <em>families</em>. When you join one, your votes, mood tags, vetoes, watchparty reactions, RSVPs, queue items, and pick'em picks are visible to other members of that family. That's the whole point of the product.</p>
+  <p>Family data lives in Google Cloud Firestore in the United States and is gated by per-family security rules so other Couch users (outside your family) can't read it.</p>
+
+  <h3>Photos in post-watchparty albums</h3>
+  <p>If your family creates an album for a watchparty, the photos you upload are stored in Google Cloud Storage scoped to your family. Only family members see them. We never use your photos for training, advertising, or any purpose outside your family's album.</p>
+
+  <h2>5. Third-party services we use</h2>
+
+  <h3>Firebase (Google Cloud)</h3>
+  <p>Firebase Authentication, Firestore, Cloud Functions, Cloud Storage, Cloud Messaging, and Hosting power Couch's backend. Google processes your account credentials, family data, files, and push notification tokens on our behalf as a data processor. See <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase Privacy</a>.</p>
+
+  <h3>The Movie Database (TMDB)</h3>
+  <p>Movie and TV metadata (titles, descriptions, posters, runtimes, where-to-watch availability) come from TMDB's public API. When Couch fetches metadata, your device's IP address and a TMDB API key are sent to TMDB. We don't share your account info, your votes, or who's on your couch with TMDB. See <a href="https://www.themoviedb.org/privacy-policy" target="_blank" rel="noopener">TMDB Privacy Policy</a>.</p>
+
+  <h3>Trakt (optional)</h3>
+  <p>If you choose to connect Trakt, Couch uses OAuth to read your watch history so we can show what you've already seen. The Trakt connection is opt-in, scoped to read-only history, and you can disconnect at any time from Account → Sync. We don't share Couch family data with Trakt. See <a href="https://trakt.tv/privacy" target="_blank" rel="noopener">Trakt Privacy</a>.</p>
+
+  <h3>Sentry (crash + error reports)</h3>
+  <p>When Couch crashes or hits an unexpected error, we send a diagnostic report to Sentry. Before sending, we strip the user ID, email, family codes, and any tokens from the URL. The report contains the JavaScript stack trace, the page URL (with sensitive parameters redacted), and the browser/OS string. We use these reports to fix bugs. We do not use Sentry for analytics, behavioral tracking, or session replay. See <a href="https://sentry.io/privacy/" target="_blank" rel="noopener">Sentry Privacy</a>.</p>
+
+  <h3>Push notification delivery</h3>
+  <p>Push notifications about watchparties, intent matches, vetoes, and similar events are delivered by Firebase Cloud Messaging (which uses Apple Push Notification service on iOS and Google Cloud Messaging on Android). To deliver a notification, the platform receives a notification token associated with your device — not the contents of your account. You can turn notifications off entirely in your device settings or per-event in Account → Notifications.</p>
+
+  <h2>6. What we don't do</h2>
+  <ul>
+    <li>We don't show ads.</li>
+    <li>We don't sell, rent, or trade your data with anyone.</li>
+    <li>We don't track you across other apps or websites.</li>
+    <li>We don't use third-party analytics, fingerprinting, advertising SDKs, or session-replay tools.</li>
+    <li>We don't use your data, photos, or messages to train AI models.</li>
+    <li>We don't cooperate with data brokers.</li>
+  </ul>
+
+  <h2>7. Children</h2>
+  <p>Couch is intended for general audiences, not specifically for children under 13. The app includes a "Kids on the couch tonight" mode that hides titles above a chosen age tier from the matches list — that's a content filter, not a separate kid account. Account creation requires you to be the legal age of majority in your region (or a parent/guardian acting on a child's behalf).</p>
+  <p>If you believe a child under 13 has created an account without parental consent, contact us at <a href="mailto:support@couchtonight.app">support@couchtonight.app</a> and we'll delete the account.</p>
+
+  <h2>8. Your choices</h2>
+  <h3>See your data</h3>
+  <p>Open Couch → Account. Most of what we have about you is visible there: your email, display name, the families you belong to, your queue, your watch history (if Trakt is connected), and your notification preferences.</p>
+
+  <h3>Delete your account</h3>
+  <p>Account → Delete account. Self-serve, no waiting. We immediately mark your account as deleted, remove your name from family rosters, and a scheduled job permanently removes your data within 30 days. Family data you helped create (votes, watchparty reactions, etc.) stays in the family's history because other members rely on it — but it's no longer associated with your name.</p>
+
+  <h3>Sign out</h3>
+  <p>Account → Sign out. Your data stays put; you can sign back in anytime.</p>
+
+  <h3>Disconnect Trakt</h3>
+  <p>Account → Sync → Disconnect Trakt. We delete the OAuth token immediately; Trakt's own data is unaffected (manage that in Trakt's settings).</p>
+
+  <h3>Turn off push notifications</h3>
+  <p>Account → Notifications. Granular per-event, or all-off in your device's notification settings.</p>
+
+  <h2>9. Security</h2>
+  <p>Couch uses HTTPS everywhere. Family data is gated by Firestore security rules so only authenticated members of your family can read or write it. Sign-in is handled by Firebase Authentication; passwords (when applicable) are never stored by Couch — only by Firebase using industry-standard hashing. Sentry receives diagnostics with PII stripped before send.</p>
+  <p>No system is perfectly secure. If you discover a vulnerability, please email <a href="mailto:security@couchtonight.app">security@couchtonight.app</a> and we'll respond promptly. Please do not exploit it or share it publicly until we've had a chance to fix it.</p>
+
+  <h2>10. Where data lives</h2>
+  <p>Couch's backend runs on Google Cloud servers in the United States. If you use Couch from outside the US, your data is transferred to and processed in the US. By using Couch you consent to this transfer.</p>
+
+  <h2>11. How long we keep data</h2>
+  <p>Account and family data is kept for as long as your account exists. When you delete your account, we erase your personal data within 30 days (some backups may persist for an additional 30 days before rolling off). Trakt OAuth tokens are deleted immediately on disconnect. Sentry crash reports are retained for 90 days.</p>
+
+  <h2>12. Changes to this policy</h2>
+  <p>If we change anything material, we'll update the "Last updated" date at the top and, when the change is significant, surface a notice in the app the next time you open it. The current version is always at <a href="https://couchtonight.app/privacy">couchtonight.app/privacy</a>.</p>
+
+  <h2>13. Contact</h2>
+  <p>Questions, requests, or complaints: <a href="mailto:support@couchtonight.app">support@couchtonight.app</a>.</p>
+
+  <footer>
+    <p><a href="/">← Back to Couch</a> &nbsp;·&nbsp; <a href="/terms">Terms of Service</a></p>
+    <p><em>Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">The Movie Database (TMDB)</a>. Couch is not endorsed or certified by TMDB.</em></p>
+  </footer>
+</main>
+
+</body>
+</html>
