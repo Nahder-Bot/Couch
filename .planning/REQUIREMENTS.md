@@ -73,7 +73,7 @@ Skeleton — refined in /gsd-discuss-phase 8. Splits the current "who wants to w
 
 Skeleton — refined in /gsd-discuss-phase 9. Covers visual identity + full UI refresh + landing page + marketing assets + onboarding polish.
 
-- [ ] **DESIGN-01**: Final logo + app icon set + favicon shipped in the repo; wired to manifest, head, and iOS/Android home-screen icons
+- [x] **DESIGN-01**: Final logo + app icon set + favicon shipped in the repo; wired to manifest, head, and iOS/Android home-screen icons ✓ Phase 15.3 (2026-05-06; leather-cushion brand identity; 3 PNG masters in `brand/` + 36 generated outputs at repo root via `scripts/regenerate-icons.cjs`; commits c8879c9 → bf3bd7b → 03ba84c)
 - [x] **DESIGN-02**: Warm dark palette audited and canonicalized into design tokens (colors, type, spacing, motion, radius) ✓ Phase 9 Plan 02 (2026-04-22)
 - [x] **DESIGN-03**: Typography tokens (Fraunces + Instrument Serif + Inter) applied consistently across every screen; no one-off inline font declarations for brand-critical surfaces ✓ Plan 02 token layer (2026-04-22) + Plan 03 inline-style purge (2026-04-22) — 83 brand-critical inline declarations migrated to 53 token-backed classes; zero inline Fraunces/Instrument Serif remain
 - [x] **DESIGN-04**: Every existing in-app screen (Tonight, Title Detail, Members, Settings, Watchparty, Mood filter, Veto modals) re-rendered against the canonical token system ✓ Plan 03 tokenized brand-critical surfaces + Plan 04 desktop responsive layer (2026-04-22) — `.phone-shell` wrapper + single `@media (min-width: 900px)` block; Phase 7 UAT deferred watchparty-modal gap closed (`.wp-live-modal` 520→800px on desktop)
@@ -386,7 +386,7 @@ Locked via the `/gsd-discuss-phase 28` → `/gsd-research-phase 28` → `/gsd-ui
 | INTENT-04 | Phase 8 / 08-03 + 08-04 | Complete (group-size thresholds in CF onIntentUpdate; backfilled by Phase 15.2 / 15.2-04) |
 | INTENT-05 | Phase 8 / 08-01 + 08-04 | Complete (orphan-doc cleanup; backfilled by Phase 15.2 / 15.2-04) |
 | INTENT-06 | Phase 8 / 08-04 | Complete (per-member rsvps shape persists; backfilled by Phase 15.2 / 15.2-04) |
-| DESIGN-01 | Phase 9 → Phase 15.3 (gap closure) | Pending — assigned to Phase 15.3 (canonical SVG logo + wordmark production) per v33.3 audit |
+| DESIGN-01 | Phase 9 → Phase 15.3 (gap closure) | **Complete** — Phase 15.3 SHIPPED 2026-05-06 (leather-cushion brand identity refreshed from original "film-reel C" direction; 3 PNG masters in `brand/`; 36 downscaled outputs at repo root via `scripts/regenerate-icons.cjs`; SVG plan abandoned because photorealistic 3D-render incompatible with vector). Commits c8879c9 + 707d680 + c98eb76 + bf3bd7b + 03ba84c. |
 | DESIGN-02 | Phase 9 | Complete |
 | DESIGN-03 | Phase 9 | Complete |
 | DESIGN-04 | Phase 9 | Complete |
