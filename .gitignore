@@ -55,3 +55,10 @@ coverage/
 # Tests scratch
 tests/firestore-debug.log
 tests/node_modules/
+
+# PWABuilder package inspections — contain Android signing keystore + cleartext password.
+# NEVER commit. Always re-extract from local zip if needed.
+.planning/spikes/002-pwabuilder-package-inspect/
+.planning/spikes/**/signing.keystore
+.planning/spikes/**/signing-key-info.txt
+.planning/spikes/**/GoogleService-Info.plist
