@@ -17,6 +17,18 @@ sibling_artifacts:
 **Status:** Scoped, awaiting formal `/gsd-discuss-phase 17` chain
 **Source-of-truth:** `.planning/LAUNCH-REVIEW-2026-05-05.md` (positioning + sequencing)
 
+> **2026-05-07 update:** Substantial autonomous launch-prep work landed during the wait for Apple Developer activation. See supplemental docs in this directory before /gsd-discuss-phase 17:
+> - `17-PWABUILDER-FINDINGS-2026-05-07.md` — 4 production bugs caught + fixed via PWABuilder dry-run; iOS Info.plist Xcode-time checklist; Android keystore handling
+> - `17-PLAY-CONSOLE-PREP.md` — copy-paste-ready Play Store listing + Data Safety form + Content Rating answers
+> - `17-APP-STORE-CONNECT-PREP.md` — copy-paste-ready App Store name/subtitle/description/keywords + App Privacy Nutrition Labels + App Reviewer notes
+> - `17-DEVICE-VERIFICATION-FINDINGS-2026-05-07.md` — Apple pending-after-payment + Google Play hard device-verification gates (Bark Phone Device Owner block documented)
+> - `PrivacyInfo.xcprivacy` — Apple's required machine-readable privacy declaration; drop into Xcode at `Couch Tonight/PrivacyInfo.xcprivacy`
+> - `apple-app-site-association.template.json` — Universal Links template; fill in Team ID + Bundle ID at Wave 1, then deploy to `couch/.well-known/apple-app-site-association`
+>
+> Production: `privacy.html`, `terms.html`, `manifest.json`, `.well-known/assetlinks.json` all live at couchtonight.app. PWABuilder-generated iOS + Android packages downloaded + inspected (`~/Downloads/Couch Tonight.zip`, `~/Downloads/Couch - Google Play package.zip`).
+>
+> Folds 8 new D-decisions (D-28..D-35) into the next /gsd-discuss-phase 17 chain — tracked individually in the supplements.
+
 <domain>
 ## Phase Boundary
 
