@@ -10,7 +10,7 @@ const CACHE = 'couch-v47-pickem';
 // Pre-cache the app shell (primary PWA entry) + core CSS/JS so offline cold-launch works.
 // Other JS modules (js/firebase.js, js/constants.js, etc.) populate the cache via the
 // stale-while-revalidate fetch handler on first online run.
-const SHELL = ['/app', '/css/app.css', '/js/app.js'];
+const SHELL = ['/app', '/css/app.css', '/js/app.js', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
