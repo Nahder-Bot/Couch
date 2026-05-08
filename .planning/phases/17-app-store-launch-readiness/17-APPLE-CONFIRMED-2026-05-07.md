@@ -80,19 +80,42 @@ Expect: 200 with `Content-Type: application/json` (Firebase Hosting serves it; t
 
 These are blocked on you (per safety rules, I can't enter SSN/banking/agreements):
 
-1. **Paid Applications Agreement** — App Store Connect → Business → accept the agreement. Required for ALL submissions, even free apps.
-2. **W-9 / W-8BEN tax form** — same Business tab. Requires SSN + signature.
-3. **Banking info** — same Business tab. Routing + account numbers (needed even for free apps because Apple wants the rails ready).
-4. **Contact info** — Financial / Legal / Technical contacts. Can all be you.
+1. ✅ **Paid Applications Agreement** — Active (May 7, 2026)
+2. ✅ **W-9 tax form** — Active (May 7, 2026)
+3. ✅ **Banking info** — Wilmington Savings Fund Society FSB (7786) Active
+4. **Contact info** — Apple may have auto-set; verify in Business tab if needed
 
-After those four, I can autonomously continue with:
-- App Information section (paste from `17-APP-STORE-CONNECT-PREP.md`)
-- App Privacy / Privacy Nutrition Labels (paste from `17-APP-STORE-CONNECT-PREP.md` §4)
-- Promotional Text, Description, Keywords (paste from `17-APP-STORE-CONNECT-PREP.md` §3)
-- Pricing and Availability (Free, all countries)
-- Notes for App Reviewer (paste §5)
-- App Privacy Policy URL: https://couchtonight.app/privacy.html
-- Support URL: https://couchtonight.app/support.html
+## Autonomous Apple-side fills completed this session (2026-05-07)
+
+After agreements + W-9 + banking landed, Claude autonomously filled:
+
+- ✅ **App Information**: Name "Couch Tonight", Subtitle "Pick what to watch tonight", Bundle ID locked, SKU set, Primary Lang en-US
+- ✅ **Categories**: Primary = Entertainment, Secondary = Lifestyle
+- ✅ **Content Rights**: "No, app does not contain third-party content"
+- ✅ **Age Ratings**: 4+ for 173 countries (A12 Brazil, ALL Korea Republic of)
+- ✅ **Pricing**: Free, base US (USD), 175 countries auto-set to $0.00
+- ✅ **App Availability**: All 175 countries available on app release
+- ✅ **Privacy Policy URL**: https://couchtonight.app/privacy.html
+- ✅ **Version 1.0 metadata**:
+  - Promotional Text: 91 chars (BRAND.md voice; updatable without resubmit)
+  - Description: ~2,820 chars (full restraint-voice description with §4.2 mitigation)
+  - Keywords: 98 chars (movie night, family, watch together, etc.)
+  - Support URL: https://couchtonight.app/support.html
+  - Marketing URL: https://couchtonight.app
+  - Copyright: 2026 Couch
+  - Version: 1.0
+
+## What still needs YOU (reasoning per item)
+
+| Item | Why blocked on you |
+|---|---|
+| **App Privacy Nutrition Labels** (the data-collection questionnaire) | Legally binding declarations; Apple checks against actual app behavior; one wrong answer can trigger removal. Use 17-APP-STORE-CONNECT-PREP.md §4 as the answer key — paste each answer after reviewing. ~20-30 min. |
+| **Reviewer demo account** | Need to create a real Couch user account for App Reviewers (`review-apple@couchtonight.app` or similar) and pre-populate a test family. Then paste the credentials into App Review Information. |
+| **Notes for App Reviewer** | Paste from `17-APP-STORE-CONNECT-PREP.md` §5. Wait until you've created the demo account so credentials are filled in. |
+| **Screenshots upload** | Phase 31 dependency. Phase 31 produces the source captures; `scripts/regenerate-store-screenshots.cjs` produces the App Store device matrix. |
+| **App Preview video** (optional) | Phase 17 work — record a 15-30s walkthrough of the spin/watchparty/pick'em flow. |
+| **Xcode build → Archive → Upload** | macOS required. Open `Couch Tonight.zip` from `~/Downloads/`, work the Wave 1 cleanup checklist in `17-PWABUILDER-FINDINGS-2026-05-07.md`, then Archive + upload to TestFlight. |
+| **"Add for Review" submission** | Final step after all of the above. 
 
 ## Phase 17 D-decision updates
 
