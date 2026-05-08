@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-07",
+  "phase": "17",
+  "phase_name": "app-store-launch-readiness",
+  "phase_dir": ".planning/phases/17-app-store-launch-readiness",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"name": "Apple Developer Program enrollment + activation", "status": "done"},
+    {"name": "Bundle ID app.couchtonight.couch registered with capabilities (Push, Sign In with Apple, Associated Domains)", "status": "done", "commit": "c38e0ea"},
+    {"name": "App Store Connect record created (Apple App ID 6767413821, name 'Couch Tonight' reserved)", "status": "done"},
+    {"name": "Free Apps + Paid Apps Agreement, W-9, Banking", "status": "done"},
+    {"name": "App Information filled (Name, Subtitle, Categories Entertainment+Lifestyle, Content Rights)", "status": "done", "commit": "0abe94f"},
+    {"name": "Age Ratings (4+ for 173 countries)", "status": "done"},
+    {"name": "Pricing (Free, all 175 countries)", "status": "done"},
+    {"name": "App Availability (all 175 countries)", "status": "done"},
+    {"name": "Privacy Policy URL set", "status": "done"},
+    {"name": "Version 1.0 metadata (Promo Text, Description 2820ch, Keywords 98ch, Support URL, Marketing URL, Copyright)", "status": "done"},
+    {"name": "Production: privacy.html / terms.html / support.html / manifest.json / .well-known/assetlinks.json + apple-app-site-association — all live", "status": "done"},
+    {"name": "9 Phase 17 supplemental docs authored (~2000 lines)", "status": "done"},
+    {"name": "PWABuilder iOS + Android packages downloaded + inspected (4 production bugs caught + fixed)", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"name": "App Privacy Nutrition Labels questionnaire (~14 categories, legally binding)", "status": "not_started", "blocker": "needs human review per category"},
+    {"name": "Reviewer demo account creation (review-apple@couchtonight.app)", "status": "not_started"},
+    {"name": "Notes for App Reviewer paste-in", "status": "not_started"},
+    {"name": "Screenshots upload (Phase 31 dependency)", "status": "blocked"},
+    {"name": "Xcode build → Archive → TestFlight upload", "status": "blocked", "blocker": "needs macOS"},
+    {"name": "Android device verification for Google Play enrollment", "status": "blocked", "blocker": "Bark Phone Device Owner blocks; need unmanaged Android"},
+    {"name": "DNS forwarding for support@/security@/dmca@couchtonight.app", "status": "not_started"},
+    {"name": "Backup signing.keystore to 1Password", "status": "not_started"},
+    {"name": "Final Bundle ID lock at /gsd-discuss-phase 17 (already locked: app.couchtonight.couch)", "status": "done"}
+  ],
+  "blockers": [
+    {"description": "Privacy Nutrition Labels need human review (legally binding)", "type": "human_action", "workaround": "Use 17-APP-STORE-CONNECT-PREP.md §4 as paste-ready answer key"},
+    {"description": "Google Play device verification blocked on Bark Phone Device Owner API", "type": "human_action", "workaround": "Borrow unmanaged Android phone OR Samsung Guest Mode OR buy used Pixel"},
+    {"description": "Xcode work blocked on macOS access", "type": "external", "workaround": "Cloud-Xcode service or borrow Mac"},
+    {"description": "Screenshots blocked on Phase 31 execution", "type": "technical", "workaround": "Phase 31 plans 01-05 already drafted, awaiting execute go-ahead"}
+  ],
+  "human_actions_pending": [
+    {"action": "Fill App Privacy Nutrition Labels", "context": "App Store Connect → App Privacy → Get Started; ~14 categories with sub-questions; prep doc has all answers", "blocking": true},
+    {"action": "Create review-apple@couchtonight.app demo Couch account with pre-populated test family", "context": "App Reviewer needs to log in", "blocking": true},
+    {"action": "Sort Android device for Google Play verification", "context": "Bark Phone won't work; prep doc lists alternatives", "blocking": true},
+    {"action": "Backup Android signing.keystore to 1Password", "context": "From ~/Downloads/Couch - Google Play package.zip; losing it = lose Play update continuity", "blocking": false},
+    {"action": "DNS email forwarding for support@/security@/dmca@couchtonight.app", "context": "Privacy/terms reference these; Cloudflare email routing simplest path", "blocking": false},
+    {"action": "Legal review of privacy.html + terms.html", "context": "Drafts are professional but launch-grade legal eyes recommended pre-Production", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Bundle ID: app.couchtonight.couch", "rationale": "Conventional reverse-DNS; reserves namespace for siblings; permanent post-publish", "phase": "17"},
+    {"decision": "App Store name: Couch Tonight", "rationale": "Per CONTEXT D-03; ASO collision with furniture apps argues for longer string", "phase": "17"},
+    {"decision": "Categories: Entertainment + Lifestyle", "rationale": "Primary entertainment (movie/TV decision app), secondary lifestyle (household coordination)", "phase": "17"},
+    {"decision": "Age Rating: 4+ in 173 countries", "rationale": "Calculated from honest answers (UGC + chat YES, all mature/violence/sexual NONE, Pick'em as INFREQUENT contest)", "phase": "17"},
+    {"decision": "Pricing: Free worldwide", "rationale": "Per CONTEXT; no IAP, no subscriptions; matches privacy.html trust line 'no ads, no paywalls'", "phase": "17"},
+    {"decision": "Stopped before App Privacy Nutrition Labels", "rationale": "Legally binding declarations Apple checks against actual app behavior; one wrong answer can trigger removal; user should review each", "phase": "17"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Open App Store Connect → App Privacy → Get Started. Fill the Nutrition Labels using 17-APP-STORE-CONNECT-PREP.md §4 as the paste-ready answer key. Each category needs YES/NO + (if YES) Linked-to-user / Tracking / Purposes. Review each answer before proceeding to the next.",
+  "context_notes": "16 commits this session on hotfix/phase-30-cross-cutting-wave. Apple side ~80% complete. Key locked values: Apple Team ID 49R296FJGF, Bundle ID app.couchtonight.couch (permanent), Apple App ID 6767413821 (internal), App Store name 'Couch Tonight' (reserved). Production HTML pages live (privacy/terms/support); manifest extracted; assetlinks + AASA deployed. PWABuilder dry-run packages in ~/Downloads/. Android side blocked on physical device for Google verification."
+}
