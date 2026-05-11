@@ -21,7 +21,7 @@
       <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
     </radialGradient>
 
-    <!-- Brand gradient - matches --brand-grad in css/landing.css:15 -->
+    <!-- Brand gradient - matches brand-grad token in css/landing.css:15 -->
     <linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%"   stop-color="#e8a04a" />
       <stop offset="50%"  stop-color="#d97757" />
@@ -58,7 +58,7 @@
          preserveAspectRatio="xMinYMin meet" />
 
   <!-- Layer 6: Hero text - clause 1 "Decide what to watch in 30 seconds."
-       Fraunces 800 / 64px / --ink color. -->
+       Fraunces 800 / 64px / ink color (#f5ede0). -->
   <text x="120" y="345"
         font-family="'Fraunces','Times New Roman',serif"
         font-weight="800" font-size="64"
@@ -67,7 +67,7 @@
   </text>
 
   <!-- Layer 7: Hero text - clause 2 "Watch together."
-       Instrument Serif italic / 56px / --accent color (warm amber for emphasis).
+       Instrument Serif italic / 56px / accent color #e8a04a (warm amber for emphasis).
        Per BRAND.md section 3: separate visual section from clause 1 -> Fraunces+Instrument-Serif mix is allowed. -->
   <text x="120" y="420"
         font-family="'Instrument Serif','Times New Roman',serif"
@@ -76,7 +76,7 @@
     Watch together.
   </text>
 
-  <!-- Layer 8: Footer URL - Inter 500 / 22px / --ink-warm color, lower-right.
+  <!-- Layer 8: Footer URL - Inter 500 / 22px / ink-warm color #c9bca8, lower-right.
        BRAND.md section 6: restraint-first; URL acts as visual anchor without shouting. -->
   <text x="1080" y="585"
         font-family="'Inter','Helvetica Neue',sans-serif"
