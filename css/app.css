@@ -2316,6 +2316,10 @@ input.field-invalid{border-color:var(--bad)}
 .provider-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 18px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; cursor: pointer; transition: opacity var(--t-quick); }
 .provider-btn:active { transform: scale(0.99); opacity: 0.85; }
 .provider-google { background: #fff; color: #1f1f1f; border-color: #ddd; }
+/* Phase 17 / launch-checklist #36: Apple HIG — Sign in with Apple button is black with
+   white text (or vice versa). Black variant chosen so it anchors as primary auth on the
+   warm-dark Couch palette without competing with the brand accent. */
+.provider-apple { background: #000; color: #fff; border-color: #000; }
 .provider-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
 .signin-more { background: var(--surface); border: 1px solid var(--border-mid); border-radius: 10px; padding: 12px 16px; margin-top: 8px; }
 .signin-more summary { cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-warm); user-select: none; list-style: none; }

@@ -3316,8 +3316,12 @@ window.backToModePick = function() {
 };
 
 // ===== Phase 5: Sign-in screen handlers =====
-// Apple (handleSigninApple) intentionally omitted — deferred to Phase 9.
-// See .planning/seeds/phase-09-apple-signin.md and 05-06-SUMMARY.md.
+// Phase 17 / launch-checklist #36: handleSigninApple wired for App Store §4.8 compliance.
+// signInWithApple lives in js/auth.js (already exported); this surfaces it on the sign-in
+// screen with a button placed ABOVE Google per Apple HIG (Sign in with Apple is positioned
+// as primary when offered alongside other social providers). Xcode-side requirement: the
+// generated app's Signing & Capabilities tab must have "Sign in with Apple" capability
+// added before TestFlight upload.
 
 // G-P0-1 — Sanitize Firebase Auth SDK errors before they hit a toast.
 // Raw SDK strings like "RecaptchaVerifier must bind to a CLICKABLE element"
@@ -3348,6 +3352,11 @@ function authErrorToast(e, fallback) {
 window.handleSigninGoogle = async function() {
   try { haptic('light'); await signInWithGoogle(); /* redirect takes over */ }
   catch(e) { console.error('[signin][google]', e); authErrorToast(e, "Couldn't start Google sign-in. Try again?"); }
+};
+
+window.handleSigninApple = async function() {
+  try { haptic('light'); await signInWithApple(); /* redirect takes over */ }
+  catch(e) { console.error('[signin][apple]', e); authErrorToast(e, "Couldn't start Apple sign-in. Try again?"); }
 };
 
 window.handleSigninEmail = async function() {
