@@ -221,11 +221,26 @@ Hi App Reviewer — thanks for reviewing Couch.
 WHAT THE APP IS
 Couch is a coordination tool for households deciding what to watch together. It is NOT a streaming service. The user picks what to watch (using votes, mood filters, decision-helper tools) and the actual watching happens in their existing apps (Netflix, Hulu, Max, etc.).
 
-DEMO ACCOUNT
+DEMO ACCOUNT (passwordless email-link)
 Email: review-apple@couchtonight.app
-Password: [SET AT SUBMISSION TIME]
 
-This account is pre-loaded into a test family with 3 members and 8 sample titles. You'll land on the Tonight screen.
+Couch uses passwordless authentication — there is no static password. Sign-in flow:
+1. Open the app, tap "Sign in with Email"
+2. Enter: review-apple@couchtonight.app
+3. A one-time sign-in link is sent to that inbox
+4. The inbox is forwarded to the developer; the link is relayed to App Review within minutes during business hours (US Eastern)
+
+If you'd prefer a different sign-in path (Google or phone), please reach out at the support email below and we'll provision one.
+
+FIRST-RUN SETUP (~2 minutes)
+
+This account starts fresh so you can experience real onboarding. After signing in:
+1. You'll be asked to create or join a "couch" — pick "Family" as the type
+2. Enter any family code you like (e.g. APLREVIEW) — that creates a new household
+3. Tap the Add tab in the bottom nav and add 3-4 titles you'd want to watch (e.g. "Inception", "The Office", "Stranger Things"). Search any title and tap "Add to library"
+4. Return to the Tonight tab — you can now vote on titles, hit "Spin" to pick one, and exercise the rest of the flows below
+
+We're happy to provision a pre-populated demo family on request — please reach out at the support email below if you'd prefer that.
 
 FIVE-MINUTE WALKTHROUGH
 
@@ -236,8 +251,8 @@ FIVE-MINUTE WALKTHROUGH
 
 2. WATCHPARTY (coordination)
    - Tap a title → Schedule watchparty
-   - Set a start time, send the invite
-   - Demo family members will auto-RSVP within ~30 seconds (this is a test family; real users RSVP themselves)
+   - Set a start time and confirm
+   - This account is the only member of the test family, so the RSVP / multi-device experience needs a second device to see end-to-end (open the same family code on a second sign-in to test). The single-device flow demonstrates scheduling, sharing, and the live coordination surface.
 
 3. PICK'EM (sports prediction)
    - Tap the Sports tab
@@ -276,9 +291,21 @@ If anything is unclear, please reach out at review-apple@couchtonight.app and I'
 ```
 
 ### Demo Account
-- **Username:** `review-apple@couchtonight.app`
-- **Password:** [generate at submission, store in 1Password]
-- **Setup:** create the account on production via the Couch sign-in flow, then pre-populate it with a sample family by joining a test family (use the Account → Join family flow with a code you reserve). Reviewer will see a populated experience, not an empty new-user state.
+
+**Auth model:** Couch is passwordless (Google + Email-Link + Phone). For App Review we use Email-Link with a forwarded inbox.
+
+**Pre-requisite (one-time):** Namecheap email forwarding for `couchtonight.app` must be active so `review-apple@couchtonight.app` forwards to a real inbox the developer monitors. Same setup also unblocks `support@`, `security@`, `dmca@` — see Wave 0.5 #22 in `17-LAUNCH-CHECKLIST.md`.
+
+> **DNS reality check (2026-05-08):** couchtonight.app's authoritative nameservers are at Namecheap (`dns1.registrar-servers.com` / `dns2.registrar-servers.com`); MX records already point to Namecheap's forwarding cluster (`eforward1-5.registrar-servers.com`). Cloudflare appears in the dashboard but shows "Invalid nameservers" because nameservers were never switched to Cloudflare — it's dormant and harmless. Namecheap is the right vendor for adding email forwards; Cloudflare email routing only works on domains where Cloudflare is authoritative DNS.
+
+**Setup steps (run before submission):**
+1. Set up **Namecheap** email forwarding → custom address `review-apple@couchtonight.app` → forward to your real inbox. ✅ DONE 2026-05-08 (review-apple/support/security/dmca all forwarding to nahderz@gmail.com; verified by test email landing in ~5 sec).
+2. (Optional) Sign in fresh as `review-apple@couchtonight.app` via Email-Link to confirm the magic-link flow works end-to-end. The reviewer will use the same flow during review.
+3. Done — the Notes-for-Reviewer block above is now self-contained. The reviewer creates their own family during onboarding.
+
+**Why no pre-populated family:** earlier attempts to set up a "REVIEWAPPLE" demo family hit (a) collision with an existing same-named family owned by another account, (b) silent failures on the Add-a-kid sub-profile flow stemming from a missing `/users/{uid}/groups/{familyCode}` index doc that the join CF didn't write reliably. Rather than ship a fragile demo, the Notes-for-Reviewer block now guides the reviewer through a 2-minute first-run setup that demonstrates the same surfaces. Apple's reviewers regularly self-onboard during review and this approach is well within the norm.
+
+**Optional follow-up if you want a pre-populated family later:** sign in to Couch as your normal account, create a fresh family with a guaranteed-unique code (e.g. include current year/month), add 3-5 titles, schedule one watchparty, then update the Notes block above to include the family code under the DEMO ACCOUNT line.
 
 ### Contact Info for Apple
 - **First Name:** Nahder
