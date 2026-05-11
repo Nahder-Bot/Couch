@@ -77,21 +77,20 @@ If at any future point Couch adds camera/photo-capture/location features, add th
  </array>
 ```
 
-## 6. Replace stub GoogleService-Info.plist
+## 6. Replace stub GoogleService-Info.plist — ✅ DOWNLOADED 2026-05-11
 
-**Current state:** the generated file is a placeholder (BUNDLE_ID `com.microsoft.pwabuilder-ios`, all-zeros API keys). Firebase Auth + Cloud Messaging will silently fail without a real one.
+**Current state:** the PWABuilder-bundled file is a placeholder (BUNDLE_ID `com.microsoft.pwabuilder-ios`, all-zeros API keys). Firebase Auth + Cloud Messaging will silently fail without a real one.
 
-**Steps:**
-1. Open https://console.firebase.google.com/project/queuenight-84044/settings/general
-2. Scroll to "Your apps" section
-3. If no iOS app is listed yet → click "Add app" → choose iOS → enter:
-   - **Apple bundle ID:** `app.couchtonight.couch` (must match §1 above exactly)
-   - **App nickname:** `Couch Tonight iOS`
-   - **App Store ID:** `6767413821` (from `17-APPLE-CONFIRMED-2026-05-07.md`)
-4. Click Register app
-5. Download `GoogleService-Info.plist` from the next screen
-6. **In Xcode:** drag the downloaded file into the Project navigator at `Couch Tonight/GoogleService-Info.plist` (replacing the stub) — when the dialog appears, check "Copy items if needed" and add to the Couch Tonight target
-7. Skip the rest of Firebase's iOS SDK setup wizard (PWABuilder's wrapper doesn't use the iOS Firebase SDK directly — Firebase runs in the WKWebView via the existing js/firebase.js). The `GoogleService-Info.plist` is just for APNs/FCM token registration at the native layer.
+**Done autonomously 2026-05-11:**
+- Firebase iOS app registered: nickname `Couch Tonight iOS`, bundle ID `app.couchtonight.couch`, App ID `1:928451125383:ios:4ce434c2037bb93a1c1822`
+- Real `GoogleService-Info.plist` downloaded via `firebase apps:sdkconfig` and saved to:
+  - **`.planning/phases/17-app-store-launch-readiness/GoogleService-Info.plist`**
+
+**Step you do:**
+- In Xcode → Project navigator → drag the file from the path above into the project at `Couch Tonight/GoogleService-Info.plist` (replacing the stub) — when the dialog appears, check **Copy items if needed** and add to the Couch Tonight target.
+- Skip the rest of Firebase's iOS SDK setup wizard (PWABuilder's wrapper doesn't use the iOS Firebase SDK directly — Firebase runs in the WKWebView via the existing js/firebase.js). The plist is just for APNs/FCM token registration at the native layer.
+
+**Optional follow-up:** later, link this Firebase iOS app to the App Store Connect entry by setting App Store ID `6767413821` in Firebase Console → Project Settings → Your apps → Couch Tonight iOS → App Store ID field. Not required for TestFlight upload.
 
 ## 7. Sign in with Apple capability (gates submission)
 

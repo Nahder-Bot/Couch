@@ -83,7 +83,7 @@ Per `17-PWABUILDER-FINDINGS-2026-05-07.md` Wave 1 cleanup checklist:
 
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
-| 26 | Replace stub `GoogleService-Info.plist` with real Firebase iOS config | ⬜ | 👤 | Download from console.firebase.google.com/project/queuenight-84044/settings/general → Add iOS app |
+| 26 | Replace stub `GoogleService-Info.plist` with real Firebase iOS config | 🟡 | 👤+🤖 | Done autonomously 2026-05-11: Firebase iOS app registered (App ID `1:928451125383:ios:4ce434c2037bb93a1c1822`, bundle `app.couchtonight.couch`); real plist downloaded to `.planning/phases/17-app-store-launch-readiness/GoogleService-Info.plist`. **User step**: drag into Xcode at `Couch Tonight/GoogleService-Info.plist` per `17-XCODE-PATCHES-2026-05-11.md` §6. |
 | 27 | Set `CFBundleIdentifier` to final locked value | ⬜ | 👤 | After #24 lock |
 | 28 | Change `LSApplicationCategoryType` → `public.app-category.entertainment` | ⬜ | 👤 | Was `public.app-category.productivity` — wrong category |
 | 29 | Remove `NSAllowsArbitraryLoads: true` (ATS disabled) | ⬜ | 👤 | App Review may flag; couchtonight.app is HTTPS-only anyway |
