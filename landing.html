@@ -160,6 +160,29 @@
     <p>Five people, three streaming services, two opinions on tone, one person already half-asleep. "What do you want to watch?" isn't a preference question — it's a coordination puzzle. Couch gives it two answers: <strong>vote together</strong> when nobody's decided, or <strong>drop a pick</strong> when one person already has one. Either way, tonight gets decided in 30 seconds, not 30 minutes.</p>
   </section>
 
+  <section class="compare">
+    <p class="compare-eyebrow">Why not the other things?</p>
+    <h2>Couch isn't the first app for movie night. Here's the difference.</h2>
+    <div class="compare-grid">
+      <div class="compare-block">
+        <h3>Why not JustWatch or Reelgood?</h3>
+        <p>They tell you where to stream. We help everyone agree on <em>what</em>.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Letterboxd or Trakt?</h3>
+        <p>They're solo cinephile journals. Couch is built for the people watching with you tonight.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Teleparty, Scener, or Plex?</h3>
+        <p>They sync your screen with friends. Couch handles deciding, watching, <em>and</em> remembering — without making everyone install a Chrome extension.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Apple SharePlay, FaceTime, or Microsoft Teams Together?</h3>
+        <p>They're built into one ecosystem (Apple's, Microsoft's). Couch works across iPhone, Android, and the browser. No one's locked out because they're on the wrong device.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="paths" id="how">
     <h2>Two ways to couch</h2>
     <div class="paths-grid">
@@ -185,6 +208,28 @@
     <p class="paths-footnote">Both paths land the same place: everyone on the couch at the same time, watching the same thing.</p>
   </section>
 
+  <section class="features">
+    <h2>What's actually in it</h2>
+    <div class="feature-list">
+      <div class="feature-block">
+        <h3>Wait Up — watch together when you can't be in the same room</h3>
+        <p>Reactions land at the same moment in the show, even if one of you started 90 minutes late. Or yesterday.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Couch Groups — bring another family in</h3>
+        <p>Multi-family watchparties without a group chat. Cousins three states away can join your Sunday-night Severance ritual.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Pick up where you left off</h3>
+        <p>We track every "watching group" — Mom and the eldest watch Severance, both parents watch Lupin. The home screen tells you which couch left off where.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Pick'em on the big games</h3>
+        <p>Pick winners across NFL, NBA, MLB, NHL, soccer leagues, and F1. Live scores. Reaction-amplified scoring plays. Friend leaderboard.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="audience">
     <h2>Who it's for</h2>
     <div class="audience-grid">
@@ -202,6 +247,40 @@
       <figure class="screenshot-card"><img src="/marketing/mood-filter.png" alt="Mood filter active: cozy mood narrowing the poster row to matching titles" loading="lazy" width="1170" height="2532"><figcaption>Mood filter</figcaption></figure>
       <figure class="screenshot-card"><img src="/marketing/title-detail.png" alt="Title detail: poster, runtime, genres, mood pills, vote grid, trailer card" loading="lazy" width="1170" height="2532"><figcaption>Title detail</figcaption></figure>
       <figure class="screenshot-card"><img src="/marketing/intent-rsvp.png" alt="Tonight-at-time intent: RSVP card with Yes/Maybe/No and member responses" loading="lazy" width="1170" height="2532"><figcaption>Tonight at time</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="faq">
+    <h2>FAQ</h2>
+    <div class="faq-list">
+      <details class="faq-item" data-faq-index="0">
+        <summary>Do I need to log in?</summary>
+        <p>Yes. Google or email-link or phone — pick one. Apple Sign-In is coming with the App Store launch.</p>
+      </details>
+      <details class="faq-item" data-faq-index="1">
+        <summary>Does Grandma need an account?</summary>
+        <p>No. Guest RSVP works without one — anyone with the invite link can RSVP and join.</p>
+      </details>
+      <details class="faq-item" data-faq-index="2">
+        <summary>Which streaming services do you support?</summary>
+        <p>All major ones. We pull metadata from TMDB and never link to pirate sources. You stream on whichever service you already pay for.</p>
+      </details>
+      <details class="faq-item" data-faq-index="3">
+        <summary>Does it cost?</summary>
+        <p>Free. No ads, no paywalls, no subscription tiers.</p>
+      </details>
+      <details class="faq-item" data-faq-index="4">
+        <summary>What devices does it work on?</summary>
+        <p>Web today. iOS and Android home-screen install today. Native App Store apps coming.</p>
+      </details>
+      <details class="faq-item" data-faq-index="5">
+        <summary>What happens to my data?</summary>
+        <p>Stays in your family's Firestore doc. We don't sell it, share it, or mine it. <a href="/privacy.html">Read the privacy policy.</a></p>
+      </details>
+      <details class="faq-item" data-faq-index="6">
+        <summary>How is this different from Teleparty?</summary>
+        <p>Teleparty needs a Chrome extension and a paid streaming subscription on the same service for everyone on the call. Couch decides, syncs, and remembers — no extension, no shared subscription required.</p>
+      </details>
     </div>
   </section>
 
@@ -230,6 +309,29 @@
   </footer>
 
 </main>
+
+<script>
+// Phase 31 / D-27 — Sentry breadcrumb on FAQ open. Signals which questions
+// matter most so Phase 17 App Store description can order them by interest.
+// Defensive guard pattern (canonical across codebase — typeof !== 'undefined'
+// because Sentry CDN may fail to load in restricted environments / extensions).
+(function() {
+  var faqItems = document.querySelectorAll('.faq-item');
+  for (var i = 0; i < faqItems.length; i++) {
+    faqItems[i].addEventListener('toggle', function(e) {
+      if (!e.target.open) return; // only fire on open, not on close
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        var idx = parseInt(e.target.getAttribute('data-faq-index'), 10);
+        Sentry.addBreadcrumb({
+          category: 'marketing.faq',
+          message: 'opened',
+          data: { question_index: isNaN(idx) ? -1 : idx }
+        });
+      }
+    });
+  }
+})();
+</script>
 
 </body>
 </html>
