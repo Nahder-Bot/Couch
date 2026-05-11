@@ -26,9 +26,9 @@ Combines every TODO scattered across the supplemental docs into one ordered list
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
 | 1 | Apple Developer Program payment | ✅ | 👤 | $98.99 charged 2026-05-06 |
-| 2 | Apple identity verification | 🟡🔒 | 👤+Apple | Submitted; awaiting Apple. Check appstoreconnect.apple.com periodically. |
-| 3 | Apple ID name matches government photo ID | ⬜ | 👤 | Verify at appleid.apple.com if verification stalls |
-| 4 | App Store Connect dashboard accessible | 🔒 | Apple | Lights up when verification completes |
+| 2 | Apple identity verification | ✅ | 👤+Apple | Active per `17-APPLE-CONFIRMED-2026-05-07.md`; activation took <24h |
+| 3 | Apple ID name matches government photo ID | ✅ | 👤 | Implicit — verification cleared |
+| 4 | App Store Connect dashboard accessible | ✅ | Apple | Loaded 2026-05-07; Team ID `49R296FJGF` |
 
 ### Google side
 
@@ -68,9 +68,9 @@ Combines every TODO scattered across the supplemental docs into one ordered list
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
 | 21 | Backup Android signing.keystore + password to 1Password | ⬜ | 👤 | **CRITICAL.** From `~/Downloads/Couch - Google Play package.zip`. Lose this = lose Play Store update continuity. |
-| 22 | DNS forwarding for support@/security@/dmca@couchtonight.app | ⬜ | 👤 | Cloudflare email routing is cheapest. Required so privacy/terms/support emails actually reach you. |
+| 22 | DNS forwarding for support@/security@/dmca@/**review-apple@**couchtonight.app | ✅ | 👤+🤖 | Done 2026-05-08 via Namecheap email forwarding (NS = `dns{1,2}.registrar-servers.com`, MX = `eforward{1-5}.registrar-servers.com`). 4 forwards added in Namecheap UI; test email landed in nahderz@gmail.com within 5 sec. |
 | 23 | Legal review of privacy.html + terms.html (recommended) | ⬜ | 👤 | Drafts are professional but launch-grade legal eyes are wise |
-| 24 | Lock final Bundle ID at /gsd-discuss-phase 17 | ⬜ | 👤+🤖 | Currently `app.couchtonight` (PWABuilder dry-run). Permanent post-publish. |
+| 24 | Lock final Bundle ID at /gsd-discuss-phase 17 | ✅ | 👤+🤖 | Locked at `app.couchtonight.couch` per `17-APPLE-CONFIRMED-2026-05-07.md`. Permanent post-publish. |
 | 25 | Find a real unmanaged Android device for verification | ⬜🔒 | 👤 | Borrow / Samsung Guest Mode / used Pixel — see 17-DEVICE-VERIFICATION-FINDINGS-2026-05-07.md |
 
 ---
@@ -92,8 +92,8 @@ Per `17-PWABUILDER-FINDINGS-2026-05-07.md` Wave 1 cleanup checklist:
 | 32 | Wire Apple Sign-In capability (Signing & Capabilities → +Capability → Sign in with Apple) | ⬜ | 👤 | Phase 17 D-02. Required by §4.8. ~1 day. |
 | 33 | Configure code-signing — Xcode automatic signing per CONTEXT D-19 | ⬜ | 👤 | Pulls cert from your Apple Developer account |
 | 34 | Add `PrivacyInfo.xcprivacy` to Xcode project at `Couch Tonight/PrivacyInfo.xcprivacy` | ⬜ | 👤 | Already drafted; right-click "Couch Tonight" group → Add Files |
-| 35 | Author `apple-app-site-association` from template, deploy to `.well-known/` | ⬜ | 👤+🤖 | Strip `_comment_*` keys; fill Team ID + Bundle ID. Then `bash scripts/deploy.sh`. |
-| 36 | Wire Apple Sign-In in `js/firebase.js` — `OAuthProvider('apple.com')` + signin button above Google per Apple HIG | ⬜ | 👤+🤖 | Couch source-side change; can scaffold autonomously then user reviews |
+| 35 | Author `apple-app-site-association` from template, deploy to `.well-known/` | ✅ | 🤖 | Authored 2026-05-07 + deployed; Content-Type fixed to `application/json` via `firebase.json` headers rule (this session). Curl-verified at https://couchtonight.app/.well-known/apple-app-site-association. |
+| 36 | Wire Apple Sign-In in `js/firebase.js` — `OAuthProvider('apple.com')` + signin button above Google per Apple HIG | ✅ source-side | 🤖 | Done 2026-05-11 commit `46c7013`. `signInWithApple` was already in js/auth.js; this commit added: `<button id=signin-apple>` (above Google per HIG) in app.html with inline Apple-logo SVG, `handleSigninApple` in js/app.js mirroring Google handler with sanitized error toast, `.provider-apple` in css/app.css (black bg per HIG). **Still pending #32**: Xcode-side capability flip (Signing & Capabilities → +Capability → Sign in with Apple) before TestFlight upload — source wiring is inert until that lands. |
 
 ### Android — open Google Play Console after device verification (#6) complete
 
@@ -131,14 +131,14 @@ Per `17-PWABUILDER-FINDINGS-2026-05-07.md` Wave 1 cleanup checklist:
 
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
-| 53 | Create App record in App Store Connect | ⬜ | 👤 | `17-APP-STORE-CONNECT-PREP.md` §1 |
-| 54 | Reserve "Couch Tonight" name | ⬜ | 👤 | Names are first-come; do this immediately on activation |
-| 55 | Agree to Paid Apps Agreement (gates ALL submissions, even free) | ⬜ | 👤 | Tax forms (W-9 if US) + banking info |
-| 56 | Fill App Information — paste from `17-APP-STORE-CONNECT-PREP.md` §1 | ⬜ | 👤 | |
-| 57 | Fill App Store Listing — paste from §3 | ⬜ | 👤 | |
-| 58 | Fill App Privacy Nutrition Labels — answers in §4 | ⬜ | 👤 | Mirrors PrivacyInfo.xcprivacy |
-| 59 | Set up Reviewer demo account (`review-apple@couchtonight.app`) | ⬜ | 👤 | Pre-populate test family |
-| 60 | Paste Notes for Reviewer | ⬜ | 👤 | `17-APP-STORE-CONNECT-PREP.md` §5 includes §4.2 mitigation + Pick'em §5.3.4 analysis + 5-min walkthrough |
+| 53 | Create App record in App Store Connect | ✅ | 👤 | Apple App ID `6767413821`; SKU `COUCH-TONIGHT-IOS-001` (autonomous fill 2026-05-07) |
+| 54 | Reserve "Couch Tonight" name | ✅ | 👤 | Reserved 2026-05-07 |
+| 55 | Agree to Paid Apps Agreement (gates ALL submissions, even free) | ✅ | 👤 | Paid Apps + W-9 + banking (Wilmington Savings Fund Society FSB 7786) all Active 2026-05-07 |
+| 56 | Fill App Information — paste from `17-APP-STORE-CONNECT-PREP.md` §1 | ✅ | 👤+🤖 | Autonomous fill 2026-05-07: Name, Subtitle, Bundle ID, SKU, Categories (Entertainment + Lifestyle), Content Rights, Age Rating 4+ for 173 countries |
+| 57 | Fill App Store Listing — paste from §3 | ✅ | 👤+🤖 | Autonomous fill 2026-05-07: Promo Text, Description (~2,820 chars), Keywords, Support URL, Marketing URL, Copyright, Privacy Policy URL, Pricing (Free, 175 countries) |
+| 58 | Fill App Privacy Nutrition Labels — answers in §4 | ✅ | 👤 | Published 2026-05-08; 11 data types declared, all linked/not-linked + tracking=No verified this session. Minor under-claim: Name/Email/Phone/User ID list only `App Functionality` not also `Account Management`; conservative, not a blocker. |
+| 59 | Set up Reviewer demo account (`review-apple@couchtonight.app`) | ✅ (no prepop needed) | 👤 | Email forwarding done (#22). Pivoted away from pre-populating a demo family — Notes-for-Reviewer §5 now self-contained, reviewer creates own family during onboarding. Two earlier attempts (REVIEWAPPLE collision + CCHDEMO2026 join silent-fail) led to this pivot. (Optional follow-up: pre-populate later with a unique code; see §5 "Optional follow-up".) |
+| 60 | Paste Notes for Reviewer | ⬜ | 👤 | `17-APP-STORE-CONNECT-PREP.md` §5 (rewritten 2026-05-08 for passwordless email-link + reviewer-creates-own-family flow) includes §4.2 mitigation + Pick'em §5.3.4 analysis + 5-min walkthrough + 2-min first-run setup guide |
 | 61 | Xcode → Archive → Validate → Upload to TestFlight | ⬜ | 👤 | First TestFlight build from Xcode after Wave 1 cleanup |
 | 62 | TestFlight beta — 5-7 day minimum | ⬜ | 👤 | Per CONTEXT D-20 |
 | 63 | Submit for App Review | ⬜ | 👤 | Phased Release enabled per CONTEXT D-24 |
