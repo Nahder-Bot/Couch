@@ -490,7 +490,7 @@ h3{font-size:var(--t-h3)}
 .modal{background:var(--surface);border-radius:24px 24px 0 0;
   border-top:1px solid var(--border-strong);
   padding:var(--s5) var(--s5) var(--s6);width:100%;max-width:480px;max-height:85vh;
-  overflow-y:auto;
+  overflow-y:auto;position:relative;
   box-shadow:0 -24px 80px rgba(0,0,0,0.65),0 0 0 1px rgba(232,160,74,0.04);
   animation:modal-slide-up var(--t-cinema) var(--var(--ease-out)-cinema)}
 .modal h3{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;
@@ -524,6 +524,48 @@ h3{font-size:var(--t-h3)}
   transition:box-shadow var(--t-base),transform var(--t-quick)}
 .modal-close:hover{box-shadow:0 6px 20px rgba(232,160,74,0.35),inset 0 1px 0 rgba(255,255,255,0.2)}
 .modal-close:active{transform:scale(0.98)}
+
+/* === 17-NAV-02: modal close X button (distinct from .modal-close primary action) === */
+/* Touch target 44x44px per iOS HIG / WCAG 2.5.5. Uses existing tokens only (D-21). */
+.modal-x-btn{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:44px;
+  height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:transparent;
+  color:var(--ink-dim);
+  border:0;
+  border-radius:50%;
+  cursor:pointer;
+  transition:color 200ms ease,background 200ms ease;
+  z-index:1;
+  flex-shrink:0;
+}
+.modal-x-btn:hover,.modal-x-btn:focus-visible{
+  color:var(--ink);
+  background:var(--surface);
+}
+/* Back arrow button for drill-down screens (Pattern B from 17-NAV plan) */
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:0.4em;
+  color:var(--ink-dim);
+  background:transparent;
+  border:0;
+  font:inherit;
+  font-size:15px;
+  padding:8px 12px 8px 4px;
+  margin:4px 0 12px;
+  cursor:pointer;
+}
+.back-link:hover,.back-link:focus-visible{
+  color:var(--ink);
+}
 
 /* Setting cards (used inside Account modals) */
 .setting-card{background:var(--surface);border-radius:var(--r-lg);

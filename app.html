@@ -146,6 +146,7 @@
     <button id="invite-redeem-submit" onclick="submitGuestRedeem()">Join the couch</button>
     <p class="fine-print">Guest access expires <span id="invite-expires-label">in 7 days</span>. You can vote, react, and join watchparties.</p>
   </div>
+  <button class="alt" data-action="back" aria-label="Back" onclick="showPreAuthScreen('signin-screen')" style="margin-top:16px;">Sign in instead</button>
 </section>
 
 <section id="invite-expired-screen" class="wrap has-leather" style="display:none;">
@@ -155,6 +156,7 @@
   <p class="page-title">This invite has expired</p>
   <p class="page-sub">Ask the family owner for a new invite link.</p>
   <p class="fine-print">Invites are time-limited for security. Your host can mint a fresh one from their Account settings.</p>
+  <button class="alt" data-action="back" aria-label="Back" onclick="showPreAuthScreen('signin-screen')">Sign in instead</button>
 </section>
 
 <section id="signin-screen" class="wrap" style="display:none;">
@@ -841,6 +843,7 @@
   <!-- Phase 11 / REFR-12: Leave-family confirmation modal (two-tap destructive per UI-SPEC §Destructive actions) -->
   <div class="modal-bg" id="leave-family-confirm-bg" role="dialog" aria-modal="true" aria-label="Leave this group" onclick="if(event.target.id==='leave-family-confirm-bg')closeLeaveFamilyConfirm()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeLeaveFamilyConfirm()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Leave this group?</h3>
       <p class="meta">You'll lose access to this couch on this device. Your votes and reactions stay with the group. You can rejoin with the code.</p>
       <div class="modal-actions-row">
@@ -853,6 +856,7 @@
   <!-- Phase 13 / COMP-13-01: Delete-account typed-DELETE confirmation modal -->
   <div class="modal-bg" id="delete-account-modal-bg" role="dialog" aria-modal="true" aria-label="Delete account confirmation" onclick="if(event.target.id==='delete-account-modal-bg')closeDeleteAccountModal()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeDeleteAccountModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Delete your Couch account?</h3>
       <p class="meta">This permanently deletes your account, your votes, your reactions, your watchparty history, and any photos you uploaded. <strong>You have 14 days to undo this. After that, it cannot be reversed.</strong> Other members' data is unaffected.</p>
       <p class="meta">Type <strong>DELETE</strong> in capitals to confirm:</p>
@@ -868,6 +872,7 @@
   <!-- Phase 13 / COMP-13-01: Owner-of-family blocker modal (Pitfall 1 surface) -->
   <div class="modal-bg" id="delete-account-blocker-bg" role="dialog" aria-modal="true" aria-label="Transfer ownership before deleting account" onclick="if(event.target.id==='delete-account-blocker-bg')closeDeleteAccountBlocker()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeDeleteAccountBlocker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Transfer ownership first</h3>
       <p class="meta">You own one or more families. Before you can delete your account, transfer ownership of each so the family can keep going without you.</p>
       <ul id="delete-account-blocker-list" class="meta"></ul>
@@ -891,6 +896,7 @@
 
   <div class="modal-bg" id="picker-sheet-bg" role="dialog" aria-modal="true" aria-label="Who's picking" onclick="if(event.target.id==='picker-sheet-bg')closePickerSheet()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closePickerSheet()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="modal-h2">Who's picking?</h3>
       <div class="meta modal-sub-rhythm" id="picker-sheet-sub">Rotate who decides, so everyone gets a turn on the couch.</div>
       <div id="picker-rotation-list" class="modal-sub-rhythm"></div>
@@ -908,6 +914,7 @@
 
   <div class="modal-bg" id="progress-sheet-bg" role="dialog" aria-modal="true" aria-labelledby="progress-sheet-title" onclick="if(event.target.id==='progress-sheet-bg')closeProgressSheet()">
     <div class="modal progress-sheet">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeProgressSheet()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="progress-sheet-title" id="progress-sheet-title">Show title</h3>
       <div class="progress-sheet-sub" id="progress-sheet-sub"></div>
       <div class="progress-stepper-row">
@@ -939,6 +946,7 @@
 
   <div class="modal-bg" id="group-switcher-bg" role="dialog" aria-modal="true" aria-label="Group switcher" onclick="if(event.target.id==='group-switcher-bg')closeGroupSwitcher()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeGroupSwitcher()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="modal-h2">Your groups</h3>
       <div class="meta modal-sub-rhythm">Switch between family, crew, and duo.</div>
       <div id="group-switcher-list"></div>
@@ -961,6 +969,7 @@
 
   <div class="modal-bg" id="manual-modal-bg" role="dialog" aria-modal="true" aria-label="Add a title">
     <div class="modal manual-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeManualAdd()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Add a title</h3>
       <div class="meta">No search needed. Add anything your family wants to watch.</div>
       <div class="field"><label>Title</label><input type="text" id="manual-title" placeholder="e.g. Home movies from 2019"></div>
@@ -979,6 +988,7 @@
 
   <div class="modal-bg" id="comments-modal-bg" role="dialog" aria-modal="true" aria-labelledby="comments-modal-title">
     <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeCommentsModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="comments-modal-title"></h3>
       <div class="meta">Comments (no notifications sent)</div>
       <div class="comment-list" id="comment-list"></div>
@@ -992,6 +1002,7 @@
 
   <div class="modal-bg" id="schedule-modal-bg" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
     <div class="modal schedule-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeScheduleModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="schedule-modal-title"></h3>
       <div class="meta">Pick a date and time, then add to your calendar.</div>
       <div class="schedule-quick">
@@ -1013,6 +1024,7 @@
        Open via openWaitUpPicker() from movie-mode Custom… chip; close via Cancel, backdrop tap, or Set wait commit. -->
   <div class="modal-bg" id="wait-up-picker-bg" role="dialog" aria-modal="true" aria-labelledby="wait-up-picker-title" onclick="if(event.target.id==='wait-up-picker-bg')closeWaitUpPicker()">
     <div class="modal wait-up-picker-modal" id="wait-up-picker-content" role="dialog" aria-labelledby="wait-up-picker-title" aria-modal="true">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWaitUpPicker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="wait-up-picker-title" class="wait-up-picker-h">How long should we wait up?</h3>
       <div class="wup-input-row">
         <div class="wup-field">
@@ -1087,6 +1099,7 @@
 
   <div class="modal-bg" id="svc-suggest-bg" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
     <div class="modal svc-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeServiceSuggest()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <div class="svc-suggest-icon" aria-hidden="true">📺</div>
       <h3 id="svc-suggest-title" class="svc-suggest-title"></h3>
       <p id="svc-suggest-body" class="svc-suggest-body"></p>
@@ -1112,6 +1125,7 @@
 
   <div class="modal-bg" id="review-modal-bg" role="dialog" aria-modal="true" aria-labelledby="review-modal-title">
     <div class="modal review-editor">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeReviewModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="review-modal-title"></h3>
       <div class="meta">Write a full review</div>
       <div class="modal-field-stack">
@@ -1126,6 +1140,7 @@
 
   <div class="modal-bg" id="veto-modal-bg" role="dialog" aria-modal="true" aria-label="Veto for tonight">
     <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeVetoModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Not tonight</h3>
       <div class="meta" id="veto-modal-meta">Pass on this one just for tonight. Everyone else will see it.</div>
       <div class="modal-field-stack">
@@ -1141,6 +1156,7 @@
 
   <div class="modal-bg" id="sports-picker-bg" role="dialog" aria-modal="true" aria-label="Pick a game" onclick="if(event.target.id==='sports-picker-bg')closeSportsPicker()">
     <div class="modal sports-picker-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeSportsPicker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="modal-h2">Pick a game</h3>
       <div class="meta modal-meta-sub">Upcoming and live, from the major leagues</div>
       <div class="sports-league-tabs" role="tablist" id="sports-league-tabs">
@@ -1176,6 +1192,7 @@
        badges on render. -->
   <div class="modal-bg" id="game-picker-modal-bg" role="dialog" aria-modal="true" aria-label="Tonight's game" onclick="if(event.target.id==='game-picker-modal-bg')closeGamePicker()">
     <div class="modal game-picker-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeGamePicker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="modal-h2">Tonight's game</h3>
       <div class="meta modal-meta-sub">Pick a live or upcoming game</div>
       <div class="game-picker-league-row" role="tablist">
@@ -1208,6 +1225,7 @@
 
   <div class="modal-bg" id="wp-start-modal-bg" role="dialog" aria-modal="true" aria-label="Start a watchparty">
     <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWatchpartyStart()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Start a watchparty</h3>
       <div class="meta" id="wp-start-meta">Everyone watches separately, reactions flow live</div>
       <div class="modal-field-stack">
@@ -1286,6 +1304,7 @@
        live footer → endMyWatchparty opens this modal before diary). -->
   <div class="modal-bg" id="wp-post-session-modal-bg" role="dialog" aria-modal="true" aria-label="Rate this watch" onclick="if(event.target.id==='wp-post-session-modal-bg')closePostSession()">
     <div class="modal wp-post-session-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closePostSession()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 class="modal-h2 wp-post-session-title"><em>That's a wrap.</em></h3>
       <div class="wp-post-session-sub" id="wp-post-session-sub"><em>How was the movie?</em></div>
       <div class="wp-rating-row" role="radiogroup" aria-label="Rate this watch">
@@ -1339,6 +1358,7 @@
 
   <div class="modal-bg" id="edit-modal-bg" role="dialog" aria-modal="true" aria-label="Edit title">
     <div class="modal edit-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeEditModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Edit title</h3>
       <div class="meta">Fix name, year or poster</div>
       <div class="modal-field-stack">
@@ -1364,6 +1384,7 @@
 
   <div class="modal-bg" id="diary-modal-bg" role="dialog" aria-modal="true" aria-labelledby="diary-modal-title">
     <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeDiaryModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="diary-modal-title"></h3>
       <div class="meta">Log a watch date</div>
       <div class="modal-field-stack">
@@ -1392,6 +1413,7 @@
 
   <div class="modal-bg" id="share-modal-bg" role="dialog" aria-modal="true" aria-label="Share review">
     <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeShareModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Share review</h3>
       <div class="meta">Copy or share with any app</div>
       <div class="share-preview" id="share-preview"></div>
@@ -1410,6 +1432,7 @@
   <!-- Sub-profile create modal (D-01) — opened from Account → Kids & sub-profiles -->
   <div class="modal-bg" id="subprofile-modal-bg" role="dialog" aria-modal="true" aria-label="Add a sub-profile" onclick="if(event.target.id==='subprofile-modal-bg')closeSubProfileModal()">
     <div class="modal modal--w-440">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeSubProfileModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3>Add a sub-profile</h3>
       <div class="meta">Kids on the couch</div>
       <label class="subprofile-field">
@@ -1527,6 +1550,7 @@
      Pinned rows (max 3) render at the top of Add tab via #pinned-rows container. -->
 <div class="modal-bg" id="browse-all-sheet-bg" role="dialog" aria-modal="true" aria-label="Browse all rows" onclick="if(event.target.id==='browse-all-sheet-bg')closeBrowseAllSheet()">
   <div class="modal browse-all-sheet">
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeBrowseAllSheet()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <h3>Browse all rows</h3>
     <div class="meta"><em>Pin up to 3 to keep them at the top.</em></div>
     <div id="browse-all-content"></div>
@@ -1542,6 +1566,7 @@
      family ballot via existing addFromAddTab flow then launches Vote mode. -->
 <div class="modal-bg" id="couch-night-sheet-bg" role="dialog" aria-modal="true" aria-labelledby="couch-night-sheet-title" onclick="if(event.target.id==='couch-night-sheet-bg')closeCouchNightSheet()">
   <div class="modal couch-night-sheet">
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeCouchNightSheet()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <div class="couch-night-hero" id="couch-night-hero"></div>
     <h2 class="couch-night-sheet-title" id="couch-night-sheet-title"></h2>
     <div class="couch-night-sheet-desc" id="couch-night-sheet-desc"></div>

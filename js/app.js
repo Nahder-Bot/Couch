@@ -2239,6 +2239,7 @@ window.openProposeIntent = function(titleId) {
     : `<div class="intent-propose-poster" style="background:var(--surface-2);display:grid;place-items:center;font-size:28px;">🎬</div>`;
   const content = document.getElementById('intent-propose-modal-content');
   content.innerHTML = `
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeProposeIntent()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <h3 style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;margin:0 0 6px;">Propose tonight @ time</h3>
     <div class="intent-propose-header">
       ${posterHtml}
@@ -2381,6 +2382,7 @@ window.openIntentRsvpModal = function(intentId) {
     : '';
   const isCreator = state.me && intent.createdBy === state.me.id;
   content.innerHTML = `
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeIntentRsvpModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <h3 style="font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-weight:400;margin:0 0 6px;">${escapeHtml(intent.titleName)}</h3>
     ${proposedLine}
     ${noteLine}
@@ -8809,6 +8811,7 @@ function showSpinResult(pick, meta) {
   const _spinExpl20 = buildMatchExplanation(t, _spinCouch20);
   const explHtml = _spinExpl20 ? `<div class="spin-explanation">${_spinExpl20}</div>` : '';
   content.innerHTML = `${confettiHtml}
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeSpinModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <div class="spin-result-poster" style="background-image:url('${t.poster||''}')"></div>
     <div class="spin-result-name">${escapeHtml(t.name)}</div>
     <div class="spin-result-meta">${escapeHtml(t.year||'')} · ${escapeHtml(t.kind||'')}${t.runtime?' · '+t.runtime+'m':''}</div>
@@ -16128,6 +16131,7 @@ function renderShareTitle(t) {
   const yesCount = Object.values(t.votes || {}).filter(v => v === 'yes').length;
   const meta = [t.year, t.kind, t.runtime ? t.runtime + 'm' : ''].filter(Boolean).join(' · ');
   el.innerHTML = `
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeShareTitle()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <div class="share-title-preview">
       <div class="share-title-preview-poster" style="background-image:url('${t.poster||''}')"></div>
       <div class="share-title-preview-body">
@@ -16811,7 +16815,7 @@ window.openActionSheet = function(titleId, e) {
   items.push(`<button class="action-sheet-item" onclick="closeActionSheet();toggleWatched('${titleId}')"><span class="icon">${t.watched?'↩':'✓'}</span>${t.watched?'Mark unwatched':'Mark watched'}</button>`);
   items.push(`<button class="action-sheet-item" onclick="closeActionSheet();openEditTitle('${titleId}')"><span class="icon">✎</span>Edit details</button>`);
   items.push(`<button class="action-sheet-item danger" onclick="closeActionSheet();removeTitle('${titleId}')"><span class="icon">✕</span>Remove from library</button>`);
-  content.innerHTML = `<div class="action-sheet-title">${t.name}</div>${items.join('')}`;
+  content.innerHTML = `<button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeActionSheet()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button><div class="action-sheet-title">${t.name}</div>${items.join('')}`;
   document.getElementById('action-sheet-bg').classList.add('on');
 };
 window.closeActionSheet = function() {
@@ -17018,6 +17022,7 @@ window.openList = function(listId) {
   const isMine = state.me && l.ownerId === state.me.id;
   const content = document.getElementById('list-modal-content');
   content.innerHTML = `
+    <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeListModal()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     <h3>${l.name}</h3>
     <div class="meta">${titles.length} titles · by ${owner?owner.name:'Unknown'}${l.scope === 'private' ? ' · Private' : ' · Visible to family'}</div>
     <div style="margin-top:14px;max-height:50vh;overflow-y:auto;">
@@ -18986,5 +18991,44 @@ void feedFetchScore;
 // =========================================================================
 // === END Phase 28 / Plan 28-05 ===========================================
 // =========================================================================
+
+// =========================================================================
+// === 17-NAV-02: Global back/close click delegate ===
+// Handles data-action="back" and data-action="close" on any element in the
+// document. Wires the chrome added by 17-NAV-02 without touching inline
+// onclick attributes on JS-rendered surfaces (those use explicit close calls).
+// Must run after DOMContentLoaded; placed at module top-level so it fires
+// once when the ES module is evaluated (after DOM is ready per <script type=module>).
+// T-NAV-02 mitigation: history.back() here is an ACTIVE user tap, not a
+// passive bfcache restore — the bfcache guard in bootstrapAuth remains correct.
+// =========================================================================
+document.addEventListener('click', function _navDelegate(ev) {
+  const target = ev.target;
+  if (!target) return;
+  // Walk up to find a [data-action] element (handles clicks on SVG children)
+  const btn = target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+
+  if (action === 'back') {
+    ev.preventDefault();
+    // Prefer an explicit in-app stack pop if available
+    if (typeof state !== 'undefined' && typeof state.popView === 'function' && state.popView()) return;
+    if (history.length > 1) { history.back(); return; }
+    // Fallback: route to tonight root
+    if (typeof window.showScreen === 'function') window.showScreen('tonight');
+  }
+
+  if (action === 'close') {
+    // The button's inline onclick already fired (HTML onclick= runs before listeners).
+    // This delegate is a safety net for JS-rendered modals that don't have inline onclick.
+    // Walk up to find the closest open modal and remove 'on' if the inline onclick
+    // hasn't already handled it.
+    const modal = btn.closest('.modal-bg');
+    if (modal && modal.classList.contains('on')) {
+      modal.classList.remove('on');
+    }
+  }
+}, false);
 
 boot();
