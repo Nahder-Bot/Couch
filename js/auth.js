@@ -1,18 +1,48 @@
 // js/auth.js — Firebase Auth helpers for Phase 5
-// All OAuth flows use redirect (not popup) per D-06: popups blocked in iOS standalone PWA.
+// OAuth provider sign-in: popup for Safari (non-PWA), redirect everywhere else.
+// iOS standalone PWA keeps redirect per D-06 (popups blocked in standalone). Safari (non-PWA)
+// must use popup because signInWithRedirect leaves couchtonight.app/__/auth/handler in the
+// session history; Safari ITP / storage partitioning wipes the auth nonce sessionStorage,
+// then bfcache restores the handler page on back/forward and Firebase's hosted handler
+// renders "Unable to process request due to missing initial state". Popup keeps the OAuth
+// dance off the back/forward stack entirely.
 
 import {
   auth,
   GoogleAuthProvider, OAuthProvider,
-  signInWithRedirect, getRedirectResult,
+  signInWithRedirect, signInWithPopup, getRedirectResult,
   signInWithPhoneNumber, RecaptchaVerifier,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   onAuthStateChanged, firebaseSignOut
 } from './firebase.js';
 
+// Decide whether to use signInWithPopup (Safari non-PWA) vs signInWithRedirect (everywhere else).
+function _shouldUsePopup() {
+  try {
+    // iOS standalone PWA (Add to Home Screen): popups are blocked. Must use redirect.
+    if (typeof navigator !== 'undefined' && navigator.standalone === true) return false;
+    // Android / desktop standalone PWA: same constraint.
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return false;
+    // Safari = Apple WebKit on iOS/macOS, excluding the in-iOS variants of Chrome/Firefox/Edge/Opera.
+    const ua = navigator.userAgent || '';
+    return /Safari\//.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(ua);
+  } catch(e) { return false; }
+}
+
 // ===== Bootstrap: call ONCE at app boot before any UI render =====
 // Returns the redirect result if the user just returned from an OAuth redirect, else null.
 export async function bootstrapAuth() {
+  // bfcache guard: if this navigation is back_forward, the page is being restored from
+  // bfcache. The redirect result (if any) was already consumed on the original navigation;
+  // re-calling getRedirectResult would attempt to read sessionStorage state that Safari
+  // ITP / storage partitioning may have wiped, surfacing "missing initial state".
+  try {
+    const nav = performance.getEntriesByType?.('navigation')?.[0];
+    if (nav?.type === 'back_forward') {
+      return { freshFromRedirect: false, user: null };
+    }
+  } catch(e) { /* performance API unavailable — fall through */ }
+
   let redirectResult = null;
   try {
     redirectResult = await getRedirectResult(auth);
@@ -37,8 +67,14 @@ export async function signInWithGoogle() {
   _stashTokensFromUrl();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+  if (_shouldUsePopup()) {
+    // Safari (non-PWA): popup avoids the redirect-handler bfcache trap. Direct user gesture
+    // from the button tap makes popup allowed on iOS Safari + macOS Safari.
+    await signInWithPopup(auth, provider);
+    return;
+  }
   await signInWithRedirect(auth, provider);
-  // Execution stops here — browser redirects away.
+  // Execution stops here — browser redirects away (non-Safari path).
 }
 
 // Apple Sign-In — exported but NOT surfaced in Phase 5 UI (deferred to Phase 9).
@@ -48,6 +84,10 @@ export async function signInWithApple() {
   const provider = new OAuthProvider('apple.com');
   provider.addScope('email');
   provider.addScope('name');
+  if (_shouldUsePopup()) {
+    await signInWithPopup(auth, provider);
+    return;
+  }
   await signInWithRedirect(auth, provider);
 }
 

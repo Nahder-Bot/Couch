@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut as firebaseSignOut, updatePassword, EmailAuthProvider, signInWithEmailAndPassword, reauthenticateWithCredential, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut as firebaseSignOut, updatePassword, EmailAuthProvider, signInWithEmailAndPassword, reauthenticateWithCredential, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 // Phase 11 / REFR-09 — Firebase Storage (first Couch use). Narrow scope per CLAUDE.md:
 // only post-session couch-album photo uploads. Storage rules in the deploy-mirror sibling
@@ -25,6 +25,6 @@ export const auth = getAuth(app);
 export const functions = getFunctions(app);
 export const storage = getStorage(app);
 export { doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where };
-export { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, firebaseSignOut, updatePassword, EmailAuthProvider, signInWithEmailAndPassword, reauthenticateWithCredential, signInAnonymously };
+export { getAuth, GoogleAuthProvider, OAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signInWithPhoneNumber, RecaptchaVerifier, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, firebaseSignOut, updatePassword, EmailAuthProvider, signInWithEmailAndPassword, reauthenticateWithCredential, signInAnonymously };
 export { getFunctions, httpsCallable };
 export { getStorage, storageRef, uploadBytes, getDownloadURL };
