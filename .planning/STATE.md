@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: completed
-last_updated: "2026-05-14T03:25:23.492Z"
-last_activity: 2026-05-14
+last_updated: "2026-05-14T05:38:15.325Z"
+last_activity: "2026-05-13 — Phase 31 (Marketing refresh) close-out complete. Plan 31-04 shipped `couch-v48-marketing-refresh` to couchtonight.app (5/5 post-deploy curl checks PASS; D-20 single-repo enforced). Plan 31-05 audit-trail backfill complete (14 MARK-31-* IDs in REQUIREMENTS.md mirroring Phase 15.6 pattern). 31-VERIFICATION.md returned `human_needed` — 15/15 automated must-haves verified + 7 device-UAT items in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md` await real-device confirmation. Milestone v33.3 now `status: completed` (Phase 31 was the last shipped phase in this milestone; Phases 16 + 17 remain scoped but not in v33.3). Resume signal: `uat passed` → `/gsd-verify-work 31` to formally close the human-verification loop."
 progress:
   total_phases: 28
   completed_phases: 22
