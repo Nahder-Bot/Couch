@@ -246,6 +246,10 @@ h3{font-size:var(--t-h3)}
    just "Couch" in Instrument Serif Italic as text. */
 .brand{display:block;text-align:center;line-height:1}
 .brand .brand-logo{display:block;max-width:320px;height:auto;margin:0 auto;
+  /* mix-blend-mode: lighten erases the wordmark PNG's pure-black backdrop against the
+     warm-dark page bg (#14110f). Leather pixels are all brighter than the bg and pass
+     through unchanged. The amber drop-shadow halo survives because it's brighter too. */
+  mix-blend-mode:lighten;
   filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3)) drop-shadow(0 0 40px rgba(232,160,74,0.06))}
 .brand.large .brand-logo{max-width:260px}
 .brand.hero .brand-logo{max-width:340px}

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-08T02:32:10.138Z"
-last_activity: 2026-05-06
+last_updated: "2026-05-14T03:00:19.206Z"
+last_activity: 2026-05-14
 progress:
   total_phases: 28
   completed_phases: 21
   total_plans: 118
-  completed_plans: 114
-  percent: 97
+  completed_plans: 117
+  percent: 99
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 15.3 — DESIGN-01 (canonical SVG logo + wordmark sources) — next available scoped work; or Phase 16 (Calendar Layer) / Phase 17 (App Store Launch Readiness) per ROADMAP.md "Next available work".
+**Current focus:** Phase 31 — marketing-refresh
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 28 — social-pickem-leaderboards (SHIPPED 2026-05-05 as `couch-v47-pickem`; UAT pending)
-Plan: 28-06 SHIPPED 2026-05-05 (smoke FLOOR=13 lock with REVIEWS Amendment 15 named-counter pattern + 28-HUMAN-UAT.md 11-script scaffold with NO-UFC verification + cross-repo deploy ritual queuenight CFs + indexes + rules + couch hosting + sw.js bump to couch-v47-pickem; production curl-verified 2026-05-05T04:28:47Z)
-**Status:** Ready to execute
+Phase: 31 (marketing-refresh) — EXECUTING
+Plan: 1 of 5
+**Status:** Executing Phase 31
 
 **Resume signal:** (1) **iPhone screenshots for Phase 31-02** (5 PNGs at couchtonight.app; user drops in folder, tells Claude path → sharp-optimize → place at marketing/ → Plans 31-04 + 31-05 finish autonomously). (2) **Xcode work for Phase 17 Wave 1** when on macOS — open `17-XCODE-PATCHES-2026-05-11.md` next to Xcode, work top-to-bottom (~30-45 min), then Archive → TestFlight → 5-7 day soak → Submit. (3) Real-device UAT backlog for Phase 28 + Phases 24/26/27/30 (~43 scripts total) → `/gsd-verify-work` per phase as you have time. (4) Phase 15.3 / 16 — scoped, awaiting kickoff.
 
-**Last Activity:** 2026-05-11 — Phase 17 source-side launch prep + Phase 31 Wave 1 partial. **Apple submission now ~80% prep-complete**: Notes-for-Reviewer pasted in App Store Connect (passwordless email-link version, 2375 chars, user filled phone + saved); Apple Sign-In wired (commit `46c7013` — js/auth.js helper surfaced via app.html button + handleSigninApple in js/app.js + .provider-apple CSS, awaiting Xcode capability flip per launch-checklist #32); Firebase iOS app registered (App ID `1:928451125383:ios:4ce434c2037bb93a1c1822`, bundle `app.couchtonight.couch`); real `GoogleService-Info.plist` staged at `.planning/phases/17-app-store-launch-readiness/`; Xcode patches doc shipped (`17-XCODE-PATCHES-2026-05-11.md`); Universal Links file Content-Type fixed to `application/json` via firebase.json header rule; Namecheap email forwarding live for review-apple/support/security/dmca → nahderz@gmail.com. **Phase 31 Wave 1 partial**: 31-01 (landing HTML/CSS — comparison + features + FAQ + Sentry breadcrumbs, 3 commits) and 31-03 (brand/og-source.svg + og.png 1200×630 66KB, 3 commits) shipped via background gsd-executor agents; 31-02 partial — 5 legacy Phase-9 PNGs archived to marketing/archive-phase-9/, real iPhone captures pending tomorrow (user). 31-04 + 31-05 blocked on 31-02 completion. **Earlier in conversation**: REVIEWAPPLE family creation hit a known Couch bug (silent `createSubProfile` permission-denied when `/users/{uid}/groups/{familyCode}` index doc is missing — joinGroup CF doesn't always write it; manual fix possible via Firestore console). Pivoted away from pre-populated demo family per CONTEXT D-25 — Notes-for-Reviewer now describes a self-onboarding 2-min first-run setup the reviewer does themselves.
+**Last Activity:** 2026-05-14
 
 **Prior Last Activity:** 2026-05-06
 
