@@ -1,8 +1,8 @@
 ---
 phase: 17-app-store-launch-readiness
-gathered: 2026-05-06 (autonomous pre-stage during launch-prep; full /gsd-discuss-phase 17 chain pending)
-status: scoped_awaiting_discuss
-mode: scoping-only — pre-stages decisions from spike 001 + audits + LAUNCH-REVIEW; user runs /gsd-discuss-phase 17 to refine + lock
+gathered: 2026-05-06 (autonomous pre-stage during launch-prep) + 2026-05-14 (auto discuss-phase chain)
+status: discussed_ready_for_planning
+mode: pre-staged 2026-05-06; auto-discussed 2026-05-14 — D-28..D-40 added, 9 open questions resolved, new findings folded
 source_doc: .planning/LAUNCH-REVIEW-2026-05-05.md
 sibling_artifacts:
   - .planning/spikes/001-capacitor-vs-pwabuilder/README.md (PWABuilder verdict)
@@ -287,21 +287,77 @@ These came up during scoping but belong to other phases / post-launch.
 - **Wave 3 (depends on Wave 2):**
   - 17-08: TestFlight + Play Internal upload + 5-7 day beta + App Review submission + Phased Release configuration (1 week beta + 1-3 days Apple review + 1-7 days Google review)
 
-## Open questions for `/gsd-discuss-phase 17`
+## ~~Open questions for `/gsd-discuss-phase 17`~~ — RESOLVED 2026-05-14
 
-These get resolved interactively when the user runs the formal discuss-phase chain:
+All 9 questions auto-resolved in the 2026-05-14 `/gsd-discuss-phase 17 --auto` chain. See D-28..D-36 below.
 
-1. iPad support: in scope for v1 (PWABuilder default) or defer to post-launch?
-2. App Preview video length: 15s or 30s? Content focus: "spin walkthrough" vs "full ritual"?
-3. Apple Developer account type: personal ($99/yr) or organization ($299/yr if launching as LLC)?
-4. EULA: Apple's standard or custom?
-5. ASO keyword strategy: which 100-char keyword string?
-6. App Store name final lock: "Couch Tonight" (recommended) vs "Couch" (overrule)?
-7. Phase 15.3 promotion: schedule SVG production as Phase 17 Wave 0 dependency, or defer with sharp-upscale fallback?
-8. Beta-tester recruiting: closed family-only OR open-invite via Twitter?
-9. Submission timing: target a specific date (e.g., June 15) or "as ready"?
+---
+
+## 2026-05-14 Discussion Update (auto-discuss-phase chain)
+
+> Resolves 9 open questions + folds 4 new findings discovered since 2026-05-06 pre-stage:
+> Phase 31 shipped (D-39), auth back/forward hotfix deployed (D-37), nav-affordance UX gap surfaced (D-38),
+> Apple Developer enrollment complete + App Store Connect ~85% filled per .continue-here.md (referenced).
+
+### Resolved open-questions
+
+- **D-28** (was Q1, iPad support): **Defer to post-launch.** PWABuilder iPad-compat mode uses the iPhone layout in iPad-compatibility — adequate for v1. Native iPad redesign is a v2 candidate per LAUNCH-REVIEW §9. Rationale: scope discipline; iPad-specific UX is multi-week separate work.
+- **D-29** (was Q2, App Preview video): **15s "spin walkthrough"**, captions only, no voiceover. Content (per `<specifics>` line 224): open on couch viz with avatars → tap spin → reveal Tonight's pick → fade to watchparty live with Wait Up reaction → fade to Pick'em leaderboard. Warm acoustic music, low energy (matches BRAND.md "Warm · Cinematic · Lived-in"). Rationale: 15s is the App Store cap for autoplay; captions-only is App-Review-safe and avoids voiceover localization debt.
+- **D-30** (was Q3, Apple Developer account type): **Personal $99/yr** — CONFIRMED already enrolled per `.continue-here.md` (Apple Team ID `49R296FJGF`, paid 2026-05-06, activated 2026-05-07). Rationale: LLC formation not on the v1 critical path; personal account converts to organization later if needed.
+- **D-31** (was Q4, EULA): **Apple's standard EULA + custom clauses inline.** Custom clauses (DMCA, content takedown, acceptable-use, geographic limitations) live inline in `terms.html`. Rationale: full custom EULA is overkill for v1; standard EULA is the default App Store choice that reviewers expect.
+- **D-32** (was Q5, ASO keywords): **Defer final 100-char string to App Store Connect "Add for Review" time.** Starting candidate list (per `<decisions>` line 153): `movie night, family, watch together, picker, what to watch, streaming, household, pickem`. Trim to fit 100ch during the screenshot+keyword upload session (Wave 2). Rationale: ASO research is most accurate against current App Store competitor landscape at submission time, not 3 weeks earlier.
+- **D-33** (was Q6, App Store name): **"Couch Tonight"** — LOCKED per D-03 + `.continue-here.md` "App Information section: Name = Couch Tonight reserved in App Store Connect 2026-05-06". Rationale: already saved in ASC; ASO collision avoidance with furniture apps is the original reason and still holds.
+- **D-34** (was Q7, Phase 15.3 promotion): **Promoted to hard dependency 2026-05-06 per D-09** — Phase 15.3 SHIPPED (per `js/firebase.js` icon refs + brand/mark-master.png deployed). Phase 17 Wave 2 (asset packaging) consumes the deployed icon set. No sharp-upscale fallback needed. Rationale: brand identity refresh adopted photorealistic leather wordmark that needed PNG masters; Phase 15.3 pivot delivered.
+- **D-35** (was Q8, Beta-tester recruiting): **Closed family-only first** — 10-20 testers from family + close friends per D-20. Open-invite via Twitter/X is post-launch growth motion, not v1 beta. Rationale: family is the actual target user (D-15 §4.2 framing — "categories: Family/Crew/Duo"); their feedback is the highest-signal source for the watchparty + couch-groups flows.
+- **D-36** (was Q9, Submission timing): **"As ready"** with internal target **mid-June 2026** (~3-4 weeks from full Wave 1 kickoff). Don't pin a public date until TestFlight is live and beta-stable. Rationale: avoid public commitments before App Review uncertainty resolves; CONTEXT line 38 already targets early-to-mid-June.
+
+### New findings 2026-05-14 (folded into Phase 17 scope)
+
+- **D-37 (auth back/forward hotfix — SHIPPED):** Safari back/forward Firebase Auth error fixed + deployed 2026-05-14T05:05Z as `couch-vfix-auth-bfcache` (commits 6563207 + c5cef7e + 02105cd). Two-part patch in `js/auth.js`: `signInWithPopup` branch for Safari non-PWA (popups allowed via direct user gesture) + `performance.getEntriesByType('navigation')[0]?.type === 'back_forward'` guard in `bootstrapAuth`. iOS standalone PWA keeps redirect per D-06. Removes one urgency vector for D-02 Apple Sign-In (was tracked as candidate (c) "Apple Sign-In sidesteps the Google-OAuth-redirect dance entirely"); Apple Sign-In is still required for §4.8 compliance but is no longer an emergency.
+- **D-38 (nav-affordance UX gap — NEW Wave 1 work):** Surfaced 2026-05-14 during Phase 31 UAT Test 1. User reported: "way too many instances where I click something and don't have an easy way to click back or an x to return where I was. It's almost like you are stuck." Audit + fix back/X chrome on: title detail view, mood-filter screens, watchparty creation flow, intent-RSVP flow, family-roster screen, settings, deep-link-landed states (`?invite=` / `?claim=`). Bundle with the 30-HOTFIX-WAVE-5 modal aria-dialog + keyboard-trap work where overlap exists (per STATE.md line 143). New plan slot: **17-NAV** in Wave 1. ~2 days execution.
+- **D-39 (Phase 31 dependency satisfied):** Phase 31 (Marketing refresh) SHIPPED 2026-05-13 as `couch-v48-marketing-refresh` (5/5 plans complete; 4/7 UAT auto-verified pass; 2 blocked on device/third-party; 1 issue routed back to Phase 17 as the D-37 fix). D-05 (Phase 31 dependency) is now fully satisfied — screenshots (1170×2532 fresh + Phase-9 soft-fallback), refreshed og.png (sha256-anchored, 67KB), refreshed landing.html copy with 4-block comparison + features + FAQ + audience grid all live at couchtonight.app.
+- **D-40 (PR #8 merge before submission):** PR #8 (origin/main catch-up, 594 commits, +122K/-1K, 356 files) should merge BEFORE Phase 17 Wave 3 (App Review submission). Rationale: App Reviewers may pull production-mirror state for reproducibility audits; clean Git topology reduces friction. Add to Wave 3 pre-flight checklist.
+
+### Revised Suggested Plan Count
+
+Original 8 plans → revised based on 2026-05-06 / 2026-05-07 / 2026-05-13 / 2026-05-14 advance progress:
+
+**Wave 0 (DONE):**
+- ✅ 17-01: Apple Developer Program enrollment (Apple Team ID `49R296FJGF` active through 2027-05) + Google Play Console enrollment (BLOCKED on Android device verification — Bark Phone hit Device Owner API; workaround: borrow Pixel)
+- ✅ 17-02: Author privacy.html + terms.html + Privacy Manifest + Data Safety form copy (privacy.html + terms.html LIVE at couchtonight.app; `PrivacyInfo.xcprivacy` ready in phase dir; Data Safety form drafted in `17-PLAY-CONSOLE-PREP.md`)
+
+**Wave 1 (READY — kick off after `/gsd-plan-phase 17 --auto`):**
+- 17-03: Apple Sign-In via Firebase Auth (1-2 days; `signInWithPopup` import already in `js/firebase.js` per D-37 hotfix — Apple provider extension is straightforward)
+- 17-NAV (NEW from D-38): Nav-affordance UX audit + fix (~2 days; bundles with 30-HOTFIX-WAVE-5 aria-dialog work)
+- ✅ 17-04: PWABuilder Xcode + Android Studio package generation (zips already at `~/Downloads/Couch Tonight.zip` + `~/Downloads/Couch - Google Play package.zip`)
+- ✅ 17-05: Asset generation (Phase 15.3 produced `brand/mark-master.png` + `scripts/regenerate-icons.sh`; icon set + logo set already deployed)
+
+**Wave 2 (depends on Wave 1):**
+- 17-06: App Store screenshot capture via sharp downscale from Phase 31 1170×2532 captures (1-2 days)
+- 17-07: App Preview video — 15s spin walkthrough per D-29 (1-2 days)
+- 17-XCODE: Execute 17-XCODE-PATCHES-2026-05-11.md task list (~30-45 min on macOS)
+
+**Wave 3 (depends on Wave 2 + user-side blockers cleared):**
+- 17-08: TestFlight upload + 5-7 day beta (per D-20) + App Review submission + Phased Release config (~2 weeks total)
+- 17-PLAY: Play Internal Testing track upload + 5-day beta (BLOCKED on Android device verification)
+- 17-DNS: DNS email forwarding for `support@/security@/dmca@/review-apple@couchtonight.app` via Cloudflare (~10 min — unblocks reviewer demo account)
+- 17-DEMO: Apple Reviewer demo account `review-apple@couchtonight.app` (pre-populated test family; paste credentials into ASC structured fields + replace `[SET AT SUBMISSION TIME]` in Notes for Reviewer) — depends on 17-DNS
+- 17-MERGE (NEW from D-40): Merge PR #8 to clean Git topology before "Add for Review"
+
+**Wave 4 (final):**
+- 17-09: "Add for Review" final submission + Phased Release at 1% + Staged Rollout at 1%
+- 17-10: Post-submission iteration loop until approval
+
+**Total remaining runway:** ~3-4 weeks from Wave 1 kickoff, assuming macOS access (Xcode) + Android device unblock land in parallel.
+
+### Open user-side blockers (unchanged)
+
+- macOS access for Xcode/TestFlight (D-17 step 4)
+- Android unmanaged device for Google Play Console verification (Bark Phone Device Owner API blocks)
+- Apple Reviewer demo account creation depends on Cloudflare email forwarding (17-DNS, ~10 min config)
 
 ---
 
 *Phase: 17-app-store-launch-readiness*
-*Context pre-staged: 2026-05-06 via autonomous launch-prep work; full /gsd-discuss-phase 17 chain pending*
+*Context pre-staged: 2026-05-06 via autonomous launch-prep work*
+*Discussed: 2026-05-14 via `/gsd-discuss-phase 17 --auto` — D-28..D-40 added*
