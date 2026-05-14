@@ -159,6 +159,10 @@ Resolution: Use `.modal-x-btn` as the new close X class. The CSS will follow the
 
 **Overall:** landing.html preserves query string via `/app` + search redirect (confirmed at line 44). `_stashTokensFromUrl()` runs in `signInWithGoogle()` and `signInWithApple()` BEFORE any redirect — CORRECT ORDER.
 
-**Gap found:** `#invite-expired-screen` has no escape link back to sign-in. User who lands on expired invite has no way forward except hard-refresh or browser back. **Fix: add "Sign in instead" link to invite-expired-screen.**
+**Gap found (FIXED in 17-NAV-02):** `#invite-expired-screen` had no escape link back to sign-in. Added `<button data-action="back" onclick="showPreAuthScreen('signin-screen')">Sign in instead</button>`.
 
-**Gap found:** `#invite-redeem-screen` has no back/cancel. A user who taps a link and then changes their mind is stuck on this screen. **Fix: add dismiss link to invite-redeem-screen.**
+**Gap found (FIXED in 17-NAV-02):** `#invite-redeem-screen` had no cancel/back. Added `<button data-action="back" onclick="showPreAuthScreen('signin-screen')">Sign in instead</button>` after the redeem card.
+
+**landing.html detection scope:** Only `invite=` and `claim=` params trigger the PWA deep-link redirect. `?family=` (standalone) is not a public deep link — family code always arrives paired with `claim=`. `?rsvp=` is a server-side route (`/rsvp/<token>`), not handled by landing.html redirect.
+
+**Call order verified:** `_stashTokensFromUrl()` → stash to sessionStorage → `history.replaceState` (clean URL) → `signInWithRedirect`/`signInWithPopup`. Post-auth: `handlePostSignInIntent()` reads sessionStorage FIRST, then URL params as fallback. Correct order confirmed.
