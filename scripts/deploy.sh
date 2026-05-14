@@ -244,6 +244,28 @@ for f in app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.x
     echo "WARN: $f missing in repo root; skipping" >&2
   fi
 done
+
+# Phase 31 / D-19 — extended mirror loop: og.png at repo root + marketing/ tree + brand/ tree.
+# Pre-Phase-31 these lived only in the deploy mirror (longstanding gap). Phase 31 brings
+# them into the source repo as canonical sources, so deploy.sh now mirrors them to
+# couch-deploy/public/ on every deploy.
+if [ -f og.png ]; then
+  cp -v og.png "${COUCH_DEPLOY_ROOT}/public/"
+fi
+if [ -d marketing ]; then
+  mkdir -p "${COUCH_DEPLOY_ROOT}/public/marketing"
+  # -r preserves marketing/archive-phase-9/ subfolder; -v echoes each file copied for the deploy log.
+  cp -rv marketing/. "${COUCH_DEPLOY_ROOT}/public/marketing/"
+fi
+if [ -d brand ]; then
+  # brand/ holds og-source.svg and any future App-Store source assets (Phase 17).
+  # Mirror so couch-deploy/public/brand/ exists, but DO NOT publish these as live URLs;
+  # the SVG source is reference material, not a public asset. (firebase.json on the
+  # mirror side controls which paths are actually served.)
+  mkdir -p "${COUCH_DEPLOY_ROOT}/public/brand"
+  cp -rv brand/. "${COUCH_DEPLOY_ROOT}/public/brand/"
+fi
+
 mkdir -p "${COUCH_DEPLOY_ROOT}/public/css" "${COUCH_DEPLOY_ROOT}/public/js"
 cp -v css/*.css "${COUCH_DEPLOY_ROOT}/public/css/"
 cp -v js/*.js "${COUCH_DEPLOY_ROOT}/public/js/"
