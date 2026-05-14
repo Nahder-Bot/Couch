@@ -1,9 +1,11 @@
 ---
 slug: firebase-auth-back-forward
-status: root_cause_confirmed
+status: fixed-pending-human-verify
 trigger: "firebase-auth-back-forward"
 created: 2026-05-14T00:50:00Z
-updated: 2026-05-14T05:00:00Z
+updated: 2026-05-14T05:08:00Z
+fix_commits: ["6563207 (code)", "c5cef7e (debug session doc)"]
+fix_deploy: "couch-vfix-auth-bfcache @ 2026-05-14T05:05:00Z"
 project: couch
 surface: Mobile Safari on iPhone (NOT installed PWA)
 url: https://couchtonight.app
@@ -246,6 +248,10 @@ expecting: N/A — root cause confirmed
 
 ## Resolution
 
+status: fixed-and-deployed
+resolved: 2026-05-14T05:08:00Z
+deploy_cache: couch-vfix-auth-bfcache
+
 root_cause: |
   signInWithRedirect causes the browser to navigate through couchtonight.app/__/auth/handler
   as an intermediary during the Google OAuth round-trip. Safari's bfcache snapshots this
@@ -253,6 +259,61 @@ root_cause: |
   sessionStorage auth state (wiped by Safari ITP / storage partitioning), causing the
   Firebase-hosted handler page to render its own "missing initial state" error UI. The app
   never regains control — the error is in the handler page itself, not in getRedirectResult().
-fix: ""
-verification: ""
-files_changed: []
+
+fix: |
+  Two-part patch applied 2026-05-14, commits 6563207 (code) + c5cef7e (debug session doc):
+
+  1. js/firebase.js — added signInWithPopup to imports + re-exports (Firebase SDK 10.12.0).
+
+  2. js/auth.js — added _shouldUsePopup() helper that returns true ONLY when the agent
+     is Safari (UA contains "Safari" but NOT Chrome/CriOS/FxiOS/EdgiOS/OPiOS/YaBrowser)
+     AND NOT a standalone PWA (navigator.standalone false + display-mode:standalone false).
+     signInWithGoogle + signInWithApple branch on _shouldUsePopup() — popup for Safari
+     non-PWA (avoids the handler-bfcache trap because popup doesn't put /__/auth/handler
+     in session history); redirect everywhere else (iOS standalone PWA per D-06, Chrome,
+     Firefox, etc.).
+
+  3. js/auth.js — bootstrapAuth() now checks
+     performance.getEntriesByType('navigation')[0]?.type === 'back_forward' and skips
+     getRedirectResult() entirely on bfcache restoration. Belt+suspenders for any path
+     that might still bfcache an app page mid-auth.
+
+verification: |
+  Deployed 2026-05-14T05:05:00Z via `bash scripts/deploy.sh fix-auth-bfcache`. Smoke gate
+  (12 contracts) passed pre-deploy. Production checks via curl + Playwright on
+  https://couchtonight.app:
+
+  - js/auth.js live with new code: _shouldUsePopup helper present, signInWithPopup calls
+    in both signInWithGoogle + signInWithApple, back_forward navigation guard in
+    bootstrapAuth ✓
+  - js/firebase.js live: signInWithPopup imported from firebase-auth.js 10.12.0 and
+    re-exported ✓
+  - sw.js CACHE = 'couch-vfix-auth-bfcache' (curl-confirmed; bumped from
+    couch-v48-marketing-refresh; PWAs invalidate on next online activation) ✓
+  - /app boots cleanly: 0 console errors (1 pre-existing deprecated meta-tag warning,
+    unrelated) ✓
+  - Dynamic import of /js/auth.js + /js/firebase.js succeeds with all expected exports
+    (bootstrapAuth, signInWithGoogle, signInWithApple, signInWithPopup, etc.) ✓
+
+  HUMAN-VERIFY remaining: Nahder retests the original repro on his iPhone Mobile Safari
+  (couchtonight.app → CTA → Sign in with Google → back → forward). Expected: lands on a
+  working app surface or sign-in screen, NOT the "missing initial state" error page.
+
+files_changed:
+  - path: js/firebase.js
+    lines_changed: 2
+    rationale: Add signInWithPopup to imports + re-exports.
+  - path: js/auth.js
+    lines_changed: 46
+    rationale: |
+      _shouldUsePopup helper (UA + standalone-PWA gates), branch in signInWithGoogle +
+      signInWithApple, performance.navigation back_forward guard in bootstrapAuth, plus
+      updated file header comment.
+
+residual_followups:
+  - Apple Sign-In migration (Phase 17 roadmap) sidesteps Google OAuth entirely on iOS —
+    longer-term replacement.
+  - Cosmetic: CACHE name "couch-vfix-auth-bfcache" breaks the versioned pattern (prior:
+    couch-v48-marketing-refresh). Next deploy should restore versioning (couch-v49-*).
+  - Telemetry: monitor Sentry for any new signInWithPopup-related errors over 7 days
+    (Phase 17 soak window).
