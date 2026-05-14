@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v33.3
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-13T18:00:00.000Z"
-last_activity: 2026-05-13
+status: completed
+last_updated: "2026-05-14T03:25:23.492Z"
+last_activity: 2026-05-14
 progress:
   total_phases: 28
-  completed_phases: 21
-  total_plans: 122
-  completed_plans: 122
+  completed_phases: 22
+  total_plans: 118
+  completed_plans: 119
   percent: 100
 ---
 
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 ## Current Position
 
-Phase: 31 (marketing-refresh) — EXECUTING
-Plan: 5 of 5
-**Status:** Executing Phase 31
+Phase: 31
+Plan: Not started
+**Status:** Milestone complete
 
 **Resume signal:** (1) **31-HUMAN-UAT.md device verification** — 7 scripts in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md` covering comparison render on iOS Safari / FAQ accordion on iOS+Android / FAQ Sentry breadcrumb / screenshot grid at 1x+2x DPR / og.png link-preview via iMessage + Twitter / sw.js cache curl verification / desktop ≥ 900px responsive layout. Resume signal: `uat passed` → `/gsd-verify-work 31`. (2) **Plan 31-05** (REQUIREMENTS.md backfill + verifier prep) — optional follow-up plan documented in 31-CONTEXT suggested-plan-count. (3) **Xcode work for Phase 17 Wave 1** when on macOS — open `17-XCODE-PATCHES-2026-05-11.md` next to Xcode, work top-to-bottom (~30-45 min), then Archive → TestFlight → 5-7 day soak → Submit. (4) Real-device UAT backlog for Phase 28 + Phases 24/26/27/30 (~43 scripts total) → `/gsd-verify-work` per phase as you have time. (5) Phase 15.3 / 16 — scoped, awaiting kickoff.
 
-**Last Activity:** 2026-05-13 — Phase 31 (Marketing refresh) shipped end-to-end; `couch-v48-marketing-refresh` live at couchtonight.app; Plan 31-05 audit-trail backfill complete (14 MARK-31-* REQ-IDs minted retroactively mirroring Phase 15.6 / 15.2 pattern); device UAT pending in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md` (resume signal `uat passed` → `/gsd-verify-work 31`)
+**Last Activity:** 2026-05-13 — Phase 31 (Marketing refresh) close-out complete. Plan 31-04 shipped `couch-v48-marketing-refresh` to couchtonight.app (5/5 post-deploy curl checks PASS; D-20 single-repo enforced). Plan 31-05 audit-trail backfill complete (14 MARK-31-* IDs in REQUIREMENTS.md mirroring Phase 15.6 pattern). 31-VERIFICATION.md returned `human_needed` — 15/15 automated must-haves verified + 7 device-UAT items in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md` await real-device confirmation. Milestone v33.3 now `status: completed` (Phase 31 was the last shipped phase in this milestone; Phases 16 + 17 remain scoped but not in v33.3). Resume signal: `uat passed` → `/gsd-verify-work 31` to formally close the human-verification loop.
 
 **Prior Last Activity:** 2026-05-14
 
