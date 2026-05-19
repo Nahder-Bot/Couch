@@ -213,7 +213,9 @@ ALL: No
 
 ## 5. App Review Information
 
-### Notes for the App Reviewer
+> **⚠ 2026-05-18 STATUS: SAVED LIVE IN ASC.** Reviewer demo family `APLDEMO2605` ("Review Demo") seeded in production under `review-apple@couchtonight.app` uid (3 members + 8 titles + pre-seeded yes-votes). ASC structured fields filled: Sign-In Required=ON; demoAccountName=`review-apple@couchtonight.app`; demoAccountPassword=`Passwordless-See-Notes-2026`. Notes body replaced with trimmed 3,614-char version that includes APLDEMO2605 family code — **canonical paste text now lives in `17-ASC-PASTE-READY.md` §2** (the body below is the historical 5/7 version that no longer matches what's in ASC; do not re-paste it). Note: original "Why no pre-populated family" section below is OBSOLETE — we now do have a pre-populated family.
+
+### Notes for the App Reviewer (HISTORICAL — superseded by 17-ASC-PASTE-READY.md §2)
 
 ```
 Hi App Reviewer — thanks for reviewing Couch.
