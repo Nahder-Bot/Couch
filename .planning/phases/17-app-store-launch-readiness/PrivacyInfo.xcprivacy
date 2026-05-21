@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Couch — Apple Privacy Manifest (PrivacyInfo.xcprivacy)
+  Required by Apple since iOS 17 (2024-Q1) for any new App Store submission.
+
+  AUTHORED 2026-05-07 during autonomous launch-prep.
+  Drafted from:
+    - privacy.html data flows (Firebase, TMDB, Trakt, Sentry, push, federated sign-in)
+    - PWAShell Swift source inspection (FileManager + URLSession + UIApplication usage)
+    - Apple Required Reason API documentation (developer.apple.com/documentation/bundleresources/privacy_manifest_files)
+
+  WHERE TO DROP THIS:
+    Open `Couch Tonight.zip` → extracted `src/Couch Tonight/`
+    Add this file at: `src/Couch Tonight/PrivacyInfo.xcprivacy`
+    In Xcode: right-click "Couch Tonight" group → Add Files → select PrivacyInfo.xcprivacy
+    Confirm "Copy items if needed" + "Add to targets: Couch Tonight"
+
+  POST-LAUNCH MAINTENANCE:
+    - If you add new Required Reason API usage (e.g. systemUptime, diskSpace, activeKeyboards),
+      add the corresponding NSPrivacyAccessedAPIType entry below
+    - If you add new data collection (e.g. Apple Sign-In email relay, photo upload), update
+      NSPrivacyCollectedDataTypes
+    - Apple validates this against actual code behavior; mismatches cause App Review reject
+-->
+<plist version="1.0">
+<dict>
+
+  <!-- Tracking: false. Couch does not track users for advertising/marketing across apps or websites. -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+
+  <!-- Tracking domains: empty (no tracking). -->
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+
+  <!-- Data collected: mirror Apple's App Privacy Nutrition Labels per privacy.html section 2-4. -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array>
+
+    <!-- Email Address — sign-in (email link OR Sign in with Apple/Google) -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        <string>NSPrivacyCollectedDataTypePurposeAccountManagement</string>
+      </array>
+    </dict>
+
+    <!-- Phone Number — phone sign-in (optional, only if user chooses phone path) -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePhoneNumber</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        <string>NSPrivacyCollectedDataTypePurposeAccountManagement</string>
+      </array>
+    </dict>
+
+    <!-- Name — display name visible to other family members -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeName</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        <string>NSPrivacyCollectedDataTypePurposeAccountManagement</string>
+      </array>
+    </dict>
+
+    <!-- User ID — Firebase uid; never shared off-platform -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeUserID</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        <string>NSPrivacyCollectedDataTypePurposeAccountManagement</string>
+      </array>
+    </dict>
+
+    <!-- Photos — post-watchparty albums, family-scoped, never shared off-platform -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!-- Other User Content — votes, queues, watchparty reactions, RSVPs, mood tags, pick'em picks, family chat messages -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!-- Product Interaction — taps, votes, watchparty events; for app functionality + product analytics -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeProductInteraction</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        <string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+      </array>
+    </dict>
+
+    <!-- Crash Data — Sentry with PII strip (uid/email/family-codes/tokens removed before send) -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeCrashData</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!-- Performance Data — Sentry breadcrumbs (Firestore noise filtered, URLs sanitized) -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePerformanceData</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!-- Other Diagnostic Data — Sentry transport diagnostics, generic error reports -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+  </array>
+
+  <!--
+    Required Reason APIs.
+    Apple requires declaring use of certain "fingerprinting risk" APIs with an approved reason.
+    See: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api
+
+    PWAShell wrapper (Couch Tonight.xcodeproj) usage observed:
+      - FileManager.default — file existence checks, file copy/remove (download flow)
+        → File Timestamp APIs reason: C617.1 ("Display file timestamps to the user")
+        → Conservative — also acceptable: 0A2A.1 ("Within the app or app group, never accessible to other apps")
+      - UserDefaults — likely used by Firebase SDK + WebView state
+        → reason: CA92.1 ("Within the app, app group, or app extension")
+      - URLSession — standard networking; not a Required Reason API itself but file-download flow uses it
+
+    NOT used by Couch (would need to be added if introduced later):
+      - System Boot Time APIs (mach_absolute_time, etc.) — reason 35F9.1 / 8FFB.1 / 3D61.1
+      - Disk Space APIs (volumeAvailableCapacity, etc.) — reason E174.1 / 85F4.1 / 7D9E.1
+      - Active Keyboards (UITextInputMode) — reason 3EC4.1 / 54BD.1 / 8A53.1
+  -->
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+
+    <!-- File Timestamp — FileManager.default.fileExists/copyItem/removeItem in WebView.swift -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C617.1</string>
+      </array>
+    </dict>
+
+    <!-- UserDefaults — Firebase SDK + WebView session state (within own app/group) -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+
+  </array>
+
+</dict>
+</plist>

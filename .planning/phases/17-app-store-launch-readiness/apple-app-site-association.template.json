@@ -1,0 +1,39 @@
+{
+  "_comment_purpose": "Apple App Site Association — required for iOS Universal Links to actually open in the Couch native app instead of Safari. Drop the actual file at /.well-known/apple-app-site-association (NO file extension, NO _comment_ keys) on couchtonight.app once Apple Developer Program activates and you have a Team ID.",
+
+  "_comment_format": "Apple validates this as strict JSON over HTTPS with Content-Type: application/json. NO comments allowed in production file — strip all _comment_* keys before deploy.",
+
+  "_comment_team_id": "Find your Team ID at https://developer.apple.com/account → Membership Details → Team ID. It's 10 alphanumeric chars (e.g. ABCD123456).",
+
+  "_comment_bundle_id": "Match the CFBundleIdentifier you lock at Phase 17 Wave 1. PWABuilder dry-run used app.couchtonight; final value TBD per CONTEXT D-29.",
+
+  "_comment_paths": "Lists the URL patterns Apple should treat as Universal Links into the Couch app. If a URL on couchtonight.app matches one of these patterns, iOS opens it in Couch instead of Safari (when Couch is installed).",
+
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "<TEAM_ID>.<BUNDLE_ID>",
+        "_comment_example": "appID format: ABCD123456.app.couchtonight",
+        "paths": [
+          "/",
+          "/app",
+          "/app/*",
+          "/rsvp/*",
+          "/?invite=*",
+          "/?claim=*"
+        ]
+      }
+    ]
+  },
+
+  "_comment_webcredentials": "webcredentials enables iCloud Keychain Password AutoFill for couchtonight.app credentials in the native app. Already declared in Entitlements.plist.",
+
+  "webcredentials": {
+    "apps": ["<TEAM_ID>.<BUNDLE_ID>"]
+  },
+
+  "_comment_deployment": "After filling in TEAM_ID and BUNDLE_ID and STRIPPING all _comment_* keys: save as `apple-app-site-association` (no extension!) at couch/.well-known/. Then run `bash scripts/deploy.sh` — the .well-known/ mirror loop (committed 797d29f) will deploy it. Verify with: curl -I https://couchtonight.app/.well-known/apple-app-site-association — should return 200 with Content-Type: application/json. Then in iOS, force-refresh the AASA cache: settings → safari → advanced → website data → remove all (or reinstall the app).",
+
+  "_comment_phase17_d31_link": "Per Phase 17 17-PWABUILDER-FINDINGS-2026-05-07.md (Wave 1 cleanup — iOS task #9): 'Add apple-app-site-association file at /.well-known/ for Universal Links to actually function.' This template lives in .planning/ until Team ID is known."
+}

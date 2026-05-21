@@ -1,11 +1,13 @@
 ---
 seeded: 2026-04-21
-target-phase: 9.x (Redesign polish) OR a dedicated sub-phase between Phase 8 and Phase 9 — NOT Phase 7
-trigger: "Phase 7 UAT (2026-04-21, Scenario 3 observation) — user described async-replay use case and banner lifecycle gap. Deferred to avoid expanding Phase 7 scope; both sub-requests require schema + UX changes that warrant dedicated planning."
-related: [phase-07-watchparty-lifecycle-transitions.md]
+target-phase: post-v1 OR a dedicated sub-phase whenever Wait Up flex (Phase 15.5) earns its keep in production — NOT Phase 7, NOT Phase 9
+trigger: "Phase 7 UAT (2026-04-21, Scenario 3 observation) — user described async-replay use case and banner lifecycle gap. Deferred to avoid expanding Phase 7 scope; both sub-requests require schema + UX changes that warrant dedicated planning. 2026-04-28: re-confirmed as the natural follow-on to Phase 15.5 (Wait Up flex); the 'Red Wedding' hero use case (watch a series years late and feel the original group's reactions) maps directly to Sub-request B below."
+related: [phase-07-watchparty-lifecycle-transitions.md, v33.3-MILESTONE-AUDIT.md]
+status: deferred
+filename-history: "2026-04-21 phase-9x-async-replay.md → 2026-04-28 phase-async-replay.md (dropped numeric prefix per phase-slot safeguard rule — seeds shouldn't claim phase numbers they may not get)"
 ---
 
-# Phase 9.x seed — Banner dismiss + async-replay watchparty mode
+# Seed — Banner dismiss + async-replay watchparty mode
 
 ## Why this isn't in Phase 7
 

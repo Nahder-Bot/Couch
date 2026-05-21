@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "49R296FJGF.app.couchtonight.couch",
+        "paths": [
+          "/",
+          "/app",
+          "/app/*",
+          "/rsvp/*",
+          "/?invite=*",
+          "/?claim=*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["49R296FJGF.app.couchtonight.couch"]
+  }
+}

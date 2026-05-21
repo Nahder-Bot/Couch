@@ -253,15 +253,16 @@ cd C:/Users/nahde/claude-projects/couch
 
 **What it does (in order):**
 1. Resolves `$QUEUENIGHT_PATH` (or default `../../queuenight`) and aborts if the path doesn't exist (review fix HIGH-4).
-2. Aborts if working tree is dirty (Pitfall 7 defense). Skip with `--allow-dirty` as first arg.
-3. Runs `tests/` if present.
-4. `node --check` on every shipping JS file.
-5. Optionally bumps sw.js CACHE in source if a tag is provided.
-6. Mirrors `app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt css/ js/` to `${QUEUENIGHT_PATH}/public/`.
-7. Auto-stamps BUILD_DATE in the deploy mirror's `js/constants.js` ONLY (review fix MEDIUM-8 — source tree stays clean).
-8. Aborts if `app.html` or `landing.html` in the mirror still contain a Sentry DSN placeholder (review fix MEDIUM-5 — production guard for Plan 13-02 placeholder leakage).
-9. Runs `firebase deploy --only hosting --project queuenight-84044`.
-10. Curl-based smoke tests against couchtonight.app.
+2. Aborts if working tree is dirty (Pitfall 7 defense). Skip with `--allow-dirty` before the tag.
+3. **Aborts if `firestore.rules` source-of-truth differs from queuenight mirror** (Wave 4 / CR-12 — closes the v44 deploy-mirror gap). Pass `--sync-rules` to auto-mirror + deploy rules + continue.
+4. Runs `tests/` if present.
+5. `node --check` on every shipping JS file.
+6. Optionally bumps sw.js CACHE in source if a tag is provided.
+7. Mirrors `app.html landing.html changelog.html rsvp.html 404.html sw.js sitemap.xml robots.txt css/ js/` to `${QUEUENIGHT_PATH}/public/`.
+8. Auto-stamps BUILD_DATE in the deploy mirror's `js/constants.js` ONLY (review fix MEDIUM-8 — source tree stays clean).
+9. Aborts if `app.html` or `landing.html` in the mirror still contain a Sentry DSN placeholder (review fix MEDIUM-5 — production guard for Plan 13-02 placeholder leakage).
+10. Runs `firebase deploy --only hosting --project queuenight-84044`.
+11. Curl-based smoke tests against couchtonight.app.
 
 **Cloud Functions deploy** is separate (NOT covered by deploy.sh -- too risky to bundle):
 ```bash
@@ -275,15 +276,33 @@ cd "$QUEUENIGHT_PATH"
 firebase deploy --only storage --project queuenight-84044
 ```
 
-**Firestore rules deploy:**
+**Firestore rules deploy** — Wave 4 / CR-12 hardening: the source-of-truth lives in this repo at `firestore.rules`; the queuenight repo holds the deploy mirror because `firebase deploy --only firestore:rules` runs from there. Pre-Wave-4, drift between the two was silent (Wave 1's CR-05 / CR-06 + Wave 2's CDX-1 + Wave 3's CDX-4 rule edits all landed here without mirroring; that day's deploy reported "released rules" while shipping a stale mirror, leaving those protections unenforced for ~24h).
+
+**Recommended (one-shot via deploy.sh):**
 ```bash
-cd "$QUEUENIGHT_PATH"
-firebase deploy --only firestore:rules --project queuenight-84044
+./scripts/deploy.sh --sync-rules <tag>
+# Diffs couch/firestore.rules vs queuenight/firestore.rules. If drifted:
+#   - cp source-of-truth -> mirror
+#   - commit in queuenight repo with auto-message
+#   - firebase deploy --only firestore:rules from queuenight
+#   - then continue with hosting deploy
+# If in sync, no-ops the rules deploy and proceeds to hosting.
 ```
+
+**Manual (if you prefer step-by-step):**
+```bash
+cp C:/Users/nahde/claude-projects/couch/firestore.rules "$QUEUENIGHT_PATH/firestore.rules"
+(cd "$QUEUENIGHT_PATH" && git add firestore.rules && git commit -m 'chore(rules): mirror couch')
+(cd "$QUEUENIGHT_PATH" && firebase deploy --only firestore:rules --project queuenight-84044)
+```
+
+`deploy.sh` without `--sync-rules` will **fail-fast** with a clear diff if the mirror is stale, listing both the auto-fix command and the manual recipe. This is the Wave 4 gate.
 
 If `deploy.sh` aborts on a dirty tree but you NEED to deploy a hot-fix, run with `--allow-dirty`:
 ```bash
 ./scripts/deploy.sh --allow-dirty 33.3-hotfix
+# Or combined:
+./scripts/deploy.sh --allow-dirty --sync-rules 33.3-hotfix
 ```
 
 If `deploy.sh` aborts on Sentry DSN placeholders, substitute the real DSN values in `app.html` + `landing.html`, commit, and re-run. The placeholders are intentionally allowed in version control (Plan 13-02 acceptance criteria) — the deploy guard is the production-boundary catch.

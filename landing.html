@@ -13,7 +13,7 @@
 <meta property="og:title" content="Couch — Who's on the couch tonight?">
 <meta property="og:description" content="Turn 'what do you want to watch?' into a 30-second ritual everyone on the couch trusts.">
 <meta property="og:url" content="https://couchtonight.app/">
-<meta property="og:image" content="https://couchtonight.app/og.png">
+<meta property="og:image" content="https://couchtonight.app/og.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:type" content="website">
@@ -23,6 +23,9 @@
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+
+<!-- PWA manifest — enables iOS Safari "Add to Home Screen" + Android install banner from the landing page. start_url launches /app. -->
+<link rel="manifest" href="/manifest.json">
 
 <!-- Google Fonts subset — landing uses Fraunces 400/600/800 + Inter 400/500/600 + Instrument Serif 400 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,7 +51,7 @@
      Explicit-fields PII strip in beforeSend per RESEARCH.md Pattern 4 + review fix MEDIUM-9.
      Session Replay DISABLED for v1 (review fix MEDIUM-6); re-enable post-launch +30 days
      after privacy review — tracked in TECH-DEBT.md "Sentry Replay deferred".
-     CSP-compatible: js.sentry-cdn.com is allow-listed in queuenight/firebase.json (Plan 13-05).
+     CSP-compatible: js.sentry-cdn.com is allow-listed in the deploy-mirror sibling repo's firebase.json (Plan 13-05).
      DSN is public-by-design (rate-limited per project per docs.sentry.io). -->
 <script>
   window.sentryOnLoad = function () {
@@ -125,7 +128,7 @@
   "operatingSystem": "Web, iOS, Android",
   "description": "Couch turns 'what do you want to watch?' into a 30-second ritual everyone on the couch trusts.",
   "url": "https://couchtonight.app/",
-  "image": "https://couchtonight.app/og.png",
+  "image": "https://couchtonight.app/og.png?v=2",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
 </script>
@@ -135,12 +138,13 @@
 <main class="landing">
 
   <section class="hero">
-    <img class="hero-wordmark" src="/logo-h300.png" alt="Couch" width="634" height="300">
+    <img class="hero-wordmark" src="/logo-h300.png" alt="Couch — a film-reel forming the letter C" width="634" height="300">
     <p class="hero-tagline">Who's on the couch tonight?</p>
     <div class="hero-cta">
       <a class="cta-primary" href="/app">Pull up a seat</a>
-      <a class="cta-secondary" href="/app">Already have an account? Sign in</a>
+      <a class="cta-secondary" href="#how">See how it works ↓</a>
     </div>
+    <p class="hero-trust">Free. No ads. No paywalls. Your couch isn't anyone's data.</p>
   </section>
 
   <section class="why">
@@ -156,7 +160,30 @@
     <p>Five people, three streaming services, two opinions on tone, one person already half-asleep. "What do you want to watch?" isn't a preference question — it's a coordination puzzle. Couch gives it two answers: <strong>vote together</strong> when nobody's decided, or <strong>drop a pick</strong> when one person already has one. Either way, tonight gets decided in 30 seconds, not 30 minutes.</p>
   </section>
 
-  <section class="paths">
+  <section class="compare">
+    <p class="compare-eyebrow">Why not the other things?</p>
+    <h2>Couch isn't the first app for movie night. Here's the difference.</h2>
+    <div class="compare-grid">
+      <div class="compare-block">
+        <h3>Why not JustWatch or Reelgood?</h3>
+        <p>They tell you where to stream. We help everyone agree on <em>what</em>.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Letterboxd or Trakt?</h3>
+        <p>They're solo cinephile journals. Couch is built for the people watching with you tonight.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Teleparty, Scener, or Plex?</h3>
+        <p>They sync your screen with friends. Couch handles deciding, watching, <em>and</em> remembering — without making everyone install a Chrome extension.</p>
+      </div>
+      <div class="compare-block">
+        <h3>Why not Apple SharePlay, FaceTime, or Microsoft Teams Together?</h3>
+        <p>They're built into one ecosystem (Apple's, Microsoft's). Couch works across iPhone, Android, and the browser. No one's locked out because they're on the wrong device.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="paths" id="how">
     <h2>Two ways to couch</h2>
     <div class="paths-grid">
       <div class="path-card">
@@ -181,25 +208,79 @@
     <p class="paths-footnote">Both paths land the same place: everyone on the couch at the same time, watching the same thing.</p>
   </section>
 
+  <section class="features">
+    <h2>What's actually in it</h2>
+    <div class="feature-list">
+      <div class="feature-block">
+        <h3>Wait Up — watch together when you can't be in the same room</h3>
+        <p>Reactions land at the same moment in the show, even if one of you started 90 minutes late. Or yesterday.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Couch Groups — bring another family in</h3>
+        <p>Multi-family watchparties without a group chat. Cousins three states away can join your Sunday-night Severance ritual.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Pick up where you left off</h3>
+        <p>We track every "watching group" — Mom and the eldest watch Severance, both parents watch Lupin. The home screen tells you which couch left off where.</p>
+      </div>
+      <div class="feature-block">
+        <h3>Pick'em on the big games</h3>
+        <p>Pick winners across NFL, NBA, MLB, NHL, soccer leagues, and F1. Live scores. Reaction-amplified scoring plays. Friend leaderboard.</p>
+      </div>
+    </div>
+  </section>
+
   <section class="audience">
     <h2>Who it's for</h2>
     <div class="audience-grid">
-      <div class="audience-card"><span class="emoji">👨‍👩‍👧</span><h3>Family</h3><p>Including grandma three states away. Everybody votes.</p></div>
-      <div class="audience-card"><span class="emoji">💕</span><h3>Couples</h3><p>Stop the 20-minute scroll. Just pick.</p></div>
-      <div class="audience-card"><span class="emoji">🍿</span><h3>Friends</h3><p>Vote works even when you're not in the same room.</p></div>
-      <div class="audience-card"><span class="emoji">🎬</span><h3>Clubs</h3><p>Movie clubs, book-to-screen nights, anything recurring.</p></div>
-      <div class="audience-card"><span class="emoji">💻</span><h3>Teams</h3><p>Remote happy hour, Friday films, off-site warm-ups.</p></div>
+      <div class="audience-card"><span class="emoji">👨‍👩‍👧</span><h3>Family</h3><p>Mixed ages, kid-safe filtering, everyone on the couch tonight.</p></div>
+      <div class="audience-card"><span class="emoji">🎬</span><h3>Crew</h3><p>Friends who pile onto the couch. Film clubs, group chats, scheduled nights.</p></div>
+      <div class="audience-card"><span class="emoji">💕</span><h3>Duo</h3><p>Just the two of you. Date nights, shared queue, one yes is enough.</p></div>
     </div>
   </section>
 
   <section class="screenshots" id="screenshots">
     <h2>See it in use</h2>
     <div class="screenshot-grid">
-      <figure class="screenshot-card"><img src="/marketing/tonight-hero.png" alt="Tonight screen: picker card with member chips, active watchparty banner, intent card, and mood filter" loading="lazy" width="1170" height="2532"><figcaption>Tonight</figcaption></figure>
-      <figure class="screenshot-card"><img src="/marketing/watchparty-live.png" alt="Watchparty live: participant timer, reactions feed, per-user spoiler delay, message input" loading="lazy" width="1170" height="2532"><figcaption>Watchparty</figcaption></figure>
-      <figure class="screenshot-card"><img src="/marketing/mood-filter.png" alt="Mood filter active: cozy mood narrowing the poster row to matching titles" loading="lazy" width="1170" height="2532"><figcaption>Mood filter</figcaption></figure>
-      <figure class="screenshot-card"><img src="/marketing/title-detail.png" alt="Title detail: poster, runtime, genres, mood pills, vote grid, trailer card" loading="lazy" width="1170" height="2532"><figcaption>Title detail</figcaption></figure>
-      <figure class="screenshot-card"><img src="/marketing/intent-rsvp.png" alt="Tonight-at-time intent: RSVP card with Yes/Maybe/No and member responses" loading="lazy" width="1170" height="2532"><figcaption>Tonight at time</figcaption></figure>
+      <figure class="screenshot-card"><img src="/marketing/tonight-couch-viz.png" alt="Tonight tab: V5 couch viz hero with the family's avatar grid showing who's on the couch tonight, plus matches grid below" loading="lazy" width="1170" height="2532"><figcaption>Everyone's on the couch</figcaption></figure>
+      <figure class="screenshot-card"><img src="/marketing/archive-phase-9/watchparty-live.png" alt="Watchparty live with Wait Up delay slider visible, reactions feed, and per-member spoiler delay" loading="lazy" width="1170" height="2532"><!-- Phase-9 fallback; refresh in next marketing-refresh --><figcaption>Watch together, hours apart</figcaption></figure>
+      <figure class="screenshot-card"><img src="/marketing/archive-phase-9/watchparty-live.png" alt="Multi-family watchparty roster with FamilyName chips on each participant — cousins three states away joined the Sunday-night ritual" loading="lazy" width="1170" height="2532"><!-- Phase-9 fallback; refresh in next marketing-refresh --><figcaption>Bring another family in</figcaption></figure>
+      <figure class="screenshot-card"><img src="/marketing/tonight-pickup.png" alt="Tonight tab Pickup widget showing two watching groups with last-watched episode positions" loading="lazy" width="1170" height="2532"><figcaption>Pick up where you left off</figcaption></figure>
+      <figure class="screenshot-card"><img src="/marketing/pickem-leaderboard.png" alt="Pick'em surface: league leaderboard with rank ordering, picks for upcoming games, and live scores ribbon" loading="lazy" width="1170" height="2532"><figcaption>Pick'em on the big games</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="faq">
+    <h2>FAQ</h2>
+    <div class="faq-list">
+      <details class="faq-item" data-faq-index="0">
+        <summary>Do I need to log in?</summary>
+        <p>Yes. Google or email-link or phone — pick one. Apple Sign-In is coming with the App Store launch.</p>
+      </details>
+      <details class="faq-item" data-faq-index="1">
+        <summary>Does Grandma need an account?</summary>
+        <p>No. Guest RSVP works without one — anyone with the invite link can RSVP and join.</p>
+      </details>
+      <details class="faq-item" data-faq-index="2">
+        <summary>Which streaming services do you support?</summary>
+        <p>All major ones. We pull metadata from TMDB and never link to pirate sources. You stream on whichever service you already pay for.</p>
+      </details>
+      <details class="faq-item" data-faq-index="3">
+        <summary>Does it cost?</summary>
+        <p>Free. No ads, no paywalls, no subscription tiers.</p>
+      </details>
+      <details class="faq-item" data-faq-index="4">
+        <summary>What devices does it work on?</summary>
+        <p>Web today. iOS and Android home-screen install today. Native App Store apps coming.</p>
+      </details>
+      <details class="faq-item" data-faq-index="5">
+        <summary>What happens to my data?</summary>
+        <p>Stays in your family's Firestore doc. We don't sell it, share it, or mine it. <a href="/privacy.html">Read the privacy policy.</a></p>
+      </details>
+      <details class="faq-item" data-faq-index="6">
+        <summary>How is this different from Teleparty?</summary>
+        <p>Teleparty needs a Chrome extension and a paid streaming subscription on the same service for everyone on the call. Couch decides, syncs, and remembers — no extension, no shared subscription required.</p>
+      </details>
     </div>
   </section>
 
@@ -223,11 +304,34 @@
 
   <footer class="landing-footer">
     <p>© Couch</p>
-    <p class="landing-legal"><a href="/privacy.html">Privacy</a><span class="sep">·</span><a href="/terms.html">Terms</a></p>
+    <p class="landing-legal"><a href="/privacy.html">Privacy</a><span class="sep">·</span><a href="/terms.html">Terms</a><span class="sep">·</span><a href="/support.html">Support</a></p>
     <p class="landing-tmdb-attr"><em>Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a></em></p>
   </footer>
 
 </main>
+
+<script>
+// Phase 31 / D-27 — Sentry breadcrumb on FAQ open. Signals which questions
+// matter most so Phase 17 App Store description can order them by interest.
+// Defensive guard pattern (canonical across codebase — typeof !== 'undefined'
+// because Sentry CDN may fail to load in restricted environments / extensions).
+(function() {
+  var faqItems = document.querySelectorAll('.faq-item');
+  for (var i = 0; i < faqItems.length; i++) {
+    faqItems[i].addEventListener('toggle', function(e) {
+      if (!e.target.open) return; // only fire on open, not on close
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        var idx = parseInt(e.target.getAttribute('data-faq-index'), 10);
+        Sentry.addBreadcrumb({
+          category: 'marketing.faq',
+          message: 'opened',
+          data: { question_index: isNaN(idx) ? -1 : idx }
+        });
+      }
+    });
+  }
+})();
+</script>
 
 </body>
 </html>

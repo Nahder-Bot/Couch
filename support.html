@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Support — Couch</title>
+<meta name="description" content="Help, FAQs, and how to get in touch with Couch. Most answers are one tap away.">
+<meta name="theme-color" content="#14110f">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://couchtonight.app/support.html">
+
+<!-- OG / Twitter -->
+<meta property="og:site_name" content="Couch">
+<meta property="og:title" content="Support — Couch">
+<meta property="og:description" content="Help, FAQs, and how to get in touch with Couch.">
+<meta property="og:url" content="https://couchtonight.app/support.html">
+<meta property="og:image" content="https://couchtonight.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/mark-180.png">
+<link rel="manifest" href="/manifest.json">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;800&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+
+<style>
+  :root {
+    --bg: #14110f;
+    --ink: #f4ede1;
+    --dim: #a89c8a;
+    --rule: #2a2520;
+    --warm: #d9b88a;
+    --warm-deep: #b08e60;
+    --max: 720px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    padding: 0 20px;
+  }
+  main { max-width: var(--max); margin: 0 auto; padding: 56px 0 96px; }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 32px; margin-bottom: 40px; }
+  header a.brand { display: inline-block; margin-bottom: 24px; text-decoration: none; }
+  header img { height: 48px; width: auto; display: block; }
+  h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 800; font-size: 40px; line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--dim); font-size: 17px; margin: 0; font-family: 'Instrument Serif', Georgia, serif; font-style: italic; }
+  h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 24px; margin: 48px 0 16px; letter-spacing: -0.005em; }
+  h3 { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 17px; margin: 28px 0 8px; color: var(--warm); }
+  p, li { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; }
+  a { color: var(--warm); text-decoration: underline; text-underline-offset: 3px; }
+  a:hover { color: var(--ink); }
+  strong { color: var(--ink); font-weight: 600; }
+  em { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: 1.05em; }
+  .pull { border-left: 2px solid var(--warm); padding: 4px 0 4px 18px; margin: 24px 0; color: var(--ink); font-size: 17px; }
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .contact-card {
+    background: rgba(217, 184, 138, 0.04);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .contact-card h3 { margin: 0 0 6px; color: var(--warm); }
+  .contact-card p { margin: 0; font-size: 14.5px; color: var(--dim); line-height: 1.55; }
+  .contact-card a { display: inline-block; margin-top: 8px; font-weight: 500; }
+  details {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 0;
+  }
+  details summary {
+    cursor: pointer;
+    list-style: none;
+    font-weight: 600;
+    font-size: 16px;
+    padding-right: 28px;
+    position: relative;
+    color: var(--ink);
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after {
+    content: '+';
+    position: absolute;
+    right: 0;
+    top: -2px;
+    font-size: 22px;
+    color: var(--warm);
+    font-weight: 400;
+    transition: transform 0.18s ease;
+  }
+  details[open] summary::after { content: '−'; }
+  details summary:hover { color: var(--warm); }
+  details > *:not(summary) { margin-top: 12px; color: var(--ink); }
+  details p { font-size: 15px; line-height: 1.6; color: var(--ink); margin-bottom: 10px; }
+  details p:last-child { margin-bottom: 4px; }
+  footer { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--rule); color: var(--dim); font-size: 14px; }
+  footer a { color: var(--warm); }
+  footer p { margin: 4px 0; }
+  @media (max-width: 540px) {
+    h1 { font-size: 32px; }
+    h2 { font-size: 21px; }
+    main { padding: 40px 0 64px; }
+    .contact-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <a class="brand" href="/"><img src="/logo-h100.png" alt="Couch"></a>
+    <h1>Support</h1>
+    <p class="subtitle">Help when you need it. Plain language, no tickets, no bots.</p>
+  </header>
+
+  <p class="pull">Most things in Couch are one tap away — including help. If something's broken, weird, or just confusing, email us. A real person reads everything that comes in.</p>
+
+  <h2>Get in touch</h2>
+
+  <div class="contact-grid">
+    <div class="contact-card">
+      <h3>General questions</h3>
+      <p>Anything about your account, family, or how Couch works.</p>
+      <a href="mailto:support@couchtonight.app">support@couchtonight.app</a>
+    </div>
+    <div class="contact-card">
+      <h3>Bug reports</h3>
+      <p>Something broken? Tell us what happened, what device you're on, and what you expected.</p>
+      <a href="mailto:support@couchtonight.app?subject=Bug%20report">Send a bug report</a>
+    </div>
+    <div class="contact-card">
+      <h3>Security disclosure</h3>
+      <p>Found a vulnerability? Please don't post it publicly until we've had a chance to fix it.</p>
+      <a href="mailto:security@couchtonight.app">security@couchtonight.app</a>
+    </div>
+    <div class="contact-card">
+      <h3>Copyright (DMCA)</h3>
+      <p>Believe content on Couch infringes your copyright? Send a DMCA notice.</p>
+      <a href="mailto:dmca@couchtonight.app">dmca@couchtonight.app</a>
+    </div>
+  </div>
+
+  <h2>Frequently asked</h2>
+
+  <details>
+    <summary>How do I create a family?</summary>
+    <p>Open Couch and tap <strong>Account</strong> → <strong>Create a family</strong>. You'll get a 6-character family code. Share it with the people who should join — they tap <em>Join family</em> on their own Couch and paste the code.</p>
+    <p>One person creates; everyone else joins. Couch families are designed for households (a few people you trust), not public groups.</p>
+  </details>
+
+  <details>
+    <summary>Can I be in more than one family?</summary>
+    <p>Yes. Account → Family → Switch to manage multiple families on the same Couch account. Use one for your household, another for the film club, another for the long-distance partner.</p>
+  </details>
+
+  <details>
+    <summary>Someone joined my family who shouldn't have. How do I remove them?</summary>
+    <p>Open Account → Family → tap the member's name → <strong>Remove from family</strong>. Their votes/RSVPs stay in the family's history (other people relied on them) but their name is no longer associated. They lose access immediately.</p>
+    <p>If you want to prevent further joins, regenerate the family code: Account → Family → <strong>New code</strong>. The old code stops working immediately.</p>
+  </details>
+
+  <details>
+    <summary>I'm not getting push notifications.</summary>
+    <p>Three things to check:</p>
+    <ol>
+      <li><strong>System permission</strong>. iOS: Settings → Couch → Notifications → make sure they're allowed. Android: Settings → Apps → Couch → Notifications.</li>
+      <li><strong>Couch's per-event toggles</strong>. Account → Notifications. Each event type (watchparty starting, intent match, etc.) has its own toggle.</li>
+      <li><strong>Browser permission for the PWA</strong>. If you installed Couch from the website, push notifications need browser permission too. Reload the app, look for a permission prompt at the top, or open Settings → Notifications and re-enable.</li>
+    </ol>
+    <p>If all three are on and notifications still don't arrive, email <a href="mailto:support@couchtonight.app">support</a> with your device + OS version.</p>
+  </details>
+
+  <details>
+    <summary>Why isn't a movie I added showing up in the matches list?</summary>
+    <p>The matches list filters by what the people on tonight's couch can actually agree on. Common reasons a title is hidden:</p>
+    <ul>
+      <li>Someone vetoed it.</li>
+      <li>Kid Mode is on and the title's age tier is above the cap.</li>
+      <li>Mood filter is on and the title doesn't match.</li>
+      <li>The title isn't on any streaming service the people on the couch subscribe to.</li>
+      <li>Runtime is longer than the time the couch has tonight.</li>
+    </ul>
+    <p>Tap the title in your queue to see why it's filtered out — Couch surfaces the reason directly.</p>
+  </details>
+
+  <details>
+    <summary>Can I pick something to watch alone?</summary>
+    <p>Yes. The "Duo" / "Family" / "Crew" labels are guides, not enforcement. Solo Couch works fine — votes from a single person are valid; spin still rotates fairly across your queue. The ritual just collapses to <em>"what do I want to watch?"</em>, which is sometimes the harder question.</p>
+  </details>
+
+  <details>
+    <summary>How do I delete my account?</summary>
+    <p>Account → <strong>Delete account</strong>. It's self-serve and immediate. Your account is marked deleted, your name is removed from family rosters, and a scheduled job permanently erases your personal data within 30 days. Family data you helped create (votes, watchparty reactions, etc.) stays in the family's history because other members rely on it — but it's no longer tied to your name.</p>
+    <p>If you change your mind within the first few minutes, sign back in — the deletion can be reversed before the scheduled job runs. After that, recovery isn't possible.</p>
+  </details>
+
+  <details>
+    <summary>How do I disconnect Trakt?</summary>
+    <p>Account → Sync → <strong>Disconnect Trakt</strong>. We delete the OAuth token immediately. Your Trakt account is unaffected (manage that on trakt.tv).</p>
+  </details>
+
+  <details>
+    <summary>What does "Wait Up" do?</summary>
+    <p>Wait Up delays the reactions and live updates that other people on the watchparty are sending, so spoilers stay sealed for whoever's behind. Tap the Wait Up chip during a watchparty and pick how far back you are (e.g., 15 minutes). Reactions arrive on your screen shifted by that delay — you see them when you reach the moment they're about, not before.</p>
+  </details>
+
+  <details>
+    <summary>Why did the spin pick something I voted "no" on?</summary>
+    <p>It shouldn't. Spin only picks from titles that received at least one yes-vote among the people on the couch. If you voted "no" but the title still got picked, someone else on the couch voted "yes" — and one yes is enough for a title to be eligible (the "any-yes" rule for duos and the family-majority rule for larger groups).</p>
+    <p>If you genuinely don't want to watch the pick, tap <strong>Veto</strong>. The wheel goes again with the vetoed title removed from the pool.</p>
+  </details>
+
+  <details>
+    <summary>Couch Tonight (the iOS / Android app) vs. couchtonight.app (the website) — what's the difference?</summary>
+    <p>Same product, three surfaces:</p>
+    <ul>
+      <li><strong>couchtonight.app</strong> — works in any browser. Add to your home screen for an installable PWA experience.</li>
+      <li><strong>iOS app (Couch Tonight)</strong> — App Store. Same experience, native push notifications, native sign-in.</li>
+      <li><strong>Android app (Couch Tonight)</strong> — Google Play. Same experience, deeper Android integration.</li>
+    </ul>
+    <p>Your account, family, and queue sync across all three. Sign in once on each surface.</p>
+  </details>
+
+  <details>
+    <summary>I'm being asked to pay. Couch is supposed to be free.</summary>
+    <p>It is. Couch has no subscriptions, no in-app purchases, and no ads. If anything inside Couch is asking for payment, you may be looking at a phishing page or a fake clone — do not enter payment info. Email <a href="mailto:security@couchtonight.app">security@couchtonight.app</a> with a screenshot and we'll investigate immediately.</p>
+  </details>
+
+  <h2>Status &amp; outages</h2>
+  <p>If Couch isn't loading or you're seeing errors, the issue may be on our end or with one of the services we depend on (Firebase, TMDB). Check our deployment status — currently deploys are tagged in the service worker as <code>couch-v48-manifest-extract</code> (visible at <a href="https://couchtonight.app/sw.js">/sw.js</a>).</p>
+  <p>If we're aware of an outage, we'll post it at <a href="mailto:support@couchtonight.app">support@couchtonight.app</a> auto-reply. (A dedicated status page is on the roadmap.)</p>
+
+  <h2>Privacy &amp; legal</h2>
+  <ul>
+    <li><a href="/privacy.html">Privacy Policy</a> — what we collect and what we don't</li>
+    <li><a href="/terms.html">Terms of Service</a> — the rules for using Couch</li>
+  </ul>
+
+  <footer>
+    <p><a href="/">← Back to Couch</a> &nbsp;·&nbsp; <a href="/privacy.html">Privacy</a> &nbsp;·&nbsp; <a href="/terms.html">Terms</a></p>
+    <p><em>Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">The Movie Database (TMDB)</a>. Couch is not endorsed or certified by TMDB.</em></p>
+  </footer>
+</main>
+
+</body>
+</html>

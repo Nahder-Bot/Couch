@@ -207,6 +207,8 @@ families/{familyCode}/intents/{intentId}
 >
 > Anti-pattern #8 below also corrected to reflect this 3-place reality.
 
+> **DR-3 follow-up override (2026-04-25, plan-phase 14):** D-12's "mirroring Phase 12 POL-01 UI pattern" clause is OVERRIDDEN by user decision at /gsd-plan-phase 14. The 7 new push categories surface in the LEGACY notification settings list (`NOTIFICATION_EVENT_LABELS` at `js/app.js:113`) only — NOT in the Phase 12 friendly-UI maps (`NOTIF_UI_TO_SERVER_KEY` + `NOTIF_UI_LABELS` + `NOTIF_UI_DEFAULTS` at `js/app.js:128-155`). Reason: RESEARCH §5 closing warning ("mixing the two will produce two settings screens that disagree") + risk of double-rendering toggles in two different Settings panels. Friendly-UI parity is captured as a follow-up polish item; revisit if user reports the 7 new toggles missing from the canonical Settings surface. Plan 14-09 task 5 carries this override.
+
 ## Suggested plan structure
 
 The seed file proposed 8 plans. After resolving the 8 gray areas, this remains a good split. Final plan list will be locked at `/gsd-plan-phase 14`.

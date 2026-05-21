@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Couch Viz — Variant 5: Roster Is the Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   VARIANT 5: FAMILY ROSTER IS THE CONTROL  ★ proposed direction
+   ----------------------------------------------------------------------------
+   Problem solved: The dual-mode constraint (proxy-fill + self-claim + remote
+   ping) reshapes the design space. Instead of "abstract seats that members
+   claim," the family roster ITSELF is the control surface. Each member is a
+   pill with state. Default = "out" (dim, dashed outline, ghost initial).
+   Tap = "in" (member-color filled, bright initial). Long-press = send push.
+
+   Dual-mode tradeoff:
+     ✓✓ Proxy-fill — Tap any member pill to mark them in. Designed for the
+        "I'm at home, marking who's here" mental model.
+     ✓✓ Self-claim — Tap your own pill (highlighted with "YOU" tag + amber
+        outline). Same gesture as proxy-fill — same UI, no special mode.
+     ✓✓ Remote ping — Long-press any out-state pill to send a push. Or tap
+        "Send pushes to the rest" link below. Built-in to the same surface.
+     ✓ Empty state on a fresh family looks great (8 empty pills = "your
+       roster"), not 8 fake seats.
+     ✓ Adding/removing family members = roster grows/shrinks naturally.
+
+   Intentionally cut: The "couch capacity" abstraction entirely. There are no
+   seats, only members. The "couchSeating" Firestore map becomes "couchInTonight"
+   per-member boolean + timestamp. Per-cushion grid + ＋placeholder cells gone.
+
+   Why this is most "Apple-like": direct manipulation on real domain objects
+   (people), no abstract intermediaries (seats), one gesture works everywhere.
+   ============================================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #14110f;
+  --surface: #1f1a16;
+  --surface-elev: #2a241f;
+  --border-soft: #2a241f;
+  --text: #f5ede1;
+  --text-muted: #b3a797;
+  --text-dim: #6e6356;
+  --warm-amber: #d4a574;
+  --warm-amber-soft: rgba(217, 122, 60, 0.18);
+  --r-pill: 999px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  padding: 32px 24px 120px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.state-toggle { display: flex; gap: 4px; margin-bottom: 32px; background: var(--surface); border-radius: var(--r-pill); padding: 4px; width: fit-content; font-size: 12px; }
+.state-toggle button { background: transparent; border: 0; color: var(--text-muted); padding: 6px 14px; border-radius: var(--r-pill); font-family: inherit; font-size: 12px; cursor: pointer; transition: color 120ms, background 120ms; }
+.state-toggle button.active { background: var(--surface-elev); color: var(--text); }
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.hero-icon {
+  width: 84px;
+  height: 84px;
+  margin-bottom: 14px;
+  border-radius: 22px;
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.5));
+}
+.couch-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.couch-sub {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+/* === Roster pills === */
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 28px auto 22px;
+  max-width: 580px;
+}
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px 8px 8px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 220ms cubic-bezier(0.2, 0.8, 0.4, 1);
+  position: relative;
+  border: 1.5px solid transparent;
+}
+.pill:hover { transform: translateY(-2px); }
+.pill .av {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter';
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 220ms;
+}
+.pill .label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 180ms;
+}
+.pill .you-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--warm-amber);
+  letter-spacing: 1px;
+  margin-left: 4px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(217, 122, 60, 0.12);
+}
+
+/* OUT state */
+.pill.out {
+  background: transparent;
+  border-color: var(--border-soft);
+  border-style: dashed;
+}
+.pill.out .av {
+  background: transparent;
+  border: 1.5px dashed var(--text-dim);
+  color: var(--text-dim);
+}
+.pill.out .label { color: var(--text-muted); }
+.pill.out:hover {
+  border-color: var(--warm-amber);
+  background: rgba(217, 122, 60, 0.04);
+}
+.pill.out:hover .av {
+  border-color: var(--warm-amber);
+  color: var(--warm-amber);
+}
+
+/* IN state */
+.pill.in {
+  background: var(--surface);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.pill.in .av {
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.pill.in .label { color: var(--text); }
+
+/* ME ring (always visible regardless of state) */
+.pill.me {
+  border-color: var(--warm-amber);
+  border-style: solid;
+}
+.pill.me.in {
+  background: linear-gradient(135deg, rgba(217, 122, 60, 0.18) 0%, var(--surface) 100%);
+}
+
+/* Long-press indicator */
+.pill .ping-hint {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 2px;
+  background: var(--warm-amber);
+  border-radius: 2px;
+  width: 0;
+  transition: width 100ms linear;
+}
+.pill.pinging .ping-hint {
+  width: calc(100% - 16px);
+  transition: width 700ms linear;
+}
+
+/* === Tally bar === */
+.tally {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.tally .num {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.6rem;
+  color: var(--warm-amber);
+  letter-spacing: -0.02em;
+}
+.tally .of {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+/* === Action footer === */
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.action-link {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: color 120ms, background 120ms;
+}
+.action-link:hover { color: var(--warm-amber); background: rgba(217, 122, 60, 0.06); }
+
+.hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* === Explainer & toolbar === */
+.explainer {
+  position: fixed; top: 12px; left: 12px;
+  background: rgba(31, 26, 22, 0.92); backdrop-filter: blur(8px);
+  border: 1px solid var(--warm-amber); padding: 10px 14px; border-radius: 10px;
+  font-size: 11px; color: var(--text-muted); max-width: 320px; line-height: 1.5; z-index: 100;
+}
+.explainer strong { color: var(--warm-amber); display: block; margin-bottom: 4px; font-family: 'Fraunces', serif; font-size: 13px; }
+.explainer .star { color: var(--warm-amber); margin-right: 4px; }
+
+#sketch-tools {
+  position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+  font-family: system-ui; font-size: 12px;
+  background: rgba(0,0,0,0.78); color: white;
+  padding: 8px 12px; border-radius: 8px;
+  opacity: 0.45; transition: opacity 200ms;
+  display: flex; gap: 8px; align-items: center;
+}
+#sketch-tools:hover { opacity: 1; }
+#sketch-tools button { background: rgba(255,255,255,0.1); color: white; border: 0; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: inherit; }
+#sketch-tools button.active { background: var(--warm-amber); color: #1a1410; }
+
+@media (max-width: 480px) {
+  body { padding: 20px 16px 100px; }
+  .couch-headline { font-size: 1.45rem; }
+  .pill { padding: 6px 12px 6px 6px; }
+  .pill .av { width: 28px; height: 28px; font-size: 12px; }
+  .pill .label { font-size: 13px; }
+  .roster { gap: 8px; }
+  .explainer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="explainer">
+  <strong><span class="star">★</span>Variant 5 — Roster IS the control</strong>
+  Each family member is a toggleable pill. Tap = in/out. Long-press an "out" pill (held 700ms) = send push. Built natively for proxy-fill + self-claim + remote ping in one surface.
+</div>
+
+<div class="state-toggle" role="tablist">
+  <button data-state="empty" class="active">0 in</button>
+  <button data-state="me-only">Me only</button>
+  <button data-state="mixed">4 of 8 in</button>
+</div>
+
+<div class="hero">
+  <svg class="hero-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="floorGlow5" cx="68%" cy="60%" r="40%">
+        <stop offset="0%" stop-color="#f4b860" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="leather5" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#a06a45"/>
+        <stop offset="100%" stop-color="#7a4d2f"/>
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="96" height="96" rx="18" fill="#1a120c"/>
+    <circle cx="68" cy="60" r="32" fill="url(#floorGlow5)"/>
+    <path d="M 25 30 Q 25 22 33 22 L 55 22 Q 60 22 60 28 L 60 38 Q 60 44 65 44 L 70 44 Q 75 44 75 50 L 75 70 Q 75 76 67 76 L 33 76 Q 25 76 25 68 Z" fill="url(#leather5)" stroke="#5d3820" stroke-width="0.6"/>
+    <rect x="78" y="48" width="3" height="12" fill="#d4a574"/>
+    <circle cx="79.5" cy="46" r="4" fill="#f4b860"/>
+  </svg>
+  <h1 class="couch-headline">On the couch tonight</h1>
+  <p class="couch-sub" id="sub-line">Tap who's watching</p>
+</div>
+
+<div class="roster" id="roster"></div>
+
+<div class="tally">
+  <span class="num" id="count-num">0</span>
+  <span class="of">of 8 watching</span>
+</div>
+
+<div class="actions" id="actions">
+  <button class="action-link" id="action-mark-all">Mark everyone in</button>
+  <button class="action-link" id="action-clear-all">Clear couch</button>
+  <button class="action-link" id="action-push" onclick="alert('Sketch: would send push to N members')">Send pushes to the rest</button>
+</div>
+
+<p class="hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>
+
+<div id="sketch-tools">
+  <span style="opacity:0.6">viewport</span>
+  <button onclick="setViewport(375)">📱</button>
+  <button onclick="setViewport(768)">▭</button>
+  <button onclick="setViewport(1280)" class="active">🖥</button>
+</div>
+
+<script>
+const FAMILY = [
+  { id: 'me',    name: 'Nahder',  initial: 'N', color: '#8b5cf6', isMe: true  },
+  { id: 'wife',  name: 'Ashley',  initial: 'A', color: '#ec4899', isMe: false },
+  { id: 'kid1',  name: 'Brody',   initial: 'B', color: '#f59e0b', isMe: false },
+  { id: 'kid2',  name: 'Arianna', initial: 'A', color: '#14b8a6', isMe: false },
+  { id: 'mom',   name: 'Mom',     initial: 'M', color: '#3b82f6', isMe: false },
+  { id: 'dad',   name: 'Dad',     initial: 'D', color: '#22c55e', isMe: false },
+  { id: 'tyler', name: 'Tyler',   initial: 'T', color: '#ef4444', isMe: false },
+  { id: 'sam',   name: 'Sam',     initial: 'S', color: '#6366f1', isMe: false },
+];
+let inState = new Set();
+
+function render() {
+  const num = inState.size;
+  document.getElementById('count-num').textContent = num;
+
+  const sub = document.getElementById('sub-line');
+  if (num === 0) sub.textContent = 'Tap who\'s watching';
+  else if (num === 1 && inState.has('me')) sub.textContent = "It's just you so far — tap others in";
+  else if (num === FAMILY.length) sub.textContent = "Whole couch is in";
+  else sub.textContent = `${num} ${num === 1 ? 'is' : 'are'} watching`;
+
+  const roster = document.getElementById('roster');
+  roster.innerHTML = '';
+  FAMILY.forEach(m => {
+    const isIn = inState.has(m.id);
+    const pill = document.createElement('div');
+    pill.className = `pill ${isIn ? 'in' : 'out'} ${m.isMe ? 'me' : ''}`;
+    pill.dataset.id = m.id;
+    pill.innerHTML = `
+      <div class="av" style="${isIn ? `background:${m.color}` : ''}">${m.initial}</div>
+      <span class="label">${m.name}${m.isMe ? '<span class="you-tag">YOU</span>' : ''}</span>
+      <div class="ping-hint"></div>
+    `;
+
+    // Tap to toggle
+    let pressTimer = null;
+    let didLongPress = false;
+    const startPress = () => {
+      didLongPress = false;
+      if (!isIn) {
+        // Long-press only matters on out-state pills (ping flow)
+        pill.classList.add('pinging');
+        pressTimer = setTimeout(() => {
+          didLongPress = true;
+          pill.classList.remove('pinging');
+          // Visual ping confirm
+          pill.style.transform = 'scale(1.06)';
+          pill.style.boxShadow = '0 0 0 3px rgba(217, 122, 60, 0.4)';
+          setTimeout(() => { pill.style.transform = ''; pill.style.boxShadow = ''; }, 280);
+          // In real app: send push to m.id
+          showToast(`Push sent to ${m.name}`);
+        }, 700);
+      }
+    };
+    const cancelPress = () => {
+      pill.classList.remove('pinging');
+      if (pressTimer) clearTimeout(pressTimer);
+    };
+    const handleClick = (e) => {
+      if (didLongPress) { e.preventDefault(); return; }
+      cancelPress();
+      toggle(m.id);
+    };
+
+    pill.addEventListener('mousedown', startPress);
+    pill.addEventListener('touchstart', startPress, { passive: true });
+    pill.addEventListener('mouseup', cancelPress);
+    pill.addEventListener('mouseleave', cancelPress);
+    pill.addEventListener('touchend', cancelPress);
+    pill.addEventListener('click', handleClick);
+
+    roster.appendChild(pill);
+  });
+
+  // Action visibility
+  const out = FAMILY.length - num;
+  document.getElementById('action-mark-all').style.display = num < FAMILY.length ? '' : 'none';
+  document.getElementById('action-clear-all').style.display = num > 0 ? '' : 'none';
+  document.getElementById('action-push').style.display = out > 0 ? '' : 'none';
+}
+
+function toggle(id) {
+  if (inState.has(id)) inState.delete(id);
+  else inState.add(id);
+  render();
+}
+
+document.getElementById('action-mark-all').onclick = () => {
+  FAMILY.forEach(m => inState.add(m.id));
+  render();
+};
+document.getElementById('action-clear-all').onclick = () => {
+  inState.clear();
+  render();
+};
+
+document.querySelectorAll('.state-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.state-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const state = btn.dataset.state;
+    inState = new Set();
+    if (state === 'me-only') inState.add('me');
+    if (state === 'mixed') ['me', 'wife', 'kid1', 'kid2'].forEach(id => inState.add(id));
+    render();
+  };
+});
+
+// Toast
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface-elev);color:var(--text);padding:10px 18px;border-radius:999px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,0.5);border:1px solid var(--warm-amber);z-index:1000;opacity:0;transition:opacity 200ms;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2200);
+}
+
+function setViewport(w) {
+  document.body.style.maxWidth = w === 1280 ? '720px' : (w + 'px');
+  document.querySelectorAll('#sketch-tools button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+render();
+</script>
+</body>
+</html>

@@ -56,12 +56,28 @@ service cloud.firestore {
     // If the write is on behalf of a managed sub-profile (managedMemberId set),
     // the caller must actually manage that sub — member.managedBy must equal
     // the caller's uid. This is what stops parent forgery attacks.
+    //
+    // Phase 15.1 / SEC-15-1-02: anchor `memberId` (and `managedMemberId` when
+    // present) to '^m_[A-Za-z0-9_-]+$' so RE2 meta-characters can never be
+    // injected into runtime regex constructions like the title-doc
+    // `actingTupleKey` echo regex `(^|.*,)' + memberId + '(,.*|$)`. The anchor
+    // requires the full-string shape `m_<word-char-or-dash>+` — `.`, `*`, `\\`,
+    // and other meta-characters are NOT in the allowed character class
+    // `[A-Za-z0-9_-]` (`-` is last so it's a literal, not a range operator).
+    // Closes WR-02. Mirrors the pattern at firestore.rules tupleProgress
+    // sub-rule for memberId-derived runtime regex inputs.
     function validAttribution(familyCode) {
       return isMemberOfFamily(familyCode)
         && request.resource.data.actingUid == uid()
+        && request.resource.data.memberId is string
+        && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
         && (
           !('managedMemberId' in request.resource.data)
-          || get(/databases/$(database)/documents/families/$(familyCode)/members/$(request.resource.data.managedMemberId)).data.managedBy == uid()
+          || (
+            request.resource.data.managedMemberId is string
+            && request.resource.data.managedMemberId.matches('^m_[A-Za-z0-9_-]+$')
+            && get(/databases/$(database)/documents/families/$(familyCode)/members/$(request.resource.data.managedMemberId)).data.managedBy == uid()
+          )
         );
     }
 
@@ -110,6 +126,141 @@ service cloud.firestore {
 
 
     // ==========================================================
+    // Phase 30 — Top-level /watchparties/{wpId} collection
+    // ==========================================================
+    // Post-migration: wp docs live at /watchparties/{wpId}, not nested under families/.
+    // READ gate: any uid listed in wp.memberUids (set by addFamilyToWp CF + confirmStartWatchparty).
+    // Path A / Path B write split mirrors Phase 24 nested rule verbatim.
+    // memberUids + families added to Path B denylist so non-host cannot write them
+    // (CF uses admin-SDK which bypasses rules — RESEARCH Pattern 2).
+    //
+    // Note: the existing nested /families/{familyCode}/watchparties/{wpId} block
+    // STAYS in place below for backward compat during the cache-bust window.
+    // After Phase 30 client is live + old cache purged, a follow-up can add
+    // `allow read: if false` to the nested block. Do NOT remove it now.
+    match /watchparties/{wpId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      // CDX-1 (Phase 30 hotfix wave 2 — cross-AI peer review): the prior create rule
+      //   only required `hostUid == uid()` and `auth.uid in memberUids`. There was NO
+      //   check that the creator actually belongs to the claimed `hostFamilyCode`, no
+      //   bound on the initial `families[]` array, and no bound on
+      //   `crossFamilyMembers[]`. A signed-in attacker could call doc().set({...})
+      //   with `hostFamilyCode: 'someone-elses-code'` and `families: ['fam-A',
+      //   'fam-B', ...]` (any list they wanted) as long as their own uid was in
+      //   memberUids. The `onWatchpartyCreateTopLevel` Cloud Function then fans out
+      //   push notifications to every member of every family in `wp.families[]` —
+      //   cross-family push spam + a spoofed-watchparty injection vector against
+      //   unrelated families' members.
+      //
+      //   Tightened to the actual creation invariants enforced by addFamilyToWp's
+      //   admin-SDK fan-out path. At CREATE time:
+      //     (1) hostFamilyCode must be a string (defensive — Firestore type guard
+      //         before we deref it inside the exists() call below).
+      //     (2) families[] MUST equal [hostFamilyCode]. Cross-family expansion
+      //         happens later via the `addFamilyToWp` admin-SDK Cloud Function
+      //         (queuenight/functions/index.js), NOT at client create. The single-
+      //         element list rule mirrors how the client always creates wps in its
+      //         own family scope first.
+      //     (3) crossFamilyMembers[] MUST be empty at create. Same reasoning — the
+      //         denormalized cross-family roster is populated by addFamilyToWp's
+      //         transactional admin write, never by direct client create.
+      //     (4) The hostFamilyCode family doc must already exist (no orphan-wp
+      //         injection against not-yet-created family codes).
+      //     (5) The creator's uid must be in the host family — verified via the
+      //         existing per-user index at /users/{uid}/groups/{familyCode}, the
+      //         same surface `isMemberOfFamily()` reads. We can't reuse the helper
+      //         directly because it captures `familyCode` from the path match
+      //         (`/families/{familyCode}/...`) — at the top-level /watchparties/
+      //         path there is no familyCode wildcard, so we read it off the
+      //         incoming resource via `request.resource.data.hostFamilyCode`.
+      //
+      //   Closes CDX-1. Tests: tests/rules.test.js #30-21..25.
+      allow create: if signedIn()
+        && request.resource.data.hostUid == uid()
+        && request.auth.uid in request.resource.data.memberUids
+        && request.resource.data.hostFamilyCode is string
+        && request.resource.data.families == [request.resource.data.hostFamilyCode]
+        && request.resource.data.crossFamilyMembers is list
+        && request.resource.data.crossFamilyMembers.size() == 0
+        && exists(/databases/$(database)/documents/families/$(request.resource.data.hostFamilyCode))
+        && exists(/databases/$(database)/documents/users/$(uid())/groups/$(request.resource.data.hostFamilyCode));
+
+      // CR-05 (Phase 30 hotfix): require attributedWrite-equivalent on every update so
+      //   audit trail is preserved on top-level wps (legacy nested rule at line ~629
+      //   relied on attributedWrite(familyCode), which can't be reused here because
+      //   top-level wps span families). Inline the actingUid + memberId regex anchor
+      //   that the validAttribution() helper performs — the regex anchor matches the
+      //   helper's '^m_[A-Za-z0-9_-]+$' pattern verbatim so any future memberId-derived
+      //   regex construction (parallel of the title-doc actingTupleKey pattern) is
+      //   defanged. Closes Phase 30 cross-cutting review CR-05.
+      //
+      // CR-06 (Phase 30 hotfix): Path B converted from denylist → allowlist. The prior
+      //   denylist let cross-family members (added via addFamilyToWp) overwrite
+      //   participants[host_id] (defeating Phase 15.5 REQ-7), titleName, mode, status,
+      //   archivedAt, etc. Path B now permits ONLY the safe, member-writable fields:
+      //   reactions, rsvps, archivedAt, participants, lastActivityAt — plus the four
+      //   attribution echo fields (actingUid, managedMemberId, memberId, memberName)
+      //   which CR-05 mandates be present on every write. Cross-family members can no
+      //   longer mutate host-only or party-shape fields. Closes Phase 30 cross-cutting
+      //   review CR-06.
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberUids
+        && request.resource.data.actingUid == request.auth.uid
+        && request.resource.data.memberId is string
+        && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
+        && (
+          !('managedMemberId' in request.resource.data)
+          || (
+            request.resource.data.managedMemberId is string
+            && request.resource.data.managedMemberId.matches('^m_[A-Za-z0-9_-]+$')
+          )
+        )
+        && (
+          // Path A: host — any field allowed.
+          (
+            'hostUid' in resource.data
+            && resource.data.hostUid == request.auth.uid
+          )
+          ||
+          // Path B: non-host limited to specific safe fields (allowlist).
+          // Includes the four attribution echo fields because CR-05 requires them
+          // on every write — they MUST appear in affectedKeys for any write to land.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'reactions',
+            'rsvps',
+            'archivedAt',
+            'participants',
+            'lastActivityAt',
+            'actingUid', 'managedMemberId', 'memberId', 'memberName'
+          ])
+        );
+
+      // CDX-4 (Phase 30 hotfix Wave 3): top-level wp hard-delete is fully denied —
+      //   a hard delete erases reactions/replay/RSVP history irrevocably and there
+      //   is no client surface that needs it. Wp lifecycle uses status transitions
+      //   (status: 'cancelled' | 'archived') for soft-delete; legacy nested rule at
+      //   ~line 378 already denies delete, this top-level rule now matches.
+      allow delete: if false;
+    }
+
+
+    // ==========================================================
+    // Phase 28 / D-06 (PICK-28-23) — pickReminderTick idempotency docs
+    // ==========================================================
+    // Top-level (not nested under families/) so the pickReminderTick CF can use a
+    // single doc.get() per (leagueKey, gameId, memberId) tuple to short-circuit
+    // double-fires under retry. Doc ID format: '{leagueKey}_{gameId}_{memberId}' —
+    // composed by pickReminderTick (queuenight/functions/src/pickReminderTick.js).
+    // Admin SDK in CF bypasses rules; clients have no business reading or writing
+    // this collection. Tests: tests/rules.test.js #28-04 (read denied) + #28-10
+    // (write denied).
+    match /picks_reminders/{reminderId} {
+      allow read, write: if false;
+    }
+
+
+    // ==========================================================
     // Family doc
     // ==========================================================
 
@@ -135,6 +286,19 @@ service cloud.firestore {
       // may change in the same write — the diff check scopes the mutation to ownerUid only.
       // Second caller after ownership is set will get permission-denied, which the client
       // UI handles gracefully (CTA hides via onSnapshot; toast flashes "just claimed").
+      //
+      // Phase 14 / DECI-14-06 (D-06): additive third branch for couchSeating writes from
+      // js/app.js persistCouchSeating(). Shape: families/{code}.couchSeating = { [memberId]:
+      // index } (per-member-keyed map of cushion positions). Carries writeAttribution()
+      // spread (actingUid + memberId + memberName, optionally managedMemberId) — the
+      // affectedKeys() allowlist below names couchSeating + the four attribution fields.
+      // The attributedWrite() helper is reused for actor-uid enforcement (T-14.04-01
+      // Tampering mitigation: a member cannot plant a fake claim by another member because
+      // request.resource.data.actingUid must equal request.auth.uid).
+      //
+      // 14-10 (sketch 003 V5 redesign): the FOURTH branch below allows the new
+      // couchInTonight shape from V5's roster-pill control. Both branches are
+      // active during the migration window (one PWA cache cycle).
       allow update: if (
           isMemberOfFamily(familyCode)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['picker'])
@@ -145,6 +309,90 @@ service cloud.firestore {
           && !('ownerUid' in resource.data)
           && request.resource.data.ownerUid == uid()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid'])
+        ) || (
+          // D-06: couchSeating write from persistCouchSeating() — attribution-required.
+          // 14-10 NOTE: this branch is LEGACY but kept active because persistCouchInTonight
+          // still writes both shapes during the migration. Drop after one cache cycle.
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+        ) || (
+          // 14-10 (DECI-14-06 redesign per sketch 003 V5): couchInTonight write —
+          // attribution-required. Any family member can write any member's slot
+          // (proxy-fill is a feature, not a bug — one operator marks family in).
+          // Audit trail via proxyConfirmedBy field embedded in the per-member
+          // payload (NOT in affectedKeys; it's nested inside couchInTonight).
+          // The allowlist also names couchSeating because persistCouchInTonight
+          // dual-writes both shapes for one PWA cache cycle. After the cycle
+          // elapses, a follow-up plan will drop couchSeating from this allowlist
+          // AND the third branch above.
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['couchInTonight', 'couchSeating', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+        ) || (
+          // === Phase 15.1 / SEC-15-1-03 — tupleNames + coWatchPromptDeclined participant check ===
+          // Closes F-OPEN-02. Replaces the Phase 15 / D-02 + REVIEW MEDIUM-9 5th
+          // branch (which only allowlisted the top-level fields without peeking
+          // into the nested map's affected keys).
+          //
+          // Requires Phase 15.1-01 writer-side stamping of actingTupleKey on:
+          //   - setTupleName (js/app.js:8546)
+          //   - cv15CoWatchPromptDecline (js/app.js:1063)
+          // Mirrors the existing title-doc tupleProgress actingTupleKey echo+regex
+          // pattern at firestore.rules tupleProgress sub-rule.
+          //
+          // Five-part check:
+          //   (a) attribution baseline (validAttribution → SEC-15-1-02 anchor on memberId)
+          //   (b) outer allowlist now includes 'actingTupleKey' alongside the
+          //       original 6 fields
+          //   (c) when either tupleNames OR coWatchPromptDeclined is touched,
+          //       require actingTupleKey to be a string AND match a regex that
+          //       includes the actor's memberId at a comma boundary; the
+          //       outer regex `^[A-Za-z0-9_,-]+$` self-sanitizes the tupleKey
+          //       so attackers can't inject RE2 metas into the inner regex.
+          //   (d) tupleNames diff inner keys hasOnly([actingTupleKey])
+          //   (e) coWatchPromptDeclined diff inner keys hasOnly([actingTupleKey])
+          attributedWrite(familyCode)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['tupleNames', 'coWatchPromptDeclined', 'actingTupleKey',
+                        'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          // (c) actingTupleKey echo + comma-boundary actor regex
+          && (
+            !(request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['tupleNames', 'coWatchPromptDeclined']))
+            || (
+              'actingTupleKey' in request.resource.data
+              && request.resource.data.actingTupleKey is string
+              && request.resource.data.actingTupleKey.matches('^[A-Za-z0-9_,-]+$')
+              && request.resource.data.actingTupleKey.matches(
+                   '(^|.*,)' +
+                   (('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                      ? request.resource.data.managedMemberId
+                      : request.resource.data.memberId) +
+                   '(,.*|$)'
+                 )
+            )
+          )
+          // (d) tupleNames diff inner keys must hasOnly [actingTupleKey]
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tupleNames'])
+            || (
+              ('tupleNames' in request.resource.data ? request.resource.data.tupleNames : {})
+                .diff('tupleNames' in resource.data ? resource.data.tupleNames : {})
+                .affectedKeys()
+                .hasOnly([request.resource.data.actingTupleKey])
+            )
+          )
+          // (e) coWatchPromptDeclined diff inner keys must hasOnly [actingTupleKey]
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coWatchPromptDeclined'])
+            || (
+              ('coWatchPromptDeclined' in request.resource.data ? request.resource.data.coWatchPromptDeclined : {})
+                .diff('coWatchPromptDeclined' in resource.data ? resource.data.coWatchPromptDeclined : {})
+                .affectedKeys()
+                .hasOnly([request.resource.data.actingTupleKey])
+            )
+          )
         );
 
       allow delete: if false;
@@ -271,10 +519,136 @@ service cloud.firestore {
       // ========================================================
       // Titles (catalog) + their comment subcollection
       // ========================================================
+      // Phase 14 / DECI-14-01 (D-01): the new t.rewatchAllowedBy map
+      // (shape: { [memberId]: timestamp }) is permitted by the existing
+      // permissive update rule below — there is no affectedKeys()
+      // allowlist on title updates, so any new top-level field added by
+      // an attributed family-member write is accepted. Mirrors the
+      // existing t.queues / t.votes / t.ratings / t.progress / t.diary
+      // per-member-keyed maps. Re-evaluate this comment if title updates
+      // ever get tightened to a hasOnly([...]) allowlist; rewatchAllowedBy
+      // would need to be added to that list at the same time.
+      //
+      // Title-doc updates (Phase 15 — REVIEW HIGH-1 tightening, 2026-04-26):
+      // Permissive baseline (allows attributed writes by any family member to
+      // most fields like queues, votes, watched, ratings, progress) PLUS three
+      // new sensitive Phase 15 fields gated with per-member field-level rules:
+      //   1. tupleProgress.{tupleKey}  — actor memberId (or managedMemberId)
+      //                                  MUST appear in comma-split tupleKey
+      //   2. mutedShows.{memberId}     — memberId MUST equal acting memberId
+      //                                  (or managedMemberId — cannot silence others)
+      //   3. liveReleaseFiredFor.{epKey} — CLIENT WRITES DENIED; CF-only via
+      //                                    admin SDK (which bypasses rules)
+      // The per-member predicates short-circuit to TRUE when the diff doesn't
+      // touch the gated field, so all Phase 1-14 paths (queues/votes/ratings/
+      // progress/etc.) continue to write under the permissive baseline.
+      //
+      // Per Plan 15-01 Task 1.5 fallback note: the rules-language `where`
+      // lambda predicate is not supported on Sets/Lists in the Firestore rules
+      // expression language, so the tupleProgress branch uses the planner's
+      // pre-approved fallback shape — restrict the diff to EXACTLY ONE
+      // tupleKey at a time and require that key contain the acting member.
+      // This matches the v1 client write pattern (writeTupleProgress writes
+      // one tupleKey per call per 15-02 plan).
+      //
+      // Identity surface: memberId in the writeAttribution payload is the
+      // canonical actor surface (m_<UID> prefixed; tuple keys + mutedShows
+      // keys both use this convention). managedMemberId takes precedence when
+      // the actor is proxy-acting on a managed sub-profile.
 
       match /titles/{titleId} {
         allow read: if isMemberOfFamily(familyCode);
-        allow create, update: if attributedWrite(familyCode);
+        allow create: if attributedWrite(familyCode);
+        allow update: if attributedWrite(familyCode)
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — explicit DENY for liveReleaseFiredFor ===
+            // Client must NOT write this field. CF admin SDK bypasses rules and
+            // writes via tdoc.ref.update({[`liveReleaseFiredFor.${epKey}`]: ...})
+            // in 15-06 watchpartyTick. Any client write attempt is rejected here.
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['liveReleaseFiredFor'])
+          )
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — per-tuple-key isolation for tupleProgress ===
+            // Plan-15-01 deviation: the planner's per-key actor-membership check
+            // required `affectedKeys().toList()[0].matches(...)` but rules.Set has
+            // no `.toList()` accessor (verified in Firestore emulator 2026-04-27).
+            // Implemented partial HIGH-1 mitigation:
+            //   (a) bound the diff to EXACTLY ONE tupleKey per write
+            //   (b) require the client to echo the written tupleKey in a sibling
+            //       payload field `request.resource.data.actingTupleKey` so the
+            //       rule can hasOnly-equality the diff'd key
+            //   (c) regex-validate that the echoed key contains the actor memberId
+            //       (anchored at start, end, or surrounded by commas — matches the
+            //       sorted-comma-joined tupleKey shape from 15-02 helper).
+            // Forward-contract for 15-02: writeTupleProgress() MUST stamp
+            // `actingTupleKey: tupleKey` alongside the tupleProgress write.
+            // Without this echo, the write is denied. mutedShows + liveReleaseFiredFor
+            // are fully mitigated (no echo needed; their inner keys are static).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tupleProgress'])
+            || (
+              request.resource.data.tupleProgress is map
+              && request.resource.data.tupleProgress
+                   .diff('tupleProgress' in resource.data ? resource.data.tupleProgress : {})
+                   .affectedKeys().size() == 1
+              && 'actingTupleKey' in request.resource.data
+              && request.resource.data.actingTupleKey is string
+              && request.resource.data.tupleProgress
+                   .diff('tupleProgress' in resource.data ? resource.data.tupleProgress : {})
+                   .affectedKeys()
+                   .hasOnly([request.resource.data.actingTupleKey])
+              && request.resource.data.actingTupleKey
+                   .matches(
+                     '(^|.*,)' +
+                     (('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                        ? request.resource.data.managedMemberId
+                        : request.resource.data.memberId) +
+                     '(,.*|$)'
+                   )
+            )
+          )
+          && (
+            // === Phase 15 / REVIEW HIGH-1 — per-member mutedShows isolation ===
+            // mutedShows.{memberId} writes/deletes only allowed when the inner
+            // memberId matches the actor's memberId payload (or managedMemberId
+            // when proxy-acting). diff().affectedKeys() returns the inner-map
+            // keys being touched — every one must equal the actor's id.
+            // `'X' in resource.data` guards property access against missing-field
+            // errors for first-time writes (existing doc may not have mutedShows yet).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['mutedShows'])
+            || (
+              ('mutedShows' in request.resource.data ? request.resource.data.mutedShows : {})
+                .diff('mutedShows' in resource.data ? resource.data.mutedShows : {})
+                .affectedKeys()
+                .hasOnly([
+                  ('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                    ? request.resource.data.managedMemberId
+                    : request.resource.data.memberId
+                ])
+            )
+          )
+          && (
+            // === Phase 15.1 / SEC-15-1-01 — per-member progress isolation ===
+            // Mirrors the mutedShows pattern; closes F-OPEN-01.
+            // The actor (auth.uid via memberId or managedMemberId proxy) MUST own the
+            // single touched inner key. Requires Phase 15.1-01 dotted-path writers
+            // (writeMemberProgress / clearMemberProgress / Trakt-sync ingest) so the
+            // diff exposes a single inner key rather than a full-map merge.
+            // `'progress' in resource.data ? ... : {}` property-existence guards are
+            // mandatory — bare resource.data.progress errors when the doc has no
+            // progress field yet (first-write case).
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['progress'])
+            || (
+              request.resource.data.progress is map
+              && ('progress' in request.resource.data ? request.resource.data.progress : {})
+                   .diff('progress' in resource.data ? resource.data.progress : {})
+                   .affectedKeys()
+                   .hasOnly([
+                     ('managedMemberId' in request.resource.data && request.resource.data.managedMemberId is string)
+                       ? request.resource.data.managedMemberId
+                       : request.resource.data.memberId
+                   ])
+            )
+          );
         allow delete: if isMemberOfFamily(familyCode);
 
         match /comments/{commentId} {
@@ -319,38 +693,128 @@ service cloud.firestore {
       // Watchparties
       // ========================================================
 
+      // Phase 24 / REVIEWS M2 — host-only fields on the watchparty doc.
+      // The host-only fields below are written by the broadcaster + the
+      // attach/teardown lifecycle pair; non-hosts must NOT be able to spoof
+      // currentTimeMs or change videoUrl. The existing attributedWrite() rule
+      // alone permits any family member to update any field (it only validates
+      // attribution + family membership, not host-ness). The split below adds
+      // a host-only branch via `resource.data.hostUid == request.auth.uid` for
+      // the host-only fields, while keeping the open member-write branch for
+      // everything else (reactions, participants, rsvp, etc.).
+      //
+      // Legacy wps without `hostUid` set: Path A's check fails (missing field
+      // != request.auth.uid), so non-host attempts to write host-only fields
+      // on legacy wps will be rejected — safer floor than today's
+      // attributedWrite-only state. New wps stamp hostUid at creation per
+      // Plan 03 (js/app.js confirmStartWatchparty + confirmGamePicker +
+      // scheduleSportsWatchparty all set hostUid: state.auth.uid).
       match /watchparties/{wpId} {
+        // Phase 27 — wp.guests[], wp.guestCount, and wp.rsvpClosed are written
+        // exclusively by admin-SDK callable CFs (rsvpSubmit, rsvpRevoke). Admin
+        // SDK bypasses ALL Firestore rules — no rule changes are required to
+        // enable these writes. The existing attributedWrite() check denies any
+        // unauthenticated client from writing `guests` directly (verified by
+        // tests/rules.test.js Phase 27 describe block, RSVP-27-06).
+        // See .planning/phases/27-guest-rsvp/27-RESEARCH.md Q2.
         allow read: if isMemberOfFamily(familyCode);
-        allow create, update: if attributedWrite(familyCode);
+        allow create: if attributedWrite(familyCode);
+        allow update: if attributedWrite(familyCode) && (
+          // Path A: caller is the wp host — any field allowed.
+          (
+            'hostUid' in resource.data
+            && resource.data.hostUid == request.auth.uid
+          )
+          ||
+          // Path B: caller is a non-host family member — must NOT touch
+          // host-only fields. Reactions, participants, etc. remain writable.
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentTimeMs',
+            'currentTimeUpdatedAt',
+            'currentTimeSource',
+            'durationMs',
+            'isLiveStream',
+            'videoUrl',
+            'videoSource',
+            'hostId',
+            'hostUid',
+            'hostName'
+          ])
+        );
         allow delete: if isOwner(familyCode) || (isMemberOfFamily(familyCode) && graceActive());
       }
 
 
       // ========================================================
-      // Intents — Phase 8 Watch-Intent Flows
+      // Couch pings — Phase 15.4 / F-W-1 path A
       // ========================================================
-      // Two flow types share this subcollection: tonight_at_time, watch_this_title.
+      // Ephemeral mailbox: client (V5 roster long-press in js/app.js sendCouchPing) writes a
+      // doc here; the onCouchPingFire CF (queuenight/functions/index.js) fans out a single
+      // push to the recipient via sendToMembers + then admin-SDK deletes the doc. Doc shape:
+      //   { senderId, senderName, recipientId, createdAt, ...writeAttribution() fields }
+      // Rules: family member can CREATE their own ping (senderId == self via validAttribution +
+      // recipientId anchored to '^m_[A-Za-z0-9_-]+$' to defang regex meta). Family members
+      // can READ (so a future "you got pinged" inbox UI is reachable) but cannot UPDATE or
+      // DELETE — the CF owns lifecycle. Mirrors the SEC-15-1-02 anchor pattern from
+      // validAttribution for the new recipientId field which is NOT covered by the helper.
+
+      match /couchPings/{pingId} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow create: if attributedWrite(familyCode)
+          && request.resource.data.senderId is string
+          && request.resource.data.senderId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.recipientId is string
+          && request.resource.data.recipientId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.senderId == request.resource.data.memberId;
+        // No client update path — single-shot doc, deleted by CF after fan-out.
+        allow update: if false;
+        // No client delete — CF (admin SDK) bypasses rules to clean up after delivery.
+        allow delete: if false;
+      }
+
+
+      // ========================================================
+      // Intents — Phase 8 Watch-Intent Flows + Phase 14 Decision Ritual (D-09 / DR-1)
+      // ========================================================
+      // Four flow types share this subcollection (DR-1: extend, do not fork):
+      //   - tonight_at_time, watch_this_title  (Phase 8 legacy, preserved verbatim)
+      //   - rank-pick (Flow A — group rank-pick), nominate (Flow B — solo nominate)
       // Writes fall into disjoint update branches to keep attacker surface narrow while
       // allowing every family member to RSVP on their own behalf and any member to
       // detect & write the open→matched transition (client-side threshold detection
       // per 08-CONTEXT D-07, idempotent under races via status recheck).
+      // Phase 14 additions: counterChainDepth bound + counter-chain bump branch (D-07.6 cap=3),
+      // convert branch widened to allow open → converted (Flow A direct convert).
 
       match /intents/{intentId} {
         allow read: if isMemberOfFamily(familyCode);
 
         // Create: family member creates their own intent. Must stamp createdBy + status=open.
+        // Type enum widened from 2 → 4 values per D-09 / DR-1.
+        // counterChainDepth (when present) bounded to 0..3 per D-07.6 cap.
         allow create: if attributedWrite(familyCode)
           && request.resource.data.status == 'open'
-          && (request.resource.data.type == 'tonight_at_time' || request.resource.data.type == 'watch_this_title');
+          && (request.resource.data.type == 'tonight_at_time'
+              || request.resource.data.type == 'watch_this_title'
+              || request.resource.data.type == 'rank-pick'
+              || request.resource.data.type == 'nominate')
+          && (!('counterChainDepth' in request.resource.data)
+              || (request.resource.data.counterChainDepth >= 0
+                  && request.resource.data.counterChainDepth <= 3));
 
-        // Update — three disjoint branches:
+        // Update — five disjoint branches (4 legacy preserved + 1 new for counter-chain):
         //   (1) RSVP: any family member writes/clears their own rsvps slot + writeAttribution fields
         //   (2) Cancel: creator transitions status → 'cancelled'
         //   (3) Match-transition: any family member transitions status open → 'matched'
         //                         (client-side match detection writes this idempotently)
-        //   (4) Convert: creator transitions status matched → 'converted' after launching a watchparty/schedule
+        //   (4) Convert: creator transitions status open OR matched → 'converted' (Flow A
+        //                converts directly from open at quorum; Flow B/Phase 8 via matched).
+        //   (5) Counter-chain bump: any family member submits a counter (atomic with their RSVP),
+        //                          incrementing counterChainDepth by exactly 1, capped at 3.
         allow update: if attributedWrite(familyCode) && (
-          // (1) RSVP branch — only rsvps map + attribution keys touched
+          // (1) RSVP branch — only rsvps map + attribution keys touched.
+          //     Rules don't validate the inner rsvps[mid] shape; flow-specific shape
+          //     (state vs value) is enforced client-side via createIntent / setIntentRsvp helpers.
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['rsvps', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
 
@@ -370,19 +834,117 @@ service cloud.firestore {
                  .hasOnly(['status', 'matchedAt', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
           )
 
-          // (4) Convert transition — creator only, matched → converted
+          // (4) Convert transition — creator only. EXTENDED in Phase 14: allow
+          //     open → converted (Flow A direct) in addition to matched → converted (Phase 8).
+          //     convertedToWpId added to allowed key set alongside legacy convertedTo.
           || (
-            resource.data.status == 'matched'
+            (resource.data.status == 'matched' || resource.data.status == 'open')
             && request.resource.data.status == 'converted'
             && resource.data.createdByUid == uid()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'convertedTo', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+                 .hasOnly(['status', 'convertedTo', 'convertedToWpId', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
+          )
+
+          // (5) NEW (Phase 14 / D-07.6) — Counter-chain bump. Any family member can submit
+          //     a counter, atomically updating their rsvps slot AND incrementing
+          //     counterChainDepth by exactly 1. Cap at 3. Status must remain 'open'.
+          || (
+            resource.data.status == 'open'
+            && (resource.data.counterChainDepth == null || resource.data.counterChainDepth < 3)
+            && request.resource.data.counterChainDepth == (resource.data.counterChainDepth == null ? 1 : resource.data.counterChainDepth + 1)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['rsvps', 'counterChainDepth', 'actingUid', 'managedMemberId', 'memberId', 'memberName'])
           )
         );
 
         // Never hard-delete — the intent doc is the Year-in-Review raw data (D-22/D-23).
         // Archival is done via status transitions (cancelled / expired / converted).
         allow delete: if false;
+      }
+
+
+      // ==========================================================
+      // Phase 28 / D-02 + D-04 (PICK-28-09 + PICK-28-10 + REVIEWS HIGH-1/HIGH-4/HIGH-9) — Pick'em picks
+      // ==========================================================
+      // Member self-write own picks until gameStartTime (D-04 lock).
+      // CF-only fields (state/pointsAwarded/settledAt/tiebreakerActual/processedFirstAt)
+      // protected via REVIEWS HIGH-9 affectedKeys ALLOWLIST (not denylist).
+      //
+      // REVIEWS Amendment 6 / HIGH-1 — CREATE REQUIRES state == 'pending' (no omission).
+      //   Previous (now-amended) rule allowed `(!('state' in ...) || state == 'pending')`.
+      //   The omission branch is removed: state-omitted picks were invisible to
+      //   gameResultsTick's `where('state','==','pending')` query and would never
+      //   settle. Same hard-equality requirement for pointsAwarded == 0,
+      //   settledAt == null, tiebreakerActual == null.
+      //
+      // REVIEWS Amendment 8 / HIGH-4 — CREATE CONSTRAINS pickType to 3-value allowlist.
+      //   No 'ufc_winner_method'; no other forged values. Defense-in-depth alongside
+      //   Plan 28-03's gameResultsTick KNOWN_PICKTYPES skip. UFC dropped per D-17
+      //   update 2 (2026-05-04).
+      //
+      // REVIEWS Amendment 7 / HIGH-9 — UPDATE allowlist of mutable fields ONLY.
+      //   {selection, tiebreakerTotal, editedAt, actingUid, memberId, memberName}.
+      //   All routing/identity/scoring fields (gameId, leagueKey, strSeason,
+      //   pickType, gameStartTime, submittedAt, f1Year, f1Round, state,
+      //   pointsAwarded, settledAt, tiebreakerActual, processedFirstAt) are
+      //   IMMUTABLE post-create. The previous denylist-only approach allowed
+      //   routing/identity tampering.
+      //
+      // The gameResultsTick CF (queuenight/functions/src/gameResultsTick.js) writes
+      // CF-only fields via admin SDK which bypasses these rules entirely.
+      //
+      // Tests: tests/rules.test.js #28-01..#28-08 (10 cases per REVIEWS Amendment 9
+      // / MEDIUM-8).
+      match /picks/{pickId} {
+        allow read: if isMemberOfFamily(familyCode);
+
+        // CREATE: member must be in family; gameStartTime must be in the future;
+        //         state/pointsAwarded/settledAt/tiebreakerActual REQUIRED at canonical
+        //         values (REVIEWS HIGH-1); pickType in 3-value allowlist (REVIEWS HIGH-4).
+        allow create: if attributedWrite(familyCode)
+          && request.resource.data.memberId is string
+          && request.resource.data.memberId.matches('^m_[A-Za-z0-9_-]+$')
+          && request.resource.data.gameStartTime is number
+          && request.time.toMillis() < request.resource.data.gameStartTime
+          && request.resource.data.pickType in ['team_winner', 'team_winner_or_draw', 'f1_podium']
+          && request.resource.data.state == 'pending'
+          && request.resource.data.pointsAwarded == 0
+          && request.resource.data.settledAt == null
+          && request.resource.data.tiebreakerActual == null;
+
+        // UPDATE: member can edit own pick before lock; ONLY mutable fields allowed
+        //         (REVIEWS Amendment 7 / HIGH-9 — allowlist, not denylist).
+        //         Also enforce memberId immutability (cannot reassign pick to another
+        //         member).
+        allow update: if attributedWrite(familyCode)
+          && resource.data.memberId == request.resource.data.memberId
+          && request.time.toMillis() < resource.data.gameStartTime
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'selection',
+               'tiebreakerTotal',
+               'editedAt',
+               'actingUid',
+               'memberId',
+               'memberName'
+             ]);
+
+        // No client deletes — picks are append-only (D-13 no-backfill alignment;
+        // CONTEXT Specifics — no edit-history audit). Hard DELETE denied for
+        // everyone; admin SDK in CF bypasses if cleanup ever needed.
+        allow delete: if false;
+      }
+
+
+      // ==========================================================
+      // Phase 28 / D-03 (PICK-28-11) — Leaderboard docs (CF-only writes)
+      // ==========================================================
+      // Doc ID convention: {leagueKey}_{strSeason} (e.g. 'nfl_2025',
+      // 'epl_2025-2026', 'f1_2026'). gameResultsTick CF writes via admin SDK
+      // which bypasses these rules. Family members may read for the leaderboard
+      // render in Plan 28-05. Tests: tests/rules.test.js #28-09 (write denied).
+      match /leaderboards/{lbDoc} {
+        allow read: if isMemberOfFamily(familyCode);
+        allow write: if false;
       }
     }
   }

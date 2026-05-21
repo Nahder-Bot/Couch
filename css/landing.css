@@ -23,13 +23,18 @@ body > * { position: relative; z-index: 2; }
 .landing { max-width: 1100px; margin: 0 auto; padding: 24px 20px 56px; }
 
 .hero { text-align: center; padding: 48px 0 64px; }
-.hero-wordmark { width: min(420px, 70vw); height: auto; }
+/* Wordmark master was rendered on a pure-black backdrop so the leather appears lit;
+   page bg is warm-dark #14110f (not pure black), so the rectangle was showing.
+   `lighten` per-channel = max(logo_px, page_px): the black backdrop becomes the page
+   color, while every brown leather pixel (all brighter than #14110f) passes through. */
+.hero-wordmark { width: min(420px, 70vw); height: auto; mix-blend-mode: lighten; }
 .hero-tagline { font-family: 'Instrument Serif', 'Fraunces', serif; font-style: italic; font-size: 22px; color: var(--ink-warm); margin: 8px 0 32px; }
 .hero-cta { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .cta-primary { display: inline-block; padding: 14px 32px; background: var(--brand-grad); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 16px; text-decoration: none; border-radius: var(--r-pill); box-shadow: 0 4px 24px rgba(232,160,74,0.25); transition: transform 300ms var(--ease-cinema); }
 .cta-primary:hover { transform: translateY(-1px); }
 .cta-secondary { color: var(--ink-dim); font-size: 14px; text-decoration: none; border-bottom: 1px dotted var(--border); padding-bottom: 2px; }
 .cta-secondary:hover { color: var(--ink-warm); }
+.hero-trust { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-dim); margin: 20px 0 0; letter-spacing: 0.01em; }
 
 section { padding: 40px 0; border-top: 1px solid var(--border); }
 section h2 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 28px; margin: 0 0 16px; line-height: 1.2; }
@@ -93,4 +98,42 @@ section p { color: var(--ink-warm); max-width: 640px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
+}
+
+/* Phase 31 / Marketing refresh — comparison + features + FAQ sections.
+   D-21: NO new tokens — all rules reuse existing :root declarations above.
+   D-19 prep: every change here ships under cache `couch-v48-marketing-refresh`. */
+
+/* Comparison section — leans on .path-card density (cards w/ surface bg + border + r-md). */
+.compare-eyebrow { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink-dim); text-transform: uppercase; margin: 0 0 8px; }
+.compare-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
+.compare-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 24px; }
+.compare-block h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; color: var(--ink); margin: 0 0 8px; line-height: 1.3; }
+.compare-block p { color: var(--ink-warm); margin: 0; font-size: 15px; line-height: 1.55; max-width: none; }
+.compare-block p em { font-style: italic; color: var(--ink); }
+
+/* Features section — flatter than comparison (no card chrome) so visual weight differs. */
+.feature-list { display: grid; grid-template-columns: 1fr; gap: 0; margin-top: 20px; }
+.feature-block { padding: 24px 0; border-top: 1px solid var(--border); }
+.feature-block:first-child { border-top: none; padding-top: 12px; }
+.feature-block h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; color: var(--ink); margin: 0 0 8px; line-height: 1.3; }
+.feature-block p { color: var(--ink-warm); margin: 0; font-size: 15px; line-height: 1.55; max-width: 640px; }
+
+/* FAQ — native <details>/<summary> accordion. Custom marker per .signin-more precedent. */
+.faq-list { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.faq-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 20px; transition: border-color 220ms var(--ease-cinema); }
+.faq-item[open] { border-color: rgba(232,160,74,0.30); }
+.faq-item summary { cursor: pointer; font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; color: var(--ink); user-select: none; list-style: none; padding-right: 28px; position: relative; line-height: 1.3; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after { content: '+'; position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 22px; color: var(--ink-dim); transition: transform 220ms var(--ease-cinema); line-height: 1; }
+.faq-item[open] summary::after { content: '−'; color: var(--accent); }
+.faq-item p { color: var(--ink-warm); margin: 12px 0 0; font-size: 15px; line-height: 1.55; max-width: 640px; }
+.faq-item p a { color: var(--ink-warm); border-bottom: 1px solid var(--border); }
+.faq-item p a:hover { color: var(--ink); border-bottom-color: var(--accent); }
+
+@media (min-width: 900px) {
+  .compare-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
+  .feature-list { grid-template-columns: 1fr 1fr; gap: 0 32px; }
+  .feature-block { padding: 24px 0; }
+  .feature-block:nth-child(2) { border-top: none; padding-top: 12px; }
 }

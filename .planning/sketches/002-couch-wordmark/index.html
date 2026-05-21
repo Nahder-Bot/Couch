@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch 002 — Couch Wordmark + Logo Lockup (4 variants)</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  body { padding-top: 76px; padding-bottom: 100px; min-height: 100vh; }
+
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+    background: rgba(20, 17, 15, 0.95); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--color-border);
+    padding: 12px 14px;
+    display: flex; gap: 8px; align-items: center; overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    font-family: var(--font-sans);
+  }
+  #variant-nav .nav-title {
+    font-family: var(--font-display); font-size: var(--text-base);
+    color: var(--color-text); margin-right: var(--space-2);
+    font-weight: 500; white-space: nowrap;
+  }
+  .variant-tab {
+    background: transparent; color: var(--color-text-muted);
+    border: 1px solid var(--color-border-soft); border-radius: var(--radius-full);
+    padding: 11px 18px; font-family: var(--font-sans); font-size: 14px;
+    min-height: 44px; min-width: 44px;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+    -webkit-tap-highlight-color: rgba(217, 122, 60, 0.3);
+    touch-action: manipulation;
+  }
+  .variant-tab:active {
+    transform: scale(0.96);
+    background: var(--color-surface-raised);
+  }
+  .variant-tab:hover { color: var(--color-text); border-color: var(--color-border); }
+  .variant-tab.active {
+    background: var(--color-surface-raised); color: var(--color-text);
+    border-color: var(--color-primary-soft); box-shadow: var(--shadow-glow);
+  }
+
+  .variant {
+    padding: var(--space-6) var(--space-4);
+    max-width: 540px; margin: 0 auto;
+  }
+  .variant h2 {
+    font-family: var(--font-display); font-size: var(--text-xl);
+    font-weight: 500; letter-spacing: -0.02em;
+    margin: 0 0 var(--space-1) 0; color: var(--color-text);
+  }
+  .variant .subtitle {
+    font-family: var(--font-serif); font-style: italic;
+    color: var(--color-text-muted); font-size: var(--text-sm);
+    margin-bottom: var(--space-6); line-height: 1.45;
+  }
+
+  /* ======== LOCKUP STAGE ======== */
+  .stage {
+    position: relative;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--space-3);
+    overflow: hidden;
+  }
+  .stage.dark {
+    background: #14110f;
+    border: 1px solid #2a241f;
+  }
+  .stage.cream {
+    background: #f1e6d3;
+    border: 1px solid #d8c9b0;
+  }
+  .stage.dark-warm {
+    background: radial-gradient(ellipse at center, #1c1612 0%, #0d0a08 80%);
+    border: 1px solid #2a241f;
+  }
+
+  /* Lockup frame */
+  .lockup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 32px;
+    min-height: 280px;
+  }
+  .lockup.vertical { flex-direction: column; gap: 22px; padding: 64px 32px; }
+
+  /* Icon — wraps the C image */
+  .icon-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .icon-wrap img {
+    display: block;
+    width: var(--icon-size, 110px);
+    height: var(--icon-size, 110px);
+    border-radius: 16%;
+  }
+  /* Optional warm halo behind the icon (firelight) */
+  .icon-wrap.halo::before {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    background: radial-gradient(circle at center,
+      rgba(217, 122, 60, 0.20) 0%,
+      rgba(217, 122, 60, 0.06) 35%,
+      transparent 65%);
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* Wordmark — typeface variants */
+  .wordmark {
+    line-height: 1;
+    letter-spacing: -0.015em;
+    margin: 0;
+    user-select: none;
+  }
+  .wordmark.fraunces {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    font-variation-settings: 'opsz' 144, 'SOFT' 50;
+  }
+  .wordmark.instrument {
+    font-family: 'Instrument Serif', 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+  .wordmark.cream { color: #f5ede1; }
+  .wordmark.cognac { color: #5b3a22; }
+  .wordmark.size-md { font-size: 64px; }
+  .wordmark.size-lg { font-size: 84px; }
+  .wordmark.size-xl { font-size: 110px; }
+
+  /* Spacing between icon + wordmark, tunable per variant */
+  .lockup.gap-tight { gap: 16px; }
+  .lockup.gap-loose { gap: 28px; }
+  .lockup.gap-roomy { gap: 36px; }
+
+  /* ======== METADATA PANEL UNDER EACH VARIANT ======== */
+  .meta {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+  }
+  .meta .meta-title {
+    color: var(--color-text);
+    font-weight: 500;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+  .meta strong { color: var(--color-text); font-weight: 500; }
+
+  /* In-context strip — sample app navbar to show how the lockup feels in real UI */
+  .ctx-strip {
+    display: flex; align-items: center;
+    background: linear-gradient(180deg, #1c1815, #14110f);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    border: 1px solid var(--color-border-soft);
+    gap: 10px;
+    margin-top: var(--space-3);
+  }
+  .ctx-strip .ctx-label {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--color-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-right: 8px;
+  }
+  .ctx-strip img {
+    width: 28px; height: 28px; border-radius: 6px;
+  }
+  .ctx-strip .ctx-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 18px;
+    color: #f5ede1;
+    letter-spacing: -0.01em;
+  }
+  .ctx-strip .ctx-name.instrument {
+    font-family: 'Instrument Serif', 'Fraunces', serif;
+    font-weight: 400;
+  }
+  .ctx-strip .ctx-name.cognac { color: #5b3a22; }
+  .ctx-strip.cream { background: #f1e6d3; border-color: #d8c9b0; }
+
+  #sketch-tools {
+    position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+    font-family: system-ui; font-size: 11px;
+    background: rgba(0,0,0,0.78); color: white;
+    padding: 8px 12px; border-radius: 10px;
+    opacity: 0.4; transition: opacity 0.2s;
+    display: flex; gap: 8px; align-items: center;
+  }
+  #sketch-tools:hover { opacity: 1; }
+  #sketch-tools button {
+    background: rgba(255,255,255,0.1); color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 3px 7px; font-size: 10px; cursor: pointer;
+  }
+
+  body.vp-phone .variant { max-width: 375px; }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <span class="nav-title">Wordmark</span>
+  <button class="variant-tab active" data-v="1" onclick="showVariant('1', event)">1: Horizontal · dark</button>
+  <button class="variant-tab" data-v="2" onclick="showVariant('2', event)">2: Vertical · dark</button>
+  <button class="variant-tab" data-v="3" onclick="showVariant('3', event)">3: Horizontal · cream</button>
+  <button class="variant-tab" data-v="4" onclick="showVariant('4', event)">4: Dramatic · Instrument</button>
+</div>
+
+<!-- ============================================================
+     VARIANT 1 — HORIZONTAL · DARK · FRAUNCES ITALIC · CREAM WORDMARK · SUBTLE HALO
+     The "default" lockup. Use everywhere unless context demands a variant.
+============================================================ -->
+<div id="variant-1" class="variant">
+  <h2>1 · Horizontal · dark · Fraunces italic</h2>
+  <p class="subtitle">The everyday lockup. Use for app store header, website nav, splash screen, social profile cover. Subtle warm halo behind the C adds firelight depth without competing.</p>
+
+  <div class="stage dark-warm">
+    <div class="lockup gap-loose">
+      <div class="icon-wrap halo">
+        <img src="app-icon.png" alt="Couch icon" style="--icon-size: 130px" />
+      </div>
+      <h1 class="wordmark fraunces cream size-lg">couch</h1>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-title">Spec</div>
+    <strong>Type:</strong> Fraunces, italic, weight 500, opsz 144 (display optical-size). Lowercase.<br>
+    <strong>Color:</strong> Wordmark <code>#f5ede1</code> · Background warm-dark radial <code>#1c1612 → #0d0a08</code><br>
+    <strong>Spacing:</strong> Gap = 28px (≈ ½ icon width). Wordmark vertically centers on icon.<br>
+    <strong>Halo:</strong> Radial <code>rgba(217,122,60,0.20) → transparent</code> at 35% radius.
+  </div>
+
+  <div class="ctx-strip">
+    <span class="ctx-label">In navbar</span>
+    <img src="app-icon.png" />
+    <span class="ctx-name">couch</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — VERTICAL · DARK · STACKED
+     Square contexts: app store icon-with-name, splash screen, social profile, business card center.
+============================================================ -->
+<div id="variant-2" class="variant" style="display:none">
+  <h2>2 · Vertical · dark · stacked</h2>
+  <p class="subtitle">Square or portrait contexts: splash screen, social profile cover, app store badge, sticker. Same Fraunces typeface, no halo (cleaner stacked).</p>
+
+  <div class="stage dark">
+    <div class="lockup vertical">
+      <div class="icon-wrap">
+        <img src="app-icon.png" alt="Couch icon" style="--icon-size: 160px" />
+      </div>
+      <h1 class="wordmark fraunces cream size-md">couch</h1>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-title">Spec</div>
+    <strong>Type:</strong> Fraunces, italic, weight 500. Lowercase, 64px.<br>
+    <strong>Color:</strong> Wordmark <code>#f5ede1</code> · Background <code>#14110f</code> (flat warm dark)<br>
+    <strong>Spacing:</strong> Vertical gap = 22px between icon and wordmark.<br>
+    <strong>Variant of:</strong> Variant 1, oriented for square spaces. No halo to avoid feeling busy in stacked layout.
+  </div>
+
+  <div class="ctx-strip">
+    <span class="ctx-label">In app store grid</span>
+    <img src="app-icon.png" style="width:36px;height:36px" />
+    <span class="ctx-name" style="font-size:14px">couch</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 3 — HORIZONTAL · CREAM BACKGROUND · DEEP COGNAC WORDMARK
+     Light contexts: business card, print marketing, email header, light website hero.
+============================================================ -->
+<div id="variant-3" class="variant" style="display:none">
+  <h2>3 · Horizontal · cream</h2>
+  <p class="subtitle">Light-background variant for print, business cards, light marketing. The C-icon's rich shadows still pop on cream because of its dark contrast. Wordmark in deep cognac matches the leather tone.</p>
+
+  <div class="stage cream">
+    <div class="lockup gap-loose">
+      <div class="icon-wrap">
+        <img src="app-icon.png" alt="Couch icon" style="--icon-size: 130px; box-shadow: 0 8px 24px rgba(45, 28, 16, 0.25)" />
+      </div>
+      <h1 class="wordmark fraunces cognac size-lg">couch</h1>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-title">Spec</div>
+    <strong>Type:</strong> Fraunces, italic, weight 500, 84px lowercase.<br>
+    <strong>Color:</strong> Wordmark <code>#5b3a22</code> (deep cognac, matches leather mid-tone) · Background <code>#f1e6d3</code> (warm cream, NOT pure white)<br>
+    <strong>Spacing:</strong> Same as variant 1 (28px gap).<br>
+    <strong>Why cream not white:</strong> Pure white kills the warmth and makes the icon look like a sticker. Cream keeps the brand temperature.
+  </div>
+
+  <div class="ctx-strip cream">
+    <span class="ctx-label" style="color:#7a5f3f">In email header</span>
+    <img src="app-icon.png" />
+    <span class="ctx-name cognac">couch</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 4 — HORIZONTAL · DARK · INSTRUMENT SERIF · DRAMATIC SCALE
+     The "feature" lockup. Bigger wordmark, more cinematic energy.
+     For the "wow" moments — splash screen, marketing hero, pitch decks.
+============================================================ -->
+<div id="variant-4" class="variant" style="display:none">
+  <h2>4 · Dramatic · Instrument Serif</h2>
+  <p class="subtitle">Cinematic alternative — Instrument Serif italic at large scale. The wordmark dominates more, like a movie title card. Use for hero moments (splash, pitch decks, big marketing). Probably TOO loud for everyday navbar.</p>
+
+  <div class="stage dark-warm">
+    <div class="lockup gap-roomy">
+      <div class="icon-wrap halo">
+        <img src="app-icon.png" alt="Couch icon" style="--icon-size: 130px" />
+      </div>
+      <h1 class="wordmark instrument cream size-xl">couch</h1>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-title">Spec</div>
+    <strong>Type:</strong> Instrument Serif, italic, weight 400. Lowercase, 110px (40% larger than variant 1).<br>
+    <strong>Color:</strong> Wordmark <code>#f5ede1</code> · Background warm-dark radial.<br>
+    <strong>Spacing:</strong> Gap = 36px (more breathing room because wordmark is bigger).<br>
+    <strong>Trade-off:</strong> Higher impact, lower versatility. Don't use this in 28px-tall navbars — it would scale poorly. Reserve for marketing and brand "moments."
+  </div>
+
+  <div class="ctx-strip">
+    <span class="ctx-label">In navbar (probably too big)</span>
+    <img src="app-icon.png" />
+    <span class="ctx-name instrument" style="font-size:22px">couch</span>
+  </div>
+</div>
+
+<div id="sketch-tools">
+  <button onclick="setVp('phone')">Phone</button>
+  <button onclick="setVp('full')">Full</button>
+</div>
+
+<script>
+  function showVariant(id, ev) {
+    document.querySelectorAll('.variant').forEach(v => v.style.display = 'none');
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).style.display = 'block';
+    if (ev && ev.target) ev.target.classList.add('active');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+  function setVp(v) {
+    document.body.classList.toggle('vp-phone', v === 'phone');
+  }
+</script>
+
+</body>
+</html>
