@@ -11,6 +11,31 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-12. Google OAuth blocked in iOS WKWebView — App Store launch blocker
+
+**Severity:** high · **Effort:** medium (wire up Apple Sign-In) · **Risk:** blocks App Store launch + degrades iOS UX
+
+**Source:** 2026-05-26 — TestFlight Build 103 UAT. User reported Google login broken in the iOS wrapper while phone auth worked fine. Same Google login works in iOS Safari directly. The iOS wrapper is a PWABuilder-generated WKWebView at `~/claude-projects/couch-ios`.
+
+**Root cause:** Google explicitly blocks OAuth 2.0 flows inside embedded WebViews via `disallowed_useragent` rejection (policy since 2021). WKWebView gets flagged. This is independent of Couch web-app code — the same `signInWithPopup(GoogleAuthProvider)` works in Safari and fails in any embedded WebView, system-wide.
+
+**Apple-side launch implication:** App Store Review Guideline 4.8 *requires* Apple Sign-In when an app offers 3rd-party social sign-in (Google, Facebook, etc.). Shipping the iOS wrapper without Apple Sign-In = automatic rejection AND no working iOS Google auth.
+
+**Fix space (recommended path bolded):**
+- **(a) Wire up Apple Sign-In in the iOS wrapper** — the `com.apple.developer.applesignin = ["Default"]` entitlement is already in `src/Couch Tonight/Couch Tonight.entitlements` per Phase 17 patches. Need Firebase Auth `OAuthProvider('apple.com')` provider config + landing-screen auth-method picker addition + iOS-specific copy. **Single fix solves both the Google block AND Apple Review 4.8.**
+- (b) Switch Firebase Auth from `signInWithPopup` to `signInWithRedirect` + universal link handoff to Safari. Works but UX is rough (app → Safari → app jump).
+- (c) ASWebAuthenticationSession deep-link via a custom Swift hook. Most native-feeling but requires Swift work in the wrapper repo.
+
+**Landing.html FAQ copy already promises:** *"Apple Sign-In is coming with the App Store launch."* — so the user-facing expectation is already set. Implementation just needs to follow.
+
+**Files to touch:**
+- `js/firebase.js` — add `apple.com` OAuthProvider
+- `app.html` — add Apple Sign-In button to the auth-method picker (`screen-mode` or wherever the Google/email/phone buttons live; grep for `signInWithPopup`)
+- `landing.html` — update FAQ entry #0 ("Do I need to log in?") to drop the "coming with the App Store launch" qualifier once shipped
+- couch-ios repo: confirm Info.plist URL scheme matches Firebase Apple provider redirect
+
+**Plan path:** `/gsd-plan-phase 17.1` or `/gsd-insert-phase 17.1` with scope "Apple Sign-In wiring for iOS App Store launch readiness." Targets pre-launch.
+
 ### TD-9. Smoke "deploy receipt" anti-pattern: hardcoded version literals
 
 **Severity:** low · **Effort:** trivial per occurrence · **Risk:** low (causes deploy-gate false-failures, not production bugs — but bad ones, see TD-10/TD-11)
