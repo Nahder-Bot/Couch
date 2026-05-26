@@ -11,6 +11,31 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-14. `.detail-close` hit area is 40px (below 44px iOS HIG minimum)
+
+**Severity:** low-medium · **Effort:** trivial (CSS one-liner) · **Risk:** App Store reviewer may flag; users with motor-control needs may struggle
+
+**Source:** 2026-05-26 — Chrome MCP DOM probe during Phase 17-NAV pre-flight. The `.detail-close` button (top-right X on title-detail modal at `js/app.js:openDetailModal`) computes to `width:40px; height:40px` per CSS at `css/app.css:1618`. Apple HIG and WCAG both require ≥44pt × 44pt for touch targets. Phase 30 Wave 5B (`commit 1f65cc3`) raised hit areas to 44px on other surfaces but missed this one.
+
+**Fix:** change `css/app.css:1618` `width:40px;height:40px` → `width:44px;height:44px`. The icon glyph inside doesn't need to grow — just the touch box.
+
+**Plan path:** trivial one-line CSS edit; can fold into next deploy that bumps cache.
+
+### TD-13. onSnapshot listeners across js/app.js have silent error handlers (qnLog-only)
+
+**Severity:** medium · **Effort:** small (audit + add toast to each listener) · **Risk:** future Firestore rule/index breakage stays invisible to users
+
+**Source:** 2026-05-26 — Phase 30 collectionGroup permission-denied (root cause of #8/#9 wp-not-found) went undetected for 24 days because `js/app.js:5167` watchparty listener had `e => qnLog('[watchparties] snapshot error', e && e.message)` — console-only, no toast, no Sentry breadcrumb. Users saw "nothing loading" with no feedback.
+
+**Pattern:** every `onSnapshot(query, success, error)` callback should surface user-facing feedback (at least a one-time toast like "Connection issue — refresh to reload") AND a Sentry breadcrumb on first error. Make it impossible to silently swallow listener failures.
+
+**Files to audit (grep for `onSnapshot`):**
+- `js/app.js:5101` (intents listener — already has error handler, console-only)
+- `js/app.js:5125` (watchparties listener — the root-cause site)
+- Any other `onSnapshot(...)` call sites in js/app.js
+
+**Plan path:** one-touch audit + small refactor of error callbacks. Could be a Phase 17.2 or rolled into a "listener hardening" hotfix.
+
 ### TD-12. Google OAuth blocked in iOS WKWebView — App Store launch blocker
 
 **Severity:** high · **Effort:** medium (wire up Apple Sign-In) · **Risk:** blocks App Store launch + degrades iOS UX
