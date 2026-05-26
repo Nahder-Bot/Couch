@@ -138,6 +138,25 @@ service cloud.firestore {
     // STAYS in place below for backward compat during the cache-bust window.
     // After Phase 30 client is live + old cache purged, a follow-up can add
     // `allow read: if false` to the nested block. Do NOT remove it now.
+
+    // Phase 30 collectionGroup-query rule (2026-05-26): the live subscription at
+    // js/app.js:5125 uses
+    //   collectionGroup('watchparties').where('memberUids','array-contains',uid)
+    // For collectionGroup queries Firestore requires a recursive-wildcard rule
+    // pattern (`{path=**}`) so the engine can statically verify the query is
+    // safe across every collection matching the group name — including the
+    // legacy nested /families/{X}/watchparties/{Y} path. Without this rule the
+    // engine returned permission-denied even though no nested wp actually has
+    // a memberUids field that could match the filter. The per-doc-path rules
+    // below (top-level + nested) still apply to direct doc reads via getDoc;
+    // this recursive rule is the explicit grant for collectionGroup queries.
+    // Diagnosed via Chrome MCP direct probe — the same query that production's
+    // onSnapshot listener uses, returning permission-denied deterministically
+    // before this rule landed.
+    match /{path=**}/watchparties/{wpId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+    }
+
     match /watchparties/{wpId} {
       allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
 
