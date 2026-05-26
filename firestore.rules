@@ -717,7 +717,24 @@ service cloud.firestore {
         // unauthenticated client from writing `guests` directly (verified by
         // tests/rules.test.js Phase 27 describe block, RSVP-27-06).
         // See .planning/phases/27-guest-rsvp/27-RESEARCH.md Q2.
-        allow read: if isMemberOfFamily(familyCode);
+        //
+        // Phase 30 collectionGroup-query fix (2026-05-26): the live
+        // subscription at js/app.js:5125 uses
+        //   collectionGroup('watchparties').where('memberUids','array-contains',uid)
+        // For a collectionGroup query Firestore evaluates rules across EVERY
+        // collection sharing the name — including this nested path. The
+        // previous `isMemberOfFamily(familyCode)` clause depends on the path-
+        // captured familyCode, which the rules engine cannot statically prove
+        // against the memberUids filter — so the engine returned
+        // permission-denied even though no nested wp would actually match the
+        // filter. The OR clause below lets the rules engine verify the query
+        // via the memberUids field alone. Net effect: legacy nested-path reads
+        // still work for family members (clause A), AND collectionGroup queries
+        // resolve cleanly via clause B.
+        allow read: if signedIn() && (
+          isMemberOfFamily(familyCode)
+          || request.auth.uid in resource.data.memberUids
+        );
         allow create: if attributedWrite(familyCode);
         allow update: if attributedWrite(familyCode) && (
           // Path A: caller is the wp host — any field allowed.
