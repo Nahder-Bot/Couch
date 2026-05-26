@@ -62,19 +62,6 @@ The deploy receipt itself is preserved by git history (commit messages + cache b
 
 **Pointer:** `scripts/smoke-app-parse.cjs` (foundation gate, closes TD-10) and `scripts/smoke-guest-rsvp.cjs:193-195` (the relaxation comment block) are the canonical references for the right shape.
 
-### TD-7. Firestore index spec in 13-01 was redundant (already-covered by single-field auto-index)
-
-**Severity:** trivial · **Effort:** 0 (already resolved) · **Risk:** none
-
-**Source:** Phase 13 / Plan 13-01 — discovered during HUMAN-VERIFY follow-through 2026-04-25 when `firebase deploy --only firestore:indexes --project queuenight-84044` returned `HTTP 400, this index is not necessary, configure using single field index controls`.
-
-**Resolution applied:** `queuenight/firestore.indexes.json` had its sole composite index entry removed (file is now `{ "indexes": [], "fieldOverrides": [] }`). The `discoverFamilyCodes` collectionGroup fallback (`collectionGroup('members').where('uid', '==', uid)`) works on Firestore's auto-managed single-field index for `uid`; no extra config needed.
-
-**Why this is worth recording**
-Plan 13-01's review fix HIGH-2 specified the composite index as part of the fallback safety net. The reviewer assumed all collection-group queries need an explicit composite index — they don't, when the query is single-field equality. This is a Firestore-quirk worth catching at planning time in future phases that touch Firestore indexes: simple equality-on-single-field queries don't need a composite entry.
-
-**Action item:** none. Record-only.
-
 ### TD-6. Sentry Replay deferred (post-launch +30 days)
 
 **Severity:** low · **Effort:** 30-60 min (re-enable + privacy review writeup) · **Risk:** low (Replay is opt-in; flipping it back on doesn't break anything)
@@ -313,6 +300,14 @@ Next time anyone touches Settings UI for any reason — pick a surface and remov
 **How it bit:** Today's `couch-v40-tsd-key-fix` deploy was blocked when a Java process from an 11:15 AM emulator session was still holding port 8080 four hours later. ~10 minutes lost to manual `Get-NetTCPConnection -LocalPort 8080 → Stop-Process -Id ... -Force` diagnosis.
 
 **How it was closed:** `deploy.sh §0.5` (this commit) runs a Node-based pre-flight that opens a probe socket on port 8080. If `EADDRINUSE`, it aborts with a clear remediation message including the cross-platform commands to find + kill the orphan. Cross-platform (no `lsof` / `netstat` dependency — uses Node which is already required by deploy.sh). Verified by holding port 8080 in a background Node process and re-running the pre-flight: aborts with exit 1 and the remediation message; passes when port released.
+
+### TD-7. Firestore index spec in 13-01 was redundant — closed 2026-04-25
+
+**What it was:** Plan 13-01 review-fix HIGH-2 specified a composite index for the `discoverFamilyCodes` collectionGroup fallback (`collectionGroup('members').where('uid', '==', uid)`). Reviewer assumed all collection-group queries need an explicit composite index — they don't, when the query is single-field equality.
+
+**How it bit:** `firebase deploy --only firestore:indexes --project queuenight-84044` returned `HTTP 400, this index is not necessary, configure using single field index controls` during HUMAN-VERIFY follow-through 2026-04-25.
+
+**How it was closed:** `queuenight/firestore.indexes.json` had its sole composite index entry removed (file is now `{ "indexes": [], "fieldOverrides": [] }`). Firestore's auto-managed single-field index for `uid` covers the query. Worth recording as a Firestore quirk for future plans touching indexes: simple equality-on-single-field queries don't need an explicit composite entry — Firestore creates these single-field indexes automatically.
 
 ### TD-12. Google OAuth blocked in iOS WKWebView / App Store §4.8 — closed 2026-05-26
 

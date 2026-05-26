@@ -4,7 +4,11 @@ target-phase: 5.x (Phase 5 polish — NOT Phase 9 which is Redesign/Brand)
 recategorized-from: phase-09-apple-signin.md
 trigger: "Phase 5 UAT (2026-04-21) — Apple Sign-In deferred to avoid $99/yr Apple Developer Program during v1 family-and-friends validation"
 related: [phase-05x-account-linking.md]
+status: RESOLVED 2026-05-26
+resolution: "Shipped via Phase 17 in three commits — `46c7013` (web UI surfacing) + `bb2c8eb` (Apple Dev Services ID + Sign-In Key PFGQNA2UTR + Firebase Console Apple provider via Chrome MCP) + Build 104 WKWebView E2E verification 2026-05-26. Closes TD-12. See `.planning/TECH-DEBT.md` Closed section TD-12 for the full audit trail."
 ---
+
+> **⚠ RESOLVED 2026-05-26.** This seed is retained as historical context only. The work described below was completed across Phase 17 (App Store launch readiness) — see TECH-DEBT.md TD-12 (Closed section) for the canonical close-out. Do NOT re-execute any steps below; the Apple Sign-In stack is fully wired and verified end-to-end on Build 104.
 
 # Phase 5.x seed — Apple Sign-In enablement
 

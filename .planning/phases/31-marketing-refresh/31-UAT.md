@@ -39,7 +39,7 @@ expected: |
   Safari AND Android Chrome. On iOS: no native disclosure-triangle artifact (must be hidden
   by ::-webkit-details-marker rule). All 7 answer bodies render without escaped HTML entities
   (no visible &apos; etc.). The first question is "Do I need to log in?" — its answer ends with
-  "Apple Sign-In is coming with the App Store launch."
+  "Yes. Apple, Google, email-link, or phone — pick one." (updated 2026-05-26 commit `ca42fb5` — TD-12 close — when Apple Sign-In shipped; original text was "Apple Sign-In is coming with the App Store launch.")
 result: pass
 
 ### 3. FAQ Sentry breadcrumb fires on open with correct question_index (MARK-31-04)
