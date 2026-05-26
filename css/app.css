@@ -1615,7 +1615,7 @@ input.field-invalid{border-color:var(--bad)}
 /* fixed (not absolute) so the close button stays visible while the detail view scrolls.
    position:fixed inside a transformed parent would break; detail-modal-bg doesn't transform, so fixed
    pins against the viewport correctly. iOS safe-area inset keeps the button clear of the notch. */
-.detail-close{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));right:calc(var(--s3) + env(safe-area-inset-right, 0px));background:rgba(0,0,0,0.65);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);color:white;width:40px;height:40px;border-radius:50%;font-size:var(--t-h3);cursor:pointer;z-index:10;transition:background var(--t-quick);display:flex;align-items:center;justify-content:center}
+.detail-close{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));right:calc(var(--s3) + env(safe-area-inset-right, 0px));background:rgba(0,0,0,0.65);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);color:white;width:44px;height:44px;border-radius:50%;font-size:var(--t-h3);cursor:pointer;z-index:10;transition:background var(--t-quick);display:flex;align-items:center;justify-content:center}
 .detail-close:hover,.detail-close:active{background:rgba(0,0,0,0.82)}
 .detail-body{padding:var(--s4) var(--s5) var(--s5);margin-top:-60px;position:relative;z-index:1}
 .detail-name{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h1);font-weight:400;line-height:1.1;letter-spacing:-0.02em;margin-bottom:var(--s2);color:var(--ink)}
