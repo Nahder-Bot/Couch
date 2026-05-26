@@ -789,6 +789,41 @@ async function updateQuietHours(patch) {
   }
 }
 
+// TD-13 / Phase 30 post-mortem (2026-05-26) — onSnapshot listener error visibility.
+// Every listener used to be silent on failure: qnLog (gated off QN_DEBUG in prod) or
+// no error callback at all. Phase 30's missing collectionGroup rule + index left
+// state.watchparties empty for ~3-4 weeks without any user feedback — diagnosed
+// only via Chrome MCP direct probe.
+//
+// This helper fires three things on listener error:
+//   1. qnLog for dev visibility
+//   2. Sentry breadcrumb for production telemetry (CSP already allows sentry-cdn.com)
+//   3. One toast per listener-name per session — visible feedback without spam
+const _snapshotErrorShown = new Set();
+function snapshotErrorHandler(name) {
+  return (err) => {
+    qnLog('[' + name + '] snapshot error', err && err.message, err && err.code);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        Sentry.addBreadcrumb({
+          category: 'snapshot.error',
+          message: (err && err.message) || 'unknown',
+          data: { listener: name, code: (err && err.code) || null },
+          level: 'warning'
+        });
+      }
+    } catch (e) {}
+    if (!_snapshotErrorShown.has(name)) {
+      _snapshotErrorShown.add(name);
+      try {
+        if (typeof flashToast === 'function') {
+          flashToast('Couch is having trouble syncing — refresh to reload.', { kind: 'warn' });
+        }
+      } catch (e) {}
+    }
+  };
+}
+
 // Subscribe to users/{uid} for notificationPrefs. Called from onAuthStateChangedCouch on sign-in;
 // torn down on sign-out. Kept separate from startSettingsSubscription (which reads /settings/auth).
 function startNotificationPrefsSubscription(uid) {
@@ -5111,7 +5146,7 @@ function startSync() {
     // the moment a rank-pick intent opens or closes elsewhere on the couch.
     if (typeof maybeRerenderFlowAResponse === 'function') maybeRerenderFlowAResponse();
     if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
-  }, e => { qnLog('[intents] snapshot error', e.message); });
+  }, snapshotErrorHandler('intents'));
   // Subscribe to watchparties collection
   // Phase 30 — collectionGroup query replaces families/{code}/watchparties subscription.
   // where('memberUids', 'array-contains', uid) MUST be present or rules reject the query
@@ -5164,7 +5199,7 @@ function startSync() {
         if (wp) renderAddFamilySection(wp);
       }
     },
-    e => { qnLog('[watchparties] snapshot error', e && e.message); }
+    snapshotErrorHandler('watchparties')
   );
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
