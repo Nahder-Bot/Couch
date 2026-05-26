@@ -12529,7 +12529,26 @@ function renderWatchpartyLive() {
   const el = document.getElementById('wp-live-coordination');
   if (!el) return;
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
-  if (!wp) { el.innerHTML = '<div style="padding:24px;">Watchparty not found.</div>'; return; }
+  if (!wp) {
+    // Phase 30 race-condition guard. The collectionGroup('watchparties') subscription
+    // does not always propagate local-cache writes immediately — fresh wp create can
+    // outrace the listener by 100-500ms. Show a graceful loading state and retry on a
+    // short tick rather than stranding the user on "Watchparty not found." Hard-fail
+    // only after ~3s of misses (genuine not-found: wp deleted, rules reject read, etc.)
+    // surface a Back-to-Tonight escape instead of the dead-end inline message.
+    const slot = '_wpLiveRetry_' + state.activeWatchpartyId;
+    window[slot] = (window[slot] || 0) + 1;
+    if (window[slot] <= 6) {
+      el.innerHTML = '<div style="padding:24px;color:var(--ink-dim);font-style:italic;">Loading watchparty…</div>';
+      setTimeout(() => { if (state.activeWatchpartyId) renderWatchpartyLive(); }, 500);
+      return;
+    }
+    el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="margin-bottom:16px;color:var(--ink-dim);">Couldn\'t load this watchparty.</div><button class="primary-btn" onclick="closeWatchpartyLive()">Back to Tonight</button></div>';
+    delete window[slot];
+    return;
+  }
+  // Found — clear any prior retry counter so a future re-entry starts fresh
+  delete window['_wpLiveRetry_' + wp.id];
   // Phase 26 / RPLY-26-04 + RPLY-26-13 — replay-variant gating.
   // Eligibility precondition: replay variant only renders when wp.status === 'archived'
   // (per D-06). Defensive: even if state.activeWatchpartyMode === 'revisit' was
