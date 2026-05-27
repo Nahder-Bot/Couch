@@ -833,9 +833,7 @@ function startNotificationPrefsSubscription(uid) {
     const data = (snap && snap.data()) || {};
     state.notificationPrefs = data.notificationPrefs || {};
     if (typeof updateNotifCard === 'function') updateNotifCard();
-  }, (err) => {
-    qnLog('[QN push] prefs snapshot error:', err.message);
-  });
+  }, snapshotErrorHandler('notif-prefs'));
 }
 
 // SHA-256 hash a string and return as hex. Used to make safe Firestore key names from URLs.
@@ -3600,7 +3598,7 @@ function startSettingsSubscription() {
     // state immediately so unclaimed members go dim without waiting on a members snapshot.
     try { if (typeof applyReadOnlyState === 'function') applyReadOnlyState(); } catch(e) {}
     try { if (typeof renderGraceBanner === 'function') renderGraceBanner(); } catch(e) {}
-  }, (e) => console.error('[settings] snapshot error', e));
+  }, snapshotErrorHandler('settings'));
 }
 
 async function handlePostSignInIntent() {
@@ -5092,7 +5090,7 @@ function startSync() {
     }
     // Surface in-app toasts when someone's request gets approved or declined.
     checkApprovalUpdates();
-  });
+  }, snapshotErrorHandler('titles'));
   // Live-sync the group doc so picker + mode updates propagate between devices.
   // Plan 07: also track ownerUid so the owner-only admin panel toggles in real time
   // (e.g. after a transferOwnership CF flips the doc).
@@ -5127,7 +5125,7 @@ function startSync() {
     try { renderOwnerSettings(); } catch(e) {}
     // Plan 09-07a: re-evaluate legacy self-claim CTA whenever ownership changes.
     try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
-  });
+  }, snapshotErrorHandler('group'));
   subscribeSession();
   scheduleMidnightRefresh();
   // Phase 8 — subscribe to intents collection. Guards with typeof checks so Plan 08-01
@@ -9214,7 +9212,11 @@ function startActivitySync() {
     const cutoff = Date.now() - 7*24*60*60*1000;
     recentActivity = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.ts > cutoff).slice(0, 15);
     renderActivity();
-  }, e => console.error('activity sync', e));
+  }, (err) => {
+    // Null out so the early-return guard in startActivitySync lets it re-subscribe later.
+    unsubActivity = null;
+    snapshotErrorHandler('activity')(err);
+  });
 }
 
 let activityExpanded = false;
@@ -17027,6 +17029,10 @@ function startListsSync() {
   unsubLists = onSnapshot(listsRef(), snap => {
     allLists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderLists();
+  }, (err) => {
+    // Null out so the early-return guard above lets startListsSync re-subscribe later.
+    unsubLists = null;
+    snapshotErrorHandler('lists')(err);
   });
 }
 
