@@ -1,11 +1,13 @@
 ---
 created: 2026-05-26
-updated: 2026-05-26
+updated: 2026-05-27
 purpose: Durable handoff for next-session resume after multi-angle pre-submit review
-status: live (Tier 1 + Tier 2 + Tier 3 + Tier 4 + Should-fix all SHIPPED — only user-side gates remain: screenshot upload + press@ forwarder)
-production_cache: couch-v40-shouldfix-web (live)
-app_version: 40
+status: live (pre-submit polish all SHIPPED + interim mark-blend-fix v41 + Phase 15.3 transparent-PNG pipeline v42). LAUNCH PATH UPDATED 2026-05-27: Nahder elected to ship Phase 16 (Calendar Layer) BEFORE App Store submission. Add-for-Review held until Phase 16 ships.
+production_cache: couch-v42-phase-15.3-transparency (live)
+app_version: 42
 cf_deploys: rsvpSubmit, gameResultsTick (queuenight commit 5125bf1, deployed 2026-05-26)
+phase_15_3: SHIPPED 2026-05-27 — couch commits a17d7cb + 3d27e29. Transparent-PNG pipeline replaces all mix-blend-mode workarounds across css/{app,landing,rsvp}.css. scripts/regenerate-icons.cjs is now the canonical regen tool (alpha-keys black backdrop, produces 36 PNG outputs from 3 masters).
+phase_16: LAUNCH-BLOCKING (Calendar Layer — recurring + multi-future watchparty scheduling; scope in .planning/seeds/decision-ritual-locked-scope.md). NEXT after this session.
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
