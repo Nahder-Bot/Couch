@@ -2,7 +2,7 @@ import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc,
 import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
-import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
+import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip, promptInDom } from './utils.js';
 import { twemojiImg } from './twemoji.js';
 import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys, leagueLabel as feedLeagueLabel, leagueEmoji as feedLeagueEmoji } from './sports-feed.js';
 // Phase 28 / Plan 28-05 — Pick'em pure helpers (slate grouping, scoring, validation,
@@ -2994,7 +2994,7 @@ window.onFlowBRejectCounter = async function(memberId) {
   }
 };
 
-window.onFlowBOpenCompromiseTimePicker = function(memberId) {
+window.onFlowBOpenCompromiseTimePicker = async function(memberId) {
   const intentId = state.flowBStatusIntentId;
   const intent = (state.intents || []).find(i => i.id === intentId);
   if (!intent) return;
@@ -3005,8 +3005,18 @@ window.onFlowBOpenCompromiseTimePicker = function(memberId) {
   const cd = new Date(compromise);
   const pad = (n) => String(n).padStart(2, '0');
   const compromiseLocal = `${cd.getFullYear()}-${pad(cd.getMonth()+1)}-${pad(cd.getDate())}T${pad(cd.getHours())}:${pad(cd.getMinutes())}`;
-  // Browser prompt() — D-08 doesn't specify; sufficient for solo-nominator decision UX.
-  const userInput = window.prompt(`Compromise time (suggested midpoint pre-filled):\nFormat: YYYY-MM-DDTHH:MM`, compromiseLocal);
+  // In-DOM modal with native datetime-local input. Replaces window.prompt()
+  // which silently returns null inside iOS WKWebView (PWABuilder wrapper has
+  // no UIAlertController bridge) — the compromise-time flow would just
+  // no-op for wrapper users. Native datetime-local input is also a real UX
+  // upgrade over the plain-text prompt parsing (Tier 3 / WKWebView fix).
+  const userInput = await promptInDom({
+    title: 'Compromise time',
+    body: 'Suggested midpoint pre-filled — adjust if you want a different time.',
+    inputType: 'datetime-local',
+    initialValue: compromiseLocal,
+    confirmLabel: 'Set time'
+  });
   if (!userInput) return;
   const finalTime = new Date(userInput).getTime();
   if (!isFinite(finalTime) || finalTime < Date.now()) { flashToast('Pick a future time', { kind: 'warn' }); return; }
@@ -3959,8 +3969,19 @@ window.submitFamily = async function() {
   try { const snap = await getDoc(familyDocRef()); if (snap.exists()) existing = snap.data(); } catch(e){}
 
   if (existing && existing.passwordHash) {
-    // Password-protected: route through joinGroup Cloud Function
-    const password = window.prompt('This group is password-protected. Enter the password:') || '';
+    // Password-protected: route through joinGroup Cloud Function.
+    // window.prompt() returns null instantly inside iOS WKWebView (no
+    // UIAlertController bridge in PWABuilder), so the password-protected
+    // join silently failed in the wrapper. In-DOM modal replaces it
+    // (Tier 3 / WKWebView fallback fix).
+    const password = (await promptInDom({
+      title: 'Password required',
+      body: 'This group is password-protected. Enter the password to join.',
+      inputType: 'password',
+      inputAutocomplete: 'current-password',
+      inputPlaceholder: 'Password',
+      confirmLabel: 'Join'
+    })) || '';
     if (!password) { flashToast('Password required', { kind: 'warn' }); state.familyCode = null; return; }
     try {
       const joinGroupFn = httpsCallable(functions, 'joinGroup');
@@ -11822,11 +11843,6 @@ async function onClickAddFamily(wp, idSuffix) {
       flashToast('Only the host can add families to this watchparty.', { kind: 'warn' });
     } else if (code === 'functions/resource-exhausted') {
       flashToast('No more room on this couch tonight.', { kind: 'warn' });
-    } else if (code === 'functions/failed-precondition') {
-      // W4 fix (revision): zero-member family — addFamilyToWp CF throws this when the
-      // family exists but has no qualifying members yet (no docs with a string `uid` field).
-      // Brand-voice toast matches the warm/playful UI-SPEC § Copywriting Contract.
-      flashToast("That family hasn't added any members yet — ask them to invite people first.", { kind: 'warn' });
     } else if (code === 'functions/unauthenticated') {
       flashToast('Sign in to add a family.', { kind: 'warn' });
     } else if (code === 'functions/invalid-argument') {
@@ -15863,6 +15879,20 @@ function renderSignInMethodsCard() {
         <div class="signin-method-meta">${providers.includes('google.com') ? escapeHtml(auth.currentUser.email || 'Linked') : 'Not linked'}</div>
       </div>
       ${providers.includes('google.com') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
+    </div>`);
+  // Apple — display parity with Google so Account tab reflects the providers
+  // we now offer at sign-in (Tier 3 / App Store §4.8 spirit: if Apple is
+  // available at sign-in, it must appear equivalently in the linked-methods
+  // surface). Inline SVG renders consistently on Android/Chrome too — the
+  // U+F8FF Apple-logo char only renders on Apple-licensed fonts.
+  rows.push(`
+    <div class="signin-method-row">
+      <div class="signin-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="17" fill="currentColor"><path d="M17.05 12.04c-.03-3.16 2.58-4.68 2.7-4.75-1.47-2.15-3.76-2.44-4.58-2.48-1.95-.2-3.81 1.15-4.8 1.15s-2.52-1.12-4.15-1.09c-2.13.03-4.11 1.24-5.21 3.15-2.22 3.86-.57 9.57 1.6 12.71 1.06 1.54 2.32 3.27 3.97 3.21 1.6-.06 2.2-1.03 4.13-1.03s2.47 1.03 4.15 1c1.72-.03 2.8-1.56 3.85-3.11 1.22-1.78 1.72-3.5 1.74-3.59-.04-.02-3.34-1.28-3.4-5.07zM14.32 3.62c.86-1.05 1.45-2.51 1.29-3.96-1.24.05-2.75.83-3.65 1.87-.8.93-1.51 2.41-1.32 3.84 1.39.11 2.81-.71 3.68-1.75z"/></svg></div>
+      <div class="signin-method-body">
+        <div class="signin-method-label">Apple</div>
+        <div class="signin-method-meta">${providers.includes('apple.com') ? escapeHtml(auth.currentUser.email || 'Linked') : 'Not linked'}</div>
+      </div>
+      ${providers.includes('apple.com') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
     </div>`);
   // Phone
   rows.push(`

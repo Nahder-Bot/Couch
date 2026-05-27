@@ -141,3 +141,79 @@ export function hideTooltip() {
   tip.classList.remove('on');
   setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 200);
 }
+
+// In-DOM prompt modal — replacement for window.prompt() which is silently blocked
+// in iOS WKWebView (PWABuilder wrapper installs no UIAlertController bridge, so
+// prompt() returns null instantly without UI). Returns Promise<string | null>:
+// null on cancel/escape/backdrop/X-click, trimmed string on confirm.
+// Reuses the existing .modal-bg / .modal / .modal-x-btn / .modal-actions-row /
+// .pill class set so theming + safe-area + .on transition behavior are automatic.
+export function promptInDom(opts) {
+  const {
+    title = '',
+    body = '',
+    inputType = 'text',
+    inputPlaceholder = '',
+    inputAutocomplete = 'off',
+    initialValue = '',
+    confirmLabel = 'Continue',
+    cancelLabel = 'Cancel',
+    ariaLabel
+  } = (opts || {});
+  return new Promise((resolve) => {
+    const root = document.createElement('div');
+    root.className = 'modal-bg';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', ariaLabel || title || 'Input required');
+    // Above app.html's static modals (which sit around z-index ~1000) so this
+    // helper can prompt even while another modal is open (rare but possible).
+    root.style.zIndex = '10000';
+    root.innerHTML = [
+      '<div class="modal modal--w-440">',
+      '  <button type="button" class="modal-x-btn" data-action="close" aria-label="Close">',
+      '    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+      '  </button>',
+      title ? '  <h3 class="modal-h2">' + escapeHtml(title) + '</h3>' : '',
+      body ? '  <p class="meta modal-sub-rhythm">' + escapeHtml(body) + '</p>' : '',
+      '  <input class="qn-prompt-input" type="' + escapeHtml(inputType) + '" autocomplete="' + escapeHtml(inputAutocomplete) + '" placeholder="' + escapeHtml(inputPlaceholder) + '" value="' + escapeHtml(initialValue) + '" style="width:100%;padding:12px 14px;margin-top:8px;border:1px solid var(--border-subtle,#444);border-radius:12px;background:var(--surface-2,#1f1a16);color:inherit;font-size:16px;box-sizing:border-box;font-family:inherit;" />',
+      '  <div class="modal-actions-row">',
+      '    <button class="pill" data-action="cancel">' + escapeHtml(cancelLabel) + '</button>',
+      '    <button class="pill accent" data-action="confirm">' + escapeHtml(confirmLabel) + '</button>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+    document.body.appendChild(root);
+    // Match the pattern used by static modals (CSS toggles display:none -> flex via .on).
+    requestAnimationFrame(() => root.classList.add('on'));
+
+    const input = root.querySelector('.qn-prompt-input');
+    const confirmBtn = root.querySelector('[data-action="confirm"]');
+    const cancelBtn = root.querySelector('[data-action="cancel"]');
+    const closeBtn = root.querySelector('[data-action="close"]');
+
+    let done = false;
+    const cleanup = (value) => {
+      if (done) return;
+      done = true;
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+      try { root.remove(); } catch(e) {}
+      resolve(value);
+    };
+    const submit = () => cleanup((input && input.value || '').trim());
+    const cancel = () => cleanup(null);
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      else if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); submit(); }
+    };
+    confirmBtn.addEventListener('click', submit);
+    cancelBtn.addEventListener('click', cancel);
+    closeBtn.addEventListener('click', cancel);
+    // Backdrop-click cancels only when the click lands on the backdrop itself
+    // (not on the .modal panel) — mirrors the inline onclick guard used by
+    // app.html's static modals.
+    root.addEventListener('click', (e) => { if (e.target === root) cancel(); });
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => { try { input.focus(); input.select(); } catch(e) {} }, 50);
+  });
+}
