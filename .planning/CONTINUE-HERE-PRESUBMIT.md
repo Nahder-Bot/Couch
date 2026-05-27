@@ -1,16 +1,17 @@
 ---
 created: 2026-05-26
+updated: 2026-05-26
 purpose: Durable handoff for next-session resume after multi-angle pre-submit review
-status: live (Tier 1 SHIPPED, Tier 2-4 + Should-fix + screenshots-replace PENDING)
-production_cache: couch-v36-presubmit-polish (live)
-app_version: 36
+status: live (Tier 1 + Tier 2 SHIPPED, Tier 3-4 + Should-fix + screenshots-replace PENDING)
+production_cache: couch-v37-listener-recovery (live)
+app_version: 37
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
 
 ## Where we are right now
 
-**Production live state:** `couch-v36-presubmit-polish` (deployed 2026-05-26, commits `ba2311c` + `7233f32` on `hotfix/phase-30-cross-cutting-wave`). All Tier 1 fixes from the multi-angle review are live.
+**Production live state:** `couch-v37-listener-recovery` (deployed 2026-05-26, commits `90d4a58` + `59b4334` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 listener-recovery wiring all live.
 
 **App Store Connect state:**
 - iOS App Version 1.0 (Prepare for Submission)
@@ -40,17 +41,22 @@ app_version: 36
 
 ## What's pending (Tier 2-4 + Should-fix)
 
-### Tier 2 — Silent failure mitigation (~30 min in fresh session)
+### Tier 2 — Silent failure mitigation — SHIPPED 2026-05-26 (commit `90d4a58`)
 
-Wire `snapshotErrorHandler()` to 6 listeners currently silent on failure:
-- `js/app.js:5084` (unsubTitles) — `snapshotErrorHandler('titles')` as third arg
-- `js/app.js:5100` (unsubGroup / family doc) — `snapshotErrorHandler('group')`
-- `js/app.js:17027` (unsubLists) — `snapshotErrorHandler('lists')` + null-out on error so re-subscribe works
-- `js/app.js:9213` (unsubActivity) — `snapshotErrorHandler('activity')` + null-out on error
-- `js/app.js:836-838` (notif-prefs) — replace `qnLog` line with `snapshotErrorHandler('notif-prefs')`
-- `js/app.js:3603` (settings) — replace `console.error` with `snapshotErrorHandler('settings')`
+All 6 listeners now route through `snapshotErrorHandler()` from `js/app.js:803`:
 
-The `snapshotErrorHandler` helper already exists at `js/app.js:803` (added in Phase 30 TD-13 partial fix; just needs to be wired to these 6).
+| Listener | Line | Wire pattern |
+|---|---|---|
+| titles      | `js/app.js:5093`  | `snapshotErrorHandler('titles')` as 3rd arg |
+| group       | `js/app.js:5128`  | `snapshotErrorHandler('group')` as 3rd arg |
+| notif-prefs | `js/app.js:836`   | replaced `qnLog`-only handler |
+| settings    | `js/app.js:3601`  | replaced `console.error` |
+| activity    | `js/app.js:9218`  | wrapped handler nulls `unsubActivity` then delegates (early-return guard) |
+| lists       | `js/app.js:17035` | wrapped handler nulls `unsubLists` then delegates (early-return guard) |
+
+Combined with the pre-existing `intents` (5147) and `watchparties` (5200) handlers from Phase 30 TD-13, all 8 long-lived listeners now have stream-error coverage (qnLog + Sentry breadcrumb + one-time toast per listener-name per session).
+
+Lockstep bumps shipped in same commit: `APP_VERSION 36 → 37`, `sw.js CACHE → couch-v37-listener-recovery` (cache bump captured in follow-up commit `59b4334`).
 
 ### Tier 3 — WKWebView prompt fallbacks + Apple in Account (~45 min)
 
@@ -81,9 +87,10 @@ Three fixes:
 ## Action items for next session
 
 1. **User uploads new 01-tonight.png** to ASC (replace empty-state version with populated). Files at `app-store-screenshots/1284x2778/01-tonight.png` (or 1320×2868 for 6.9" if also that section).
-2. Continue with Tier 2 in fresh session: "Continue Tier 2 from yesterday's review — wire snapshotErrorHandler to the 6 listeners + bump cache" → reads this doc for context.
-3. Then Tier 3, Tier 4, Should-fix in sequence (each can be a fresh session if needed).
-4. After all tiers ship + screenshot uploaded → switch ASC Release setting to MANUAL → click Add for Review.
+2. ~~Tier 2: wire snapshotErrorHandler to 6 listeners + bump cache.~~ **SHIPPED 2026-05-26 — commits `90d4a58` + `59b4334`. Production: `couch-v37-listener-recovery`.**
+3. **NEXT:** Continue with Tier 3 in fresh session: "Continue Tier 3 from pre-submit review — WKWebView prompt fallbacks + Apple in Account tab" → reads this doc for context.
+4. Then Tier 4 + Should-fix in sequence (each can be a fresh session if needed).
+5. After all tiers ship + screenshot uploaded → switch ASC Release setting to MANUAL → click Add for Review.
 
 ## Synthesis report (durable record of all 75 findings)
 
@@ -94,4 +101,4 @@ See conversation transcript 2026-05-26. Key summary:
 
 ## Resume signal for next session
 
-Reply `continue tier 2` in chat. Fresh Claude session will read this doc and pick up the snapshotErrorHandler wiring. Production state: `couch-v36-presubmit-polish` live, Build 104 in TestFlight, ASC ready for Add-for-Review pending screenshot re-upload + remaining-tiers ship.
+Reply `continue tier 3` in chat. Fresh Claude session will read this doc and pick up the WKWebView prompt fallbacks + Apple-in-Account work. Production state: `couch-v37-listener-recovery` live, Build 104 in TestFlight, ASC ready for Add-for-Review pending screenshot re-upload + remaining-tiers ship (Tier 3 + Tier 4 + Should-fix).
