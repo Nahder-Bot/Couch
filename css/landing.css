@@ -28,7 +28,8 @@ body > * { position: relative; z-index: 2; }
    `lighten` per-channel = max(logo_px, page_px): the black backdrop becomes the page
    color, while every brown leather pixel (all brighter than #14110f) passes through. */
 .hero-wordmark { width: min(420px, 70vw); height: auto; mix-blend-mode: lighten; }
-.hero-tagline { font-family: 'Instrument Serif', 'Fraunces', serif; font-style: italic; font-size: 22px; color: var(--ink-warm); margin: 8px 0 32px; }
+.hero-tagline { font-family: 'Instrument Serif', 'Fraunces', serif; font-style: italic; font-size: 22px; color: var(--ink-warm); margin: 8px 0 10px; }
+.hero-subtagline { font-family: 'Instrument Serif', 'Fraunces', serif; font-style: italic; font-size: 16px; color: var(--ink-dim); margin: 0 0 28px; letter-spacing: 0.01em; }
 .hero-cta { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .cta-primary { display: inline-block; padding: 14px 32px; background: var(--brand-grad); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 16px; text-decoration: none; border-radius: var(--r-pill); box-shadow: 0 4px 24px rgba(232,160,74,0.25); transition: transform 300ms var(--ease-cinema); }
 .cta-primary:hover { transform: translateY(-1px); }
