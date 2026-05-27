@@ -7,7 +7,7 @@ production_cache: couch-v42-phase-15.3-transparency (live)
 app_version: 42
 cf_deploys: rsvpSubmit, gameResultsTick (queuenight commit 5125bf1, deployed 2026-05-26)
 phase_15_3: SHIPPED 2026-05-27 — couch commits a17d7cb + 3d27e29. Transparent-PNG pipeline replaces all mix-blend-mode workarounds across css/{app,landing,rsvp}.css. scripts/regenerate-icons.cjs is now the canonical regen tool (alpha-keys black backdrop, produces 36 PNG outputs from 3 masters).
-phase_16: LAUNCH-BLOCKING (Calendar Layer — recurring + multi-future watchparty scheduling; scope in .planning/seeds/decision-ritual-locked-scope.md). NEXT after this session.
+phase_16: LAUNCH-BLOCKING — Calendar Layer. SCOPE LOCKED 2026-05-27 (full original seed scope: MVP + week-view + in-place edit; multi-day weekly cadence; two creation entry points; TV-only filter on post-wp prompt). Scope details in .planning/phases/16-calendar-layer/16-CONTEXT.md. RESUME: /gsd-plan-phase 16 in a fresh session.
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
