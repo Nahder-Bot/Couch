@@ -20,16 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-19)
 
 **Core value:** Turn "what do you want to watch?" from a 20-minute argument into a 30-second ritual that everyone on the couch trusts.
-**Current focus:** Phase 31 — marketing-refresh
+**Current focus:** Phase 16 — Calendar Layer (launch-blocking; planned 2026-05-27, ready to execute)
 **Active milestone:** v1 Commercial Release (Phases 3-15.5 + 18) — slug: `v1-commercial-release`
 
 ## Current Position
 
-Phase: 31
-Plan: Not started
+Phase: 16
+Plan: 16-01 (Wave 1 entry point — Firestore rules + composite indexes)
 **Status:** Ready to execute
 
-**Resume signal:** (1) **Phase 17 iOS — Build 104 live + Apple Sign-In E2E verified end-to-end on device (TD-12 CLOSED 2026-05-26).** Next user-side steps, no Claude blocker: (a) future iOS builds — just trigger from `https://codemagic.io/app/6a0be6b449b599e9a8783806` or push to couch-ios main; (b) when external testers wanted, fill Beta App Information + Beta App Review Information in ASC TestFlight tab then flip `submit_to_testflight: true` in couch-ios codemagic.yaml; (c) final App Store launch = `Add for Review` in ASC (separate from TestFlight). Full detail in `~/claude-projects/couch-ios/CONTINUE_HERE.md`. (2) **17-NAV HUMAN-VERIFY** — real-iPhone Mobile Safari spot-check of 7 surfaces: title detail X / mood-filter X / watchparty creation X / intent-RSVP X / family-roster X (group-switcher) / subprofile X / deep-link recovery (`?invite=EXPIRED-TOKEN` → signin screen). Resume signal: `nav verified`. (3) **31-HUMAN-UAT.md device verification** — 7 scripts in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md`. Resume signal: `uat passed` → `/gsd-verify-work 31`. (4) Real-device UAT backlog for Phase 28 + Phases 24/26/27/30 (~43 scripts total) → `/gsd-verify-work` per phase as you have time. (5) Phase 15.3 / 16 — scoped, awaiting kickoff.
+**Resume signal:** **`/clear` then `/gsd-execute-phase 16`** (PRIMARY — launch-blocking). 10 plans across 9 waves locked + verified-clean 2026-05-27 (gsd-plan-checker iter 2/3). Full scope in `.planning/phases/16-calendar-layer/16-CONTEXT.md`; integration map in `16-RESEARCH.md`; per-file analogs in `16-PATTERNS.md`. Estimated 2-3 sessions execution. After Phase 16 ships + user-side gates (ASC screenshot re-upload, Namecheap press@ forwarder) → Add for Review.
+
+**Pre-Phase-16 resume notes (deferred until after launch):** (1) **Phase 17 iOS — Build 104 live + Apple Sign-In E2E verified end-to-end on device (TD-12 CLOSED 2026-05-26).** Next user-side steps, no Claude blocker: (a) future iOS builds — just trigger from `https://codemagic.io/app/6a0be6b449b599e9a8783806` or push to couch-ios main; (b) when external testers wanted, fill Beta App Information + Beta App Review Information in ASC TestFlight tab then flip `submit_to_testflight: true` in couch-ios codemagic.yaml; (c) final App Store launch = `Add for Review` in ASC (separate from TestFlight). Full detail in `~/claude-projects/couch-ios/CONTINUE_HERE.md`. (2) **17-NAV HUMAN-VERIFY** — real-iPhone Mobile Safari spot-check of 7 surfaces: title detail X / mood-filter X / watchparty creation X / intent-RSVP X / family-roster X (group-switcher) / subprofile X / deep-link recovery (`?invite=EXPIRED-TOKEN` → signin screen). Resume signal: `nav verified`. (3) **31-HUMAN-UAT.md device verification** — 7 scripts in `.planning/phases/31-marketing-refresh/31-HUMAN-UAT.md`. Resume signal: `uat passed` → `/gsd-verify-work 31`. (4) Real-device UAT backlog for Phase 28 + Phases 24/26/27/30 (~43 scripts total) → `/gsd-verify-work` per phase as you have time. (5) Phase 15.3 / 16 — scoped, awaiting kickoff.
 
 **Last Activity:** 2026-05-27
 

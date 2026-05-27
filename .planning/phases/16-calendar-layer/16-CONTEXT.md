@@ -1,11 +1,14 @@
 ---
 phase: 16
 name: Calendar Layer
-status: scope-locked, awaiting /gsd-plan-phase 16
+status: planned, ready for /gsd-execute-phase 16
 scope_locked_at: 2026-05-27
+planned_at: 2026-05-27
 launch_blocking: true
 seed: ../../seeds/decision-ritual-locked-scope.md (Phase 16 section)
-estimated_effort: 2-3 sessions
+estimated_effort: 2-3 sessions execution
+plan_count: 10
+wave_count: 9
 ---
 
 # Phase 16 — Calendar Layer — Scope Lock
@@ -155,8 +158,8 @@ Estimated: 2-3 sessions total (some plans can ship in parallel; data primitive m
 
 ## Resume signal
 
-Fresh session: `/gsd-plan-phase 16` (skip /gsd-discuss-phase since scope is locked in this doc).
+**Planning is COMPLETE as of 2026-05-27.** The 8-plan suggestion above was refined by gsd-planner into 10 plans across 9 waves (see `16-01-PLAN.md` through `16-10-PLAN.md`). gsd-plan-checker passed iter 2/3 (0 blockers; 6 warnings + 1 info closed without regression). Validation strategy + per-task verification map in `16-VALIDATION.md` (nyquist_compliant: true). Pattern map in `16-PATTERNS.md` (13 strong analogs + 2 greenfield).
 
-The plan-phase workflow will spin up researcher + planner + plan-checker. Researcher reads this CONTEXT + the seed + existing Phase 14/30 code to identify integration points. Planner produces the wave decomposition (probably matches or refines the suggestion above). Plan-checker verifies goal-backward coverage.
+**Fresh session resume: `/clear` then `/gsd-execute-phase 16`** — the executor will run plans in wave order, with parallel execution where dependencies allow. CONTEXT.md (this file) + RESEARCH.md + PATTERNS.md + VALIDATION.md + each PLAN.md are the executor's source-of-truth artifacts.
 
 Per CLAUDE.md config: YOLO mode, parallel execution, balanced model profile.
