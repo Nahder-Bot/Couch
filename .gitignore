@@ -50,6 +50,12 @@ coverage/
 .planning/phases/**/search-replacements.cjs
 .planning/phases/**/verify-replacements.cjs
 
+# Phase 15.3 — evaluation sample outputs (regeneratable via scripts/phase-15.3-*.cjs).
+# The scripts themselves are committed as historical record of how the
+# transparent-PNG approach was chosen over vector tracing; the sample PNG/SVG
+# outputs are large and disposable.
+brand/samples/
+
 # Claude Code project state (local-only, not for sharing)
 .claude/
 

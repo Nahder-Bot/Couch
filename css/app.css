@@ -251,10 +251,11 @@ h3{font-size:var(--t-h3)}
    just "Couch" in Instrument Serif Italic as text. */
 .brand{display:block;text-align:center;line-height:1}
 .brand .brand-logo{display:block;max-width:320px;height:auto;margin:0 auto;
-  /* mix-blend-mode: lighten erases the wordmark PNG's pure-black backdrop against the
-     warm-dark page bg (#14110f). Leather pixels are all brighter than the bg and pass
-     through unchanged. The amber drop-shadow halo survives because it's brighter too. */
-  mix-blend-mode:lighten;
+  /* Post-Phase-15.3 (2026-05-27): logo-h{N}.png masters now have native alpha
+     transparency via scripts/regenerate-icons.cjs; the mix-blend-mode: lighten
+     workaround that compensated for the wordmark's solid-black backdrop has
+     been deleted. The drop-shadow filters stay — they're the warm halo design,
+     not the workaround compensator. */
   filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3)) drop-shadow(0 0 40px rgba(232,160,74,0.06))}
 .brand.large .brand-logo{max-width:260px}
 .brand.hero .brand-logo{max-width:340px}
@@ -3567,24 +3568,21 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 
 .couch-hero {
   /* Legacy 14-04 — kept in case other surfaces reference .couch-hero alone.
-     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo. */
+     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo.
+     Post-Phase-15.3 (2026-05-27): mark-{N}.png masters now have native alpha
+     transparency (sharp alpha-keys the leather brown out from the black bg
+     in scripts/regenerate-icons.cjs). The mix-blend-mode: lighten workaround
+     that compensated for the solid-black backdrop has been deleted; the C
+     now floats cleanly against any page bg. Filter drop-shadow gives the
+     silhouette weight + the amber halo that matches .brand .brand-logo on
+     entry screens. */
   display: block;
   width: 100%;
   max-width: 280px;
   aspect-ratio: 1;
-  border-radius: 22px;
   margin-bottom: var(--s3);
-  /* mix-blend-mode: lighten erases the mark PNG's pure-black backdrop against the
-     warm-dark page bg (#14110f) — same fix pattern as .brand .brand-logo and
-     .hero-wordmark on landing. Without this the PNG's black rectangle is visible
-     as a darker rectangle against the warm-dark page. Filter drop-shadow replaces
-     box-shadow because box-shadow pixels also dissolve under lighten; the amber
-     halo survives the blend because it's brighter than the bg. Phase 15.3 will
-     replace this band-aid with transparent-background PNG exports from canonical
-     SVG masters and remove the blend-mode workaround. */
-  mix-blend-mode: lighten;
   filter:
-    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 8px 24px rgba(0, 0, 0, 0.30))
     drop-shadow(0 0 40px rgba(232, 160, 74, 0.10));
   /* Subtle warm halo around the hero (firelight) — fades into the dark bg */
   background:
