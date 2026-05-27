@@ -2,16 +2,16 @@
 created: 2026-05-26
 updated: 2026-05-26
 purpose: Durable handoff for next-session resume after multi-angle pre-submit review
-status: live (Tier 1 + Tier 2 SHIPPED, Tier 3-4 + Should-fix + screenshots-replace PENDING)
-production_cache: couch-v37-listener-recovery (live)
-app_version: 37
+status: live (Tier 1 + Tier 2 + Tier 3 SHIPPED, Tier 4 + Should-fix + screenshots-replace PENDING)
+production_cache: couch-v38-wkwebview-prompts (live)
+app_version: 38
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
 
 ## Where we are right now
 
-**Production live state:** `couch-v37-listener-recovery` (deployed 2026-05-26, commits `90d4a58` + `59b4334` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 listener-recovery wiring all live.
+**Production live state:** `couch-v38-wkwebview-prompts` (deployed 2026-05-26, commits `7fb83fe` + `116060c` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 (`90d4a58` + `59b4334`) + Tier 3 (`7fb83fe` + `116060c`) all live.
 
 **App Store Connect state:**
 - iOS App Version 1.0 (Prepare for Submission)
@@ -58,13 +58,21 @@ Combined with the pre-existing `intents` (5147) and `watchparties` (5200) handle
 
 Lockstep bumps shipped in same commit: `APP_VERSION 36 → 37`, `sw.js CACHE → couch-v37-listener-recovery` (cache bump captured in follow-up commit `59b4334`).
 
-### Tier 3 — WKWebView prompt fallbacks + Apple in Account (~45 min)
+### Tier 3 — WKWebView prompt fallbacks + Apple in Account — SHIPPED 2026-05-26 (commit `7fb83fe`)
 
-Three fixes:
-1. `js/auth.js:112` — replace `window.prompt('Please confirm your email...')` with an in-DOM email-input modal (use existing modal patterns like the phone-code entry). Silent failure on cross-device email-link sign-in in WKWebView (returns null silently).
-2. `js/app.js:3965` — same `window.prompt()` issue for password-protected family group join. In-DOM modal pattern.
-3. `js/app.js:11823-11827` — dead `failed-precondition` branch (CF now throws `not-found`); update copy.
-4. **Account tab Apple Sign-In gap** — find where the Sign-in Methods list is rendered (search for `Sign-in methods` or `Linked ways to sign in`). Currently shows Google / Phone / Email / Password but NOT Apple. Add Apple Sign-In as a linkable method following the same pattern. Per App Store §4.8 spirit since Apple is now offered at sign-in.
+iOS WKWebView (PWABuilder wrapper) has no UIAlertController bridge, so `window.prompt()` returns `null` instantly — three flows were silently dead in the wrapper. Added a generic in-DOM `promptInDom()` helper in `js/utils.js` (Promise-returning, reuses existing `.modal-bg`/`.modal`/`.modal-x-btn`/`.modal-actions-row`/`.pill` CSS — no new styles) and rewired each call site.
+
+| Fix | Line | What |
+|---|---|---|
+| `js/auth.js:112` | email-link cross-device confirm | `await promptInDom({ inputType: 'email', ... })` |
+| `js/app.js:3963` | password-protected family-group join | `await promptInDom({ inputType: 'password', ... })` |
+| `js/app.js:3009` | Flow B compromise time picker (**bonus — not in handoff**) | `await promptInDom({ inputType: 'datetime-local', ... })` — also a real UX upgrade vs plain-text prompt parsing |
+| `js/app.js:11825-11829` | dead `functions/failed-precondition` branch | **deleted** (CF security-collapsed it into `not-found` per HIGH-4 / P02-T-30-03 — keeping aligned copy would risk re-introducing the family-code-existence oracle leak via a future refactor) |
+| `js/app.js:~15868` | Apple row in `renderSignInMethodsCard` | Inline SVG Apple-logo + `providers.includes('apple.com')` check, slotted between Google and Phone for §4.8 spirit parity |
+
+Lockstep bumps shipped in same commit: `APP_VERSION 37 → 38`, `sw.js CACHE → couch-v38-wkwebview-prompts` (cache bump captured in follow-up commit `116060c`).
+
+Live-prod verification via Chrome MCP: all 5 fixes confirmed in deployed source (cache name, APP_VERSION, BUILD_DATE stamp, `promptInDom` export/import, Apple SVG path, removed dead branch).
 
 ### Tier 4 — Marketing polish (~15 min)
 
@@ -88,9 +96,10 @@ Three fixes:
 
 1. **User uploads new 01-tonight.png** to ASC (replace empty-state version with populated). Files at `app-store-screenshots/1284x2778/01-tonight.png` (or 1320×2868 for 6.9" if also that section).
 2. ~~Tier 2: wire snapshotErrorHandler to 6 listeners + bump cache.~~ **SHIPPED 2026-05-26 — commits `90d4a58` + `59b4334`. Production: `couch-v37-listener-recovery`.**
-3. **NEXT:** Continue with Tier 3 in fresh session: "Continue Tier 3 from pre-submit review — WKWebView prompt fallbacks + Apple in Account tab" → reads this doc for context.
-4. Then Tier 4 + Should-fix in sequence (each can be a fresh session if needed).
-5. After all tiers ship + screenshot uploaded → switch ASC Release setting to MANUAL → click Add for Review.
+3. ~~Tier 3: WKWebView prompt fallbacks + Apple in Account + dead-branch cleanup.~~ **SHIPPED 2026-05-26 — commits `7fb83fe` + `116060c`. Production: `couch-v38-wkwebview-prompts`.** (Bonus: Flow B compromise time picker also rewired — was a 3rd WKWebView prompt the original audit missed.)
+4. **NEXT:** Continue with Tier 4 (marketing polish, ~15 min) in fresh session.
+5. Then Should-fix items (~30-45 min, each can be its own session if needed).
+6. After all tiers ship + screenshot uploaded → switch ASC Release setting to MANUAL → click Add for Review.
 
 ## Synthesis report (durable record of all 75 findings)
 
@@ -101,4 +110,4 @@ See conversation transcript 2026-05-26. Key summary:
 
 ## Resume signal for next session
 
-Reply `continue tier 3` in chat. Fresh Claude session will read this doc and pick up the WKWebView prompt fallbacks + Apple-in-Account work. Production state: `couch-v37-listener-recovery` live, Build 104 in TestFlight, ASC ready for Add-for-Review pending screenshot re-upload + remaining-tiers ship (Tier 3 + Tier 4 + Should-fix).
+Reply `continue tier 4` in chat. Fresh Claude session will read this doc and pick up the marketing-polish items (hero subtagline, ASC sport-list sync, FAQ #5 badge swap, press@ footer). Production state: `couch-v38-wkwebview-prompts` live, Build 104 in TestFlight, ASC ready for Add-for-Review pending screenshot re-upload + remaining-tiers ship (Tier 4 + Should-fix).
