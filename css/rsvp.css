@@ -22,7 +22,14 @@ body > * { position: relative; z-index: 2; }
 
 .rsvp-shell { max-width: 480px; margin: 0 auto; padding: 40px 20px 80px; min-height: 100vh; display: flex; flex-direction: column; }
 .rsvp-hero { text-align: center; margin-bottom: 28px; }
-.rsvp-wordmark { width: min(240px, 60vw); height: auto; }
+.rsvp-wordmark { width: min(240px, 60vw); height: auto;
+  /* mix-blend-mode: lighten erases the wordmark PNG's pure-black backdrop against
+     the warm-dark page bg — same fix as .couch-hero in app.css and .hero-wordmark
+     on landing. Phase 15.3 will replace this with transparent-background PNG
+     exports from canonical SVG masters and remove the blend-mode workaround. */
+  mix-blend-mode: lighten;
+  filter: drop-shadow(0 0 32px rgba(232, 160, 74, 0.08));
+}
 .rsvp-tagline { font-family: 'Instrument Serif', 'Fraunces', serif; font-style: italic; font-size: 22px; color: var(--ink-warm); margin: 16px 0 0; }
 
 .rsvp-event-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); margin-bottom: 24px; }

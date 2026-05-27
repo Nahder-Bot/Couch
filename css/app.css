@@ -3574,7 +3574,18 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   aspect-ratio: 1;
   border-radius: 22px;
   margin-bottom: var(--s3);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--c-border-soft, #2a241f);
+  /* mix-blend-mode: lighten erases the mark PNG's pure-black backdrop against the
+     warm-dark page bg (#14110f) — same fix pattern as .brand .brand-logo and
+     .hero-wordmark on landing. Without this the PNG's black rectangle is visible
+     as a darker rectangle against the warm-dark page. Filter drop-shadow replaces
+     box-shadow because box-shadow pixels also dissolve under lighten; the amber
+     halo survives the blend because it's brighter than the bg. Phase 15.3 will
+     replace this band-aid with transparent-background PNG exports from canonical
+     SVG masters and remove the blend-mode workaround. */
+  mix-blend-mode: lighten;
+  filter:
+    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 40px rgba(232, 160, 74, 0.10));
   /* Subtle warm halo around the hero (firelight) — fades into the dark bg */
   background:
     radial-gradient(ellipse at center, rgba(217, 122, 60, 0.10) 0%, transparent 65%);
@@ -3591,7 +3602,8 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   aspect-ratio: 1;
   margin-bottom: var(--s3);
   border-radius: 22px;
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  /* mix-blend-mode + drop-shadow inherited from .couch-hero above; box-shadow
+     replaced by drop-shadow there so the V5 surface gets the same treatment. */
   background: none;
 }
 
