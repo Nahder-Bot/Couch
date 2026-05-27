@@ -15,7 +15,7 @@ import {
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   onAuthStateChanged, firebaseSignOut
 } from './firebase.js';
-import { promptInDom } from './utils.js';
+import { promptInDom, flashToast } from './utils.js';
 
 // Decide whether to use signInWithPopup (Safari non-PWA) vs signInWithRedirect (everywhere else).
 function _shouldUsePopup() {
@@ -132,6 +132,7 @@ export async function completeEmailLinkIfPresent() {
     return result.user;
   } catch(e) {
     console.error('[auth] email link sign-in failed', e);
+    try { flashToast('Sign-in link is invalid or expired. Try sending yourself a new one.', { kind: 'warn' }); } catch(e2) {}
     return null;
   }
 }

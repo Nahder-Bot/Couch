@@ -161,7 +161,9 @@
 
 <section id="signin-screen" class="wrap" style="display:none;">
   <div class="signin-header">
-    <h1 class="signin-title">Couch</h1>
+    <div class="brand large brand-hero-large">
+      <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    </div>
     <p class="signin-tag">Who's on the couch tonight?</p>
     <p class="signin-subtag">Decide what to watch tonight in 30 seconds. Free.</p>
   </div>
@@ -1023,7 +1025,7 @@
        Reuses .modal / .modal-bg base scaffold (BRAND.md §7 / css/app.css:478-491).
        Open via openWaitUpPicker() from movie-mode Custom… chip; close via Cancel, backdrop tap, or Set wait commit. -->
   <div class="modal-bg" id="wait-up-picker-bg" role="dialog" aria-modal="true" aria-labelledby="wait-up-picker-title" onclick="if(event.target.id==='wait-up-picker-bg')closeWaitUpPicker()">
-    <div class="modal wait-up-picker-modal" id="wait-up-picker-content" role="dialog" aria-labelledby="wait-up-picker-title" aria-modal="true">
+    <div class="modal wait-up-picker-modal" id="wait-up-picker-content">
       <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWaitUpPicker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="wait-up-picker-title" class="wait-up-picker-h">How long should we wait up?</h3>
       <div class="wup-input-row">
@@ -1059,7 +1061,7 @@
        Reuses .modal / .modal-bg base scaffold; subclassed via .past-parties-surface for full-height layout.
        Open via openPastParties() from the inline Tonight tab link; close via Close button or backdrop tap. -->
   <div class="modal-bg" id="past-parties-bg" role="dialog" aria-modal="true" aria-labelledby="past-parties-title" onclick="if(event.target.id==='past-parties-bg')closePastParties()">
-    <div class="modal past-parties-surface" id="past-parties-content" role="dialog" aria-labelledby="past-parties-title" aria-modal="true">
+    <div class="modal past-parties-surface" id="past-parties-content">
       <div class="past-parties-header">
         <span class="past-parties-eyebrow">Still rolling</span>
         <h3 id="past-parties-title" class="past-parties-h">Past parties</h3>
@@ -1098,7 +1100,7 @@
   </div>
 
   <div class="modal-bg" id="svc-suggest-bg" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
-    <div class="modal svc-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title">
+    <div class="modal svc-suggest-modal">
       <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeServiceSuggest()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <div class="svc-suggest-icon" aria-hidden="true">📺</div>
       <h3 id="svc-suggest-title" class="svc-suggest-title"></h3>
