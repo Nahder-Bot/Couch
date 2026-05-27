@@ -2,16 +2,16 @@
 created: 2026-05-26
 updated: 2026-05-26
 purpose: Durable handoff for next-session resume after multi-angle pre-submit review
-status: live (Tier 1 + Tier 2 + Tier 3 SHIPPED, Tier 4 + Should-fix + screenshots-replace PENDING)
-production_cache: couch-v38-wkwebview-prompts (live)
-app_version: 38
+status: live (Tier 1 + Tier 2 + Tier 3 + Tier 4 SHIPPED, Should-fix + screenshots-replace PENDING)
+production_cache: couch-v39-marketing-polish (live)
+app_version: 39
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
 
 ## Where we are right now
 
-**Production live state:** `couch-v38-wkwebview-prompts` (deployed 2026-05-26, commits `7fb83fe` + `116060c` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 (`90d4a58` + `59b4334`) + Tier 3 (`7fb83fe` + `116060c`) all live.
+**Production live state:** `couch-v39-marketing-polish` (deployed 2026-05-26, commits `0aea675` + `6160ad0` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 (`90d4a58` + `59b4334`) + Tier 3 (`7fb83fe` + `116060c`) + Tier 4 (`0aea675` + `6160ad0`) all live.
 
 **App Store Connect state:**
 - iOS App Version 1.0 (Prepare for Submission)
@@ -74,12 +74,20 @@ Lockstep bumps shipped in same commit: `APP_VERSION 37 → 38`, `sw.js CACHE →
 
 Live-prod verification via Chrome MCP: all 5 fixes confirmed in deployed source (cache name, APP_VERSION, BUILD_DATE stamp, `promptInDom` export/import, Apple SVG path, removed dead branch).
 
-### Tier 4 — Marketing polish (~15 min)
+### Tier 4 — Marketing polish — SHIPPED 2026-05-26 (commit `0aea675`)
 
-- Landing hero subtagline below "Who's on the couch tonight?": `<p class="hero-subtagline"><em>Decide what to watch in 30 seconds. Together.</em></p>` (italic serif voice match)
-- ASC prep doc `.planning/phases/17-app-store-launch-readiness/17-APP-STORE-CONNECT-PREP.md` line 87: update sport list to match live ASC (NFL, NBA, NHL, EPL, college basketball, college football, F1)
-- `landing.html` FAQ #5 (line ~274): pre-stage the App Store badge OR toggle copy from "Native App Store apps coming" to "iOS app and Android home-screen install"
-- Footer: add `press@couchtonight.app` to Namecheap email forwarder list + add footer entry
+| Item | File | Result |
+|---|---|---|
+| Hero subtagline | `landing.html:143` + `css/landing.css:31-32` | New `.hero-subtagline` rule (16px italic Instrument Serif, ink-dim) below the existing tagline. `.hero-tagline` bottom margin shrunk 32→10 so the new line absorbs into the hero rhythm; subtagline's own 28px bottom margin preserves the original tagline-to-CTA gap of 38px. |
+| ASC sport list | `.planning/phases/17-app-store-launch-readiness/17-APP-STORE-CONNECT-PREP.md:87` | Dropped UFC, added NHL, split "college" → "college basketball, college football", dropped "and more". Now matches the live ASC description committed in Tier 1 (`c4c2f5b`). |
+| FAQ #5 copy | `landing.html:273` | "Web today. iOS app and Android home-screen install — pull up a seat from any device." Removes the now-misleading "Native App Store apps coming" — iOS native is the only App Store target per roadmap; Android stays PWA. |
+| Press footer | `landing.html:306` | `mailto:press@couchtonight.app` added to `.landing-legal` row alongside Privacy/Terms/Support. Footer-only — not mirrored to `app.html`'s legal-footer (intentionally lean for in-app users). |
+
+Lockstep bumps shipped in same commit: `APP_VERSION 38 → 39`, `sw.js CACHE → couch-v39-marketing-polish` (cache bump captured in follow-up commit `6160ad0`).
+
+**Press mailto prereq — user action:** the `press@couchtonight.app` mailto will bounce until a Namecheap email forwarder (`press@` → `nahderz@gmail.com` or similar) is created. Claude can't touch Namecheap DNS; flag if not yet configured and either remove the footer entry or point at an existing inbox.
+
+Live-prod verification via Chrome MCP: hero subtagline rendered, FAQ #5 updated, Press mailto present, `.hero-subtagline` CSS rule shipped.
 
 ### Should-fix items (~30-45 min)
 
@@ -95,11 +103,12 @@ Live-prod verification via Chrome MCP: all 5 fixes confirmed in deployed source 
 ## Action items for next session
 
 1. **User uploads new 01-tonight.png** to ASC (replace empty-state version with populated). Files at `app-store-screenshots/1284x2778/01-tonight.png` (or 1320×2868 for 6.9" if also that section).
-2. ~~Tier 2: wire snapshotErrorHandler to 6 listeners + bump cache.~~ **SHIPPED 2026-05-26 — commits `90d4a58` + `59b4334`. Production: `couch-v37-listener-recovery`.**
-3. ~~Tier 3: WKWebView prompt fallbacks + Apple in Account + dead-branch cleanup.~~ **SHIPPED 2026-05-26 — commits `7fb83fe` + `116060c`. Production: `couch-v38-wkwebview-prompts`.** (Bonus: Flow B compromise time picker also rewired — was a 3rd WKWebView prompt the original audit missed.)
-4. **NEXT:** Continue with Tier 4 (marketing polish, ~15 min) in fresh session.
-5. Then Should-fix items (~30-45 min, each can be its own session if needed).
-6. After all tiers ship + screenshot uploaded → switch ASC Release setting to MANUAL → click Add for Review.
+2. **User creates Namecheap email forwarder** for `press@couchtonight.app` → existing inbox (footer mailto is live, will bounce until forwarder exists).
+3. ~~Tier 2: wire snapshotErrorHandler to 6 listeners + bump cache.~~ **SHIPPED 2026-05-26 — commits `90d4a58` + `59b4334`. Production: `couch-v37-listener-recovery`.**
+4. ~~Tier 3: WKWebView prompt fallbacks + Apple in Account + dead-branch cleanup.~~ **SHIPPED 2026-05-26 — commits `7fb83fe` + `116060c`. Production: `couch-v38-wkwebview-prompts`.** (Bonus: Flow B compromise time picker also rewired — was a 3rd WKWebView prompt the original audit missed.)
+5. ~~Tier 4: marketing polish (hero subtagline + FAQ #5 + footer + ASC sport list).~~ **SHIPPED 2026-05-26 — commits `0aea675` + `6160ad0`. Production: `couch-v39-marketing-polish`.**
+6. **NEXT:** Should-fix items (~30-45 min) — touch targets, nested role="dialog", signin-title H1→logo, rsvpSubmit O(N) fallback, picksSettled guard, expiresAt re-submit, sign-in error toast, hardcoded banner colors.
+7. After Should-fix ships + screenshot uploaded + press@ forwarder created → switch ASC Release setting to MANUAL → click Add for Review.
 
 ## Synthesis report (durable record of all 75 findings)
 
@@ -110,4 +119,4 @@ See conversation transcript 2026-05-26. Key summary:
 
 ## Resume signal for next session
 
-Reply `continue tier 4` in chat. Fresh Claude session will read this doc and pick up the marketing-polish items (hero subtagline, ASC sport-list sync, FAQ #5 badge swap, press@ footer). Production state: `couch-v38-wkwebview-prompts` live, Build 104 in TestFlight, ASC ready for Add-for-Review pending screenshot re-upload + remaining-tiers ship (Tier 4 + Should-fix).
+Reply `continue should-fix` in chat. Fresh Claude session will read this doc and pick up the should-fix backlog (3 sub-44px touch targets, 3 nested role="dialog" modals, signin-title H1→logo, rsvpSubmit O(N) fallback cap, picksSettled increment guard, expiresAt re-submit, sign-in error toast, hardcoded banner color tokens). Production state: `couch-v39-marketing-polish` live, Build 104 in TestFlight. **Submission gating items remaining:** (a) screenshot re-upload (01-tonight.png populated), (b) Namecheap press@ forwarder, (c) Should-fix tier ship. After those three: switch ASC Release to MANUAL → Add for Review.
