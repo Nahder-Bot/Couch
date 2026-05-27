@@ -2,16 +2,17 @@
 created: 2026-05-26
 updated: 2026-05-26
 purpose: Durable handoff for next-session resume after multi-angle pre-submit review
-status: live (Tier 1 + Tier 2 + Tier 3 + Tier 4 SHIPPED, Should-fix + screenshots-replace PENDING)
-production_cache: couch-v39-marketing-polish (live)
-app_version: 39
+status: live (Tier 1 + Tier 2 + Tier 3 + Tier 4 + Should-fix all SHIPPED — only user-side gates remain: screenshot upload + press@ forwarder)
+production_cache: couch-v40-shouldfix-web (live)
+app_version: 40
+cf_deploys: rsvpSubmit, gameResultsTick (queuenight commit 5125bf1, deployed 2026-05-26)
 ---
 
 # Couch — Pre-Submit Polish — Continue Here
 
 ## Where we are right now
 
-**Production live state:** `couch-v39-marketing-polish` (deployed 2026-05-26, commits `0aea675` + `6160ad0` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 (`90d4a58` + `59b4334`) + Tier 3 (`7fb83fe` + `116060c`) + Tier 4 (`0aea675` + `6160ad0`) all live.
+**Production live state:** `couch-v40-shouldfix-web` (deployed 2026-05-26, commits `4ba31c8` + `df63206` on `hotfix/phase-30-cross-cutting-wave`). Tier 1 (commits `ba2311c` + `7233f32`) + Tier 2 (`90d4a58` + `59b4334`) + Tier 3 (`7fb83fe` + `116060c`) + Tier 4 (`0aea675` + `6160ad0`) + Should-fix web (`4ba31c8` + `df63206`) all live on hosting. Should-fix CFs (`rsvpSubmit`, `gameResultsTick`) deployed from queuenight repo commit `5125bf1` via `firebase deploy --only functions:rsvpSubmit,functions:gameResultsTick`.
 
 **App Store Connect state:**
 - iOS App Version 1.0 (Prepare for Submission)
@@ -89,26 +90,47 @@ Lockstep bumps shipped in same commit: `APP_VERSION 38 → 39`, `sw.js CACHE →
 
 Live-prod verification via Chrome MCP: hero subtagline rendered, FAQ #5 updated, Press mailto present, `.hero-subtagline` CSS rule shipped.
 
-### Should-fix items (~30-45 min)
+### Should-fix items — ALL SHIPPED 2026-05-26
 
-- 3 sub-44px touch targets: `.lib-search-clear` (24×24), `.queue-btn` (30×30), `.swipe-header .close` (32×32) — add `min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center` to each
-- 3 modals with nested `role="dialog"` (app.html lines 1025-1026 wait-up-picker, 1061-1062 past-parties, 1100-1101 svc-suggest) — drop role from outer or inner, be consistent
-- `.signin-title` H1 (css/app.css:2355) — replace with `<img class="brand-logo" src="/logo-h200.png">` like other entry screens for brand consistency
-- `queuenight/functions/src/rsvpSubmit.js:146-157` — cap or remove full `families.get()` scan in fallback branch (current: O(N) per unauth RSVP)
-- `queuenight/functions/src/gameResultsTick.js:349` — add `!pickNow.processedFirstAt` guard to `picksSettled` increment to match `picksTotal` pattern
-- `queuenight/functions/src/rsvpSubmit.js:237-243` — update `expiresAt` on re-submit (currently retains original)
-- `js/auth.js:121-124` — add `flashToast` in catch block for sign-in error (currently console.error only)
-- Hardcoded banner colors `#2a1f14` / `#4a3820` / `#c97b5f` at `css/app.css:2477, 2492` — tokenize
+**Web batch (commit `4ba31c8` on couch, cache `couch-v40-shouldfix-web`):**
+
+| Item | File | Result |
+|---|---|---|
+| Touch targets 24px → 44px min | `css/app.css:1542` `.lib-search-clear` | min-width/min-height 44px + inline-flex centering |
+| Touch targets 32px → 44px min | `css/app.css:1589` `.swipe-header .close` | min-width/min-height 44px + inline-flex centering |
+| Touch targets 30px → 44px min | `css/app.css:1844` `.queue-btn` | min-width/min-height 44px + inline-flex centering |
+| Nested role="dialog" eliminated | `app.html:1026,1062,1101` (wait-up-picker, past-parties, svc-suggest inner panels) | Dropped role/aria-modal/aria-labelledby from inner — outer .modal-bg keeps the role per codebase convention |
+| Signin-title H1 → brand logo | `app.html:164` + `css/app.css:2355` | H1 replaced with `<img class="brand-logo">` in same `.brand.large.brand-hero-large` wrapper used by other 6 entry screens. Orphaned `.signin-title` CSS rule removed. |
+| Auth sign-in error toast | `js/auth.js` catch block (post-Tier-3 line ~135) | `flashToast` added on email-link sign-in failure ("Sign-in link is invalid or expired..."); was console.error only. `flashToast` added to existing utils.js import. |
+| Tokenize hardcoded banner colors | `css/app.css` :root + `:2477` + `:2492` | 3 new tokens added in dedicated banner group (`--banner-bg-warm` / `--banner-border-mute` / `--banner-border-prompt`). Zero visual change — token values exactly match prior hex literals. |
+
+**CF batch (commit `5125bf1` on queuenight, deployed via `firebase deploy --only functions:rsvpSubmit,functions:gameResultsTick`):**
+
+| Item | File | Result |
+|---|---|---|
+| rsvpSubmit O(N) fallback cap | `functions/src/rsvpSubmit.js:146` | Added `.limit(50)` to `families.get()` in the legacy nested-path resolution. Phase 30 is months old so genuinely-legacy wps are all past the 25h archive window and return `{expired:true}` anyway — cap bounds worst-case fan-out (~5s ceiling) without changing semantics for typical accounts. |
+| rsvpSubmit expiresAt re-submit | `functions/src/rsvpSubmit.js:237` | `expiresAt` now refreshed from current tx `expiresAt` on re-submit. Old behavior preserved the original, going stale if the host postponed wp.startAt — guests' rows would then expire before the wp itself. |
+| gameResultsTick picksSettled guard | `functions/src/gameResultsTick.js:349` | `picksSettled` increment moved inside the existing `if (!pickNow.processedFirstAt)` guard to match picksTotal/lastPickAt pattern. Eliminates double-count on tick retry of already-processed picks. |
+
+**Flagged for follow-up (NOT shipped):** `pointsTotal` at `gameResultsTick.js:348` has the same retry-double-count vulnerability that picksSettled HAD. The Should-fix handoff was scoped to picksSettled only, but pointsTotal is the user-visible leaderboard score and arguably matters more. Worth a separate look — would need to confirm tick retry behavior + transaction semantics before extending the guard.
+
+Lockstep bumps shipped in same web commit: `APP_VERSION 39 → 40`, `sw.js CACHE → couch-v40-shouldfix-web` (cache bump captured in follow-up commit `df63206`).
 
 ## Action items for next session
 
+**All engineering work is DONE.** Two user-side gates remain before Add for Review:
+
 1. **User uploads new 01-tonight.png** to ASC (replace empty-state version with populated). Files at `app-store-screenshots/1284x2778/01-tonight.png` (or 1320×2868 for 6.9" if also that section).
 2. **User creates Namecheap email forwarder** for `press@couchtonight.app` → existing inbox (footer mailto is live, will bounce until forwarder exists).
+
+Shipped tier log (chronological):
+
 3. ~~Tier 2: wire snapshotErrorHandler to 6 listeners + bump cache.~~ **SHIPPED 2026-05-26 — commits `90d4a58` + `59b4334`. Production: `couch-v37-listener-recovery`.**
 4. ~~Tier 3: WKWebView prompt fallbacks + Apple in Account + dead-branch cleanup.~~ **SHIPPED 2026-05-26 — commits `7fb83fe` + `116060c`. Production: `couch-v38-wkwebview-prompts`.** (Bonus: Flow B compromise time picker also rewired — was a 3rd WKWebView prompt the original audit missed.)
 5. ~~Tier 4: marketing polish (hero subtagline + FAQ #5 + footer + ASC sport list).~~ **SHIPPED 2026-05-26 — commits `0aea675` + `6160ad0`. Production: `couch-v39-marketing-polish`.**
-6. **NEXT:** Should-fix items (~30-45 min) — touch targets, nested role="dialog", signin-title H1→logo, rsvpSubmit O(N) fallback, picksSettled guard, expiresAt re-submit, sign-in error toast, hardcoded banner colors.
-7. After Should-fix ships + screenshot uploaded + press@ forwarder created → switch ASC Release setting to MANUAL → click Add for Review.
+6. ~~Should-fix: 5 web items + 3 CF items.~~ **SHIPPED 2026-05-26 — couch commit `4ba31c8` + `df63206` (production: `couch-v40-shouldfix-web`); queuenight commit `5125bf1` (rsvpSubmit + gameResultsTick CFs deployed scoped via `--only functions:rsvpSubmit,functions:gameResultsTick`).**
+
+**Final step (user action):** After the screenshot is uploaded + press@ forwarder is created → switch ASC Release setting to MANUAL → click Add for Review.
 
 ## Synthesis report (durable record of all 75 findings)
 
@@ -119,4 +141,6 @@ See conversation transcript 2026-05-26. Key summary:
 
 ## Resume signal for next session
 
-Reply `continue should-fix` in chat. Fresh Claude session will read this doc and pick up the should-fix backlog (3 sub-44px touch targets, 3 nested role="dialog" modals, signin-title H1→logo, rsvpSubmit O(N) fallback cap, picksSettled increment guard, expiresAt re-submit, sign-in error toast, hardcoded banner color tokens). Production state: `couch-v39-marketing-polish` live, Build 104 in TestFlight. **Submission gating items remaining:** (a) screenshot re-upload (01-tonight.png populated), (b) Namecheap press@ forwarder, (c) Should-fix tier ship. After those three: switch ASC Release to MANUAL → Add for Review.
+**All four tiers + Should-fix are SHIPPED.** No engineering pickup required. If App Store review surfaces blockers, open a fresh session with the rejection notes; otherwise the next-session signal is post-launch (App Store approval received → switch to monitoring + post-launch backlog).
+
+Production state: `couch-v40-shouldfix-web` live on hosting; `rsvpSubmit` + `gameResultsTick` CFs updated; Build 104 in TestFlight. **Submission gating items remaining (both user-side, no Claude work needed):** (a) screenshot re-upload (01-tonight.png populated version from `app-store-screenshots/1284x2778/01-tonight.png`), (b) Namecheap email forwarder for `press@couchtonight.app`. After both: switch ASC Release to MANUAL → Add for Review.
