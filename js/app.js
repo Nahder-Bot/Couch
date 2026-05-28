@@ -4883,6 +4883,11 @@ window.switchToGroup = async function(code) {
   // auth persists across reloads, so the full sign-out teardown never runs). Stale
   // callbacks write the previous family's data into state — symptoms: blank load, ghost
   // rows, race conditions that look like "had to sign in again."
+  // Review fix N-2 — added unsubUserGroups + unsubSettings + unsubNotifPrefs to fully
+  // mirror the sign-out path; previously these 3 could fire briefly under slow reload.
+  if (state.unsubUserGroups)   { try { state.unsubUserGroups();   } catch(e) {} state.unsubUserGroups   = null; }
+  if (state.unsubSettings)     { try { state.unsubSettings();     } catch(e) {} state.unsubSettings     = null; }
+  if (state.unsubNotifPrefs)   { try { state.unsubNotifPrefs();   } catch(e) {} state.unsubNotifPrefs   = null; }
   if (state.unsubMembers)      { try { state.unsubMembers();      } catch(e) {} state.unsubMembers      = null; }
   if (state.unsubTitles)       { try { state.unsubTitles();       } catch(e) {} state.unsubTitles       = null; }
   if (state.unsubIntents)      { try { state.unsubIntents();      } catch(e) {} state.unsubIntents      = null; }
@@ -5868,6 +5873,12 @@ function renderTonight() {
   // CTAs: Add tab + Trakt connect (history import). showScreen('add') is the
   // canonical tab nav. Trakt connect entry: trakt.connect() (window.trakt at line 865).
   if ((state.titles || []).length === 0 && state.familyCode) {
+    // Phase 16.4 review fix N-1 — hide the cinematic hero container on brand-new
+    // families so the empty Tonight tab stays clean (no orphan margin above the
+    // queue-empty CTA). The hero re-renders when titles arrive via the renderTonightHero
+    // call below the empty-state guards.
+    const heroEl0 = document.getElementById('tonight-hero-container');
+    if (heroEl0) heroEl0.innerHTML = '';
     el.innerHTML = `<div class="queue-empty">
       <span class="emoji">🛋️</span>
       <strong>Your couch is fresh</strong>
@@ -5882,6 +5893,8 @@ function renderTonight() {
     return;
   }
   if (state.members.length === 0) {
+    const heroEl0 = document.getElementById('tonight-hero-container');
+    if (heroEl0) heroEl0.innerHTML = '';
     el.innerHTML = `<div class="empty"><strong>No group yet</strong>Share your code so others can join.</div>`;
     countEl.textContent = '';
     if (actionsEl) actionsEl.innerHTML = '';
