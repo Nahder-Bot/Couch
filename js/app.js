@@ -16324,6 +16324,162 @@ window.closeSeriesCreate = function() {
   const modal = document.getElementById('series-create-modal-bg');
   if (modal) modal.classList.remove('on');
   try { deactivateFocusTrap(); } catch(e) {}
+
+  // === Phase 16 / CAL-16-12 — reset edit-mode UI tweaks ===
+  // Re-enable titleType picker for next open (regardless of mode it was)
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+  });
+  // Restore Save button to default text + create handler
+  const saveBtn = document.querySelector('#series-create-modal-bg .modal-close');
+  if (saveBtn) {
+    saveBtn.onclick = function() { confirmStartSeries(); };
+    saveBtn.textContent = 'Save series';
+  }
+  // Reset state.seriesEdit.mode for next open
+  if (state.seriesEdit) state.seriesEdit.mode = 'create';
+};
+
+// === Phase 16 / CAL-16-12 — In-place edit modal (DOM-shared with create) ===
+// Reuses #series-create-modal-bg via state.seriesEdit.mode toggle.
+// titleType is IMMUTABLE post-create (rules enforce — see T-16-09 in plan 16-01).
+//
+// NOTE: This is the REAL openSeriesEdit. Plan 16-05 EDIT G shipped a temporary stub
+// guarded by `if (typeof window.openSeriesEdit !== 'function')`. This assignment is
+// UNCONDITIONAL (no guard), and because this code is appended LATER in js/app.js than
+// the stub, this definition wins at module load (stub runs first, assigns; this assignment
+// then replaces). No re-define-detection needed; both paths land in the same window prop.
+
+window.openSeriesEdit = function(seriesId) {
+  if (!seriesId) return;
+  const series = (state.series || []).find(s => s && s.id === seriesId);
+  if (!series) { flashToast('Series not found.', { kind: 'warn' }); return; }
+  if (series.createdByUid !== (state.auth && state.auth.uid)) {
+    flashToast('Only the creator can edit this series.', { kind: 'warn' });
+    return;
+  }
+  if (series.status === 'ended') {
+    flashToast('Ended series cannot be edited.', { kind: 'warn' });
+    return;
+  }
+
+  // Map series.memberUids back to memberIds for the chip UI
+  const memberIds = (state.members || [])
+    .filter(m => m && m.uid && Array.isArray(series.memberUids) && series.memberUids.includes(m.uid))
+    .map(m => m.id);
+
+  // Open shared modal with prefill — same code path as create
+  openSeriesCreate({
+    titleType: series.titleType,
+    titleId: series.titleId || null,
+    titleName: series.titleName || null,
+    daysOfWeek: Array.isArray(series.daysOfWeek) ? series.daysOfWeek.slice() : [],
+    timeOfDay: series.timeOfDay || '20:00',
+    memberIds
+  });
+
+  // Toggle to edit mode + set id + disable titleType picker
+  state.seriesEdit.mode = 'edit';
+  state.seriesEdit.id = seriesId;
+
+  // Visual + interactive edit-mode tweaks
+  const modalTitle = document.getElementById('series-modal-title');
+  if (modalTitle) modalTitle.textContent = 'Edit series';
+
+  // Disable titleType picker (immutable post-create per rules)
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  });
+
+  // Hide title-input field for 'untitled' series (no title to change)
+  // For 'tv' series, keep the title field visible (titleId/titleName ARE editable per CONTEXT)
+  const titleField = document.getElementById('series-field-title');
+  if (titleField) titleField.style.display = series.titleType === 'tv' ? '' : 'none';
+
+  // Save button → saveSeriesEdit (re-wire onclick on the modal's primary action)
+  const saveBtn = document.querySelector('#series-create-modal-bg .modal-close');
+  if (saveBtn) {
+    saveBtn.onclick = function() { saveSeriesEdit(); };
+    saveBtn.textContent = 'Save changes';
+  }
+
+  // The close button still uses closeSeriesCreate (which works for both modes)
+  // — the reset logic in closeSeriesCreate restores titleType picker + Save button.
+};
+
+window.saveSeriesEdit = async function() {
+  if (!state.me) return;
+  if (guardReadOnlyWrite()) return;
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to save.', { kind: 'warn' }); return; }
+
+  const ed = state.seriesEdit || {};
+  if (ed.mode !== 'edit' || !ed.id) {
+    flashToast('Edit context lost — close and reopen.', { kind: 'warn' });
+    return;
+  }
+
+  // Validate (mirror confirmStartSeries — but skip titleType validation since immutable)
+  if (ed.titleType === 'tv' && (!ed.titleId || !ed.titleName)) {
+    flashToast('Pick a show title.', { kind: 'warn' }); return;
+  }
+  if (!Array.isArray(ed.daysOfWeek) || ed.daysOfWeek.length < 1) {
+    flashToast('Pick at least one day.', { kind: 'warn' }); return;
+  }
+  const timeInput = document.getElementById('series-time-input');
+  const timeOfDay = timeInput && timeInput.value ? timeInput.value : (ed.timeOfDay || '20:00');
+  if (!/^[0-2][0-9]:[0-5][0-9]$/.test(timeOfDay)) {
+    flashToast('Invalid time. Use 24h HH:MM.', { kind: 'warn' }); return;
+  }
+  let memberIds = Array.isArray(ed.memberIds) ? ed.memberIds.filter(Boolean) : [];
+  if (memberIds.length === 0) memberIds = [state.me.id];
+  const memberUids = Array.from(new Set([
+    state.auth.uid,
+    ...((state.members || [])
+      .filter(m => m && memberIds.includes(m.id) && m.uid)
+      .map(m => m.uid))
+  ])).filter(Boolean);
+
+  if (memberUids.length === 0) {
+    flashToast('At least one couch member with sign-in required.', { kind: 'warn' });
+    return;
+  }
+
+  const timezone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+
+  // Build update payload — only allowlisted fields (rules enforce — plan 16-01 D6.3)
+  const update = {
+    daysOfWeek: ed.daysOfWeek.slice().sort((a,b) => a-b),
+    timeOfDay,
+    timezone,
+    memberUids,
+    // Reset nextFireAt to now — materializer CF will compute the real next fire on next 6h tick.
+    // Per CONTEXT: "On save: recompute nextFireAt from new cadence."
+    nextFireAt: Date.now(),
+    ...writeAttribution()
+  };
+
+  // titleId/titleName only included if titleType is 'tv' AND something changed
+  if (ed.titleType === 'tv') {
+    if (ed.titleId) update.titleId = ed.titleId;
+    if (ed.titleName) update.titleName = ed.titleName;
+  }
+
+  try {
+    await updateDoc(seriesRef(ed.id), update);
+    try { logActivity && logActivity('series_edited', { id: ed.id }); } catch(e) {}
+    flashToast('Series updated. Next fire recomputes within 6 hours.');
+    closeSeriesCreate();   // shared close — resets DOM via the wrapper above
+  } catch (e) {
+    console.warn('saveSeriesEdit failed', e && e.message);
+    flashToast('Could not save — try again.', { kind: 'warn' });
+  }
 };
 
 // === Phase 16 / CAL-16-08 — TMDB title search for series title field ===
