@@ -5435,3 +5435,81 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .field-label { display: block; font-size: var(--t-eyebrow); color: var(--ink-warm); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: var(--s2); }
 .field-hint { font-size: var(--t-meta); color: var(--ink-dim); margin-top: var(--s1); margin-bottom: 0; line-height: 1.4; }
 
+/* === Phase 16 / CAL-16-11 — Week view modal === */
+/* Greenfield component — RESEARCH §10. Mobile-first 1-column stack; 7-col grid on tablet+. */
+/* Rule 2 token swap (mirrors plan 16-05 precedent): plan-literal --fs-md/--fs-sm/--fs-xs/--ink-2 */
+/* don't exist in Couch token set; substituted canonical --t-body/--t-meta/--t-micro/--ink-warm. */
+.week-view-modal {
+  max-width: min(900px, 96vw);
+  width: 100%;
+}
+.week-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  margin: 8px 0 16px;
+}
+.week-view-header h3 {
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+.week-view {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  min-height: 320px;
+}
+.week-day-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  min-height: 280px;
+}
+.week-day-col.today {
+  background: var(--bg-2);
+  outline: 1px solid var(--accent);
+}
+.week-day-col-h {
+  font-family: var(--font-serif);
+  font-size: var(--t-meta);
+  color: var(--ink);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.week-day-col-h .dow { font-weight: 600; }
+.week-day-col-h .date { color: var(--ink-warm); font-size: var(--t-micro); margin-left: 4px; }
+.week-event {
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  font-size: var(--t-micro);
+  color: var(--ink);
+  cursor: pointer;
+  border-left: 2px solid var(--surface);
+  transition: border-color var(--t-quick);
+}
+.week-event:hover { border-left-color: var(--accent); }
+.week-event.series-instance { border-left-color: var(--accent); }
+.week-event .we-time { color: var(--ink-warm); font-weight: 600; margin-right: 6px; }
+.week-event .we-title { color: var(--ink); }
+.week-view-empty {
+  text-align: center;
+  color: var(--ink-warm);
+  font-style: italic;
+  padding: 40px 0;
+}
+
+/* === Mobile: 1-column day stack === */
+@media (max-width: 599px) {
+  .week-view { grid-template-columns: 1fr; }
+  .week-day-col { min-height: 100px; }
+  .week-day-col:empty { display: none; }   /* hide empty days on mobile to save scroll */
+}
+

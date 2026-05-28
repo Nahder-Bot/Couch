@@ -686,6 +686,8 @@
       <div class="tab-section-h"><span>Your series</span></div>
       <p class="tab-section-sub">Recurring watchparties. Pause, edit, or cancel from here.</p>
       <div id="series-list" class="tab-list-card"></div>
+      <!-- Phase 16 / CAL-16-11 — Calendar (week) view entry point -->
+      <button type="button" class="pill" onclick="openWeekView()" style="margin-top:12px;">Calendar view</button>
     </div>
 
     <!-- ===== CLUSTER 1: YOU (identity continuation: sub-profiles) ===== -->
@@ -1335,6 +1337,22 @@
         <button type="button" class="modal-close" onclick="confirmStartSeries()">Save series</button>
         <button type="button" class="pill modal-btn-block" onclick="closeSeriesCreate()">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Phase 16 / CAL-16-11 — Week view (7-day calendar) modal -->
+  <div class="modal-bg" id="week-view-modal-bg" role="dialog" aria-modal="true" aria-label="Calendar view">
+    <div class="modal week-view-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWeekView()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="week-view-header">
+        <button type="button" class="pill" onclick="shiftWeekView(-7)" aria-label="Previous week">&larr; Prev</button>
+        <h3 id="week-view-title">This week</h3>
+        <button type="button" class="pill" onclick="shiftWeekView(7)" aria-label="Next week">Next &rarr;</button>
+      </div>
+      <div id="week-view-content" class="week-view"></div>
+      <p class="week-view-empty" id="week-view-empty" style="display:none;">No couch nights this week.</p>
     </div>
   </div>
 
