@@ -4956,23 +4956,50 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   color: var(--accent);
   font-weight: 600;
 }
+/* Top-right floating close — sits at corner of the banner card, well outside the
+   inline text flow. Larger hit target (40x40) for thumb-tappability. The negative
+   top/right offsets pull it OUT of the card so it reads as "close this thing"
+   rather than "close something inside this thing." */
 .ios-pwa-nudge-close {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--ink-dim);
-  font-size: 18px;
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  font-size: 22px;
   line-height: 1;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   border-radius: 50%;
   cursor: pointer;
   display: grid;
   place-items: center;
   flex-shrink: 0;
   font-family: inherit;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+  z-index: 1;
 }
-.ios-pwa-nudge-close:hover { background: var(--surface-2); color: var(--ink); }
+.ios-pwa-nudge-close:hover,
+.ios-pwa-nudge-close:active { background: var(--surface-2); color: var(--accent); }
+/* Required to anchor the corner-floating close button. */
+.ios-pwa-nudge { position: fixed; }
+/* Explicit "Not now" labeled dismiss — backstop in case the corner × is missed. */
+.ios-pwa-nudge-dismiss-text {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ios-pwa-nudge-dismiss-text:hover,
+.ios-pwa-nudge-dismiss-text:active { background: var(--surface-2); color: var(--ink); }
 @keyframes ios-pwa-nudge-rise {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }

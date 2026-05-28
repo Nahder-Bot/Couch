@@ -187,17 +187,23 @@ function maybeShowIosPwaNudge() {
     const el = document.createElement('div');
     el.className = 'ios-pwa-nudge';
     el.setAttribute('role', 'status');
+    // Top-right corner × is the canonical "close" affordance for users — moving it out
+    // of the inline-text flow makes it unmistakable. Also adding an explicit "Not now"
+    // text button so anyone who misses the floating × has a labeled escape hatch.
     el.innerHTML = `
+      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
       <div class="ios-pwa-nudge-text">
         Add Couch to your home screen — tap <span class="ios-pwa-nudge-icon" aria-hidden="true">⬆︎</span> then "Add to Home Screen" for the full experience.
       </div>
-      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
+      <button class="ios-pwa-nudge-dismiss-text" type="button">Not now</button>
     `;
     document.body.appendChild(el);
-    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', () => {
+    const dismiss = () => {
       try { localStorage.setItem('iosPwaNudgeDismissedAt', String(Date.now())); } catch (_) {}
       el.remove();
-    });
+    };
+    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', dismiss);
+    el.querySelector('.ios-pwa-nudge-dismiss-text').addEventListener('click', dismiss);
   } catch (e) {
     // Non-fatal — never block app boot if nudge wiring throws.
     try { console.warn('[ios-pwa-nudge]', e); } catch (_) {}
@@ -3523,6 +3529,11 @@ async function onAuthStateChangedCouch(user) {
     state.group = null;
     state.ownerUid = null;
     state.notificationPrefs = null;
+    // Reset the per-session onboarding flag so a DIFFERENT user signing in on the
+    // same tab sees the intro if their member doc has seenOnboarding=false. Without
+    // this, the flag stays true for the lifetime of the tab and the new user is silently
+    // skipped past the welcome.
+    _onboardingShownThisSession = false;
     showPreAuthScreen('signin-screen');
     return;
   }
@@ -4867,8 +4878,22 @@ window.switchToGroup = async function(code) {
   localStorage.setItem('qn_family', g.code);
   localStorage.setItem('qn_active_group', g.code);
   localStorage.setItem('qn_me', JSON.stringify({ id: g.myMemberId, name: g.myMemberName }));
-  if (state.unsubMembers) state.unsubMembers();
-  if (state.unsubTitles) state.unsubTitles();
+  // Full teardown — mirrors the sign-out path in onAuthStateChangedCouch. Without this,
+  // the OLD family's onSnapshot callbacks keep firing after location.reload() (Firebase
+  // auth persists across reloads, so the full sign-out teardown never runs). Stale
+  // callbacks write the previous family's data into state — symptoms: blank load, ghost
+  // rows, race conditions that look like "had to sign in again."
+  if (state.unsubMembers)      { try { state.unsubMembers();      } catch(e) {} state.unsubMembers      = null; }
+  if (state.unsubTitles)       { try { state.unsubTitles();       } catch(e) {} state.unsubTitles       = null; }
+  if (state.unsubIntents)      { try { state.unsubIntents();      } catch(e) {} state.unsubIntents      = null; }
+  if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
+  if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
+  if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+  if (state.unsubSeries)       { try { state.unsubSeries();       } catch(e) {} state.unsubSeries       = null; }
+  if (typeof unsubActivity === 'function') { try { unsubActivity(); } catch(e) {} unsubActivity = null; }
+  if (typeof unsubLists === 'function')    { try { unsubLists();    } catch(e) {} unsubLists    = null; }
+  if (state.watchpartyTick)    { try { clearInterval(state.watchpartyTick);   } catch(e) {} state.watchpartyTick   = null; }
+  if (state._traktHeartbeat)   { try { clearInterval(state._traktHeartbeat);  } catch(e) {} state._traktHeartbeat  = null; }
   location.reload();
 };
 
@@ -15788,20 +15813,27 @@ async function seedBallotFromPack(pack) {
 // client-side guard even though 09-07b sets seenOnboarding:true at guest creation.
 
 let _onboardingCurrentStep = 1;
+// Session-scoped suppression — flips to true the first time the overlay is shown
+// (or unconditionally if a returning user is detected). Prevents re-show on every
+// onSnapshot tick of state.members (which fires on any member-doc change, e.g.
+// couch in/out taps), independent of any Firestore race on `seenOnboarding`.
+let _onboardingShownThisSession = false;
 
 function maybeShowFirstRunOnboarding() {
+  if (_onboardingShownThisSession) return;
   if (!state.me) return;
   // Pitfall 5: guests skip onboarding entirely. 09-07b adds CF-side guarantee; this
   // is the client-side double-guard.
-  if (state.me.type === 'guest') return;
+  if (state.me.type === 'guest') { _onboardingShownThisSession = true; return; }
   // Enrich state.me with the server-side seenOnboarding flag by reading the live
   // member doc from state.members (populated by the onSnapshot in startSync).
   const liveMe = (state.members || []).find(m => m.id === state.me.id);
   const seen = (liveMe && liveMe.seenOnboarding === true) || state.me.seenOnboarding === true;
-  if (seen) return;
+  if (seen) { _onboardingShownThisSession = true; return; }
   // Also respect the legacy localStorage flag so existing users who've seen the
   // old feature tour don't get bounced back through the new intro.
-  try { if (localStorage.getItem('qn_onboarded')) return; } catch(e) {}
+  try { if (localStorage.getItem('qn_onboarded')) { _onboardingShownThisSession = true; return; } } catch(e) {}
+  _onboardingShownThisSession = true;
   showOnboardingStep(1);
 }
 
