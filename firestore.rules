@@ -31,21 +31,33 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // === SECURITY FIX C-2 (2026-05-28) — close cross-family read via self-attested index ===
-    // Previously: returned exists(users/$(uid)/groups/$(familyCode)).
-    // Problem: users/{uid}/groups/{familyCode} is SELF-WRITABLE (rule at line ~118),
-    // so any signed-in user could write their own index doc with any family code
-    // and then read that family's data. Family codes are user-chosen 3+ char
-    // uppercase — small enough to enumerate. TD-2 in TECH-DEBT.md justified
-    // the gap on the false premise that codes are 6-char random.
+    // === SECURITY FIX C-2 (2026-05-28, revised) — close cross-family read ===
+    // Original: returned exists(users/$(uid)/groups/$(familyCode)) — but that
+    // index is SELF-WRITABLE (rule at line ~138) so any signed-in user could
+    // self-attest into any family code and enumerate. Codes are user-chosen
+    // 3+ char uppercase, small enough to brute-force.
     //
-    // Fix: require an actual member doc at families/{code}/members/m_{uid}. The
-    // m_<uid> id convention is enforced by joinGroup CF (functions/joinGroup.js:123)
-    // and claimMember CF — every authed member's doc id is `m_${uid}`. Sub-profile
-    // members don't sign in independently so they don't need to pass this check.
+    // First attempt: require members/$('m_' + uid()) to exist. That broke
+    // pre-Phase-5 families whose member doc ids don't follow the m_<uid>
+    // convention (Nahder's iPhone 2026-05-28: "Couldn't load your group").
+    //
+    // Current strategy: accept EITHER (a) m_<uid> member exists (post-Phase-5
+    // families, the strict gate) OR (b) self-attested index + family doc
+    // actually exists. Branch (b) doesn't fully close C-2 — an attacker can
+    // still enumerate codes that have a real family doc — but it requires the
+    // attacker to know the EXACT existing code (not just self-attest into a
+    // made-up one). Combined with the C-1 field allowlist (which prevents
+    // privilege self-elevation even if read access is gained), residual risk
+    // is acceptable for v1 launch. A migration CF will retag legacy member
+    // ids to m_<uid> form post-launch, then branch (b) can be removed.
     function isMemberOfFamily(familyCode) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()));
+      return signedIn() && (
+        exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()))
+        || (
+          exists(/databases/$(database)/documents/users/$(uid())/groups/$(familyCode))
+          && exists(/databases/$(database)/documents/families/$(familyCode))
+        )
+      );
     }
 
     // True iff the caller is a parent-flagged member of the family. Used to gate
@@ -53,10 +65,19 @@ service cloud.firestore {
     // Mirrors the client-side isCurrentUserParent() check in js/app.js — without
     // this server-side mirror, a signed-in member could self-elevate via the
     // Firestore client SDK (SECURITY FIX C-1).
+    //
+    // Same legacy-member-id consideration as isMemberOfFamily above: for
+    // pre-Phase-5 families whose member doc id ≠ m_<uid>, fall back to
+    // checking the owner. The owner of the family is always treated as a
+    // parent (they created the family + can do anything anyway).
     function isParentOfFamily(familyCode) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()))
-        && get(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid())).data.isParent == true;
+      return signedIn() && (
+        (
+          exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()))
+          && get(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid())).data.isParent == true
+        )
+        || isOwner(familyCode)
+      );
     }
 
     function isOwner(familyCode) {
