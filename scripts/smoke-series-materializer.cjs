@@ -76,8 +76,23 @@ eqContains('C3 status+nextFireAt index field set', idxJson, '"fieldPath": "nextF
 eqContains('D1 computeNextFireAt helper exists', helper, 'module.exports = { computeNextFireAt');
 eqContains('D2 helper uses Intl (DST-safe, no luxon)', helper, 'Intl.DateTimeFormat');
 
+// === Group E: DR-3 lockstep for seriesReminder (CAL-16-06) ===
+// 1 key x 3 maps = 3 assertions. Catches "added key to client but not server" drift.
+const appJs = readIfExists(path.resolve(COUCH_ROOT, 'js', 'app.js'));
+eqContains('E1 client DEFAULT_NOTIFICATION_PREFS has seriesReminder (DR-3 lockstep)', appJs, 'seriesReminder: true');
+eqContains('E2 client NOTIFICATION_EVENT_LABELS has seriesReminder label (DR-3 lockstep)', appJs, "seriesReminder:");
+eqContains('E3 server NOTIFICATION_DEFAULTS has seriesReminder (DR-3 lockstep)', fnIdx, 'seriesReminder: true');
+
+// === Group F: 30-min reminder push branch in watchpartyTick (CAL-16-05) ===
+eqContains('F1 watchpartyTick has reminder branch gate on wp.seriesId', fnIdx, 'wp.seriesId && wp.status');
+eqContains('F2 reminder branch uses +/-5min slop around T-30min', fnIdx, 'minutesBefore <= 35 && minutesBefore >= 25');
+eqContains('F3 in-doc flag set BEFORE send (rsvpReminderTick pattern)', fnIdx, "'reminders.seriesReminder.t-30min': true");
+eqContains('F4 push body title is Couch in 30 min', fnIdx, "title: 'Couch in 30 min'");
+eqContains('F5 push tag is deterministic per (series, instance)', fnIdx, 'series-reminder-${wp.seriesId}-${wp.seriesInstanceDateKey}');
+eqContains('F6 push uses eventType seriesReminder for per-user gating', fnIdx, "eventType: 'seriesReminder'");
+
 // === FLOOR meta-assert ===
-const FLOOR = 20;
+const FLOOR = 29;
 if (passed >= FLOOR) {
   console.log(`  ok floor: ${passed} sentinels matched (>=${FLOOR})`);
   passed++;
