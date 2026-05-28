@@ -13961,6 +13961,23 @@ window.openPostSession = function(wpId) {
   const pp = document.getElementById('wp-photo-preview'); if (pp) { pp.style.display = 'none'; pp.innerHTML = ''; }
   const pt = document.getElementById('wp-photo-upload-tile'); if (pt) pt.style.display = '';
   const pi = document.getElementById('wp-photo-input'); if (pi) pi.value = '';
+  // === Phase 16 / CAL-16-09 — Entry 2: TV-only make-recurring tile ===
+  // Runs unconditionally on every openPostSession call so the tile is correctly
+  // hidden for non-TV wps (movies, sports games, untitled) — even if a prior
+  // open left it visible. The actual show/hide decision is gated on t.kind === 'TV'.
+  try {
+    const recurringTile = document.getElementById('wp-make-recurring-cta');
+    if (recurringTile) {
+      const tForRecurring = wp.titleId ? state.titles.find(x => x && x.id === wp.titleId) : null;
+      if (tForRecurring && tForRecurring.kind === 'TV' && wp.titleId) {
+        recurringTile.style.display = 'block';
+        recurringTile.onclick = function() { openMakeRecurring(wpId); };
+      } else {
+        recurringTile.style.display = 'none';
+        recurringTile.onclick = null;
+      }
+    }
+  } catch(e) { console.warn('make-recurring tile toggle failed', e && e.message); }
   const bg = document.getElementById('wp-post-session-modal-bg');
   if (bg) bg.classList.add('on');
 };
@@ -16480,6 +16497,69 @@ window.saveSeriesEdit = async function() {
     console.warn('saveSeriesEdit failed', e && e.message);
     flashToast('Could not save — try again.', { kind: 'warn' });
   }
+};
+
+// === Phase 16 / CAL-16-09 — Entry 2: Make recurring? (TV-only) ===
+// Converts a just-finished one-off TV wp into a recurring series.
+// Pre-fills cadence (1-day daysOfWeek + time-of-day) from wp.startAt in wp.creatorTimeZone.
+window.openMakeRecurring = function(wpId) {
+  if (!wpId) return;
+  const wp = (state.watchparties || []).find(w => w && w.id === wpId);
+  if (!wp) { flashToast('Watchparty not found.', { kind: 'warn' }); return; }
+  if (!wp.titleId) { flashToast('Cannot make recurring without a title.', { kind: 'warn' }); return; }
+  const t = (state.titles || []).find(x => x && x.id === wp.titleId);
+  if (!t || t.kind !== 'TV') {
+    flashToast('Only TV shows can be recurring.', { kind: 'warn' });
+    return;
+  }
+
+  // Infer dow + timeOfDay from wp.startAt in wp's creator timezone (fall back to user's local).
+  const tz = wp.creatorTimeZone || (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+  let dow = 0;
+  let timeOfDay = '20:00';
+  try {
+    const startDate = new Date(wp.startAt);
+    // dow in target tz
+    const wkParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, weekday: 'short'
+    }).formatToParts(startDate);
+    const wkName = (wkParts.find(p => p.type === 'weekday') || {}).value;
+    const wkIdx = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(wkName);
+    if (wkIdx >= 0) dow = wkIdx;
+    // HH:MM in target tz (24h)
+    const hmParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(startDate);
+    const hh = (hmParts.find(p => p.type === 'hour') || {}).value;
+    const mm = (hmParts.find(p => p.type === 'minute') || {}).value;
+    if (hh && mm) timeOfDay = `${hh}:${mm}`;
+  } catch (e) {
+    console.warn('openMakeRecurring tz infer failed; defaulting to Sun 20:00', e && e.message);
+  }
+
+  // Member IDs from wp.memberUids back-resolved through state.members
+  const memberIds = (state.members || [])
+    .filter(m => m && m.uid && Array.isArray(wp.memberUids) && wp.memberUids.includes(m.uid))
+    .map(m => m.id);
+
+  // Close the post-session modal first so the series modal isn't stacked behind it
+  try {
+    const psModal = document.getElementById('wp-post-session-modal-bg');
+    if (psModal) psModal.classList.remove('on');
+  } catch(e) {}
+
+  // Open series-create modal pre-filled
+  openSeriesCreate({
+    titleType: 'tv',
+    titleId: wp.titleId,
+    titleName: wp.titleName || (t && t.name) || null,
+    daysOfWeek: [dow],
+    timeOfDay,
+    memberIds
+  });
 };
 
 // === Phase 16 / CAL-16-08 — TMDB title search for series title field ===

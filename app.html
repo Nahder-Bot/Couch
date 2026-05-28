@@ -1374,6 +1374,9 @@
         <button type="button" class="wp-photo-upload-trigger" onclick="document.getElementById('wp-photo-input').click()">Add a couch photo</button>
       </div>
       <div id="wp-photo-preview" style="display:none;"></div>
+      <!-- Phase 16 / CAL-16-09 — Entry 2: Make recurring? prompt (TV-only).
+           Hidden by default; openPostSession un-hides when t.kind === 'TV'. -->
+      <button type="button" class="wp-make-recurring-cta" id="wp-make-recurring-cta" style="display:none;">Make this recurring</button>
       <button type="button" class="wp-schedule-next-cta" onclick="openScheduleNext()">Schedule another night</button>
       <button type="button" class="wp-post-session-skip" onclick="closePostSession()">Maybe later</button>
     </div>
