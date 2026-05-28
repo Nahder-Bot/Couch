@@ -16690,6 +16690,141 @@ window.confirmStartSeries = async function() {
   }
 };
 
+// === Phase 16 / CAL-16-11 — Week view modal (7-day calendar) ===
+// Greenfield component — RESEARCH §10. Mobile-first 1-column stack; 7-col grid on tablet+.
+// Data source: state.watchparties (already subscribed via state.unsubWatchparties).
+// Includes series-materialized wps (gated by memberUids — same auth surface as 16-05).
+// T-16-33 mitigation: escapeHtml on titleName + wpId + time before innerHTML render.
+
+state.weekViewAnchorMs = null;   // Sunday-of-visible-week, midnight in user's local tz
+
+function getWeekStartSundayMs(anchorMs) {
+  // Returns midnight local time of the Sunday that begins the week containing anchorMs.
+  const d = new Date(anchorMs);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();   // 0=Sun..6=Sat in local tz
+  d.setDate(d.getDate() - dow);
+  return d.getTime();
+}
+
+window.openWeekView = function() {
+  // Anchor to current week's Sunday
+  state.weekViewAnchorMs = getWeekStartSundayMs(Date.now());
+  renderWeekViewContent();
+  const modal = document.getElementById('week-view-modal-bg');
+  if (modal) {
+    modal.classList.add('on');
+    try { activateFocusTrap(modal); } catch(e) {}
+  }
+};
+
+window.closeWeekView = function() {
+  const modal = document.getElementById('week-view-modal-bg');
+  if (modal) modal.classList.remove('on');
+  try { deactivateFocusTrap(); } catch(e) {}
+};
+
+window.shiftWeekView = function(dayDelta) {
+  if (typeof state.weekViewAnchorMs !== 'number') return;
+  state.weekViewAnchorMs = state.weekViewAnchorMs + dayDelta * 24 * 60 * 60 * 1000;
+  renderWeekViewContent();
+};
+
+function renderWeekViewContent() {
+  const root = document.getElementById('week-view-content');
+  const emptyEl = document.getElementById('week-view-empty');
+  const titleEl = document.getElementById('week-view-title');
+  if (!root) return;
+
+  const anchor = state.weekViewAnchorMs || getWeekStartSundayMs(Date.now());
+  state.weekViewAnchorMs = anchor;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const weekStart = anchor;
+  const weekEnd = anchor + 7 * dayMs;
+  // todayStart: local-midnight of TODAY (today's date, hour 0). Used to highlight the "today" column.
+  const _now = new Date();
+  _now.setHours(0, 0, 0, 0);
+  const todayStart = _now.getTime();
+
+  // Filter wps to visible window — include scheduled + active, exclude archived/cancelled.
+  const wps = (state.watchparties || []).filter(wp => {
+    if (!wp || typeof wp.startAt !== 'number') return false;
+    if (wp.status === 'archived' || wp.status === 'cancelled') return false;
+    return wp.startAt >= weekStart && wp.startAt < weekEnd;
+  });
+
+  // Bucket wps by day index 0..6
+  const buckets = [[], [], [], [], [], [], []];
+  for (const wp of wps) {
+    const dayIdx = Math.floor((wp.startAt - weekStart) / dayMs);
+    if (dayIdx >= 0 && dayIdx < 7) buckets[dayIdx].push(wp);
+  }
+
+  // Sort each day's events by startAt
+  for (const b of buckets) b.sort((a, z) => a.startAt - z.startAt);
+
+  const totalEvents = wps.length;
+  if (emptyEl) emptyEl.style.display = totalEvents === 0 ? 'block' : 'none';
+  if (titleEl) {
+    const startLabel = new Date(weekStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = new Date(weekEnd - dayMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    titleEl.textContent = `${startLabel} – ${endLabel}`;
+  }
+
+  const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const html = buckets.map((bucket, i) => {
+    const dayMsAtStart = weekStart + i * dayMs;
+    const isToday = dayMsAtStart === todayStart;
+    const dateLabel = new Date(dayMsAtStart).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+    const eventsHtml = bucket.length === 0
+      ? ''
+      : bucket.map(wp => {
+          const safeWpId = escapeHtml(wp.id || '');
+          const safeTitle = escapeHtml(wp.titleName || 'Untitled');
+          const isSeries = !!wp.seriesId;
+          const time = new Date(wp.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          return `<div class="week-event${isSeries ? ' series-instance' : ''}" data-wpid="${safeWpId}" onclick="tapWeekEvent('${safeWpId}')"><span class="we-time">${escapeHtml(time)}</span><span class="we-title">${safeTitle}</span></div>`;
+        }).join('');
+    return `<div class="week-day-col${isToday ? ' today' : ''}">
+      <div class="week-day-col-h"><span class="dow">${dayLabels[i]}</span><span class="date">${escapeHtml(dateLabel)}</span></div>
+      ${eventsHtml}
+    </div>`;
+  }).join('');
+
+  root.innerHTML = html;
+}
+
+window.tapWeekEvent = function(wpId) {
+  if (!wpId) return;
+  // Close week-view first
+  closeWeekView();
+  // Navigate to the wp — match the existing wp-banner-tap / wp-deep-link pattern.
+  // Rule 1 deviation: plan said showScreen('home') but the canonical home tab name in
+  // this codebase is 'tonight' (verified via grep on existing showScreen calls).
+  try {
+    state.activeWatchpartyId = wpId;
+    // If the wp is live, open the live modal directly (matches openWatchpartyLive sites);
+    // otherwise surface it via the Tonight tab banner.
+    const wp = (state.watchparties || []).find(w => w && w.id === wpId);
+    const isLive = wp && (wp.status === 'live' || wp.status === 'started');
+    if (isLive && typeof renderWatchpartyLive === 'function') {
+      renderWatchpartyLive();
+      const liveBg = document.getElementById('wp-live-modal-bg');
+      if (liveBg) {
+        liveBg.classList.add('on');
+        try { activateFocusTrap(liveBg); } catch(e) {}
+      }
+    } else {
+      if (typeof window.showScreen === 'function') window.showScreen('tonight');
+      if (typeof renderTonight === 'function') renderTonight();
+    }
+    flashToast('Opening watchparty…');
+  } catch (e) {
+    console.warn('tapWeekEvent navigation failed', e && e.message);
+  }
+};
+
 window.openSetPasswordForm = function() {
   const form = document.getElementById('signin-methods-password-form');
   if (form) form.style.display = '';
