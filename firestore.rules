@@ -1047,11 +1047,21 @@ service cloud.firestore {
 
       // CREATE: creator must be in own memberUids; familyCode must be one the
       // caller belongs to (matches Phase 30 top-level wp create gate).
+      //
+      // Launch-readiness audit fix (H-2, partial): cap memberUids size at 24 to
+      // bound worst-case foreign-uid stuffing. Full per-uid family-membership check
+      // for ALL memberUids is not expressible in Firestore rules (each exists()
+      // call is opaque per entry); the CF-side materializer enforces the strict
+      // membership gate when fanning out into materialized wps. Deferred CF gate
+      // tracked separately.
       allow create: if signedIn()
         && request.resource.data.createdByUid == uid()
         && request.resource.data.createdBy is string
         && request.resource.data.createdBy.matches('^m_[A-Za-z0-9_-]+$')
         && request.auth.uid in request.resource.data.memberUids
+        && request.resource.data.memberUids is list
+        && request.resource.data.memberUids.size() >= 1
+        && request.resource.data.memberUids.size() <= 24
         && request.resource.data.familyCode is string
         && exists(/databases/$(database)/documents/users/$(uid())/groups/$(request.resource.data.familyCode))
         && request.resource.data.status == 'active'

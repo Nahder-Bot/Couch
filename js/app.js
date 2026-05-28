@@ -915,6 +915,15 @@ const trakt = {
     }).toString();
     // Open as a popup. On mobile Safari popups sometimes get nerfed into a
     // full-window redirect — the callback page handles that via sessionStorage.
+    // Launch-readiness audit fix: on iOS standalone PWA, window.open() returns
+    // a truthy proxy but the postMessage channel is lost — user signs in at Trakt
+    // and lands on a blank page outside the PWA. Force the full-page redirect path
+    // here (checkForStashedTraktCode picks up the code on return).
+    const isIosStandalone = (typeof navigator !== 'undefined') && (window.navigator.standalone === true);
+    if (isIosStandalone) {
+      window.location.href = url;
+      return;
+    }
     const popup = window.open(url, 'trakt-auth', 'width=520,height=720');
     if (!popup) {
       // Popup blocked — fall back to a full-page redirect. User returns to / after auth.
@@ -3331,19 +3340,22 @@ function loadSavedGroups() {
     const raw = localStorage.getItem('qn_groups');
     if (raw) return JSON.parse(raw);
   } catch(e){}
-  // Migration: if old qn_family exists, seed as first group
-  const old = localStorage.getItem('qn_family');
+  // Migration: if old qn_family exists, seed as first group.
+  // Launch-readiness audit fix: wrap every localStorage call so Safari private-mode
+  // storage exceptions don't abort boot (matches the iOS PWA nudge pattern @ line 183).
+  let old = null;
+  try { old = localStorage.getItem('qn_family'); } catch (_) { return []; }
   if (old) {
     let me = null;
     try { me = JSON.parse(localStorage.getItem('qn_me')||'null'); } catch(e){}
     const seed = [{ code: old, name: old, mode: 'family', myMemberId: me?.id||null, myMemberName: me?.name||null }];
-    localStorage.setItem('qn_groups', JSON.stringify(seed));
-    localStorage.setItem('qn_active_group', old);
+    try { localStorage.setItem('qn_groups', JSON.stringify(seed)); } catch (_) {}
+    try { localStorage.setItem('qn_active_group', old); } catch (_) {}
     return seed;
   }
   return [];
 }
-function saveGroups() { localStorage.setItem('qn_groups', JSON.stringify(state.groups||[])); }
+function saveGroups() { try { localStorage.setItem('qn_groups', JSON.stringify(state.groups||[])); } catch (_) {} }
 function upsertSavedGroup(entry) {
   state.groups = loadSavedGroups();
   const i = state.groups.findIndex(g => g.code === entry.code);
@@ -3619,7 +3631,10 @@ function startUserGroupsSubscription(uid) {
     if (typeof renderGroupSwitcher === 'function') renderGroupSwitcher();
     if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
   }, (e) => {
-    console.error('[user-groups] snapshot error', e);
+    // Launch-readiness audit fix (TD-13 class): replace console-only with the
+    // standard snapshotErrorHandler so failures surface a toast instead of stalling
+    // sign-in silently. Still resolve firstSnapshot so caller doesn't hang 4s.
+    try { snapshotErrorHandler('user-groups')(e); } catch(_) { console.error('[user-groups] snapshot error', e); }
     if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
   });
   return firstSnapshot;
@@ -3698,15 +3713,32 @@ function routeAfterAuth() {
 
 async function _bootIntoGroup(code) {
   state.familyCode = code;
+  // Launch-readiness audit fix: phantom-family recovery. If the family doc doesn't
+  // exist (kicked, deleted, rules-deny) we used to silently set a stub state.group
+  // and showApp() — user lands on empty Tonight tab with no escape. Now we surface
+  // a toast, clear stale localStorage keys, and route to mode-pick instead.
+  const _phantomFamilyRecover = () => {
+    try { flashToast("Couldn't load your group — pick a different one or rejoin.", { kind: 'warn' }); } catch(_) {}
+    try { localStorage.removeItem('qn_family'); } catch(_) {}
+    try { localStorage.removeItem('qn_active_group'); } catch(_) {}
+    try { localStorage.removeItem('qn_me'); } catch(_) {}
+    state.familyCode = null;
+    state.group = null;
+    showPreAuthScreen('screen-mode');
+  };
   try {
     const snap = await getDoc(familyDocRef());
     if (snap.exists()) {
       const d = snap.data();
       state.group = { code, mode: d.mode || 'family', name: d.name || code, picker: d.picker || null };
     } else {
-      state.group = { code, mode: 'family', name: code, picker: null };
+      _phantomFamilyRecover();
+      return;
     }
-  } catch(e) { state.group = { code, mode: 'family', name: code, picker: null }; }
+  } catch(e) {
+    _phantomFamilyRecover();
+    return;
+  }
 
   // Restore the user's member identity for this group. Source of truth order:
   //   1. Firestore users/{uid}/groups/{code}.memberId — set when user first claimed in this group
@@ -7434,7 +7466,7 @@ window.doSearch = async function() {
       genreIds: x.genre_ids || [],
     }));
     renderSearchResults();
-  } catch(e) { alert('Search failed.'); }
+  } catch(e) { flashToast('Search failed — check your connection.', { kind: 'warn' }); }
   btn.textContent = 'Find'; btn.disabled = false;
 };
 
@@ -17462,8 +17494,10 @@ function renderTonightHero(topMatch, couch) {
   if (couchYes === couchTotal && couchTotal > 0) tallyText = `Whole couch wants it`;
   else if (couchYes > 0) tallyText = `${couchYes} of ${couchTotal} want it`;
   else tallyText = '';
+  // Launch-readiness audit fix (a11y): hero tally re-renders silently when family
+  // members vote from other devices; aria-live="polite" lets SR users hear updates.
   const tallyHtml = tallyText
-    ? `<div class="th-tally"><em>${escapeHtml(tallyText)}</em></div>`
+    ? `<div class="th-tally" aria-live="polite"><em>${escapeHtml(tallyText)}</em></div>`
     : '';
   const bgStyle = bg ? `background-image: url('${bg}')` : '';
   container.innerHTML = `<div class="tonight-hero" role="button" tabindex="0" aria-label="${name} — top pick tonight">

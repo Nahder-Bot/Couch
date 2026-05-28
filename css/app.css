@@ -3811,10 +3811,13 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .th-gradient {
   position: absolute;
   inset: 0;
+  /* Launch-readiness audit fix (WCAG 1.4.11): deepened floor so .th-eyebrow always
+     sits on >=0.75 overlay; intermediate stop at 32% prevents mid-image hot spots. */
   background: linear-gradient(180deg,
     rgba(20, 17, 15, 0.15) 0%,
+    rgba(20, 17, 15, 0.75) 32%,
     rgba(20, 17, 15, 0.55) 50%,
-    rgba(20, 17, 15, 0.94) 100%);
+    rgba(20, 17, 15, 0.97) 100%);
   z-index: 1;
 }
 .th-content {
@@ -3890,7 +3893,9 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .th-cta-secondary {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Launch-readiness audit fix (WCAG 1.4.11 Non-text Contrast): rgba 0.12 over
+     --bg #14110f is ~1.4:1; 0.24 hits the 3:1 floor. */
+  border: 1px solid rgba(255, 255, 255, 0.24);
   padding: 10px 18px;
   border-radius: var(--r-pill);
   font-family: inherit;
@@ -5782,6 +5787,9 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   text-align: center;
   flex: 1;
 }
+/* Launch-readiness audit fix: Apple HIG 44pt minimum touch target. Base .pill is
+   ~28-30px tall — too small for the week-view prev/next chrome controls. */
+.week-view-nav-btn { min-height: 44px; min-width: 44px; padding: 10px 16px; }
 .week-view {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

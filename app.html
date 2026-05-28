@@ -108,6 +108,18 @@
             }
           }
         }
+        // 5. Launch-readiness audit fix (H-1 / Apple §5.1.1): truncate exception
+        // values to first 80 chars so member display names (kid names = PII)
+        // that may appear in error strings ("Could not save Sasha-age-8") are
+        // bounded. privacy.html §5 commits to "PII removed before send".
+        if (event.exception && event.exception.values) {
+          event.exception.values = event.exception.values.map(function (v) {
+            return {
+              type: v.type,
+              value: (typeof v.value === 'string') ? v.value.slice(0, 80) : v.value
+            };
+          });
+        }
         return event;
       },
       // Pitfall 5 defense: drop Firestore transport noise from breadcrumbs.
@@ -398,7 +410,7 @@
         <div class="t-section-meta" id="matches-count"></div>
       </div>
       <div class="t-section-action" id="t-section-actions"></div>
-      <div id="matches-list"></div>
+      <div id="matches-list" aria-live="polite" aria-atomic="false"></div>
     </div>
 
     <div id="upnext-section" class="t-section" style="display:none;">
@@ -1357,9 +1369,9 @@
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div class="week-view-header">
-        <button type="button" class="pill" onclick="shiftWeekView(-7)" aria-label="Previous week">&larr; Prev</button>
+        <button type="button" class="pill week-view-nav-btn" onclick="shiftWeekView(-7)" aria-label="Previous week">&larr; Prev</button>
         <h3 id="week-view-title">This week</h3>
-        <button type="button" class="pill" onclick="shiftWeekView(7)" aria-label="Next week">Next &rarr;</button>
+        <button type="button" class="pill week-view-nav-btn" onclick="shiftWeekView(7)" aria-label="Next week">Next &rarr;</button>
       </div>
       <div id="week-view-content" class="week-view"></div>
       <p class="week-view-empty" id="week-view-empty" style="display:none;">No couch nights this week.</p>

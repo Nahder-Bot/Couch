@@ -101,6 +101,18 @@
             }
           }
         }
+        // 5. Launch-readiness audit fix (H-1 / Apple §5.1.1): truncate exception
+        // values to first 80 chars so member display names (kid names = PII)
+        // that may appear in error strings ("Could not save Sasha-age-8") are
+        // bounded. privacy.html §5 commits to "PII removed before send".
+        if (event.exception && event.exception.values) {
+          event.exception.values = event.exception.values.map(function (v) {
+            return {
+              type: v.type,
+              value: (typeof v.value === 'string') ? v.value.slice(0, 80) : v.value
+            };
+          });
+        }
         return event;
       },
       // Pitfall 5 defense: drop Firestore transport noise from breadcrumbs.
