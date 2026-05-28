@@ -206,6 +206,21 @@ if [ -f scripts/smoke-pickem.cjs ]; then
   node scripts/smoke-pickem.cjs > /dev/null \
     || { echo "ERROR: smoke-pickem failed -- aborting deploy." >&2; exit 1; }
 fi
+# Phase 16 / CAL-16 -- Calendar Layer smoke contracts (Plan 16-02 cadence helper +
+# Plan 16-03 materializer CF + Plan 16-04 reminder branch / DR-3 lockstep).
+# Register all 3 sequentially; deploy aborts on any failure.
+if [ -f scripts/smoke-series-cadence-compute.cjs ]; then
+  node scripts/smoke-series-cadence-compute.cjs > /dev/null \
+    || { echo "ERROR: smoke-series-cadence-compute failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-series-materializer.cjs ]; then
+  node scripts/smoke-series-materializer.cjs > /dev/null \
+    || { echo "ERROR: smoke-series-materializer failed -- aborting deploy." >&2; exit 1; }
+fi
+if [ -f scripts/smoke-series-idempotency.cjs ]; then
+  node scripts/smoke-series-idempotency.cjs > /dev/null \
+    || { echo "ERROR: smoke-series-idempotency failed -- aborting deploy." >&2; exit 1; }
+fi
 # smoke-app-parse runs LAST in §2.5 because it's the foundation gate: any ES
 # module syntax error here means the app shell can't boot in the browser.
 # Added 2026-05-02 after a 1-paren mismatch in js/app.js shipped silently for
@@ -214,7 +229,7 @@ if [ -f scripts/smoke-app-parse.cjs ]; then
   node scripts/smoke-app-parse.cjs > /dev/null \
     || { echo "ERROR: smoke-app-parse failed -- aborting deploy." >&2; exit 1; }
 fi
-echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed + native-video-player + position-anchored-reactions + guest-rsvp + pickem + app-parse)."
+echo "Smoke contracts pass (positionToSeconds + matches/considerable + availability + kid-mode + decision-explanation + conflict-aware-empty + sports-feed + native-video-player + position-anchored-reactions + guest-rsvp + pickem + series-cadence-compute + series-materializer + series-idempotency + app-parse)."
 
 # 3. Verify couch-deploy mirror exists (deploy target)
 if [ ! -d "${COUCH_DEPLOY_ROOT}/public" ]; then
