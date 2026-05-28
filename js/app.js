@@ -16585,8 +16585,11 @@ window.searchSeriesTitle = (function() {
           const tid = escapeHtml(String(r.id));
           const name = escapeHtml(r.name || 'Untitled');
           const year = r.first_air_date ? ` (${escapeHtml(r.first_air_date.slice(0,4))})` : '';
-          // Pass name as a JSON-encoded JS string literal; escape apostrophes inside the onclick attr.
-          const nameLiteral = JSON.stringify(r.name || 'Untitled').replace(/'/g, "&apos;");
+          // Pass name as a JSON-encoded JS string literal; HTML-encode " and ' so they survive
+          // the outer onclick="..." attribute's double-quote delimiter (otherwise the parser
+          // closes the attribute at the first " inside JSON.stringify's wrapper and the handler
+          // never fires — broke any title without an apostrophe, e.g. "American Idol").
+          const nameLiteral = JSON.stringify(r.name || 'Untitled').replace(/"/g, "&quot;").replace(/'/g, "&apos;");
           return `<div class="suggest-row" onclick="pickSeriesTitle('${tid}', ${nameLiteral})">${name}${year}</div>`;
         }).join('');
         suggest.style.display = 'flex';
