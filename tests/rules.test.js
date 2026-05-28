@@ -159,6 +159,29 @@ async function seed() {
       reactions: [],
       guests: [],
     });
+
+    // Phase 16 seed — top-level /watchpartySeries/{seriesId} for rules tests.
+    // Used by the Phase 16 watchpartySeries rules describe block to assert
+    // create/read/update/delete branches (CAL-16-02). UID_OWNER is creator,
+    // UID_MEMBER is a fellow series member, UID_STRANGER has no relationship.
+    await db.doc('watchpartySeries/series_phase16_test').set({
+      familyCode: 'fam1',
+      createdBy: 'm_UID_OWNER',
+      createdByUid: UID_OWNER,
+      createdAt: now,
+      titleType: 'tv',
+      titleId: 'tmdb_test',
+      titleName: 'American Idol',
+      daysOfWeek: [1],
+      timeOfDay: '20:00',
+      timezone: 'America/Los_Angeles',
+      memberUids: [UID_OWNER, UID_MEMBER],
+      status: 'active',
+      nextFireAt: now + 3600 * 1000,
+      actingUid: UID_OWNER,
+      memberId: 'm_UID_OWNER',
+      memberName: 'Owner'
+    });
   });
 }
 
@@ -1535,6 +1558,127 @@ async function run() {
         leagueKey: 'nba', gameId: 'g_test_10', memberId: 'm_UID_MEMBER',
         familyCode: 'fam1', sentAt: Date.now()
       }));
+    });
+  });
+
+  // === Phase 16 / CAL-16-02 — watchpartySeries rules tests ===
+  // Covers /watchpartySeries/{seriesId} top-level collection rules added in
+  // Plan 16-01 (firestore.rules lines 988-1044). 12 cases covering read,
+  // create (5 sub-branches), update (4 sub-branches: non-creator denied,
+  // creator allowed for cadence, status-paused allowed, immutable titleType
+  // denied), and delete (denied — soft-delete only via status='ended').
+  // Reuses owner/member/stranger contexts + UID_* constants from run() scope;
+  // seed adds series_phase16_test in seed() above.
+  await describe('Phase 16 watchpartySeries rules', async () => {
+
+    // ---- READ ----
+    await it('#16-01 stranger read series -> DENIED', async () => {
+      await assertFails(stranger.doc('watchpartySeries/series_phase16_test').get());
+    });
+    await it('#16-02 member in memberUids reads series -> ALLOWED', async () => {
+      await assertSucceeds(member.doc('watchpartySeries/series_phase16_test').get());
+    });
+
+    // ---- CREATE ----
+    await it('#16-03 create with valid shape -> ALLOWED', async () => {
+      await assertSucceeds(owner.doc('watchpartySeries/series_create_ok').set({
+        familyCode: 'fam1',
+        createdBy: 'm_UID_OWNER',
+        createdByUid: UID_OWNER,
+        createdAt: Date.now(),
+        titleType: 'tv',
+        titleId: 'tmdb_test',
+        titleName: 'Show A',
+        daysOfWeek: [1, 3],
+        timeOfDay: '20:00',
+        timezone: 'America/Los_Angeles',
+        memberUids: [UID_OWNER, UID_MEMBER],
+        status: 'active',
+        nextFireAt: Date.now() + 3600 * 1000,
+        actingUid: UID_OWNER,
+        memberId: 'm_UID_OWNER',
+        memberName: 'Owner'
+      }));
+    });
+    await it('#16-04 create with familyCode user does NOT belong to -> DENIED', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_create_bad_family').set({
+        familyCode: 'famX_not_owners_family',
+        createdBy: 'm_UID_OWNER', createdByUid: UID_OWNER, createdAt: Date.now(),
+        titleType: 'tv', titleId: 'x', titleName: 'X',
+        daysOfWeek: [1], timeOfDay: '20:00', timezone: 'America/Los_Angeles',
+        memberUids: [UID_OWNER], status: 'active', nextFireAt: Date.now(),
+        actingUid: UID_OWNER, memberId: 'm_UID_OWNER'
+      }));
+    });
+    await it('#16-05 create with empty daysOfWeek -> DENIED', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_create_empty_dow').set({
+        familyCode: 'fam1',
+        createdBy: 'm_UID_OWNER', createdByUid: UID_OWNER, createdAt: Date.now(),
+        titleType: 'tv', titleId: 'x', titleName: 'X',
+        daysOfWeek: [], timeOfDay: '20:00', timezone: 'America/Los_Angeles',
+        memberUids: [UID_OWNER], status: 'active', nextFireAt: Date.now(),
+        actingUid: UID_OWNER, memberId: 'm_UID_OWNER'
+      }));
+    });
+    await it('#16-06 create with invalid timeOfDay -> DENIED', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_create_bad_time').set({
+        familyCode: 'fam1',
+        createdBy: 'm_UID_OWNER', createdByUid: UID_OWNER, createdAt: Date.now(),
+        titleType: 'tv', titleId: 'x', titleName: 'X',
+        daysOfWeek: [1], timeOfDay: '25:99', timezone: 'America/Los_Angeles',
+        memberUids: [UID_OWNER], status: 'active', nextFireAt: Date.now(),
+        actingUid: UID_OWNER, memberId: 'm_UID_OWNER'
+      }));
+    });
+    await it('#16-07 create with daysOfWeek over 7 entries -> DENIED', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_create_too_many_dow').set({
+        familyCode: 'fam1',
+        createdBy: 'm_UID_OWNER', createdByUid: UID_OWNER, createdAt: Date.now(),
+        titleType: 'tv', titleId: 'x', titleName: 'X',
+        daysOfWeek: [0,1,2,3,4,5,6,0],   // 8 entries — exceeds size() <= 7
+        timeOfDay: '20:00', timezone: 'America/Los_Angeles',
+        memberUids: [UID_OWNER], status: 'active', nextFireAt: Date.now(),
+        actingUid: UID_OWNER, memberId: 'm_UID_OWNER'
+      }));
+    });
+
+    // ---- UPDATE ----
+    await it('#16-08 non-creator update -> DENIED', async () => {
+      await assertFails(member.doc('watchpartySeries/series_phase16_test').update({
+        daysOfWeek: [2],
+        actingUid: UID_MEMBER,
+        memberId: 'm_UID_MEMBER'
+      }));
+    });
+    await it('#16-09 creator updates daysOfWeek -> ALLOWED', async () => {
+      await assertSucceeds(owner.doc('watchpartySeries/series_phase16_test').update({
+        daysOfWeek: [2, 4],
+        actingUid: UID_OWNER,
+        memberId: 'm_UID_OWNER',
+        memberName: 'Owner'
+      }));
+    });
+    await it('#16-10 creator updates status to paused -> ALLOWED', async () => {
+      await assertSucceeds(owner.doc('watchpartySeries/series_phase16_test').update({
+        status: 'paused',
+        pausedAt: Date.now(),
+        nextFireAt: null,
+        actingUid: UID_OWNER,
+        memberId: 'm_UID_OWNER',
+        memberName: 'Owner'
+      }));
+    });
+    await it('#16-11 creator tries to change titleType -> DENIED (immutable)', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_phase16_test').update({
+        titleType: 'untitled',
+        actingUid: UID_OWNER,
+        memberId: 'm_UID_OWNER'
+      }));
+    });
+
+    // ---- DELETE ----
+    await it('#16-12 delete -> DENIED (soft-delete via status only)', async () => {
+      await assertFails(owner.doc('watchpartySeries/series_phase16_test').delete());
     });
   });
 
