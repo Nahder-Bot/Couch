@@ -5288,3 +5288,69 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   }
 }
 
+/* === Phase 16 / CAL-16-10 — Series list card styling ===
+   Mirrors .signin-method-row composition; richer because rows have action buttons.
+   Tokens swapped from plan-literal --ink-2/--ink-3/--fs-md/--fs-sm/--fs-xs/--danger
+   (which do not exist in the Couch token set) to the canonical equivalents
+   --ink-warm/--ink-dim/--t-body/--t-meta/--t-micro/--bad — preserves the plan's
+   structural intent while honoring CLAUDE.md "use existing semantic tokens" rule. */
+.series-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.series-row:last-child { border-bottom: none; }
+.series-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.series-row-title {
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.series-row-status {
+  font-size: var(--t-eyebrow);
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.series-row-status.paused { color: var(--warn); }
+.series-row-cadence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+}
+.series-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+}
+.series-row-meta > span { white-space: nowrap; }
+.series-row-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s1);
+}
+.series-row-actions button {
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick);
+}
+.series-row-actions button:hover { border-color: var(--accent); }
+.series-row-actions button.danger { color: var(--bad); }
+

@@ -677,6 +677,17 @@
       <div id="signin-methods-list" class="tab-list-card"></div>
     </div>
 
+    <!-- Phase 16 / CAL-16-10 — Your series (recurring watchparty management).
+         Rendered by renderSeriesListCard() from renderSettings(). Hidden when state.series
+         is empty. Mirrors #signin-methods-card composition; richer rows with Edit/Pause/Cancel
+         actions (Resume + Cancel when status === 'paused'). Sits with the conditional banners
+         above the 3 settings clusters. -->
+    <div class="tab-section" id="series-list-card" style="display:none;">
+      <div class="tab-section-h"><span>Your series</span></div>
+      <p class="tab-section-sub">Recurring watchparties. Pause, edit, or cancel from here.</p>
+      <div id="series-list" class="tab-list-card"></div>
+    </div>
+
     <!-- ===== CLUSTER 1: YOU (identity continuation: sub-profiles) ===== -->
     <div class="settings-cluster" data-cluster="you">
       <div class="tab-section-h settings-cluster-h"><span>YOU</span></div>
