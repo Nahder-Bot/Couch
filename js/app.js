@@ -2125,6 +2125,11 @@ const WP_STALE_MS = 5 * 60 * 60 * 1000; // 5h since start time
 // (see subscribeWatchparties at the original onSnapshot site for the new query shape).
 function watchpartyRef(id) { return doc(db, 'watchparties', id); }
 
+// Phase 16 / CAL-16-10 — top-level watchpartySeries doc ref. Single-tier
+// top-level collection (no nested counterpart, unlike legacy watchparties).
+// Rules-gated by memberUids array-contains auth.uid (firestore.rules:993).
+function seriesRef(id) { return doc(db, 'watchpartySeries', id); }
+
 // === Phase 8 Watch-Intent Flows ===
 // Intents are a new primitive SEPARATE from the general vote system (see 08-CONTEXT D-02).
 // A member can have a standing Yes on a title AND a No RSVP to a specific tonight-at-9pm
@@ -3492,6 +3497,9 @@ async function onAuthStateChangedCouch(user) {
     if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
     if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
     if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+    // Phase 16 / CAL-16-10 — top-level watchpartySeries subscription teardown.
+    // Mirrors the unsubWatchparties pattern; same leak class (CR-07) if omitted.
+    if (state.unsubSeries)       { try { state.unsubSeries();       } catch(e) {} state.unsubSeries       = null; }
     // CR-04 — module-scoped activity feed + lists subscriptions also leaked. These
     // are module-scope lets (unsubActivity at ~8894, unsubLists at ~16552) so we
     // tear them down + clear their backing arrays here.
@@ -3506,6 +3514,7 @@ async function onAuthStateChangedCouch(user) {
     recentActivity = [];
     allLists = [];
     state.watchparties = [];
+    state.series = []; // Phase 16 / CAL-16-10 — clear on sign-out so ghost rows don't linger.
     state.session = null;
     state.intents = [];
     state.me = null;
@@ -5226,6 +5235,36 @@ function startSync() {
     },
     snapshotErrorHandler('watchparties')
   );
+
+  // === Phase 16 / CAL-16-10 — subscribe to top-level watchpartySeries ===
+  // Single-collection top-level query (NOT collectionGroup — series has no nested counterpart,
+  // unlike legacy watchparties which retained the nested path during Phase 30 migration).
+  // Read-gated server-side via firestore.rules:993 `memberUids array-contains auth.uid`.
+  // Index: (familyCode ASC, status ASC, nextFireAt ASC) per 16-01-SUMMARY — but we run the
+  // simpler memberUids-gated query here to match the rule's read predicate exactly
+  // (RESEARCH Pitfall 2: rules-vs-query alignment requirement, same as watchparties above).
+  if (state.unsubSeries) { try { state.unsubSeries(); } catch(e){} state.unsubSeries = null; }
+  if (state.auth && state.auth.uid) {
+    try {
+      state.unsubSeries = onSnapshot(
+        query(
+          collection(db, 'watchpartySeries'),
+          where('memberUids', 'array-contains', state.auth.uid)
+        ),
+        s => {
+          state.series = s.docs.map(d => {
+            const data = d.data() || {};
+            // Carry the doc id explicitly — series payloads stamp createdBy/familyCode but
+            // the doc id (used by pause/resume/cancel/Edit) is only on the snapshot.
+            return { id: d.id, ...data };
+          });
+          try { renderSeriesListCard(); } catch(e) {}
+        },
+        snapshotErrorHandler('watchpartySeries')
+      );
+    } catch(e) { qnLog('[watchpartySeries] subscribe init failed', e && e.message); }
+  }
+
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
   state.watchpartyTick = setInterval(() => {
@@ -6715,6 +6754,7 @@ function renderSettings() {
   // Plan 09-07a: legacy self-claim CTA (state.ownerUid == null) + sign-in methods card.
   try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
   try { renderSignInMethodsCard(); } catch(e) {}
+  try { renderSeriesListCard(); } catch(e) {} // Phase 16 / CAL-16-10
   // Refresh identity strip in case name/avatar changed since boot
   if (state.me) {
     const me = state.members.find(x => x.id === state.me.id) || state.me;
@@ -15954,6 +15994,181 @@ function renderSignInMethodsCard() {
       </div>
     </div>`);
   list.innerHTML = rows.join('');
+}
+
+// === Phase 16 / CAL-16-10 — Your series renderer (Account tab) ===
+// Mirrors renderSignInMethodsCard shape; richer rows with edit/pause/cancel actions.
+// Hidden when state.series has no rows in non-ended state OR when no family is loaded.
+
+function cadenceSummary(series) {
+  if (!series || !Array.isArray(series.daysOfWeek) || !series.daysOfWeek.length) return '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dows = series.daysOfWeek.slice().sort((a,b) => a - b).map(d => dayNames[d]);
+  const days = dows.length === 7 ? 'Every day'
+             : dows.length === 1 ? dows[0]
+             : dows.join(' + ');
+  const time = formatTimeOfDayLabel(series.timeOfDay || '20:00');
+  return `${days} at ${time}`;
+}
+
+function formatTimeOfDayLabel(hhmm) {
+  // Accept 'HH:MM' 24h; render '8:00 PM' style.
+  if (typeof hhmm !== 'string' || !/^[0-2][0-9]:[0-5][0-9]$/.test(hhmm)) return hhmm || '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2,'0')} ${period}`;
+}
+
+function formatNextFire(series) {
+  if (!series || !series.nextFireAt || typeof series.nextFireAt !== 'number') return '—';
+  try {
+    return new Date(series.nextFireAt).toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+      timeZone: series.timezone || undefined
+    });
+  } catch(e) { return '—'; }
+}
+
+function formatLastFire(series) {
+  if (!series || !series.lastFiredAt || typeof series.lastFiredAt !== 'number') return null;
+  try {
+    return new Date(series.lastFiredAt).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric',
+      timeZone: series.timezone || undefined
+    });
+  } catch(e) { return null; }
+}
+
+function renderSeriesListCard() {
+  const card = document.getElementById('series-list-card');
+  const list = document.getElementById('series-list');
+  if (!card || !list) return;
+  if (!state.familyCode || !state.me) { card.style.display = 'none'; return; }
+  const series = (state.series || []).filter(s => s && s.status !== 'ended');
+  if (!series.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const rows = series
+    .slice()
+    .sort((a, b) => (a.nextFireAt || Infinity) - (b.nextFireAt || Infinity))
+    .map(s => {
+      const safeId = escapeHtml(s.id || '');
+      const title = s.titleType === 'tv'
+        ? escapeHtml(s.titleName || 'Untitled show')
+        : escapeHtml(cadenceSummary(s) || 'Untitled series');
+      const cadence = escapeHtml(cadenceSummary(s));
+      const next = escapeHtml(formatNextFire(s));
+      const last = formatLastFire(s);
+      const isPaused = s.status === 'paused';
+      const statusBadge = isPaused
+        ? '<span class="series-row-status paused">paused</span>'
+        : '';
+      const lastMeta = last
+        ? `<span>Last fired ${escapeHtml(last)}</span>`
+        : '';
+      const actions = isPaused
+        ? `<button type="button" onclick="resumeSeries('${safeId}')">Resume</button>
+           <button type="button" class="danger" onclick="cancelSeries('${safeId}')">Cancel</button>`
+        : `<button type="button" onclick="openSeriesEdit('${safeId}')">Edit</button>
+           <button type="button" onclick="pauseSeries('${safeId}')">Pause</button>
+           <button type="button" class="danger" onclick="cancelSeries('${safeId}')">Cancel</button>`;
+      return `
+        <div class="series-row" data-series-id="${safeId}">
+          <div class="series-row-head">
+            <span class="series-row-title">${title}</span>
+            ${statusBadge}
+          </div>
+          <div class="series-row-cadence">${cadence}</div>
+          <div class="series-row-meta">
+            <span>Next: ${next}</span>
+            ${lastMeta}
+          </div>
+          <div class="series-row-actions">${actions}</div>
+        </div>`;
+    });
+  list.innerHTML = rows.join('');
+}
+
+// === Phase 16 / CAL-16-13 — series lifecycle handlers ===
+// Server-side rules (firestore.rules:993, Phase 16 / Plan 16-01) enforce creator-only writes
+// + affectedKeys allowlist; the UI doesn't pre-gate non-creators (T-16-06 disposition: mitigate
+// via rules — let the rejection surface as a toast on failure).
+window.pauseSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  try {
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'paused',
+      pausedAt: Date.now(),
+      nextFireAt: null
+    });
+    flashToast('Series paused.');
+  } catch(e) {
+    console.warn('pauseSeries failed', e && e.message);
+    flashToast('Could not pause — try again.', { kind: 'warn' });
+  }
+};
+
+window.resumeSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  try {
+    // Set nextFireAt to now (effectively in past) so the materializer CF recomputes the
+    // real next fire via computeNextFireAt on next tick (every 6h per Plan 16-03).
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'active',
+      pausedAt: null,
+      nextFireAt: Date.now()
+    });
+    flashToast('Series resumed.');
+  } catch(e) {
+    console.warn('resumeSeries failed', e && e.message);
+    flashToast('Could not resume — try again.', { kind: 'warn' });
+  }
+};
+
+window.cancelSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  // T-16-22 disposition: accept — surface a confirm() before the destructive flip.
+  // Past instances persist (soft-delete pattern); future fires stop.
+  if (!confirm('Cancel this series? Past instances are kept; future instances stop firing.')) return;
+  try {
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'ended',
+      endedAt: Date.now(),
+      nextFireAt: null
+    });
+    flashToast('Series cancelled.');
+  } catch(e) {
+    console.warn('cancelSeries failed', e && e.message);
+    flashToast('Could not cancel — try again.', { kind: 'warn' });
+  }
+};
+
+// === Phase 16 / CAL-16-10 — TEMPORARY stub (REMOVED in plan 16-07 EDIT B) ===
+// Plan 16-07 replaces this with the real openSeriesEdit handler (full-screen edit
+// surface). Until then, tapping Edit shows a friendly "coming soon" toast instead
+// of crashing the click handler with a ReferenceError.
+//
+// Defensive guard `if (typeof window.openSeriesEdit !== 'function')` means plan
+// 16-07's unconditional assignment wins (its assignment runs at module load AFTER
+// this stub, because plan 16-07's edits land later in this same file or in a
+// later module load — either way, the real handler overwrites the stub via plain
+// reassignment, NOT via this guard. The guard only protects against a hypothetical
+// hot-reload double-eval, not against the normal load order).
+//
+// openSeriesEdit stub (plan 16-05) sentinel — grepped by Plan 16-07's pre-edit
+// audit to confirm the stub is present before swap.
+if (typeof window.openSeriesEdit !== 'function') {
+  window.openSeriesEdit = function(id) {
+    console.log('openSeriesEdit stub (plan 16-05) — real handler ships in plan 16-07', id);
+    try { flashToast('Edit coming soon.', { kind: 'info' }); } catch(e) {}
+  };
 }
 
 window.openSetPasswordForm = function() {
