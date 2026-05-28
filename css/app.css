@@ -3672,6 +3672,267 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   max-width: 580px;
 }
 
+/* === Phase 16.4 — compact chip-bar layout (Direction A from 2026-05-28 redesign).
+   7-member family fits in ONE row at 390px viewport (45px avg per chip × 7 + gap).
+   Replaces the ~300px wrap-flex pill bock with a ~48px chip strip so the cinematic
+   hero below it lands above the fold. === */
+.couch-viz-compact { padding-top: 0; padding-bottom: var(--s2); }
+.couch-headline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s3) auto var(--s2);
+  max-width: 580px;
+  padding: 0 var(--s2);
+}
+.couch-hero-compact {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.couch-headline-text { flex: 1; min-width: 0; }
+.couch-headline-text .couch-headline {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.couch-headline-text .couch-sub {
+  margin: 2px 0 0;
+  font-family: var(--font-serif-italic);
+  font-style: italic;
+  color: var(--ink-warm);
+  font-size: var(--t-meta);
+  line-height: 1.3;
+}
+.chip-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: var(--s2) auto var(--s2);
+  max-width: 580px;
+  padding: 0 var(--s2);
+}
+.chip-roster.kid-mode-on {
+  background: rgba(232, 160, 74, 0.05);
+  border-radius: var(--r-md);
+  padding: var(--s2);
+}
+/* Chip variant — overrides the verbose .pill rules: NO inline label, NO YOU tag visible
+   (still in aria), compact 40px circle. Keeps mouse + touch + keyboard handlers from
+   the existing .pill bindings in renderCouchViz. */
+.pill.chip {
+  padding: 0;
+  gap: 0;
+  border: none;
+  background: transparent;
+  flex: 0 0 auto;
+  position: relative;
+}
+.pill.chip .label { display: none; }
+.pill.chip .av {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: var(--t-body);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  color: var(--bg);
+  transition: transform var(--t-quick), box-shadow var(--t-quick);
+  border: 2px solid var(--border);
+}
+.pill.chip.in .av {
+  border-color: transparent;
+  /* color comes from inline style (member color), set in JS */
+}
+.pill.chip.out .av {
+  background: transparent;
+  color: var(--ink-warm);
+  border-color: var(--border);
+}
+.pill.chip.me .av {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pill.chip:hover .av { transform: scale(1.08); }
+.pill.chip:active .av { transform: scale(0.94); }
+.pill.chip.pinging .av { box-shadow: 0 0 0 4px rgba(232, 160, 74, 0.35); }
+/* Single context-aware action link below the chip row. */
+.chip-action-row {
+  text-align: center;
+  margin: var(--s2) 0 0;
+}
+.chip-action-row .action-link {
+  background: transparent;
+  border: none;
+  color: var(--ink-warm);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  transition: color var(--t-quick), background var(--t-quick);
+}
+.chip-action-row .action-link:hover {
+  color: var(--accent);
+  background: var(--surface);
+}
+
+/* === Phase 16.4 — Cinematic top-match hero (Direction B from 2026-05-28 redesign).
+   Full-bleed backdrop, Fraunces title overlay, provider strip + CTA row. Sits between
+   the compact roster and the rest of the Tonight tab — the "really hook you in" surface
+   per user request. === */
+.tonight-hero-container { margin: var(--s3) auto var(--s4); max-width: 580px; padding: 0 var(--s2); }
+.tonight-hero {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--r-lg, 12px);
+  overflow: hidden;
+  background: var(--bg-2);
+  cursor: pointer;
+  isolation: isolate;
+  border: 1px solid var(--border);
+  transition: transform var(--t-quick), border-color var(--t-quick);
+  min-height: 240px;
+}
+.tonight-hero:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.tonight-hero:active { transform: translateY(0); }
+.th-backdrop {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+.th-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(20, 17, 15, 0.15) 0%,
+    rgba(20, 17, 15, 0.55) 50%,
+    rgba(20, 17, 15, 0.94) 100%);
+  z-index: 1;
+}
+.th-content {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--s4) var(--s4) var(--s4);
+  z-index: 2;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.th-eyebrow {
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+.th-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: clamp(22px, 5vw, 32px);
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+.th-meta {
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.th-meta-dot { color: var(--ink-dim); margin: 0 2px; }
+.th-tally {
+  font-family: var(--font-serif-italic);
+  font-style: italic;
+  color: var(--ink-warm);
+  font-size: var(--t-meta);
+}
+.th-providers { display: flex; gap: 6px; margin-top: 2px; align-items: center; }
+.th-provider { width: 24px; height: 24px; border-radius: 6px; overflow: hidden; background: var(--surface); }
+.th-provider img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.th-provider-text {
+  width: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  font-size: var(--t-micro);
+  color: var(--ink-warm);
+  white-space: nowrap;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  height: 24px;
+}
+.th-cta-row { display: flex; gap: 8px; margin-top: var(--s2); flex-wrap: wrap; }
+.th-cta-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--t-quick), transform var(--t-quick);
+}
+.th-cta-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.th-cta-primary:active { transform: translateY(0); }
+.th-cta-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: background var(--t-quick), border-color var(--t-quick);
+}
+.th-cta-secondary:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.2); }
+
+/* Hero empty state — quiet, not loud. Same dimensions so layout doesn't jump
+   when the first match arrives. */
+.tonight-hero-empty {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px dashed var(--border);
+  cursor: default;
+}
+.tonight-hero-empty:hover { transform: none; border-color: var(--border); }
+.tonight-hero-empty-inner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  text-align: center;
+}
+.tonight-hero-empty-eyebrow {
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+.tonight-hero-empty-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(18px, 4vw, 24px);
+  line-height: 1.3;
+  color: var(--ink-warm);
+  margin: 0;
+}
+
 /* Pill base — avatar + name + optional YOU tag + ping-hint underline. */
 .pill {
   display: flex;

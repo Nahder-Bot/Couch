@@ -323,8 +323,15 @@
     </div>
     <!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by renderCouchViz() in js/app.js
          (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
-         above the picker card, so "who's on the couch" is the first thing the user sees. -->
-    <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
+         above the picker card, so "who's on the couch" is the first thing the user sees.
+         Phase 16.4 — compact chip-bar variant (initials only, single row) so a 7-member family
+         doesn't burn ~300px of vertical space here. -->
+    <div id="couch-viz-container" class="couch-viz-container couch-viz-compact" aria-label="Who's on the couch tonight"></div>
+    <!-- Phase 16.4 — Cinematic top-match hero. Rendered by renderTonightHero() in js/app.js.
+         Full-bleed backdrop poster, Fraunces title overlay, provider badge + CTA. The "hook"
+         that pulls users in — first content surface after the roster. Hidden when no matches
+         exist (handled by the renderer). -->
+    <div id="tonight-hero-container" class="tonight-hero-container"></div>
     <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface inline-link affordance.
          Hidden by default; renderPickemTonightLink() in js/app.js toggles visibility based
          on whether the current week's slate has upcoming games for any active league
@@ -401,7 +408,10 @@
       <div id="upnext-list"></div>
     </div>
 
-    <div id="continue-section" class="t-section" style="display:none;"></div>
+    <!-- Phase 16.4 — legacy per-member #continue-section removed. The tuple-aware
+         cross-show #cv15-pickup-container above (Phase 15 / S1) is now the sole
+         "continue watching" surface on the Tonight tab — eliminates the v1 dual-widget
+         that doubled vertical space for the same conceptual job. -->
 
     <div class="next3-section t-section" id="next3-section" style="display:none;">
       <div class="t-section-head">

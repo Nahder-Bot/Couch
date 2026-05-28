@@ -5844,10 +5844,17 @@ window.removeMoodFilter = function(id) {
 function renderTonight() {
   renderPickerCard();
   renderUpNext();
-  renderContinueWatching();
+  // Phase 16.4 — legacy per-member renderContinueWatching() removed. The tuple-aware
+  // renderPickupWidget() (called from elsewhere in renderTonight) is now the sole
+  // "continue watching" surface. Eliminates the v1 dual-widget vertical waste.
   renderNext3();
   renderMoodFilter();
   updateFiltersBar();
+  // Phase 16.4 — gate filter bar visibility on having titles. A brand-new family with
+  // zero titles can't meaningfully filter, and the always-rendered bar adds ~60px of
+  // empty-state real estate above "Tonight's picks." Restored when titles arrive.
+  const filtersEl = document.getElementById('t-filters');
+  if (filtersEl) filtersEl.style.display = ((state.titles || []).length === 0) ? 'none' : '';
   // 14-10 (sketch 003 V5): who-list emitter removed — #who-list element deleted
   // with .who-card in app.html. The V5 roster in #couch-viz-container above is
   // the single 'who's on the couch' surface on the Tonight tab.
@@ -5969,6 +5976,13 @@ function renderTonight() {
   });
 
   countEl.textContent = matches.length ? (matches.length + (matches.length===1?' match':' matches')) : '';
+
+  // Phase 16.4 — cinematic top-match hero. Top of the matches list becomes the
+  // full-bleed poster surface above the rest of the picks. The "really hook you in"
+  // moment per user 2026-05-28 redesign — content-first instead of configuration-first.
+  // Empty state (no matches) handled inside renderTonightHero — shows a gentle nudge,
+  // not a dead empty card.
+  renderTonightHero(matches[0] || null, couch);
 
   // Section-level actions: spin + veto-undo note, quietly
   const actions = [];
@@ -9364,9 +9378,18 @@ window.toggleActivityExpand_all = function() {
 };
 function renderActivity() {
   const el = document.getElementById('activity-list');
+  const sectionEl = document.getElementById('activity-section');
   updateActivityBadge();
   if (!el) return;
-  if (!recentActivity.length) { el.innerHTML = '<div class="activity-empty">Quiet on the couch. Start adding and voting to see activity here.</div>'; return; }
+  // Phase 16.4 — gate the ENTIRE section (heading + body) on having activity, not just
+  // the body. Previously the "Activity · Last 7 days" heading shipped above an empty
+  // div for new families — looked like a broken section.
+  if (!recentActivity.length) {
+    if (sectionEl) sectionEl.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  if (sectionEl) sectionEl.style.display = '';
   // Collapse-by-default with show-more — keep the Tonight tab from being dominated by
   // a 7-day scroll. First N entries shown; rest gated behind a "Show all" expand control.
   const COLLAPSED_N = 5;
@@ -17379,6 +17402,92 @@ function couchInTonightToMemberIds(cit) {
   return Object.keys(cit).filter(mid => cit[mid] && cit[mid].in === true);
 }
 
+// === Phase 16.4 — Cinematic top-match hero ===
+// Renders into #tonight-hero-container. Full-bleed backdrop (or poster fallback),
+// gradient overlay for readability, Fraunces title + Instrument Serif italic sub,
+// provider strip + primary CTA. Empty state when no matches — a gentle nudge to
+// vote, NOT a dead card.
+// Inputs:
+//   topMatch — the first item from the sorted matches list (or null if no matches)
+//   couch    — the couch member-ids array (used to choose a vote-tally subline)
+function renderTonightHero(topMatch, couch) {
+  const container = document.getElementById('tonight-hero-container');
+  if (!container) return;
+  if (!topMatch) {
+    // Empty state — quiet, not loud. Pulls the eye toward the matches section below.
+    container.innerHTML = `<div class="tonight-hero tonight-hero-empty">
+      <div class="tonight-hero-empty-inner">
+        <div class="tonight-hero-empty-eyebrow">Tonight's pick</div>
+        <h2 class="tonight-hero-empty-title">Vote on a few titles —<br>we'll surface the standout.</h2>
+      </div>
+    </div>`;
+    return;
+  }
+  const t = topMatch;
+  const bg = t.backdrop || t.poster || '';
+  const name = escapeHtml(t.name || '');
+  const year = t.year ? `<span class="th-meta-dot">·</span><span class="th-year">${escapeHtml(String(t.year))}</span>` : '';
+  const kindLabel = t.kind === 'TV' ? 'Series' : 'Film';
+  // Provider strip — show up to 3 logos, Inter caps fallback if no logo. Normalize
+  // brand names (Prime/Disney+/Max collapsing per constants.js mapping).
+  const providers = Array.isArray(t.providers) ? t.providers.slice(0, 3) : [];
+  const provHtml = providers.length
+    ? `<div class="th-providers">${providers.map(p => {
+        const pname = escapeHtml(normalizeProviderName(p.name) || p.name || '');
+        if (p.logo) {
+          return `<span class="th-provider"><img src="${p.logo}" alt="${pname}" /></span>`;
+        }
+        return `<span class="th-provider th-provider-text">${pname}</span>`;
+      }).join('')}</div>`
+    : '';
+  // Vote tally — couch yes-count from the existing sort. Says "everyone wants it"
+  // when unanimous; otherwise "N of M want it" with Fraunces num.
+  const votes = t.votes || {};
+  const couchYes = couch.filter(mid => votes[mid] === 'yes').length;
+  const couchTotal = couch.length;
+  let tallyText;
+  if (couchYes === couchTotal && couchTotal > 0) tallyText = `Whole couch wants it`;
+  else if (couchYes > 0) tallyText = `${couchYes} of ${couchTotal} want it`;
+  else tallyText = '';
+  const tallyHtml = tallyText
+    ? `<div class="th-tally"><em>${escapeHtml(tallyText)}</em></div>`
+    : '';
+  const bgStyle = bg ? `background-image: url('${bg}')` : '';
+  container.innerHTML = `<div class="tonight-hero" role="button" tabindex="0" aria-label="${name} — top pick tonight">
+    <div class="th-backdrop" style="${bgStyle}"></div>
+    <div class="th-gradient"></div>
+    <div class="th-content">
+      <div class="th-eyebrow">Tonight's pick</div>
+      <h2 class="th-title">${name}</h2>
+      <div class="th-meta"><span class="th-kind">${kindLabel}</span>${year}</div>
+      ${tallyHtml}
+      ${provHtml}
+      <div class="th-cta-row">
+        <button type="button" class="th-cta-primary" data-act="open">View</button>
+        <button type="button" class="th-cta-secondary" data-act="spin">🎲 Spin again</button>
+      </div>
+    </div>
+  </div>`;
+  // Wire interactions. Whole-card tap → open detail. Buttons → their actions.
+  const heroEl = container.querySelector('.tonight-hero');
+  const openDetail = (e) => {
+    e.stopPropagation();
+    if (typeof openDetailModal === 'function') openDetailModal(t.id);
+  };
+  const spinAgain = (e) => {
+    e.stopPropagation();
+    if (typeof spinPick === 'function') spinPick();
+  };
+  heroEl.addEventListener('click', openDetail);
+  heroEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (typeof openDetailModal === 'function') openDetailModal(t.id); }
+  });
+  const primary = heroEl.querySelector('[data-act="open"]');
+  const secondary = heroEl.querySelector('[data-act="spin"]');
+  if (primary) primary.addEventListener('click', openDetail);
+  if (secondary) secondary.addEventListener('click', spinAgain);
+}
+
 // V5 renderCouchViz — see variant-5-roster-control.html for the design contract.
 // Renders the family roster as a wrap-flex of toggleable pills. Tap = flip in/out.
 // Long-press out-pill (700ms) = send push (sendCouchPing). The "me" pill carries
@@ -17408,43 +17517,84 @@ function renderCouchViz() {
   else if (numIn === total && total > 0) subText = "Whole couch is in";
   else subText = `${numIn} ${numIn === 1 ? 'is' : 'are'} watching`;
 
-  // Render hero + headline + sub-line (V5 hero is 84px, smaller than 14-04's 280px)
-  // + roster pills + tally + action row + hint line.
+  // Phase 16.4 — compact chip-bar layout. Single row of initial-circles (40px),
+  // no inline name labels (kept in aria-label for screen readers). Tally folded
+  // into the headline row. Action row collapsed to ONE context-aware link.
+  // Verbose hint text removed — the interaction is discoverable through use.
+  // Replaces the ~300px wrap-flex pill layout that was burning vertical real estate
+  // before the user could see any movie content.
+  const isCompact = container.classList.contains('couch-viz-compact');
   const html = [];
-  html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
-  html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
-  html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
-  // Phase 19 / D-15 — subtle amber tint on roster surface when kid-mode active.
-  const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
-  html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
-  roster.forEach(m => {
-    const isIn = cit[m.id] && cit[m.id].in === true;
-    const isMe = meId && m.id === meId;
-    const initial = escapeHtml((m.name || '?')[0].toUpperCase());
-    const name = escapeHtml(m.name || 'Member');
-    const color = memberColor(m.id);
-    const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
-    const avStyle = isIn ? `background:${color}` : '';
-    const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
-    const ariaLabel = isIn
-      ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
-      : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
-    html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
-      <div class="av" style="${avStyle}">${initial}</div>
-      <span class="label">${name}${youTag}</span>
-      <div class="ping-hint" aria-hidden="true"></div>
-    </div>`);
-  });
-  html.push(`</div>`);
-  // Tally: Fraunces num + Instrument Serif italic "of N watching"
-  html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
-  // Action row — visibility-gated by current state
-  html.push(`<div class="pill-actions">`);
-  if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
-  if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
-  if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
-  html.push(`</div>`);
-  html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  if (isCompact) {
+    // Compact: small hero + headline inline; sub-line one-liner; chip row; subtle action link.
+    html.push(`<div class="couch-headline-row">`);
+    html.push(`<img class="couch-hero couch-hero-compact" src="${COUCH_HERO_SRC}" alt="" aria-hidden="true" />`);
+    html.push(`<div class="couch-headline-text">`);
+    html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+    html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+    html.push(`</div>`);
+    html.push(`</div>`);
+    const rosterCls = state.kidMode ? 'chip-roster kid-mode-on' : 'chip-roster';
+    html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
+    roster.forEach(m => {
+      const isIn = cit[m.id] && cit[m.id].in === true;
+      const isMe = meId && m.id === meId;
+      const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+      const name = escapeHtml(m.name || 'Member');
+      const color = memberColor(m.id);
+      const cls = `pill chip ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+      const avStyle = isIn ? `background:${color}` : '';
+      const ariaLabel = isIn
+        ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+        : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}" title="${name}">
+        <div class="av" style="${avStyle}">${initial}</div>
+        <div class="ping-hint" aria-hidden="true"></div>
+      </div>`);
+    });
+    html.push(`</div>`);
+    // Single context-aware action — "Mark everyone in" when no one is in, "Clear couch"
+    // when someone is in. No "Send pushes" link by default (long-press on out-chip
+    // already does this — surfacing as a button doubles up the affordance).
+    if (numIn < total) {
+      html.push(`<div class="chip-action-row"><button type="button" class="action-link" data-act="mark-all">Mark everyone in</button></div>`);
+    } else if (numIn > 0) {
+      html.push(`<div class="chip-action-row"><button type="button" class="action-link" data-act="clear-all">Clear couch</button></div>`);
+    }
+  } else {
+    // Legacy verbose layout — kept for any caller that doesn't pass .couch-viz-compact.
+    html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
+    html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+    html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+    const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
+    html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
+    roster.forEach(m => {
+      const isIn = cit[m.id] && cit[m.id].in === true;
+      const isMe = meId && m.id === meId;
+      const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+      const name = escapeHtml(m.name || 'Member');
+      const color = memberColor(m.id);
+      const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+      const avStyle = isIn ? `background:${color}` : '';
+      const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
+      const ariaLabel = isIn
+        ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+        : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
+        <div class="av" style="${avStyle}">${initial}</div>
+        <span class="label">${name}${youTag}</span>
+        <div class="ping-hint" aria-hidden="true"></div>
+      </div>`);
+    });
+    html.push(`</div>`);
+    html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
+    html.push(`<div class="pill-actions">`);
+    if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
+    if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
+    if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
+    html.push(`</div>`);
+    html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  }
   // Phase 19 / D-01..D-03 — Kid-mode toggle row. Visibility gated on familyHasKids()
   // (re-evaluated each render per D-03). Idle = dashed border; active = amber-filled.
   // Helper hint copy locked at D-17.
