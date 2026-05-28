@@ -6010,6 +6010,30 @@ function renderTonight() {
   // Renders into #cv15-pickup-container between #couch-viz-container and #flow-a-entry-container.
   // Hides entirely on zero tuples per UI-SPEC §Discretion Q7. ===
   renderPickupWidget();
+
+  // === Phase 16 / CAL-16-08 — Schedule-a-series CTA ===
+  // Injects into existing #t-section-actions slot (app.html:393). Visibility gate
+  // matches Flow A entry: family + me + at least 1 couch member. Append (not overwrite)
+  // so other section actions (spin, veto note) coexist. Idempotency guard prevents
+  // duplicate inject on re-renders. setAttribute (not dataset) so the literal source
+  // string 'data-action="open-series-create"' appears verbatim for smoke needles.
+  try {
+    const actionsEl2 = document.getElementById('t-section-actions');
+    if (actionsEl2 && state.familyCode && state.me) {
+      const hasCouch = Array.isArray(state.members) && state.members.length >= 1;
+      if (hasCouch) {
+        if (!actionsEl2.querySelector('[data-action="open-series-create"]')) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill';
+          btn.setAttribute('data-action', 'open-series-create');
+          btn.textContent = 'Schedule a series';
+          btn.onclick = function() { openSeriesCreate(); };
+          actionsEl2.appendChild(btn);
+        }
+      }
+    }
+  } catch(e) { console.warn('series CTA inject failed', e && e.message); }
 }
 
 // Combined filters-bar toggle + active state
@@ -10623,6 +10647,19 @@ window.unveto = async function(titleId) {
 let wpStartTitleId = null;
 let wpStartLead = 15; // default 15 min
 let wpStartScheduleMode = false;
+
+// === Phase 16 / CAL-16-08 — series-create/edit modal transient state ===
+// Reset by openSeriesCreate / openSeriesEdit (16-07). Persists across modal closes.
+state.seriesEdit = state.seriesEdit || {
+  mode: 'create',            // 'create' | 'edit'
+  id: null,                  // present when editing
+  titleType: 'tv',           // 'tv' | 'untitled'
+  titleId: null,
+  titleName: null,
+  daysOfWeek: [],            // 0=Sun..6=Sat
+  timeOfDay: '20:00',
+  memberIds: []              // member.id values (m_xxx)
+};
 
 window.openWatchpartyStart = function(titleId) {
   if (!state.me) { alert('Join the group first.'); return; }
@@ -16170,6 +16207,252 @@ if (typeof window.openSeriesEdit !== 'function') {
     try { flashToast('Edit coming soon.', { kind: 'info' }); } catch(e) {}
   };
 }
+
+// === Phase 16 / CAL-16-07 — Day-of-week picker UI primitive ===
+// Reusable: called from openSeriesCreate (this plan) + openSeriesEdit (plan 16-07) +
+// Entry 2 prompt (plan 16-08). Writes back to state.seriesEdit.daysOfWeek on toggle.
+// Renders 7 pills (S/M/T/W/T/F/S) into targetSelector; each pill toggles via window.toggleSeriesDow(i).
+function renderDayOfWeekPicker(targetSelector, currentDows) {
+  const el = typeof targetSelector === 'string'
+    ? document.querySelector(targetSelector)
+    : targetSelector;
+  if (!el) return;
+  const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const aria = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const dows = new Set(Array.isArray(currentDows) ? currentDows : []);
+  el.innerHTML = labels.map((lbl, i) => {
+    const on = dows.has(i) ? ' on' : '';
+    const pressed = dows.has(i) ? 'true' : 'false';
+    return `<button type="button" class="cadence-day-pill${on}" data-dow="${i}" aria-label="${aria[i]}" aria-pressed="${pressed}" onclick="toggleSeriesDow(${i})">${lbl}</button>`;
+  }).join('');
+}
+
+window.toggleSeriesDow = function(dow) {
+  if (typeof dow !== 'number' || dow < 0 || dow > 6) return;
+  const set = new Set(state.seriesEdit.daysOfWeek || []);
+  if (set.has(dow)) set.delete(dow); else set.add(dow);
+  state.seriesEdit.daysOfWeek = Array.from(set).sort((a,b) => a-b);
+  // Re-render picker to reflect toggle state
+  const pickerEl = document.getElementById('series-dow-picker');
+  if (pickerEl) renderDayOfWeekPicker(pickerEl, state.seriesEdit.daysOfWeek);
+};
+
+window.selectSeriesTitleType = function(titleType) {
+  if (titleType !== 'tv' && titleType !== 'untitled') return;
+  state.seriesEdit.titleType = titleType;
+  // Update titleType-picker active state
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.titletype === titleType);
+  });
+  // Show/hide the title-input field based on titleType
+  const titleField = document.getElementById('series-field-title');
+  if (titleField) titleField.style.display = titleType === 'tv' ? '' : 'none';
+  // Clear titleId/titleName if switching to untitled
+  if (titleType === 'untitled') {
+    state.seriesEdit.titleId = null;
+    state.seriesEdit.titleName = null;
+  }
+};
+
+function renderSeriesMembersChips() {
+  const el = document.getElementById('series-members-chips');
+  if (!el) return;
+  const members = Array.isArray(state.members) ? state.members : [];
+  const selectedSet = new Set(state.seriesEdit.memberIds || []);
+  el.innerHTML = members.map(m => {
+    const safeId = escapeHtml(m.id || '');
+    const safeName = escapeHtml(m.name || 'Member');
+    const on = selectedSet.has(m.id) ? ' on' : '';
+    return `<button type="button" class="series-member-chip${on}" data-mid="${safeId}" onclick="toggleSeriesMember('${safeId}')">${safeName}</button>`;
+  }).join('');
+}
+
+window.toggleSeriesMember = function(memberId) {
+  if (!memberId) return;
+  const set = new Set(state.seriesEdit.memberIds || []);
+  if (set.has(memberId)) set.delete(memberId); else set.add(memberId);
+  state.seriesEdit.memberIds = Array.from(set);
+  renderSeriesMembersChips();
+};
+
+// === openSeriesCreate / closeSeriesCreate ===
+// Plan 16-08 Entry 2 (post-wp prompt) will call openSeriesCreate(prefill) with a
+// pre-populated titleId/daysOfWeek/timeOfDay/memberIds derived from the just-created wp.
+window.openSeriesCreate = function(prefill) {
+  state.seriesEdit = {
+    mode: 'create',
+    id: null,
+    titleType: (prefill && prefill.titleType) || 'tv',
+    titleId: (prefill && prefill.titleId) || null,
+    titleName: (prefill && prefill.titleName) || null,
+    daysOfWeek: (prefill && Array.isArray(prefill.daysOfWeek)) ? prefill.daysOfWeek.slice() : [],
+    timeOfDay: (prefill && prefill.timeOfDay) || '20:00',
+    memberIds: (prefill && Array.isArray(prefill.memberIds))
+      ? prefill.memberIds.slice()
+      : ((state.members || []).map(m => m && m.id).filter(Boolean))
+  };
+  // Render initial picker + chips
+  const dowEl = document.getElementById('series-dow-picker');
+  if (dowEl) renderDayOfWeekPicker(dowEl, state.seriesEdit.daysOfWeek);
+  renderSeriesMembersChips();
+  // Sync title-input + time-input + titleType picker
+  const titleInput = document.getElementById('series-title-input');
+  if (titleInput) titleInput.value = state.seriesEdit.titleName || '';
+  // Wire title-input search (idempotent — multiple opens don't double-bind)
+  if (titleInput && !titleInput.dataset.bound) {
+    titleInput.dataset.bound = '1';
+    titleInput.addEventListener('input', e => searchSeriesTitle(e.target.value));
+  }
+  const timeInput = document.getElementById('series-time-input');
+  if (timeInput) timeInput.value = state.seriesEdit.timeOfDay || '20:00';
+  selectSeriesTitleType(state.seriesEdit.titleType);
+  // Clear any stale suggest dropdown from a prior open
+  const suggest = document.getElementById('series-title-suggest');
+  if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+  // Update modal title for create vs edit (edit mode set in plan 16-07)
+  const modalTitle = document.getElementById('series-modal-title');
+  if (modalTitle) modalTitle.textContent = 'Schedule a series';
+  // Show modal
+  const modal = document.getElementById('series-create-modal-bg');
+  if (modal) {
+    modal.classList.add('on');
+    try { activateFocusTrap(modal); } catch(e) {}
+  }
+};
+
+window.closeSeriesCreate = function() {
+  const modal = document.getElementById('series-create-modal-bg');
+  if (modal) modal.classList.remove('on');
+  try { deactivateFocusTrap(); } catch(e) {}
+};
+
+// === Phase 16 / CAL-16-08 — TMDB title search for series title field ===
+// Debounced 250ms search-as-you-type. Renders into #series-title-suggest; pickSeriesTitle
+// commits the selection back into state.seriesEdit.titleId + .titleName. T-16-24 mitigation:
+// escapeHtml on all TMDB-supplied strings before innerHTML interpolation.
+window.searchSeriesTitle = (function() {
+  let debounceTimer = null;
+  return function(q) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      const suggest = document.getElementById('series-title-suggest');
+      if (!suggest) return;
+      const query = (q || '').trim();
+      if (query.length < 2) { suggest.style.display = 'none'; suggest.innerHTML = ''; return; }
+      try {
+        const url = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const rows = (json.results || []).slice(0, 6);
+        if (!rows.length) { suggest.style.display = 'none'; suggest.innerHTML = ''; return; }
+        suggest.innerHTML = rows.map(r => {
+          const tid = escapeHtml(String(r.id));
+          const name = escapeHtml(r.name || 'Untitled');
+          const year = r.first_air_date ? ` (${escapeHtml(r.first_air_date.slice(0,4))})` : '';
+          // Pass name as a JSON-encoded JS string literal; escape apostrophes inside the onclick attr.
+          const nameLiteral = JSON.stringify(r.name || 'Untitled').replace(/'/g, "&apos;");
+          return `<div class="suggest-row" onclick="pickSeriesTitle('${tid}', ${nameLiteral})">${name}${year}</div>`;
+        }).join('');
+        suggest.style.display = 'flex';
+      } catch (e) {
+        console.warn('series title search failed', e && e.message);
+        suggest.style.display = 'none';
+      }
+    }, 250);
+  };
+})();
+
+window.pickSeriesTitle = function(tid, name) {
+  state.seriesEdit.titleId = tid;
+  state.seriesEdit.titleName = name;
+  const input = document.getElementById('series-title-input');
+  if (input) input.value = name;
+  const suggest = document.getElementById('series-title-suggest');
+  if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+};
+
+// === confirmStartSeries — write watchpartySeries doc ===
+// Validates client-side (titleType / titleId-if-tv / daysOfWeek≥1 / HH:MM regex / member uids).
+// Server-side: firestore.rules block (plan 16-01) is the source-of-truth gate (T-16-23 mitigation).
+// nextFireAt=Date.now() at create — the materializer CF (plan 16-03) runs on the next 6h tick
+// and computes the real next-fire via computeNextFireAt(cadence) from plan 16-02.
+window.confirmStartSeries = async function() {
+  if (!state.me) return;
+  if (guardReadOnlyWrite()) return;
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to schedule a series.', { kind: 'warn' }); return; }
+  if (!state.familyCode) { flashToast('Join a couch first.', { kind: 'warn' }); return; }
+
+  const ed = state.seriesEdit || {};
+
+  // Validate
+  if (!ed.titleType || (ed.titleType !== 'tv' && ed.titleType !== 'untitled')) {
+    flashToast('Pick a title type.', { kind: 'warn' }); return;
+  }
+  if (ed.titleType === 'tv' && (!ed.titleId || !ed.titleName)) {
+    flashToast('Pick a show title.', { kind: 'warn' }); return;
+  }
+  if (!Array.isArray(ed.daysOfWeek) || ed.daysOfWeek.length < 1) {
+    flashToast('Pick at least one day.', { kind: 'warn' }); return;
+  }
+  // Read latest timeOfDay from input (user might have changed it without re-syncing state)
+  const timeInput = document.getElementById('series-time-input');
+  const timeOfDay = timeInput && timeInput.value ? timeInput.value : (ed.timeOfDay || '20:00');
+  if (!/^[0-2][0-9]:[0-5][0-9]$/.test(timeOfDay)) {
+    flashToast('Invalid time. Use 24h HH:MM.', { kind: 'warn' }); return;
+  }
+  // Members — at least 1 (the creator self)
+  let memberIds = Array.isArray(ed.memberIds) ? ed.memberIds.filter(Boolean) : [];
+  if (memberIds.length === 0) memberIds = [state.me.id];
+
+  // Map memberIds → memberUids (uids). Always include the creator's own uid (T-16-26 mitigation:
+  // CF lookup invariant — creator must be a memberUid to satisfy rules update branch later).
+  const memberUids = Array.from(new Set([
+    state.auth.uid,
+    ...((state.members || [])
+      .filter(m => m && memberIds.includes(m.id) && m.uid)
+      .map(m => m.uid))
+  ])).filter(Boolean);
+
+  if (memberUids.length === 0) {
+    flashToast('No couch members with sign-in. Add a member first.', { kind: 'warn' });
+    return;
+  }
+
+  const timezone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+
+  const id = 'series_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+
+  const series = {
+    id,
+    familyCode: state.familyCode,
+    createdBy: state.me.id,
+    createdByUid: state.auth.uid,
+    createdAt: Date.now(),
+    titleType: ed.titleType,
+    titleId: ed.titleType === 'tv' ? ed.titleId : null,
+    titleName: ed.titleType === 'tv' ? ed.titleName : null,
+    daysOfWeek: ed.daysOfWeek.slice().sort((a,b) => a-b),
+    timeOfDay,
+    timezone,
+    memberUids,
+    status: 'active',
+    nextFireAt: Date.now(),    // past — materializer CF computes real next fire on next 6h tick
+    ...writeAttribution()
+  };
+
+  try {
+    await setDoc(seriesRef(id), series);
+    try { logActivity && logActivity('series_created', { titleType: series.titleType, titleName: series.titleName }); } catch(e) {}
+    flashToast('Series scheduled. First fire within 6 hours.');
+    closeSeriesCreate();
+  } catch (e) {
+    console.warn('confirmStartSeries failed', e && e.message);
+    flashToast('Could not save series — try again.', { kind: 'warn' });
+  }
+};
 
 window.openSetPasswordForm = function() {
   const form = document.getElementById('signin-methods-password-form');
