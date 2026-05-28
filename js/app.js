@@ -483,7 +483,11 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   // pick'em surface (submitted picks, joined a league season).
   pickReminder: true,
   pickResults: true,
-  pickemSeasonReset: true
+  pickemSeasonReset: true,
+  // === Phase 16 / CAL-16-06 — seriesReminder push category (DR-3 client place 1 of 2).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS. Default ON: fires only when
+  // the user has created or been added to a recurring watchparty series.
+  seriesReminder: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -539,7 +543,9 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // Phase 14-09 DR-3 follow-up override (TD-8 dual-Settings-screen consolidation).
   pickReminder:      { label: 'Game starting soon — make your pick',   hint: "Heads-up your pick'em deadline is in 15 minutes." },
   pickResults:       { label: "Pick'em results",                       hint: 'When games you picked finish.' },
-  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." }
+  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." },
+  // Phase 16 / CAL-16-06 — DR-3 client place 2 of 2
+  seriesReminder:    { label: 'Recurring watchparty reminder',         hint: 'Heads-up that a series instance is starting in 30 minutes.' }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
