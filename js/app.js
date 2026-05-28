@@ -1,5 +1,5 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
-import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
+import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE, BRACKETS, BRACKET_ORDER, memberBracket, bracketToFlags } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
 import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip, promptInDom } from './utils.js';
@@ -6993,52 +6993,49 @@ function renderMembersList() {
   if (!legacyEl && !activeEl && !subEl) return;
   const iAmParent = isCurrentUserParent();
   // Build the HTML for one member row — same contract as before. Used by both active + subprofile branches.
+  // === Phase 16.3 — unified bracket selector replaces the 3-control triple
+  // (maxTier dropdown + Adult checkbox + Parent checkbox). Single segmented
+  // pill: Kid / Teen / Adult / Adult+admin. Each bracket atomically writes
+  // {bracket, isKid, isAdult, isParent, maxTier} so every legacy gate keeps
+  // working unchanged. Non-family modes (duo, crew) suppress the admin bracket
+  // since there's no parent/admin distinction there.
   const renderRow = (m) => {
     const isMe = state.me && m.id === state.me.id;
-    const currentMax = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
-    const ageLabel = (modeAllowsAgeTiers() && m.age) ? ` <span style="color:var(--ink-dim);font-size:var(--t-meta);">age ${m.age}</span>` : '';
-    // Only parents see editable controls. Non-parents see a static summary line instead.
-    let maxRatingHtml = '';
-    let adultToggleHtml = '';
-    let parentToggleHtml = '';
-    if (iAmParent) {
-      const opts = [1,2,3,4,5].map(t => `<option value="${t}" ${t===currentMax?'selected':''}>${TIER_LABELS[t]}</option>`).join('');
-      if (modeAllowsAgeTiers()) {
-        maxRatingHtml = `<div style="margin-top:4px;" onclick="event.stopPropagation()"><span style="font-size:var(--t-eyebrow);color:var(--ink-dim);">Max rating:</span>
-              <select class="maxrating-select" onchange="setMaxTier('${m.id}',this.value)">${opts}</select>
-            </div>`;
-      }
-      if (modeAllowsAdultScope()) {
-        adultToggleHtml = `<div class="adults-toggle" onclick="event.stopPropagation()">
-              <input type="checkbox" id="adult-${m.id}" ${isAdultMember(m)?'checked':''} onchange="toggleAdultMember('${m.id}',this.checked)">
-              <label for="adult-${m.id}">Adult (can see 18+ titles)</label>
-            </div>`;
-      }
-      if (currentMode() === 'family') {
-        // A parent can't remove parent status from themselves (would orphan the family of parents)
-        const lockSelf = isMe && countParents() <= 1;
-        parentToggleHtml = `<div class="adults-toggle" onclick="event.stopPropagation()">
-              <input type="checkbox" id="parent-${m.id}" ${m.isParent?'checked':''} ${lockSelf?'disabled':''} onchange="toggleParent('${m.id}',this.checked)">
-              <label for="parent-${m.id}">Parent (reviews kids' new title requests)</label>
-            </div>`;
-      }
-    } else {
-      // Non-parents: show status as read-only meta text
-      const chips = [];
-      if (modeAllowsAgeTiers()) chips.push(TIER_LABELS[currentMax]);
-      if (m.isParent && currentMode() === 'family') chips.push('Parent');
-      if (chips.length) {
-        maxRatingHtml = `<div style="margin-top:4px;font-size:var(--t-eyebrow);color:var(--ink-dim);">${chips.map(c => escapeHtml(c)).join(' · ')}</div>`;
+    const currentBracket = memberBracket(m);
+    const ageLabel = m.age ? ` <span style="color:var(--ink-dim);font-size:var(--t-meta);">age ${m.age}</span>` : '';
+    // Non-family modes don't expose age-tier or adult-scope gating, so the
+    // bracket selector collapses to a single static badge in those modes.
+    const tieredMode = modeAllowsAgeTiers() || modeAllowsAdultScope();
+    let bracketHtml = '';
+    if (iAmParent && tieredMode) {
+      // Family mode shows all 4 brackets. Duo/crew (if ever tiered) hide admin.
+      const order = currentMode() === 'family' ? BRACKET_ORDER : BRACKET_ORDER.filter(b => b !== 'admin');
+      // Lock self out of demoting if they're the only admin (mirrors old parent-toggle guard).
+      const isOnlyAdmin = isMe && (m.bracket === 'admin' || m.isParent === true) && countParents() <= 1;
+      const pills = order.map(b => {
+        const meta = BRACKETS[b];
+        const on = b === currentBracket ? ' on' : '';
+        const disabled = isOnlyAdmin && b !== 'admin' ? ' disabled' : '';
+        return `<button type="button" class="bracket-pill${on}"${disabled} onclick="event.stopPropagation();setMemberBracket('${m.id}','${b}')" data-bracket="${b}">${escapeHtml(meta.label)}</button>`;
+      }).join('');
+      const sub = BRACKETS[currentBracket] ? BRACKETS[currentBracket].sub : '';
+      bracketHtml = `<div class="bracket-control" onclick="event.stopPropagation()">
+            <div class="bracket-pills">${pills}</div>
+            <div class="bracket-sub">${escapeHtml(sub)}</div>
+          </div>`;
+    } else if (tieredMode) {
+      // Non-parent (read-only) — surface bracket label + sub as static meta.
+      const meta = BRACKETS[currentBracket];
+      if (meta) {
+        bracketHtml = `<div style="margin-top:4px;font-size:var(--t-eyebrow);color:var(--ink-dim);">${escapeHtml(meta.label)} · ${escapeHtml(meta.sub)}</div>`;
       }
     }
-    // Remove button: parents only, and never for oneself
+    // Remove button: family-admins only, and never for oneself
     const removeBtn = (iAmParent && !isMe) ? `<button onclick="removeMember('${m.id}')">Remove</button>` : '';
     return `<div class="member-row">
       <div class="who-avatar" style="background:${m.color};cursor:pointer;" onclick="openProfile('${m.id}')">${avatarContent(m)}</div>
       <div class="name" onclick="openProfile('${m.id}')" style="cursor:pointer;">${escapeHtml(m.name)}${ageLabel}${isMe?' <span style="color:var(--accent);font-size:var(--t-eyebrow);font-weight:600;">you</span>':''}
-        ${maxRatingHtml}
-        ${adultToggleHtml}
-        ${parentToggleHtml}
+        ${bracketHtml}
       </div>
       ${removeBtn}
     </div>`;
@@ -7091,6 +7088,31 @@ window.setMaxTier = async function(id, val) {
   if (!isCurrentUserParent()) { flashToast('Only parents can change this', { kind: 'warn' }); return; }
   try { await updateDoc(doc(membersRef(), id), { maxTier: parseInt(val) }); }
   catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
+};
+
+// === Phase 16.3 — bracket-write handler (replaces setMaxTier/toggleAdult/toggleParent
+// for the Family-tab UI; those legacy handlers stay around for any non-UI caller).
+// Atomically writes {bracket, isKid, isAdult, isParent, maxTier} from bracketToFlags()
+// so every legacy gate (isAdultMember, iAmParent, passesBaseFilter, needsApproval,
+// passesAdultScope, …) continues reading the same fields it always has — they just
+// flip together now instead of independently. ===
+window.setMemberBracket = async function(id, bracket) {
+  if (!isCurrentUserParent()) { flashToast('Only family admins can change this', { kind: 'warn' }); return; }
+  if (!BRACKETS[bracket]) { flashToast('Unknown bracket', { kind: 'warn' }); return; }
+  // Prevent demoting the last family-admin from admin to anything else (orphans approval workflow).
+  const target = state.members.find(m => m.id === id);
+  if (target && (target.bracket === 'admin' || target.isParent === true) && bracket !== 'admin' && countParents() <= 1) {
+    flashToast('Need at least one family admin', { kind: 'warn' });
+    renderFamily();
+    return;
+  }
+  try {
+    const flags = bracketToFlags(bracket);
+    await updateDoc(doc(membersRef(), id), flags);
+    try { haptic('light'); } catch(e) {}
+  } catch (e) {
+    flashToast('Could not save. Try again.', { kind: 'warn' });
+  }
 };
 
 window.toggleParent = async function(id, checked) {

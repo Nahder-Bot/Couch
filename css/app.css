@@ -640,6 +640,43 @@ h3{font-size:var(--t-h3)}
 .maxrating-select{background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:7px 12px;border-radius:var(--r-sm);font-family:inherit;font-size:var(--t-meta);margin-left:8px;cursor:pointer;transition:border-color var(--t-quick)}
 .maxrating-select:hover{border-color:var(--border-strong)}
 .maxrating-select:focus{border-color:var(--accent);outline:none}
+
+/* === Phase 16.3 — bracket selector (replaces the maxTier/adult/parent triple).
+   One segmented control per member row. Pills wrap on narrow viewports so 4
+   labels never overflow off-screen. Sub-line below describes what the active
+   bracket entitles the member to (e.g. "13–17 · max PG-13 / TV-14"). === */
+.bracket-control { margin-top: 6px; }
+.bracket-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bracket-pill {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--ink-warm);
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: background var(--t-quick), border-color var(--t-quick), color var(--t-quick);
+  white-space: nowrap;
+}
+.bracket-pill:hover { border-color: var(--border-strong); color: var(--ink); }
+.bracket-pill.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+.bracket-pill[disabled] { opacity: 0.45; cursor: not-allowed; }
+.bracket-sub {
+  margin-top: 4px;
+  font-size: var(--t-eyebrow);
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
 .providers{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;align-items:center}
 .provider-logo{width:24px;height:24px;border-radius:5px;background:#fff;background-size:cover;background-position:center;border:1px solid var(--border)}
 .providers-label{font-size:var(--t-micro);color:var(--ink-dim);margin-right:4px;text-transform:uppercase;letter-spacing:0.06em}
