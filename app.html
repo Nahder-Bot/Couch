@@ -1297,6 +1297,47 @@
     </div>
   </div>
 
+  <!-- Phase 16 / CAL-16-08 — Schedule a series modal (Entry 1) -->
+  <!-- DOM-shared with edit flow in plan 16-07 via state.seriesEdit.mode = 'create' | 'edit' -->
+  <div class="modal-bg" id="series-create-modal-bg" role="dialog" aria-modal="true" aria-label="Schedule a series">
+    <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeSeriesCreate()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 id="series-modal-title">Schedule a series</h3>
+      <p class="modal-sub">Recurring watchparties. Every selected day at the same time.</p>
+      <div class="modal-field-stack">
+        <div class="field" id="series-field-titletype">
+          <label class="field-label">What's this?</label>
+          <div class="cadence-picker" id="series-titletype-picker">
+            <button type="button" class="cadence-day-pill on" data-titletype="tv" onclick="selectSeriesTitleType('tv')">A TV show</button>
+            <button type="button" class="cadence-day-pill" data-titletype="untitled" onclick="selectSeriesTitleType('untitled')">Untitled / surprise</button>
+          </div>
+        </div>
+        <div class="field" id="series-field-title">
+          <label class="field-label" for="series-title-input">Show title</label>
+          <input type="text" id="series-title-input" class="form-input-block" placeholder="e.g. American Idol" autocomplete="off">
+          <p class="field-hint">Pick from the catalog — we'll resolve the poster + metadata.</p>
+          <div id="series-title-suggest" class="series-title-suggest"></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Which days?</label>
+          <div class="cadence-picker series-dow-picker" id="series-dow-picker" role="group" aria-label="Days of the week"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="series-time-input">What time?</label>
+          <input type="time" id="series-time-input" class="form-input-block" value="20:00">
+        </div>
+        <div class="field">
+          <label class="field-label">Who's on the couch?</label>
+          <div id="series-members-chips" class="series-members-chips"></div>
+        </div>
+        <button type="button" class="modal-close" onclick="confirmStartSeries()">Save series</button>
+        <button type="button" class="pill modal-btn-block" onclick="closeSeriesCreate()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="wp-live-modal-bg" role="dialog" aria-modal="true" aria-label="Live watchparty">
     <div class="modal wp-live-modal" id="wp-live-content">
       <!-- Phase 24 / REVIEWS H1 — Persistent player surface (#wp-video-surface).

@@ -5354,3 +5354,84 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 .series-row-actions button:hover { border-color: var(--accent); }
 .series-row-actions button.danger { color: var(--bad); }
 
+/* === Phase 16 / CAL-16-07 — Cadence picker (day-of-week + titleType chooser) === */
+/* Mirrors .wp-lead-grid + .wp-lead-btn shape — same color tokens, same active-state. */
+.cadence-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.series-dow-picker {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cadence-day-pill {
+  padding: var(--s3) var(--s2);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick), background var(--t-quick), color var(--t-quick);
+  min-height: 44px;     /* touch target — Apple HIG */
+  min-width: 32px;
+}
+.cadence-day-pill:hover { border-color: var(--accent); }
+.cadence-day-pill.on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Members chip row */
+.series-members-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.series-member-chip {
+  padding: var(--s2) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick), background var(--t-quick), color var(--t-quick);
+}
+.series-member-chip:hover { border-color: var(--accent); }
+.series-member-chip.on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Title suggest dropdown — minimal */
+.series-title-suggest {
+  display: none;       /* JS toggles to flex when populated */
+  flex-direction: column;
+  gap: var(--s1);
+  margin-top: var(--s2);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.series-title-suggest .suggest-row {
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: var(--t-meta);
+}
+.series-title-suggest .suggest-row:hover { background: var(--bg-2); }
+
+/* Modal sub + field-label + field-hint — used by #series-create-modal-bg + reusable across future modals */
+.modal-sub { color: var(--ink-warm); font-size: var(--t-meta); margin-top: calc(-1 * var(--s2)); margin-bottom: var(--s3); }
+.field-label { display: block; font-size: var(--t-eyebrow); color: var(--ink-warm); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: var(--s2); }
+.field-hint { font-size: var(--t-meta); color: var(--ink-dim); margin-top: var(--s1); margin-bottom: 0; line-height: 1.4; }
+
