@@ -31,12 +31,32 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // True iff /users/{uid}/groups/{familyCode} exists — the CF writes this
-    // index on join, and claimMember keeps it in sync. isMemberOfFamily is
-    // the one lookup we use throughout the rules file so the result is
-    // cached per-request.
+    // === SECURITY FIX C-2 (2026-05-28) — close cross-family read via self-attested index ===
+    // Previously: returned exists(users/$(uid)/groups/$(familyCode)).
+    // Problem: users/{uid}/groups/{familyCode} is SELF-WRITABLE (rule at line ~118),
+    // so any signed-in user could write their own index doc with any family code
+    // and then read that family's data. Family codes are user-chosen 3+ char
+    // uppercase — small enough to enumerate. TD-2 in TECH-DEBT.md justified
+    // the gap on the false premise that codes are 6-char random.
+    //
+    // Fix: require an actual member doc at families/{code}/members/m_{uid}. The
+    // m_<uid> id convention is enforced by joinGroup CF (functions/joinGroup.js:123)
+    // and claimMember CF — every authed member's doc id is `m_${uid}`. Sub-profile
+    // members don't sign in independently so they don't need to pass this check.
     function isMemberOfFamily(familyCode) {
-      return signedIn() && exists(/databases/$(database)/documents/users/$(uid())/groups/$(familyCode));
+      return signedIn()
+        && exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()));
+    }
+
+    // True iff the caller is a parent-flagged member of the family. Used to gate
+    // privilege-field writes on member docs (isParent/isAdult/maxTier/bracket/isKid).
+    // Mirrors the client-side isCurrentUserParent() check in js/app.js — without
+    // this server-side mirror, a signed-in member could self-elevate via the
+    // Firestore client SDK (SECURITY FIX C-1).
+    function isParentOfFamily(familyCode) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid()))
+        && get(/databases/$(database)/documents/families/$(familyCode)/members/$('m_' + uid())).data.isParent == true;
     }
 
     function isOwner(familyCode) {
@@ -450,16 +470,47 @@ service cloud.firestore {
           )
         );
 
-        // Self, owner, or parent-of-managed-sub may update.
-        // Plus: during grace window, an authed user may OPPORTUNISTICALLY CLAIM
-        // a uid-less legacy member doc by writing their own uid on it. This is
-        // the migration path for pre-Phase-5 family members signing in for the
-        // first time. After the grace window closes this branch disappears and
-        // claims must go through the claimMember Cloud Function.
+        // === SECURITY FIX C-1 (2026-05-28) — block self-elevation ===
+        // Privilege fields (isParent / isAdult / maxTier / bracket / isKid) gate
+        // content visibility + family-admin powers. Previously the self-update
+        // branch allowed ANY field, so a signed-in member could write
+        // updateDoc(myMemberDoc, {isParent: true, maxTier: 5}) directly via the
+        // Firestore SDK and bypass the kid maxTier=2 cap. Now privilege writes
+        // require owner OR existing-parent in this family.
+        //
+        // Allowlist for SELF-update (no privilege change): name, color, age,
+        // avatarUrl, notificationPrefs, lastActiveAt, claimedAt, seenOnboarding,
+        // pushSubscription. Anything else requires owner or parent.
+        //
+        // Owners + parents may write ANYTHING including the privilege fields —
+        // that's how the bracket selector in Family tab (js/app.js setMemberBracket)
+        // continues to work for the family-admins it was always intended for.
+        //
+        // Managed-sub branch: a sub-profile is managed by an authed member; that
+        // member may update the sub's fields. The privilege fields on a sub are
+        // also gated to parent/owner to prevent a non-parent adult from giving
+        // their kid sub-profile adult content access.
         allow update: if signedIn() && (
-          resource.data.uid == uid()
+          // Branch 1 — Self, non-privilege fields only
+          (
+            resource.data.uid == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['name','color','age','avatarUrl','notificationPrefs','lastActiveAt',
+               'claimedAt','seenOnboarding','pushSubscription','tracksWith']
+            )
+          )
+          // Branch 2 — Owner of family (highest authority)
           || isOwner(familyCode)
-          || resource.data.managedBy == uid()
+          // Branch 3 — Existing parent of this family (can set anyone's bracket)
+          || isParentOfFamily(familyCode)
+          // Branch 4 — Managing a sub-profile, non-privilege fields only
+          || (
+            resource.data.managedBy == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['name','color','age','avatarUrl','notificationPrefs','lastActiveAt','tracksWith']
+            )
+          )
+          // Branch 5 — Grace-window claim of legacy uid-less member doc
           || (
             graceActive()
             && !('uid' in resource.data)

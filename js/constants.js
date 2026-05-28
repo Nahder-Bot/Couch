@@ -862,6 +862,10 @@ export const COUCH_NIGHTS_PACKS = [
 // 'couch-v32-pre-launch-polish' → APP_VERSION 32). BUILD_DATE is the deploy
 // date in ISO 8601 (UTC); set at hand-edit time when shipping a release.
 // Surfaced in Account → ABOUT and used as mailto subject suffix.
-export const APP_VERSION = 42;
-export const BUILD_DATE = '2026-04-27';
+// Bumped 2026-05-28 to track Phase 16 (Calendar Layer) + same-day bugfix bundle +
+// rating UX refactor + Tonight tab redesign. Cache convention shifted to decimal
+// phase-tagged (couch-v16.X-{slug}) for this milestone — APP_VERSION takes the
+// major number to stay legible in Settings → About.
+export const APP_VERSION = 43;
+export const BUILD_DATE = '2026-05-28';
 
