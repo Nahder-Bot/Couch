@@ -6857,19 +6857,23 @@ function timeAgo(ts) {
   return Math.floor(diff/86400000) + 'd ago';
 }
 
-// Family Favorites card: top-rated watched titles with at least 2 raters, ranked by
-// mean score. The 2+ minimum keeps single-opinion picks from dominating. Shows up to 10.
+// Family Favorites card: top-rated watched titles ranked by mean score.
+// v16.10c — Gates lowered from Phase 11 original:
+//   (1) Solo-family hide removed. Sub-profile kids (no auth) can't rate, so
+//       "≥2 members" was effectively excluding the realistic family shape.
+//   (2) Per-title raters-min lowered 2 -> 1 so single-rater watched titles
+//       still surface (especially relevant during dogfooding / early use).
+// Title-section heading switches between "Family favorites" and "Top rated"
+// depending on whether multiple raters or just one contributed.
 function renderFamilyFavorites() {
   const card = document.getElementById('family-favs-card');
   const list = document.getElementById('family-favs-list');
   if (!card || !list) return;
-  // Solo families (just one member) don't need this view — a personal top-rated is already on Queue tab
-  if (state.members.length < 2) { card.style.display = 'none'; return; }
   const ranked = state.titles
     .filter(t => t.watched && t.ratings)
     .map(t => {
       const scores = state.members.map(m => getScore(t.ratings[m.id])).filter(s => s > 0);
-      if (scores.length < 2) return null;
+      if (scores.length < 1) return null;
       const avg = scores.reduce((a,b) => a+b, 0) / scores.length;
       return { t, avg, count: scores.length };
     })
@@ -6878,6 +6882,12 @@ function renderFamilyFavorites() {
     .slice(0, 10);
   if (!ranked.length) { card.style.display = 'none'; return; }
   card.style.display = '';
+  // v16.10c — section heading reflects the rater-count situation. Multiple
+  // raters present anywhere -> "Family favorites"; otherwise "Top rated" so
+  // the copy doesn't claim consensus that doesn't exist.
+  const anyMultiRater = ranked.some(r => r.count >= 2);
+  const headEl = card.querySelector('.tab-section-h span:first-child');
+  if (headEl) headEl.textContent = anyMultiRater ? 'Family favorites' : 'Top rated';
   list.innerHTML = ranked.map((r, i) => {
     // Per-member score pills so you can see how opinions lined up
     const memberScores = state.members.map(m => {
