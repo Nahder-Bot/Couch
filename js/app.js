@@ -4685,14 +4685,27 @@ function guardReadOnlyWrite() {
   // isCurrentSelfReadOnly returns false on next write attempt.
   if (state.me && !state.me.uid && state.auth && state.auth.uid
       && state.ownerUid === state.auth.uid) {
+    // Optimistic local update — state.me is set from qn_me localStorage and
+    // doesn't auto-refresh from the members snapshot, so without this every
+    // subsequent guardReadOnlyWrite call re-fires the claim. Sync the cached
+    // member object in state.members too so isReadOnlyForMember(state.me)
+    // sees the new uid on the next tap.
+    state.me.uid = state.auth.uid;
+    state.me.claimedAt = Date.now();
+    const liveMe = (state.members || []).find(m => m.id === state.me.id);
+    if (liveMe) { liveMe.uid = state.auth.uid; liveMe.claimedAt = state.me.claimedAt; }
     flashToast('Claiming your account…', { kind: 'info' });
     try {
       updateDoc(doc(membersRef(), state.me.id), {
         uid: state.auth.uid,
         claimedAt: Date.now()
       }).then(() => {
-        flashToast('Account claimed — try again.');
+        flashToast('Account claimed — tap Save again.');
       }).catch((e) => {
+        // Revert optimistic update on failure
+        state.me.uid = null;
+        state.me.claimedAt = null;
+        if (liveMe) { liveMe.uid = null; liveMe.claimedAt = null; }
         console.warn('owner self-claim failed', e && e.message);
         flashToast('Could not claim — ask the owner for a claim link.', { kind: 'warn' });
       });
