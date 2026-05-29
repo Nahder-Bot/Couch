@@ -15961,6 +15961,11 @@ function maybeShowFirstRunOnboarding() {
   // old feature tour don't get bounced back through the new intro.
   try { if (localStorage.getItem('qn_onboarded')) { _onboardingShownThisSession = true; return; } } catch(e) {}
   _onboardingShownThisSession = true;
+  // v16.10a — persist localStorage immediately so the intro doesn't re-fire if the user
+  // dismisses by force-quit / back-button / app-switch instead of tapping Skip or Got it.
+  // Firestore write still happens in skipOnboarding/completeOnboarding (which require
+  // state.familyCode), but localStorage is the durable client-side gate either way.
+  try { localStorage.setItem('qn_onboarded', '1'); } catch(e) {}
   showOnboardingStep(1);
 }
 

@@ -2335,6 +2335,9 @@ input.field-invalid{border-color:var(--bad)}
 .action-sheet-divider{height:1px;background:var(--border);margin:var(--s2) 0}
 
 .discover-row-wrap{position:relative}
+/* v16.10a — collapse the mood discovery row + scroll buttons when no mood chip is .on,
+   removing the "Pick a mood above" empty-state dead space. :has() supported on Safari 15.4+. */
+#add-mood-section:not(:has(.mood-chip.on)) .discover-row-wrap{display:none}
 .discover-scroll-btn{display:none;position:absolute;top:50%;transform:translateY(-60%);width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px solid var(--border-strong);color:var(--ink);cursor:pointer;z-index:2;font-size:var(--t-body);box-shadow:0 6px 16px rgba(0,0,0,0.45),0 0 0 1px rgba(232,160,74,0.08);transition:all var(--t-quick)}
 .discover-scroll-btn:hover{border-color:var(--accent)}
 .discover-scroll-btn.left{left:-4px}
