@@ -4677,6 +4677,30 @@ function applyReadOnlyState() {
 // should early-return (and also surfaces the toast + banner as a side-effect).
 function guardReadOnlyWrite() {
   if (!isCurrentSelfReadOnly()) return false;
+  // Owner self-claim fast-path (2026-05-28 user feedback): if the signed-in user
+  // owns this family doc but their member doc has no uid (pre-Phase-5 family,
+  // grace expired), they can self-link instantly — the owner branch of the
+  // member UPDATE rule allows them to write any field. Fire-and-forget; the
+  // snapshot will refresh state.me with the new uid + claimedAt, after which
+  // isCurrentSelfReadOnly returns false on next write attempt.
+  if (state.me && !state.me.uid && state.auth && state.auth.uid
+      && state.ownerUid === state.auth.uid) {
+    flashToast('Claiming your account…', { kind: 'info' });
+    try {
+      updateDoc(doc(membersRef(), state.me.id), {
+        uid: state.auth.uid,
+        claimedAt: Date.now()
+      }).then(() => {
+        flashToast('Account claimed — try again.');
+      }).catch((e) => {
+        console.warn('owner self-claim failed', e && e.message);
+        flashToast('Could not claim — ask the owner for a claim link.', { kind: 'warn' });
+      });
+      return true;
+    } catch(e) {
+      console.warn('owner self-claim threw', e && e.message);
+    }
+  }
   flashToast("This member hasn't been claimed yet — ask the owner for a claim link.", { kind: 'warn' });
   showClaimPromptBanner();
   return true;
@@ -16426,9 +16450,13 @@ window.openSeriesCreate = function(prefill) {
     titleName: (prefill && prefill.titleName) || null,
     daysOfWeek: (prefill && Array.isArray(prefill.daysOfWeek)) ? prefill.daysOfWeek.slice() : [],
     timeOfDay: (prefill && prefill.timeOfDay) || '20:00',
+    // Default to just the creator on the couch — user-feedback 2026-05-28: having
+    // every family member auto-selected felt presumptuous; let the user pick.
+    // Prefill (from Entry-2 post-wp prompt) still overrides with whoever was on
+    // that wp's couch, since that's the intentional source for that flow.
     memberIds: (prefill && Array.isArray(prefill.memberIds))
       ? prefill.memberIds.slice()
-      : ((state.members || []).map(m => m && m.id).filter(Boolean))
+      : (state.me && state.me.id ? [state.me.id] : [])
   };
   // Render initial picker + chips
   const dowEl = document.getElementById('series-dow-picker');
