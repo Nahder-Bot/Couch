@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-29T00:17:39.765Z",
+  "phase": "16",
+  "phase_name": "calendar-layer",
+  "phase_dir": ".planning/phases/16-calendar-layer",
+  "phase_status": "shipped + in post-launch polish",
+  "plan": 10,
+  "task": null,
+  "branch": "hotfix/phase-30-cross-cutting-wave",
+  "production_cache": "couch-v16.9-claim-fix",
+  "session_context": {
+    "session_date": "2026-05-28",
+    "session_arc": "Started: /gsd-execute-phase 16 (Calendar Layer execution). Phase 16 shipped end-to-end (10 plans, 9 waves, full deploy ritual). Then iterated through 9 follow-up deploys (v16.1-v16.9) covering autocomplete bug, 3 user-reported bugs, rating UX refactor, Tonight redesign A+B+C, review fixes, security C-1+C-2, cleanup pass, UAT-iteration fixes, and owner self-claim. Currently mid-UAT on user's iPhone.",
+    "deploys_today": [
+      "couch-v16.1-series-fix — TMDB autocomplete HTML quote-escape",
+      "couch-v16.2-bugs — welcome popup, group-switch, iOS nudge",
+      "couch-v16.3-roles — bracket selector replaces Adult/Parent/maxTier",
+      "couch-v16.4-tonight — chip-bar + cinematic hero + cleanup",
+      "couch-v16.5-review — N-1/N-2/N-4 audit fixes",
+      "couch-v16.6-security — C-1 self-elevation + C-2 cross-family read",
+      "couch-v16.7-cleanup — 11 deferred items (Trakt, bootIntoGroup, snapshot handler, Sentry scrub, AASA, contrast, a11y)",
+      "couch-v16.8-uat-fixes — TV-series copy, Decide-together, just-me default, owner self-claim",
+      "couch-v16.9-claim-fix — optimistic local state on self-claim (loop bug)"
+    ]
+  },
+  "current_state": {
+    "user_situation": "Nahder mid-UAT on iPhone PWA. Last reported: claim toast loop fired on every Save tap (just fixed in v16.9). Has NOT yet confirmed whether v16.9 save works after refresh.",
+    "awaiting_response": "Did v16.9 fix the claim loop? Does series save succeed on 2nd tap now?",
+    "pwa_cache_on_iphone": "unknown — needs hard-refresh to pick up v16.9"
+  },
+  "immediate_resume_actions": [
+    "Ask user if v16.9 fixed the claim loop. If yes: continue UAT scripts 2-6. If no: diagnose further (check if optimistic state.me.uid update actually persists; check if TMDB autocomplete suggestion-tap is the next gate).",
+    "If save works: walk through Phase 16 HUMAN-UAT scripts 2-6 (Entry 2 post-wp prompt, Edit cadence, Pause/Resume/Cancel, Week-view, 30-min reminder push).",
+    "If save still loops: investigate state.me reference mutation — maybe state.me is reassigned by the members onSnapshot which would clobber our optimistic write."
+  ],
+  "outstanding_for_launch": {
+    "user_action_in_ASC_dashboard": [
+      "Edit ASC description to mention Phase 16 (recurring watchparties / calendar) — §5.6 risk",
+      "Add Reviewer Notes paragraph for §1.2 UGC moderation posture: 'Couch is closed-family UGC. Family admins (isParent) can remove any member or content via the Family tab. Sub-profile UGC is parent-controlled. No cross-family discovery — users join only via explicit family-code share. Kid sub-profiles are created and managed by adult parents; no independent under-13 account creation flow exists.'",
+      "Confirm ASC Release setting = Manual (not auto-release)",
+      "Confirm Privacy Nutrition Labels saved in ASC privacy questionnaire"
+    ],
+    "user_action_on_device": [
+      "Hard-refresh iPhone PWA to install couch-v16.9-claim-fix",
+      "Complete Phase 16 HUMAN-UAT scripts 1-6 (.planning/phases/16-calendar-layer/16-HUMAN-UAT.md)",
+      "Spot-check chip-bar at 7-member family width",
+      "Spot-check bracket selector on Family tab",
+      "Delete unencrypted ~/Downloads/AuthKey_PFGQNA2UTR.p8 (Apple Sign-In .p8; archived in ~/Documents/Couch-secrets/)"
+    ],
+    "user_decision": [
+      "Click Add for Review in ASC when ready (Release set to Manual = approved-but-unlaunched state until user clicks Release)"
+    ]
+  },
+  "newly_logged_tech_debt": {
+    "TD-15": "Toast container overlaps modal Save buttons on small iPhones. .toast has pointer-events: auto for tap-to-dismiss; on small screens it steals taps from underlying modal CTAs. Fix: either set .toast pointer-events:none (auto-dismiss handles cleanup) OR shift .toast-container position up when a .modal-bg.on is active. Reported by user iPhone screenshot 2026-05-28."
+  },
+  "deferred_intentionally": [
+    "TD-1 firebase-functions SDK 4→7",
+    "TD-3 console noise cleanup",
+    "TD-4 CSP enforcement flip",
+    "TD-5 PWA manifest screenshots",
+    "TD-6 Sentry Replay re-enable",
+    "TD-8 dual-Settings consolidation",
+    "Phase 14-31 HUMAN-VERIFY UAT walkthroughs",
+    "PR #8 merge to main (594-commit catch-up)",
+    "gcloud CLI install"
+  ],
+  "audit_findings_already_addressed_this_session": {
+    "security_C1_self_elevation": "FIXED in v16.6 + v16.6-revised (firestore.rules: 5-branch member UPDATE with field allowlist; isParentOfFamily helper; owner branch retained as fallback)",
+    "security_C2_cross_family_read": "PARTIALLY CLOSED in v16.6. Initial strict members/m_<uid> check broke pre-Phase-5 families (user iPhone hit this). Revised to OR: (a) members/m_<uid> exists OR (b) self-attested users/{uid}/groups/{code} + family doc exists. Branch (b) requires attacker to know existing family code (no enumeration via fabricated codes). Full close requires post-launch migration CF to retag legacy member doc ids to m_<uid> form.",
+    "apple_compliance_account_deletion": "Verified comprehensive — reaper sweeps Firestore + Storage + FCM + Auth + 14-day grace",
+    "apple_compliance_SIWA_priority": "Verified — Apple sign-in button is FIRST on signin screen (app.html:181-184)",
+    "apple_compliance_PrivacyManifest": "Verified — couch-ios/src/Couch Tonight/PrivacyInfo.xcprivacy deployed with NSPrivacyTracking=false",
+    "accessibility_touch_targets": "Bumped chip-roster + ios-pwa-nudge close + week-view nav to 44px",
+    "accessibility_contrast": "Bumped .th-cta-secondary border 0.12→0.24 + .th-gradient floor 0.94→0.97",
+    "accessibility_live_regions": "Added aria-live=polite to #matches-list + .th-tally",
+    "AASA_path_coverage": "Added /privacy.html /terms.html /support.html /changelog.html to queuenight/.well-known/apple-app-site-association",
+    "sentry_PII_scrub": "Truncate event.exception.values[].value to 80 chars in both app.html and landing.html",
+    "trakt_OAuth_iOS_PWA": "Branch on navigator.standalone before window.open, force redirect flow",
+    "bootIntoGroup_phantom_family": "Toast + clear localStorage + showPreAuthScreen('screen-mode') instead of silent empty Tonight",
+    "user_groups_snapshot_handler": "Now uses snapshotErrorHandler('user-groups')",
+    "search_alert_to_toast": "alert('Search failed.') → flashToast",
+    "localStorage_safari_private": "loadSavedGroups + saveGroups wrapped in try/catch",
+    "watchpartySeries_create_memberUids_cap": "Added memberUids.size() <= 24 cap (H-2 partial mitigation)"
+  },
+  "audit_findings_deferred_to_post_launch": [
+    "N-3 admin-bracket re-tap can flip isAdult false→true (theoretical; setMemberBracket short-circuit can be added later)",
+    "N-5 renderContinueWatching dead code (no-op; safe to leave)",
+    "TD-13 outliers: watchpartySeries init try/catch (qnLog-only on subscribe failure)",
+    "Hostile #6 localStorage in additional code paths (similar to fix 4 but in other places)",
+    "Hostile #7 notification denied state has no platform-specific re-enable path",
+    "Hostile #8 uploadPostSessionPhoto silent return on !file",
+    "Hostile #5 SHELL pre-cache minimal (no modulepreload for first-tier imports)",
+    "A11y #5 hero injects 2nd <h2> under tab's <h2> (rotor cleanliness)",
+    "A11y #6 .bracket-pill[disabled] visual cue (opacity-only)",
+    "A11y #7 landing .cta-secondary dotted underline invisible",
+    "A11y #8 #onboarding-overlay not auto-enrolled in focus-trap",
+    "Apple #3 AASA could include legal pages (added in v16.7)",
+    "Apple #6 rsvp.html first-touch push permission",
+    "C-2 full close (migration CF to retag legacy member ids)",
+    "TD-14 .detail-close already 44px (verified)",
+    "TD-15 NEW: toast overlaps modal Save (logged 2026-05-28)"
+  ],
+  "blocking_constraints": [],
+  "advisory_notes": [
+    "Branch hotfix/phase-30-cross-cutting-wave has accumulated 80+ commits today. Worth a clean PR to main when ready. Note PR #8 (the 594-commit catch-up) is already open and unmerged.",
+    "User has been doing UAT on iPhone — wait for their report before deciding next action.",
+    "Context usage required pause; previous session worked through 9 deploys + 4 audit agents in parallel + full code review."
+  ],
+  "files_modified_committed": "All session edits committed. Last commit: 6dbf2dc (sw cache bump for v16.9)",
+  "files_modified_uncommitted": "None"
+}
