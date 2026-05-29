@@ -1713,6 +1713,37 @@ input.field-invalid{border-color:var(--bad)}
 .couch-rating-chip-score{font-family:'Fraunces','Instrument Serif',serif;
   font-style:italic;color:var(--accent);font-weight:500;padding-left:4px;
   border-left:1px solid var(--border);font-size:13px}
+/* v16.10c — Tonight tab "Couch loved" peek strip. Horizontal-scroll row of
+   top-rated posters, capped at 4 entries by buildCouchLovedTonightHtml. */
+.couch-loved-section{margin-top:var(--s5)}
+.couch-loved-section .t-section-head{display:flex;align-items:baseline;
+  justify-content:space-between;gap:var(--s2);margin-bottom:var(--s2)}
+.couch-loved-more{background:transparent;border:none;color:var(--accent);
+  font-family:'Inter',sans-serif;font-size:var(--t-micro);cursor:pointer;
+  padding:4px 8px;border-radius:var(--r-pill);letter-spacing:0.04em}
+.couch-loved-more:hover{background:var(--surface)}
+.couch-loved-strip{display:grid;grid-template-columns:repeat(4,1fr);
+  gap:10px;margin-top:6px}
+.couch-loved-card{display:flex;flex-direction:column;gap:4px;cursor:pointer;
+  transition:transform var(--t-quick);text-align:left;min-width:0}
+.couch-loved-card:hover{transform:translateY(-2px)}
+.couch-loved-poster{aspect-ratio:2/3;background-size:cover;background-position:center;
+  background-color:var(--surface-2);border-radius:var(--r-md);
+  box-shadow:0 4px 12px rgba(0,0,0,0.35);position:relative;overflow:hidden}
+.couch-loved-score{position:absolute;top:6px;right:6px;
+  background:rgba(20,17,15,0.85);color:var(--accent);
+  font-family:'Fraunces','Instrument Serif',serif;font-style:italic;
+  font-size:13px;font-weight:500;padding:2px 7px;border-radius:999px;
+  pointer-events:none;backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px)}
+.couch-loved-card{position:relative}
+.couch-loved-name{font-family:'Inter',sans-serif;font-size:11px;
+  color:var(--ink-warm);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;margin-top:2px}
+@media (max-width:420px){
+  .couch-loved-strip{grid-template-columns:repeat(3,1fr)}
+  .couch-loved-card:nth-child(4){display:none}
+}
 .detail-prov-group{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s2);flex-wrap:wrap}
 .detail-prov-label{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;min-width:40px}
 .detail-prov-empty{font-size:var(--fs-meta);color:var(--ink-dim);font-style:italic}

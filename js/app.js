@@ -6144,7 +6144,9 @@ function renderTonight() {
   const matchesHtml = matches.length
     ? matches.map(t => card(t)).join('')
     : emptyHtml;
-  el.innerHTML = matchesHtml + considerHtml + vetoedHtml;
+  // v16.10c — append the Couch-loved peek at the bottom of the Tonight list
+  // so accumulated ratings get continuous visibility, not just on Family tab.
+  el.innerHTML = matchesHtml + considerHtml + vetoedHtml + buildCouchLovedTonightHtml();
   // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
   // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
   if (typeof renderCouchViz === 'function') renderCouchViz();
@@ -6855,6 +6857,49 @@ function timeAgo(ts) {
   if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
   if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
   return Math.floor(diff/86400000) + 'd ago';
+}
+
+// v16.10c — Tonight-tab "Couch loved" peek. Returns HTML for a horizontal
+// poster strip showing top 4 rated titles with their avg score, ending with
+// a "See all on Family tab" link. Returns '' when no rated titles exist so
+// the section disappears cleanly on brand-new families. Shares ranking logic
+// with renderFamilyFavorites but caps at 4 (peek, not full list) and renders
+// inline in renderTonight's matches-list innerHTML rather than into a
+// dedicated DOM container — fewer moving parts, simpler invalidation.
+function buildCouchLovedTonightHtml() {
+  if (!state.titles || !state.titles.length || !state.members) return '';
+  const ranked = state.titles
+    .filter(t => t.watched && t.ratings)
+    .map(t => {
+      const scores = state.members.map(m => getScore(t.ratings[m.id])).filter(s => s > 0);
+      if (scores.length < 1) return null;
+      const avg = scores.reduce((a,b) => a+b, 0) / scores.length;
+      return { t, avg, count: scores.length };
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.avg - a.avg || b.count - a.count)
+    .slice(0, 4);
+  if (!ranked.length) return '';
+  const items = ranked.map(({ t, avg, count }) => {
+    const safeId = escapeHtml(t.id);
+    const safeName = escapeHtml(t.name || '');
+    const poster = t.poster ? escapeHtml(t.poster) : '';
+    return `<div class="couch-loved-card" role="button" tabindex="0"
+      onclick="openDetailModal('${safeId}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('${safeId}');}"
+      aria-label="${safeName}, rated ${formatScore(avg)} out of 10">
+      <div class="couch-loved-poster" style="background-image:url('${poster}')" aria-hidden="true"></div>
+      <div class="couch-loved-score">${formatScore(avg)}</div>
+      <div class="couch-loved-name">${safeName}</div>
+    </div>`;
+  }).join('');
+  return `<div class="t-section couch-loved-section">
+    <div class="t-section-head">
+      <div class="t-section-title">Couch loved</div>
+      <button type="button" class="action-link couch-loved-more" onclick="showScreen('family')">See all &rsaquo;</button>
+    </div>
+    <div class="couch-loved-strip">${items}</div>
+  </div>`;
 }
 
 // Family Favorites card: top-rated watched titles ranked by mean score.
