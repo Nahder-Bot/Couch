@@ -6955,13 +6955,15 @@ function renderFamilyFavorites() {
 // Account tab renderer — device/personal stuff
 function renderSettings() {
   yirSettingsTeaser();
-  // Phase 11 / REFR-12 — YIR card hidden until Phase 10 ships.
-  // yirReady flag lives on state.family; when set, un-hide the entire settings-yir-section.
-  // Today Phase 10 hasn't shipped so the section stays hidden — static placeholder isn't exposed.
+  // v16.10d — Un-defer YIR surface for launch. Phase 10's "Story-mode" recap remains
+  // deferred (the JS for openYearStoryMode still gates internally on Dec/Jan +
+  // watchCount>=5 inside yirSettingsTeaser), but the openYearInReview modal and the
+  // teaser line both handle empty data gracefully ('Log some watches in the diary
+  // and your Year in Review will come to life.' / `yir-empty` div). Always-on
+  // teaser gives users a window into their watch history without waiting for
+  // Phase 10's full story-card deck.
   const yirSection = document.getElementById('settings-yir-section');
-  if (yirSection) {
-    yirSection.style.display = (state.family && state.family.yirReady) ? '' : 'none';
-  }
+  if (yirSection) yirSection.style.display = '';
   renderServicesPicker();
   renderTraktCard();
   // Plan 07: sub-profile list + owner-only admin panel (gated on state.ownerUid).
