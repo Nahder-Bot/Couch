@@ -8361,6 +8361,38 @@ window.saveReview = async function() {
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
 
+// v16.10c — Couch ratings strip for the detail modal. Shows the family average
+// + per-member rating chips for every member who scored the title. Renders
+// nothing when no one has rated yet so it doesn't add empty chrome to
+// unwatched titles. Sits above the existing reviews block so the at-a-glance
+// "what did the couch think" appears before any long-form prose.
+function renderCouchRatingsStrip(t) {
+  if (!t || !t.ratings || typeof t.ratings !== 'object') return '';
+  const members = state.members || [];
+  const scored = members.map(m => {
+    const score = getScore((t.ratings || {})[m.id]);
+    return score > 0 ? { m, score } : null;
+  }).filter(Boolean);
+  if (!scored.length) return '';
+  const avg = scored.reduce((s, r) => s + r.score, 0) / scored.length;
+  const chips = scored.map(({ m, score }) => {
+    const colorStyle = `background:${m.color || 'var(--surface-2)'}`;
+    return `<span class="couch-rating-chip" title="${escapeHtml(m.name)}: ${formatScore(score)}/10" aria-label="${escapeHtml(m.name)}: ${formatScore(score)} out of 10">
+      <span class="couch-rating-chip-avatar" style="${colorStyle}">${avatarContent(m)}</span>
+      <span class="couch-rating-chip-name">${escapeHtml((m.name || '').split(/\s+/)[0])}</span>
+      <span class="couch-rating-chip-score">${formatScore(score)}</span>
+    </span>`;
+  }).join('');
+  const countLabel = scored.length === 1 ? '1 rating' : `${scored.length} ratings`;
+  return `<div class="detail-section couch-ratings-section">
+    <h4 class="couch-ratings-h">
+      <span>Couch ratings</span>
+      <span class="couch-ratings-avg-wrap"><span class="couch-ratings-avg">${formatScore(avg)}</span><span class="couch-ratings-avg-sub">/10 · ${countLabel}</span></span>
+    </h4>
+    <div class="couch-ratings-chips">${chips}</div>
+  </div>`;
+}
+
 function renderReviewsForTitle(t) {
   const reviews = t.reviews || {};
   const entries = Object.entries(reviews).filter(([,r]) => r && r.body);
@@ -8761,6 +8793,7 @@ function renderDetailShell(t) {
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
     ${kidModeOverrideHtml}
     ${whyMatchHtml}
+    ${renderCouchRatingsStrip(t)}
     ${renderTvProgressSection(t)}
     ${trailerHtml}
     ${providersHtml}

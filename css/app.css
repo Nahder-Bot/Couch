@@ -1690,6 +1690,29 @@ input.field-invalid{border-color:var(--bad)}
 .detail-overview{font-size:var(--fs-body);line-height:1.6;color:var(--ink);margin-bottom:var(--s4)}
 .detail-section{margin-top:var(--s5)}
 .detail-section h4{font-family:'Inter',sans-serif;font-size:var(--t-micro);color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin:0 0 var(--s3);font-weight:600}
+/* v16.10c — Couch ratings strip on detail modal. Surfaces per-member ratings
+   above the long-form reviews block. */
+.couch-ratings-section{margin-top:var(--s4)}
+.couch-ratings-h{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3);flex-wrap:wrap}
+.couch-ratings-avg-wrap{display:inline-flex;align-items:baseline;gap:6px;
+  font-family:'Fraunces','Instrument Serif',serif;font-style:italic;
+  color:var(--ink);text-transform:none;letter-spacing:0}
+.couch-ratings-avg{font-size:var(--t-h3);font-weight:400;color:var(--accent)}
+.couch-ratings-avg-sub{font-size:var(--t-meta);font-family:'Inter',sans-serif;
+  font-style:normal;color:var(--ink-dim);letter-spacing:0.02em}
+.couch-ratings-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.couch-rating-chip{display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px 4px 4px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border);
+  font-family:'Inter',sans-serif;font-size:12px;color:var(--ink-warm)}
+.couch-rating-chip-avatar{display:inline-grid;place-items:center;
+  width:24px;height:24px;border-radius:50%;
+  font-size:12px;font-weight:700;color:#14110f;flex-shrink:0}
+.couch-rating-chip-avatar .avatar-emoji{font-size:16px;line-height:1}
+.couch-rating-chip-name{font-weight:500;color:var(--ink)}
+.couch-rating-chip-score{font-family:'Fraunces','Instrument Serif',serif;
+  font-style:italic;color:var(--accent);font-weight:500;padding-left:4px;
+  border-left:1px solid var(--border);font-size:13px}
 .detail-prov-group{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s2);flex-wrap:wrap}
 .detail-prov-label{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;min-width:40px}
 .detail-prov-empty{font-size:var(--fs-meta);color:var(--ink-dim);font-style:italic}
