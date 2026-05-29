@@ -671,6 +671,14 @@
           <div class="tab-identity-name" id="me-label"></div>
           <div class="tab-identity-meta" id="family-label"></div>
           <div class="tab-identity-auth" id="account-auth-email" style="display:none;"></div>
+          <!-- v16.10b — identity extras (role + signin provider + member-since). Populated
+               by renderAccountIdentityExtras() from renderSettings(). -->
+          <div class="tab-identity-extras" id="account-identity-extras"></div>
+          <div class="tab-identity-actions">
+            <button type="button" class="pill identity-edit-btn" onclick="openAvatarPicker()" aria-label="Customize your avatar">
+              <span aria-hidden="true">&#9998;</span> Customize avatar
+            </button>
+          </div>
         </div>
       </div>
     </div>

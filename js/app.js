@@ -6920,11 +6920,93 @@ function renderSettings() {
       famLabelEl.innerHTML = groupNounCap() +
         ' <span class="family-chip">' + escapeHtml(state.familyCode) + '</span>';
     }
+    // v16.10b — Account hero info expansion (email + signin provider + role + joined).
+    try { renderAccountIdentityExtras(me); } catch(e) {}
   }
   // Phase 12 / POL-02 — ABOUT section (version + feedback + changelog).
   // Idempotent — safe to call on every renderSettings.
   try { renderAboutSection(); } catch(e) {}
 }
+
+// v16.10b — Populate the Account hero identity strip with primary email, sign-in
+// provider chip, role badge, and member-since date. Pulls from auth.currentUser
+// for email/provider, member doc for role/joinedAt. Idempotent — safe to re-run.
+function renderAccountIdentityExtras(me) {
+  if (!me) return;
+  // Email (un-hide the existing #account-auth-email if we have one to show).
+  const emailEl = document.getElementById('account-auth-email');
+  if (emailEl) {
+    const email = (auth && auth.currentUser && auth.currentUser.email) || '';
+    if (email) {
+      emailEl.textContent = email;
+      emailEl.style.display = '';
+    } else {
+      emailEl.style.display = 'none';
+    }
+  }
+  const extrasEl = document.getElementById('account-identity-extras');
+  if (!extrasEl) return;
+  const chips = [];
+  // Sign-in provider chip — primary provider per Firebase Auth providerData[0].
+  // Falls back to email-link when no oauth provider but we have an email credential.
+  if (auth && auth.currentUser) {
+    const pd = auth.currentUser.providerData || [];
+    const ids = pd.map(p => p && p.providerId).filter(Boolean);
+    let providerLabel = '';
+    let providerIcon = '';
+    if (ids.includes('apple.com')) {
+      providerLabel = 'Apple';
+      providerIcon = '<svg viewBox="0 0 24 24" width="11" height="13" fill="currentColor" aria-hidden="true"><path d="M17.05 12.04c-.03-3.16 2.58-4.68 2.7-4.75-1.47-2.15-3.76-2.44-4.58-2.48-1.95-.2-3.81 1.15-4.8 1.15s-2.52-1.12-4.15-1.09c-2.13.03-4.11 1.24-5.21 3.15-2.22 3.86-.57 9.57 1.6 12.71 1.06 1.54 2.32 3.27 3.97 3.21 1.6-.06 2.2-1.03 4.13-1.03s2.47 1.03 4.15 1c1.72-.03 2.8-1.56 3.85-3.11 1.22-1.78 1.72-3.5 1.74-3.59-.04-.02-3.34-1.28-3.4-5.07zM14.32 3.62c.86-1.05 1.45-2.51 1.29-3.96-1.24.05-2.75.83-3.65 1.87-.8.93-1.51 2.41-1.32 3.84 1.39.11 2.81-.71 3.68-1.75z"/></svg>';
+    } else if (ids.includes('google.com')) {
+      providerLabel = 'Google';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">G</span>';
+    } else if (ids.includes('phone')) {
+      providerLabel = 'Phone';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">&#9742;</span>';
+    } else if (ids.includes('password') || ids.includes('emailLink')) {
+      providerLabel = 'Email';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">@</span>';
+    }
+    if (providerLabel) {
+      chips.push(`<span class="identity-chip identity-chip--provider">${providerIcon}Signed in via ${escapeHtml(providerLabel)}</span>`);
+    }
+  }
+  // Role badge — derive from member doc bracket + isParent.
+  // Admin = bracket 'admin' OR explicit ownerUid match. Parent = isParent true.
+  // Otherwise show the bracket label (Kid/Teen/Adult).
+  let roleLabel = '';
+  let roleVariant = '';
+  const isOwner = state.ownerUid && state.auth && state.auth.uid === state.ownerUid;
+  if (me.bracket === 'admin' || isOwner) {
+    roleLabel = 'Family admin';
+    roleVariant = 'admin';
+  } else if (me.bracket === 'kid' || me.isKid === true) {
+    roleLabel = 'Kid';
+    roleVariant = 'kid';
+  } else if (me.bracket === 'teen') {
+    roleLabel = 'Teen';
+    roleVariant = 'teen';
+  } else if (me.isParent === true) {
+    roleLabel = 'Parent';
+    roleVariant = 'parent';
+  } else if (me.bracket === 'adult') {
+    roleLabel = 'Adult';
+    roleVariant = 'adult';
+  }
+  if (roleLabel) {
+    chips.push(`<span class="identity-chip identity-chip--role identity-chip--${roleVariant}">${escapeHtml(roleLabel)}</span>`);
+  }
+  // Member-since — joinedAt is ms; format as "Joined May 2026" for compactness.
+  if (typeof me.joinedAt === 'number' && me.joinedAt > 0) {
+    try {
+      const d = new Date(me.joinedAt);
+      const monthYear = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      chips.push(`<span class="identity-chip identity-chip--joined">Joined ${escapeHtml(monthYear)}</span>`);
+    } catch(e) {}
+  }
+  extrasEl.innerHTML = chips.join('');
+}
+window.renderAccountIdentityExtras = renderAccountIdentityExtras;
 
 // Phase 12 / POL-02 — Inject version + feedback + changelog + TMDB attribution
 // into #settings-about-section. Idempotent — safe to call on every renderSettings.

@@ -1296,6 +1296,26 @@ input.field-invalid{border-color:var(--bad)}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .tab-identity-auth::before{content:'';width:6px;height:6px;border-radius:50%;
   background:#4ade80;flex:0 0 6px;box-shadow:0 0 6px rgba(74,222,128,0.4)}
+/* v16.10b — Account hero info expansion: provider/role/joined chip row + Customize-avatar button. */
+.tab-identity-extras{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.identity-chip{display:inline-flex;align-items:center;gap:5px;font-family:'Inter',sans-serif;
+  font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-warm);border:1px solid var(--border);
+  letter-spacing:0.02em;line-height:1.4}
+.identity-chip-glyph{display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;background:var(--surface);color:var(--ink);
+  font-weight:700;font-size:9px;line-height:1}
+.identity-chip svg{display:inline-block;vertical-align:middle}
+.identity-chip--role{font-weight:600}
+.identity-chip--admin{background:rgba(232,160,74,0.18);color:var(--accent);border-color:rgba(232,160,74,0.4)}
+.identity-chip--parent{background:rgba(90,138,132,0.18);color:#a3d5cf;border-color:rgba(90,138,132,0.4)}
+.identity-chip--kid{background:rgba(180,123,52,0.15);color:#d4a878;border-color:rgba(180,123,52,0.35)}
+.identity-chip--teen{background:rgba(232,160,74,0.10);color:#d4a878;border-color:rgba(232,160,74,0.3)}
+.identity-chip--joined{color:var(--ink-dim);font-style:italic}
+.tab-identity-actions{margin-top:10px}
+.identity-edit-btn{font-size:12px;padding:5px 11px;font-family:'Inter',sans-serif}
+.identity-edit-btn:hover{border-color:var(--accent);color:var(--accent)}
+
 .tab-identity-meta .family-chip{display:inline-flex;align-items:center;gap:4px;
   font-family:'Geist Mono','SF Mono',Menlo,monospace;font-size:var(--t-micro);
   color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;
