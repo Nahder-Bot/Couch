@@ -3730,19 +3730,28 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   font-size: var(--t-meta);
   line-height: 1.3;
 }
+/* v16.10b — Reverse Phase 16.4 single-row chip-bar. Grid of 4-per-row bubbles
+   with bigger 64px avatars, optional name label, and own-bubble edit affordance.
+   3-per-row on narrow phones (<=380px) so a 7-member family wraps to 2 rows
+   without overflow. The 'above-the-fold' goal that drove Phase 16.4 trades off
+   here for stronger identity surfacing — user wants to see who's on the couch
+   as faces, not letters. */
 .chip-roster {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin: var(--s2) auto var(--s2);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 10px;
+  justify-items: center;
+  margin: var(--s2) auto var(--s3);
   max-width: 580px;
   padding: 0 var(--s2);
+}
+@media (max-width: 380px) {
+  .chip-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
 }
 .chip-roster.kid-mode-on {
   background: rgba(232, 160, 74, 0.05);
   border-radius: var(--r-md);
-  padding: var(--s2);
+  padding: var(--s3) var(--s2);
 }
 /* Chip variant — overrides the verbose .pill rules: NO inline label, NO YOU tag visible
    (still in aria), compact 40px circle. Keeps mouse + touch + keyboard handlers from
@@ -3754,20 +3763,76 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   background: transparent;
   flex: 0 0 auto;
   position: relative;
+  /* v16.10b — column layout so avatar + name + edit-glyph stack vertically. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .pill.chip .label { display: none; }
 .pill.chip .av {
-  width: 44px;
-  height: 44px;
+  /* v16.10b — bigger 64px bubbles. Was 44px (Phase 16.4 compact). */
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  font-size: var(--t-body);
+  font-size: 28px;
   font-weight: 700;
   display: grid;
   place-items: center;
   color: var(--bg);
   transition: transform var(--t-quick), box-shadow var(--t-quick);
   border: 2px solid var(--border);
+  overflow: hidden;
 }
+/* v16.10b — chosen emoji avatars render at large scale inside the bubble. */
+.pill.chip .av .avatar-emoji {
+  font-size: 36px;
+  line-height: 1;
+  display: inline-block;
+}
+.pill.chip.out .av .avatar-emoji { opacity: 0.45; filter: grayscale(0.6); }
+/* v16.10b — small name label below each bubble (replaces aria-only labelling
+   so quick visual scan of "who's on the couch" is direct). */
+.pill.chip .chip-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-warm);
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  margin-top: 6px;
+  letter-spacing: 0.01em;
+}
+.pill.chip.out .chip-name { color: var(--ink-dim); }
+.pill.chip.me .chip-name { color: var(--accent); font-weight: 600; }
+/* v16.10b — pencil overlay opens openAvatarPicker. Top-right corner of the
+   bubble. Only rendered for the user's own chip. stopPropagation on
+   click/touch in JS keeps the chip-tap (toggle in/out) + long-press
+   (send-ping) handlers from firing through. */
+.av-edit {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-2, var(--surface));
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+  z-index: 3;
+  transition: transform var(--t-quick), background var(--t-quick);
+}
+.av-edit:hover { transform: scale(1.12); background: var(--accent); color: var(--bg); }
+.av-edit:active { transform: scale(0.94); }
+.av-edit span { display: inline-block; line-height: 1; }
 .pill.chip.in .av {
   border-color: transparent;
   /* color comes from inline style (member color), set in JS */

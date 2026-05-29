@@ -17722,8 +17722,16 @@ function renderCouchViz() {
       const ariaLabel = isIn
         ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
         : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      // v16.10b — render chosen avatar (emoji) instead of just initial. avatarContent()
+      // returns initial as the fallback so legacy members without member.avatar see the
+      // same character as before. Pencil edit glyph appears only on the user's OWN chip
+      // and opens openAvatarPicker; stopPropagation guards against the chip's
+      // toggle-couch click + long-press-to-ping handlers.
+      const editGlyph = isMe ? `<button type="button" class="av-edit" aria-label="Customize your avatar" onclick="event.stopPropagation();event.preventDefault();openAvatarPicker();return false;" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()"><span aria-hidden="true">&#9998;</span></button>` : '';
       html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}" title="${name}">
-        <div class="av" style="${avStyle}">${initial}</div>
+        <div class="av" style="${avStyle}">${avatarContent(m)}</div>
+        ${editGlyph}
+        <div class="chip-name" aria-hidden="true">${name}</div>
         <div class="ping-hint" aria-hidden="true"></div>
       </div>`);
     });
@@ -17755,8 +17763,11 @@ function renderCouchViz() {
       const ariaLabel = isIn
         ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
         : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      // v16.10b — same avatar-rendering + edit-glyph treatment as the compact path.
+      const editGlyphV = isMe ? `<button type="button" class="av-edit" aria-label="Customize your avatar" onclick="event.stopPropagation();event.preventDefault();openAvatarPicker();return false;" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()"><span aria-hidden="true">&#9998;</span></button>` : '';
       html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
-        <div class="av" style="${avStyle}">${initial}</div>
+        <div class="av" style="${avStyle}">${avatarContent(m)}</div>
+        ${editGlyphV}
         <span class="label">${name}${youTag}</span>
         <div class="ping-hint" aria-hidden="true"></div>
       </div>`);
