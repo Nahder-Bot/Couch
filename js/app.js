@@ -1970,18 +1970,42 @@ function avgScore(t) {
 }
 
 // === Avatars ===
-// Curated emoji palette for profile pictures. Chosen to be kid-friendly, work across
-// platforms (all widely-supported emoji), and include variety so nobody has to share.
-const AVATAR_OPTIONS = [
-  // Animals
-  '🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🐙','🦋','🐢','🐶','🐱','🐰',
-  // Nature
-  '🌸','🌻','🌵','🍄','🌙','⭐','🔥','🌈',
-  // Food
-  '🍎','🍕','🍔','🍦','🍩','🥑','🌮',
-  // Objects / vibes
-  '🎸','🎨','📚','🚀','⚽','🎮','🎧','🎭','🏆'
-];
+// v16.10b — 130+ curated emoji avatars across 8 themed categories. Replaces the
+// prior 40-option flat palette. All entries are single-codepoint or pre-Unicode-15
+// emoji that render via Twemoji + native iOS/Android emoji fonts without ZWJ
+// fragmentation. AVATAR_OPTIONS is preserved as the flat union for any consumer
+// (e.g. member.avatar string-equality checks during cleanup) that doesn't care
+// about category grouping. AVATAR_CATEGORIES drives the category-section picker UI.
+const AVATAR_CATEGORIES = Object.freeze([
+  { id: 'animals', label: 'Animals', emojis: [
+    '🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🐙','🦋','🐢','🐶','🐱','🐰',
+    '🐺','🐮','🐷','🐭','🐹','🐔','🐧','🐳','🦈','🦒','🦓','🦘','🦦'
+  ]},
+  { id: 'nature', label: 'Nature & Sky', emojis: [
+    '🌸','🌻','🌵','🍄','🌙','⭐','🔥','🌈','🌺','🌹','🌷','🌳','🌊','⚡','❄️','🌿','🍀','☀️'
+  ]},
+  { id: 'food', label: 'Food & Drink', emojis: [
+    '🍎','🍕','🍔','🍦','🍩','🥑','🌮','🍣','🍜','🍪','🍓','🍫','🍯','🍿','🥨','🍇',
+    '🍑','🧀','🌭','🥞','🍩','🥐','🫐','🥥'
+  ]},
+  { id: 'sports', label: 'Sports & Games', emojis: [
+    '⚽','🏀','🏈','⚾','🎾','🏐','🏉','🎱','🏓','🎮','🎲','🏆','🥊','🏒','🎯','🎳'
+  ]},
+  { id: 'hobbies', label: 'Hobbies & Vibes', emojis: [
+    '🎸','🎨','📚','🚀','🎧','🎭','🎤','🎬','🎻','🎹','📷','⌚','💎','🪐','🎁','🎈',
+    '🌟','✨','🔮','🪗','🎺','🥁','📸','💿'
+  ]},
+  { id: 'travel', label: 'Travel & Places', emojis: [
+    '✈️','🚂','🚢','🚁','🛸','🚲','🏝️','🗽','🏔️','🚙','🛵','🏰','🗻','🏖️','🌋','⛺'
+  ]},
+  { id: 'characters', label: 'Characters', emojis: [
+    '😀','😎','🤠','🤖','👻','🎃','🧙','🧚','🦸','🦹','🥷','🧛','👽','🤡','🧞','🦄','🐲','👾'
+  ]},
+  { id: 'hearts', label: 'Hearts & Sparkle', emojis: [
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💖','💕','💫','⭐','✨'
+  ]},
+]);
+const AVATAR_OPTIONS = AVATAR_CATEGORIES.reduce((acc, cat) => acc.concat(cat.emojis), []);
 
 // Returns the HTML content for a member's avatar bubble. Prefers their chosen emoji,
 // falls back to the first letter of their name. The caller controls the wrapping element
@@ -8137,6 +8161,10 @@ window.toggleFavGenre = async function(genre) {
 };
 
 // === Avatar picker ===
+// v16.10b — Render the 130+ palette grouped by category with section headings,
+// inside a scrollable modal. AVATAR_CATEGORIES is the source of truth; the prior
+// flat-grid pattern is preserved as the inner .avatar-section-grid so the same
+// .avatar-choice button styles + chooseAvatar handler keep working unchanged.
 window.openAvatarPicker = function() {
   if (!state.me) return;
   haptic('light');
@@ -8144,10 +8172,20 @@ window.openAvatarPicker = function() {
   if (!grid) return;
   const m = state.members.find(x => x.id === state.me.id);
   const current = m && m.avatar;
-  grid.innerHTML = AVATAR_OPTIONS.map(emoji => {
+  const renderButton = (emoji) => {
     const sel = emoji === current ? 'selected' : '';
     return `<button type="button" class="avatar-choice ${sel}" aria-label="Use ${emoji}" aria-pressed="${sel?'true':'false'}" onclick="chooseAvatar('${emoji}')">${emoji}</button>`;
-  }).join('');
+  };
+  grid.innerHTML = AVATAR_CATEGORIES.map(cat => `
+    <div class="avatar-section" data-cat="${cat.id}">
+      <h4 class="avatar-section-h">${escapeHtml(cat.label)}</h4>
+      <div class="avatar-section-grid">${cat.emojis.map(renderButton).join('')}</div>
+    </div>
+  `).join('');
+  // Scroll the picker back to the top each time it opens — last session's
+  // category scroll position would feel sticky/disorienting on a re-open.
+  const modal = document.querySelector('.avatar-picker-modal');
+  if (modal) modal.scrollTop = 0;
   document.getElementById('avatar-picker-bg').classList.add('on');
 };
 

@@ -2014,7 +2014,16 @@ input.field-invalid{border-color:var(--bad)}
   display:grid;place-items:center;font-size:var(--t-meta);font-weight:700;
   box-shadow:0 2px 6px rgba(0,0,0,0.4);border:2px solid var(--bg)}
 .avatar-picker-modal{max-width:440px;width:92vw;max-height:80vh;overflow-y:auto;padding:var(--s5);position:relative}
-.avatar-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s2)}
+/* v16.10b — Category-grouped avatar picker. .avatar-grid is now a vertical stack
+   of .avatar-section blocks; each section holds an inner .avatar-section-grid
+   (the 6-col emoji grid that previously was the only layout). */
+.avatar-grid{display:flex;flex-direction:column;gap:var(--s4)}
+.avatar-section{display:flex;flex-direction:column;gap:var(--s2)}
+.avatar-section-h{font-family:'Inter',sans-serif;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-dim);
+  margin:0;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.avatar-section-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s2)}
+@media (max-width:400px){.avatar-section-grid{grid-template-columns:repeat(5,1fr)}}
 .avatar-choice{aspect-ratio:1;border-radius:50%;background:var(--surface);
   border:2px solid var(--border-mid);cursor:pointer;font-size:var(--t-h1);
   display:grid;place-items:center;transition:all var(--t-quick);padding:0;line-height:1}
