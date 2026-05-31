@@ -15,6 +15,20 @@ import {
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   onAuthStateChanged, firebaseSignOut
 } from './firebase.js';
+import { promptInDom, flashToast } from './utils.js';
+
+// Decide whether to use signInWithPopup (Safari non-PWA) vs signInWithRedirect (everywhere else).
+function _shouldUsePopup() {
+  try {
+    // iOS standalone PWA (Add to Home Screen): popups are blocked. Must use redirect.
+    if (typeof navigator !== 'undefined' && navigator.standalone === true) return false;
+    // Android / desktop standalone PWA: same constraint.
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return false;
+    // Safari = Apple WebKit on iOS/macOS, excluding the in-iOS variants of Chrome/Firefox/Edge/Opera.
+    const ua = navigator.userAgent || '';
+    return /Safari\//.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(ua);
+  } catch(e) { return false; }
+}
 
 // Decide whether to use signInWithPopup (Safari non-PWA) vs signInWithRedirect (everywhere else).
 function _shouldUsePopup() {
@@ -109,7 +123,18 @@ export async function completeEmailLinkIfPresent() {
   let email = null;
   try { email = localStorage.getItem('qn_email_for_link'); } catch(e) {}
   if (!email) {
-    email = window.prompt('Please confirm your email address to sign in:');
+    // window.prompt() returns null instantly inside iOS WKWebView (PWABuilder
+    // wrapper installs no UIAlertController bridge) — the email-link flow
+    // appeared to silently fail on cross-device sign-in. Replaced with an
+    // in-DOM modal (Tier 3 / WKWebView fallback fix).
+    email = await promptInDom({
+      title: 'Confirm your email',
+      body: "We sent the sign-in link to a different device. Enter the email you used so we can finish signing you in.",
+      inputType: 'email',
+      inputAutocomplete: 'email',
+      inputPlaceholder: 'you@example.com',
+      confirmLabel: 'Sign in'
+    });
   }
   if (!email) return null;
   try {
@@ -120,6 +145,7 @@ export async function completeEmailLinkIfPresent() {
     return result.user;
   } catch(e) {
     console.error('[auth] email link sign-in failed', e);
+    try { flashToast('Sign-in link is invalid or expired. Try sending yourself a new one.', { kind: 'warn' }); } catch(e2) {}
     return null;
   }
 }

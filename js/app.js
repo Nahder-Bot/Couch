@@ -1,8 +1,8 @@
 import { db, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, getDoc, query, orderBy, addDoc, arrayUnion, deleteField, writeBatch, collectionGroup, where, auth, functions, httpsCallable, updatePassword, signInWithEmailAndPassword, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
-import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE } from './constants.js';
+import { TMDB_KEY, VAPID_PUBLIC_KEY, TRAKT_CLIENT_ID, TRAKT_EXCHANGE_URL, TRAKT_REFRESH_URL, TRAKT_DISCONNECT_URL, TRAKT_REDIRECT_URI, traktIsConfigured, COLORS, RATING_TIERS, TIER_LABELS, tierFor, ageToMaxTier, normalizeProviderName, SUBSCRIPTION_BRANDS, QN_DEBUG, qnLog, MOODS, moodById, suggestMoods, normalizeCode, DISCOVERY_CATALOG, COUCH_NIGHTS_PACKS, APP_VERSION, BUILD_DATE, BRACKETS, BRACKET_ORDER, memberBracket, bracketToFlags } from './constants.js';
 import { pickDailyRows, isInSeasonalWindow } from './discovery-engine.js';
 import { state, membersRef, titlesRef, familyDocRef, vetoHistoryRef, vetoHistoryDoc } from './state.js';
-import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip } from './utils.js';
+import { escapeHtml, haptic, flashToast, skDiscoverRow, skTitleList, POSTER_COLORS, colorFor, posterStyle, posterFallbackLetter, writeAttribution, showTooltipAt, hideTooltip, promptInDom } from './utils.js';
 import { twemojiImg } from './twemoji.js';
 import { LEAGUES as SPORTS_FEED_LEAGUES, fetchSchedule as feedFetchSchedule, fetchScore as feedFetchScore, leagueKeys as feedLeagueKeys, leagueLabel as feedLeagueLabel, leagueEmoji as feedLeagueEmoji } from './sports-feed.js';
 // Phase 28 / Plan 28-05 — Pick'em pure helpers (slate grouping, scoring, validation,
@@ -187,17 +187,23 @@ function maybeShowIosPwaNudge() {
     const el = document.createElement('div');
     el.className = 'ios-pwa-nudge';
     el.setAttribute('role', 'status');
+    // Top-right corner × is the canonical "close" affordance for users — moving it out
+    // of the inline-text flow makes it unmistakable. Also adding an explicit "Not now"
+    // text button so anyone who misses the floating × has a labeled escape hatch.
     el.innerHTML = `
+      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
       <div class="ios-pwa-nudge-text">
         Add Couch to your home screen — tap <span class="ios-pwa-nudge-icon" aria-hidden="true">⬆︎</span> then "Add to Home Screen" for the full experience.
       </div>
-      <button class="ios-pwa-nudge-close" type="button" aria-label="Dismiss home-screen prompt">×</button>
+      <button class="ios-pwa-nudge-dismiss-text" type="button">Not now</button>
     `;
     document.body.appendChild(el);
-    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', () => {
+    const dismiss = () => {
       try { localStorage.setItem('iosPwaNudgeDismissedAt', String(Date.now())); } catch (_) {}
       el.remove();
-    });
+    };
+    el.querySelector('.ios-pwa-nudge-close').addEventListener('click', dismiss);
+    el.querySelector('.ios-pwa-nudge-dismiss-text').addEventListener('click', dismiss);
   } catch (e) {
     // Non-fatal — never block app boot if nudge wiring throws.
     try { console.warn('[ios-pwa-nudge]', e); } catch (_) {}
@@ -483,7 +489,11 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   // pick'em surface (submitted picks, joined a league season).
   pickReminder: true,
   pickResults: true,
-  pickemSeasonReset: true
+  pickemSeasonReset: true,
+  // === Phase 16 / CAL-16-06 — seriesReminder push category (DR-3 client place 1 of 2).
+  // Mirror of queuenight NOTIFICATION_DEFAULTS. Default ON: fires only when
+  // the user has created or been added to a recurring watchparty series.
+  seriesReminder: true
 });
 
 // UI copy for each toggle — label shown in Settings + description hint.
@@ -539,7 +549,9 @@ const NOTIFICATION_EVENT_LABELS = Object.freeze({
   // Phase 14-09 DR-3 follow-up override (TD-8 dual-Settings-screen consolidation).
   pickReminder:      { label: 'Game starting soon — make your pick',   hint: "Heads-up your pick'em deadline is in 15 minutes." },
   pickResults:       { label: "Pick'em results",                       hint: 'When games you picked finish.' },
-  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." }
+  pickemSeasonReset: { label: "Pick'em season reset",                  hint: "When your league's season turns over." },
+  // Phase 16 / CAL-16-06 — DR-3 client place 2 of 2
+  seriesReminder:    { label: 'Recurring watchparty reminder',         hint: 'Heads-up that a series instance is starting in 30 minutes.' }
 });
 
 // Phase 12 / POL-01 — UI key → server key alias map.
@@ -789,6 +801,41 @@ async function updateQuietHours(patch) {
   }
 }
 
+// TD-13 / Phase 30 post-mortem (2026-05-26) — onSnapshot listener error visibility.
+// Every listener used to be silent on failure: qnLog (gated off QN_DEBUG in prod) or
+// no error callback at all. Phase 30's missing collectionGroup rule + index left
+// state.watchparties empty for ~3-4 weeks without any user feedback — diagnosed
+// only via Chrome MCP direct probe.
+//
+// This helper fires three things on listener error:
+//   1. qnLog for dev visibility
+//   2. Sentry breadcrumb for production telemetry (CSP already allows sentry-cdn.com)
+//   3. One toast per listener-name per session — visible feedback without spam
+const _snapshotErrorShown = new Set();
+function snapshotErrorHandler(name) {
+  return (err) => {
+    qnLog('[' + name + '] snapshot error', err && err.message, err && err.code);
+    try {
+      if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+        Sentry.addBreadcrumb({
+          category: 'snapshot.error',
+          message: (err && err.message) || 'unknown',
+          data: { listener: name, code: (err && err.code) || null },
+          level: 'warning'
+        });
+      }
+    } catch (e) {}
+    if (!_snapshotErrorShown.has(name)) {
+      _snapshotErrorShown.add(name);
+      try {
+        if (typeof flashToast === 'function') {
+          flashToast('Couch is having trouble syncing — refresh to reload.', { kind: 'warn' });
+        }
+      } catch (e) {}
+    }
+  };
+}
+
 // Subscribe to users/{uid} for notificationPrefs. Called from onAuthStateChangedCouch on sign-in;
 // torn down on sign-out. Kept separate from startSettingsSubscription (which reads /settings/auth).
 function startNotificationPrefsSubscription(uid) {
@@ -798,9 +845,7 @@ function startNotificationPrefsSubscription(uid) {
     const data = (snap && snap.data()) || {};
     state.notificationPrefs = data.notificationPrefs || {};
     if (typeof updateNotifCard === 'function') updateNotifCard();
-  }, (err) => {
-    qnLog('[QN push] prefs snapshot error:', err.message);
-  });
+  }, snapshotErrorHandler('notif-prefs'));
 }
 
 // SHA-256 hash a string and return as hex. Used to make safe Firestore key names from URLs.
@@ -870,6 +915,15 @@ const trakt = {
     }).toString();
     // Open as a popup. On mobile Safari popups sometimes get nerfed into a
     // full-window redirect — the callback page handles that via sessionStorage.
+    // Launch-readiness audit fix: on iOS standalone PWA, window.open() returns
+    // a truthy proxy but the postMessage channel is lost — user signs in at Trakt
+    // and lands on a blank page outside the PWA. Force the full-page redirect path
+    // here (checkForStashedTraktCode picks up the code on return).
+    const isIosStandalone = (typeof navigator !== 'undefined') && (window.navigator.standalone === true);
+    if (isIosStandalone) {
+      window.location.href = url;
+      return;
+    }
     const popup = window.open(url, 'trakt-auth', 'width=520,height=720');
     if (!popup) {
       // Popup blocked — fall back to a full-page redirect. User returns to / after auth.
@@ -1916,18 +1970,42 @@ function avgScore(t) {
 }
 
 // === Avatars ===
-// Curated emoji palette for profile pictures. Chosen to be kid-friendly, work across
-// platforms (all widely-supported emoji), and include variety so nobody has to share.
-const AVATAR_OPTIONS = [
-  // Animals
-  '🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🐙','🦋','🐢','🐶','🐱','🐰',
-  // Nature
-  '🌸','🌻','🌵','🍄','🌙','⭐','🔥','🌈',
-  // Food
-  '🍎','🍕','🍔','🍦','🍩','🥑','🌮',
-  // Objects / vibes
-  '🎸','🎨','📚','🚀','⚽','🎮','🎧','🎭','🏆'
-];
+// v16.10b — 130+ curated emoji avatars across 8 themed categories. Replaces the
+// prior 40-option flat palette. All entries are single-codepoint or pre-Unicode-15
+// emoji that render via Twemoji + native iOS/Android emoji fonts without ZWJ
+// fragmentation. AVATAR_OPTIONS is preserved as the flat union for any consumer
+// (e.g. member.avatar string-equality checks during cleanup) that doesn't care
+// about category grouping. AVATAR_CATEGORIES drives the category-section picker UI.
+const AVATAR_CATEGORIES = Object.freeze([
+  { id: 'animals', label: 'Animals', emojis: [
+    '🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🐙','🦋','🐢','🐶','🐱','🐰',
+    '🐺','🐮','🐷','🐭','🐹','🐔','🐧','🐳','🦈','🦒','🦓','🦘','🦦'
+  ]},
+  { id: 'nature', label: 'Nature & Sky', emojis: [
+    '🌸','🌻','🌵','🍄','🌙','⭐','🔥','🌈','🌺','🌹','🌷','🌳','🌊','⚡','❄️','🌿','🍀','☀️'
+  ]},
+  { id: 'food', label: 'Food & Drink', emojis: [
+    '🍎','🍕','🍔','🍦','🍩','🥑','🌮','🍣','🍜','🍪','🍓','🍫','🍯','🍿','🥨','🍇',
+    '🍑','🧀','🌭','🥞','🍩','🥐','🫐','🥥'
+  ]},
+  { id: 'sports', label: 'Sports & Games', emojis: [
+    '⚽','🏀','🏈','⚾','🎾','🏐','🏉','🎱','🏓','🎮','🎲','🏆','🥊','🏒','🎯','🎳'
+  ]},
+  { id: 'hobbies', label: 'Hobbies & Vibes', emojis: [
+    '🎸','🎨','📚','🚀','🎧','🎭','🎤','🎬','🎻','🎹','📷','⌚','💎','🪐','🎁','🎈',
+    '🌟','✨','🔮','🪗','🎺','🥁','📸','💿'
+  ]},
+  { id: 'travel', label: 'Travel & Places', emojis: [
+    '✈️','🚂','🚢','🚁','🛸','🚲','🏝️','🗽','🏔️','🚙','🛵','🏰','🗻','🏖️','🌋','⛺'
+  ]},
+  { id: 'characters', label: 'Characters', emojis: [
+    '😀','😎','🤠','🤖','👻','🎃','🧙','🧚','🦸','🦹','🥷','🧛','👽','🤡','🧞','🦄','🐲','👾'
+  ]},
+  { id: 'hearts', label: 'Hearts & Sparkle', emojis: [
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💖','💕','💫','⭐','✨'
+  ]},
+]);
+const AVATAR_OPTIONS = AVATAR_CATEGORIES.reduce((acc, cat) => acc.concat(cat.emojis), []);
 
 // Returns the HTML content for a member's avatar bubble. Prefers their chosen emoji,
 // falls back to the first letter of their name. The caller controls the wrapping element
@@ -2085,6 +2163,11 @@ const WP_STALE_MS = 5 * 60 * 60 * 1000; // 5h since start time
 // watchpartiesRef helper is REMOVED — the subscription uses inline collectionGroup query
 // (see subscribeWatchparties at the original onSnapshot site for the new query shape).
 function watchpartyRef(id) { return doc(db, 'watchparties', id); }
+
+// Phase 16 / CAL-16-10 — top-level watchpartySeries doc ref. Single-tier
+// top-level collection (no nested counterpart, unlike legacy watchparties).
+// Rules-gated by memberUids array-contains auth.uid (firestore.rules:993).
+function seriesRef(id) { return doc(db, 'watchpartySeries', id); }
 
 // === Phase 8 Watch-Intent Flows ===
 // Intents are a new primitive SEPARATE from the general vote system (see 08-CONTEXT D-02).
@@ -2961,7 +3044,7 @@ window.onFlowBRejectCounter = async function(memberId) {
   }
 };
 
-window.onFlowBOpenCompromiseTimePicker = function(memberId) {
+window.onFlowBOpenCompromiseTimePicker = async function(memberId) {
   const intentId = state.flowBStatusIntentId;
   const intent = (state.intents || []).find(i => i.id === intentId);
   if (!intent) return;
@@ -2972,8 +3055,18 @@ window.onFlowBOpenCompromiseTimePicker = function(memberId) {
   const cd = new Date(compromise);
   const pad = (n) => String(n).padStart(2, '0');
   const compromiseLocal = `${cd.getFullYear()}-${pad(cd.getMonth()+1)}-${pad(cd.getDate())}T${pad(cd.getHours())}:${pad(cd.getMinutes())}`;
-  // Browser prompt() — D-08 doesn't specify; sufficient for solo-nominator decision UX.
-  const userInput = window.prompt(`Compromise time (suggested midpoint pre-filled):\nFormat: YYYY-MM-DDTHH:MM`, compromiseLocal);
+  // In-DOM modal with native datetime-local input. Replaces window.prompt()
+  // which silently returns null inside iOS WKWebView (PWABuilder wrapper has
+  // no UIAlertController bridge) — the compromise-time flow would just
+  // no-op for wrapper users. Native datetime-local input is also a real UX
+  // upgrade over the plain-text prompt parsing (Tier 3 / WKWebView fix).
+  const userInput = await promptInDom({
+    title: 'Compromise time',
+    body: 'Suggested midpoint pre-filled — adjust if you want a different time.',
+    inputType: 'datetime-local',
+    initialValue: compromiseLocal,
+    confirmLabel: 'Set time'
+  });
   if (!userInput) return;
   const finalTime = new Date(userInput).getTime();
   if (!isFinite(finalTime) || finalTime < Date.now()) { flashToast('Pick a future time', { kind: 'warn' }); return; }
@@ -3271,19 +3364,22 @@ function loadSavedGroups() {
     const raw = localStorage.getItem('qn_groups');
     if (raw) return JSON.parse(raw);
   } catch(e){}
-  // Migration: if old qn_family exists, seed as first group
-  const old = localStorage.getItem('qn_family');
+  // Migration: if old qn_family exists, seed as first group.
+  // Launch-readiness audit fix: wrap every localStorage call so Safari private-mode
+  // storage exceptions don't abort boot (matches the iOS PWA nudge pattern @ line 183).
+  let old = null;
+  try { old = localStorage.getItem('qn_family'); } catch (_) { return []; }
   if (old) {
     let me = null;
     try { me = JSON.parse(localStorage.getItem('qn_me')||'null'); } catch(e){}
     const seed = [{ code: old, name: old, mode: 'family', myMemberId: me?.id||null, myMemberName: me?.name||null }];
-    localStorage.setItem('qn_groups', JSON.stringify(seed));
-    localStorage.setItem('qn_active_group', old);
+    try { localStorage.setItem('qn_groups', JSON.stringify(seed)); } catch (_) {}
+    try { localStorage.setItem('qn_active_group', old); } catch (_) {}
     return seed;
   }
   return [];
 }
-function saveGroups() { localStorage.setItem('qn_groups', JSON.stringify(state.groups||[])); }
+function saveGroups() { try { localStorage.setItem('qn_groups', JSON.stringify(state.groups||[])); } catch (_) {} }
 function upsertSavedGroup(entry) {
   state.groups = loadSavedGroups();
   const i = state.groups.findIndex(g => g.code === entry.code);
@@ -3443,6 +3539,9 @@ async function onAuthStateChangedCouch(user) {
     if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
     if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
     if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+    // Phase 16 / CAL-16-10 — top-level watchpartySeries subscription teardown.
+    // Mirrors the unsubWatchparties pattern; same leak class (CR-07) if omitted.
+    if (state.unsubSeries)       { try { state.unsubSeries();       } catch(e) {} state.unsubSeries       = null; }
     // CR-04 — module-scoped activity feed + lists subscriptions also leaked. These
     // are module-scope lets (unsubActivity at ~8894, unsubLists at ~16552) so we
     // tear them down + clear their backing arrays here.
@@ -3457,6 +3556,7 @@ async function onAuthStateChangedCouch(user) {
     recentActivity = [];
     allLists = [];
     state.watchparties = [];
+    state.series = []; // Phase 16 / CAL-16-10 — clear on sign-out so ghost rows don't linger.
     state.session = null;
     state.intents = [];
     state.me = null;
@@ -3465,6 +3565,11 @@ async function onAuthStateChangedCouch(user) {
     state.group = null;
     state.ownerUid = null;
     state.notificationPrefs = null;
+    // Reset the per-session onboarding flag so a DIFFERENT user signing in on the
+    // same tab sees the intro if their member doc has seenOnboarding=false. Without
+    // this, the flag stays true for the lifetime of the tab and the new user is silently
+    // skipped past the welcome.
+    _onboardingShownThisSession = false;
     showPreAuthScreen('signin-screen');
     return;
   }
@@ -3550,7 +3655,10 @@ function startUserGroupsSubscription(uid) {
     if (typeof renderGroupSwitcher === 'function') renderGroupSwitcher();
     if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
   }, (e) => {
-    console.error('[user-groups] snapshot error', e);
+    // Launch-readiness audit fix (TD-13 class): replace console-only with the
+    // standard snapshotErrorHandler so failures surface a toast instead of stalling
+    // sign-in silently. Still resolve firstSnapshot so caller doesn't hang 4s.
+    try { snapshotErrorHandler('user-groups')(e); } catch(_) { console.error('[user-groups] snapshot error', e); }
     if (firstSnapshotResolver) { firstSnapshotResolver(); firstSnapshotResolver = null; }
   });
   return firstSnapshot;
@@ -3565,7 +3673,7 @@ function startSettingsSubscription() {
     // state immediately so unclaimed members go dim without waiting on a members snapshot.
     try { if (typeof applyReadOnlyState === 'function') applyReadOnlyState(); } catch(e) {}
     try { if (typeof renderGraceBanner === 'function') renderGraceBanner(); } catch(e) {}
-  }, (e) => console.error('[settings] snapshot error', e));
+  }, snapshotErrorHandler('settings'));
 }
 
 async function handlePostSignInIntent() {
@@ -3629,15 +3737,32 @@ function routeAfterAuth() {
 
 async function _bootIntoGroup(code) {
   state.familyCode = code;
+  // Launch-readiness audit fix: phantom-family recovery. If the family doc doesn't
+  // exist (kicked, deleted, rules-deny) we used to silently set a stub state.group
+  // and showApp() — user lands on empty Tonight tab with no escape. Now we surface
+  // a toast, clear stale localStorage keys, and route to mode-pick instead.
+  const _phantomFamilyRecover = () => {
+    try { flashToast("Couldn't load your group — pick a different one or rejoin.", { kind: 'warn' }); } catch(_) {}
+    try { localStorage.removeItem('qn_family'); } catch(_) {}
+    try { localStorage.removeItem('qn_active_group'); } catch(_) {}
+    try { localStorage.removeItem('qn_me'); } catch(_) {}
+    state.familyCode = null;
+    state.group = null;
+    showPreAuthScreen('screen-mode');
+  };
   try {
     const snap = await getDoc(familyDocRef());
     if (snap.exists()) {
       const d = snap.data();
       state.group = { code, mode: d.mode || 'family', name: d.name || code, picker: d.picker || null };
     } else {
-      state.group = { code, mode: 'family', name: code, picker: null };
+      _phantomFamilyRecover();
+      return;
     }
-  } catch(e) { state.group = { code, mode: 'family', name: code, picker: null }; }
+  } catch(e) {
+    _phantomFamilyRecover();
+    return;
+  }
 
   // Restore the user's member identity for this group. Source of truth order:
   //   1. Firestore users/{uid}/groups/{code}.memberId — set when user first claimed in this group
@@ -3926,8 +4051,19 @@ window.submitFamily = async function() {
   try { const snap = await getDoc(familyDocRef()); if (snap.exists()) existing = snap.data(); } catch(e){}
 
   if (existing && existing.passwordHash) {
-    // Password-protected: route through joinGroup Cloud Function
-    const password = window.prompt('This group is password-protected. Enter the password:') || '';
+    // Password-protected: route through joinGroup Cloud Function.
+    // window.prompt() returns null instantly inside iOS WKWebView (no
+    // UIAlertController bridge in PWABuilder), so the password-protected
+    // join silently failed in the wrapper. In-DOM modal replaces it
+    // (Tier 3 / WKWebView fallback fix).
+    const password = (await promptInDom({
+      title: 'Password required',
+      body: 'This group is password-protected. Enter the password to join.',
+      inputType: 'password',
+      inputAutocomplete: 'current-password',
+      inputPlaceholder: 'Password',
+      confirmLabel: 'Join'
+    })) || '';
     if (!password) { flashToast('Password required', { kind: 'warn' }); state.familyCode = null; return; }
     try {
       const joinGroupFn = httpsCallable(functions, 'joinGroup');
@@ -4565,6 +4701,43 @@ function applyReadOnlyState() {
 // should early-return (and also surfaces the toast + banner as a side-effect).
 function guardReadOnlyWrite() {
   if (!isCurrentSelfReadOnly()) return false;
+  // Owner self-claim fast-path (2026-05-28 user feedback): if the signed-in user
+  // owns this family doc but their member doc has no uid (pre-Phase-5 family,
+  // grace expired), they can self-link instantly — the owner branch of the
+  // member UPDATE rule allows them to write any field. Fire-and-forget; the
+  // snapshot will refresh state.me with the new uid + claimedAt, after which
+  // isCurrentSelfReadOnly returns false on next write attempt.
+  if (state.me && !state.me.uid && state.auth && state.auth.uid
+      && state.ownerUid === state.auth.uid) {
+    // Optimistic local update — state.me is set from qn_me localStorage and
+    // doesn't auto-refresh from the members snapshot, so without this every
+    // subsequent guardReadOnlyWrite call re-fires the claim. Sync the cached
+    // member object in state.members too so isReadOnlyForMember(state.me)
+    // sees the new uid on the next tap.
+    state.me.uid = state.auth.uid;
+    state.me.claimedAt = Date.now();
+    const liveMe = (state.members || []).find(m => m.id === state.me.id);
+    if (liveMe) { liveMe.uid = state.auth.uid; liveMe.claimedAt = state.me.claimedAt; }
+    flashToast('Claiming your account…', { kind: 'info' });
+    try {
+      updateDoc(doc(membersRef(), state.me.id), {
+        uid: state.auth.uid,
+        claimedAt: Date.now()
+      }).then(() => {
+        flashToast('Account claimed — tap Save again.');
+      }).catch((e) => {
+        // Revert optimistic update on failure
+        state.me.uid = null;
+        state.me.claimedAt = null;
+        if (liveMe) { liveMe.uid = null; liveMe.claimedAt = null; }
+        console.warn('owner self-claim failed', e && e.message);
+        flashToast('Could not claim — ask the owner for a claim link.', { kind: 'warn' });
+      });
+      return true;
+    } catch(e) {
+      console.warn('owner self-claim threw', e && e.message);
+    }
+  }
   flashToast("This member hasn't been claimed yet — ask the owner for a claim link.", { kind: 'warn' });
   showClaimPromptBanner();
   return true;
@@ -4798,8 +4971,27 @@ window.switchToGroup = async function(code) {
   localStorage.setItem('qn_family', g.code);
   localStorage.setItem('qn_active_group', g.code);
   localStorage.setItem('qn_me', JSON.stringify({ id: g.myMemberId, name: g.myMemberName }));
-  if (state.unsubMembers) state.unsubMembers();
-  if (state.unsubTitles) state.unsubTitles();
+  // Full teardown — mirrors the sign-out path in onAuthStateChangedCouch. Without this,
+  // the OLD family's onSnapshot callbacks keep firing after location.reload() (Firebase
+  // auth persists across reloads, so the full sign-out teardown never runs). Stale
+  // callbacks write the previous family's data into state — symptoms: blank load, ghost
+  // rows, race conditions that look like "had to sign in again."
+  // Review fix N-2 — added unsubUserGroups + unsubSettings + unsubNotifPrefs to fully
+  // mirror the sign-out path; previously these 3 could fire briefly under slow reload.
+  if (state.unsubUserGroups)   { try { state.unsubUserGroups();   } catch(e) {} state.unsubUserGroups   = null; }
+  if (state.unsubSettings)     { try { state.unsubSettings();     } catch(e) {} state.unsubSettings     = null; }
+  if (state.unsubNotifPrefs)   { try { state.unsubNotifPrefs();   } catch(e) {} state.unsubNotifPrefs   = null; }
+  if (state.unsubMembers)      { try { state.unsubMembers();      } catch(e) {} state.unsubMembers      = null; }
+  if (state.unsubTitles)       { try { state.unsubTitles();       } catch(e) {} state.unsubTitles       = null; }
+  if (state.unsubIntents)      { try { state.unsubIntents();      } catch(e) {} state.unsubIntents      = null; }
+  if (state.unsubWatchparties) { try { state.unsubWatchparties(); } catch(e) {} state.unsubWatchparties = null; }
+  if (state.unsubSession)      { try { state.unsubSession();      } catch(e) {} state.unsubSession      = null; }
+  if (state.unsubGroup)        { try { state.unsubGroup();        } catch(e) {} state.unsubGroup        = null; }
+  if (state.unsubSeries)       { try { state.unsubSeries();       } catch(e) {} state.unsubSeries       = null; }
+  if (typeof unsubActivity === 'function') { try { unsubActivity(); } catch(e) {} unsubActivity = null; }
+  if (typeof unsubLists === 'function')    { try { unsubLists();    } catch(e) {} unsubLists    = null; }
+  if (state.watchpartyTick)    { try { clearInterval(state.watchpartyTick);   } catch(e) {} state.watchpartyTick   = null; }
+  if (state._traktHeartbeat)   { try { clearInterval(state._traktHeartbeat);  } catch(e) {} state._traktHeartbeat  = null; }
   location.reload();
 };
 
@@ -5057,7 +5249,7 @@ function startSync() {
     }
     // Surface in-app toasts when someone's request gets approved or declined.
     checkApprovalUpdates();
-  });
+  }, snapshotErrorHandler('titles'));
   // Live-sync the group doc so picker + mode updates propagate between devices.
   // Plan 07: also track ownerUid so the owner-only admin panel toggles in real time
   // (e.g. after a transferOwnership CF flips the doc).
@@ -5092,7 +5284,7 @@ function startSync() {
     try { renderOwnerSettings(); } catch(e) {}
     // Plan 09-07a: re-evaluate legacy self-claim CTA whenever ownership changes.
     try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
-  });
+  }, snapshotErrorHandler('group'));
   subscribeSession();
   scheduleMidnightRefresh();
   // Phase 8 — subscribe to intents collection. Guards with typeof checks so Plan 08-01
@@ -5111,7 +5303,7 @@ function startSync() {
     // the moment a rank-pick intent opens or closes elsewhere on the couch.
     if (typeof maybeRerenderFlowAResponse === 'function') maybeRerenderFlowAResponse();
     if (typeof renderFlowAEntry === 'function') renderFlowAEntry();
-  }, e => { qnLog('[intents] snapshot error', e.message); });
+  }, snapshotErrorHandler('intents'));
   // Subscribe to watchparties collection
   // Phase 30 — collectionGroup query replaces families/{code}/watchparties subscription.
   // where('memberUids', 'array-contains', uid) MUST be present or rules reject the query
@@ -5164,8 +5356,38 @@ function startSync() {
         if (wp) renderAddFamilySection(wp);
       }
     },
-    e => { qnLog('[watchparties] snapshot error', e && e.message); }
+    snapshotErrorHandler('watchparties')
   );
+
+  // === Phase 16 / CAL-16-10 — subscribe to top-level watchpartySeries ===
+  // Single-collection top-level query (NOT collectionGroup — series has no nested counterpart,
+  // unlike legacy watchparties which retained the nested path during Phase 30 migration).
+  // Read-gated server-side via firestore.rules:993 `memberUids array-contains auth.uid`.
+  // Index: (familyCode ASC, status ASC, nextFireAt ASC) per 16-01-SUMMARY — but we run the
+  // simpler memberUids-gated query here to match the rule's read predicate exactly
+  // (RESEARCH Pitfall 2: rules-vs-query alignment requirement, same as watchparties above).
+  if (state.unsubSeries) { try { state.unsubSeries(); } catch(e){} state.unsubSeries = null; }
+  if (state.auth && state.auth.uid) {
+    try {
+      state.unsubSeries = onSnapshot(
+        query(
+          collection(db, 'watchpartySeries'),
+          where('memberUids', 'array-contains', state.auth.uid)
+        ),
+        s => {
+          state.series = s.docs.map(d => {
+            const data = d.data() || {};
+            // Carry the doc id explicitly — series payloads stamp createdBy/familyCode but
+            // the doc id (used by pause/resume/cancel/Edit) is only on the snapshot.
+            return { id: d.id, ...data };
+          });
+          try { renderSeriesListCard(); } catch(e) {}
+        },
+        snapshotErrorHandler('watchpartySeries')
+      );
+    } catch(e) { qnLog('[watchpartySeries] subscribe init failed', e && e.message); }
+  }
+
   // Tick every second for countdown + elapsed timers. Short-circuit when no active watchparties.
   if (state.watchpartyTick) clearInterval(state.watchpartyTick);
   state.watchpartyTick = setInterval(() => {
@@ -5720,10 +5942,17 @@ window.removeMoodFilter = function(id) {
 function renderTonight() {
   renderPickerCard();
   renderUpNext();
-  renderContinueWatching();
+  // Phase 16.4 — legacy per-member renderContinueWatching() removed. The tuple-aware
+  // renderPickupWidget() (called from elsewhere in renderTonight) is now the sole
+  // "continue watching" surface. Eliminates the v1 dual-widget vertical waste.
   renderNext3();
   renderMoodFilter();
   updateFiltersBar();
+  // Phase 16.4 — gate filter bar visibility on having titles. A brand-new family with
+  // zero titles can't meaningfully filter, and the always-rendered bar adds ~60px of
+  // empty-state real estate above "Tonight's picks." Restored when titles arrive.
+  const filtersEl = document.getElementById('t-filters');
+  if (filtersEl) filtersEl.style.display = ((state.titles || []).length === 0) ? 'none' : '';
   // 14-10 (sketch 003 V5): who-list emitter removed — #who-list element deleted
   // with .who-card in app.html. The V5 roster in #couch-viz-container above is
   // the single 'who's on the couch' surface on the Tonight tab.
@@ -5737,6 +5966,12 @@ function renderTonight() {
   // CTAs: Add tab + Trakt connect (history import). showScreen('add') is the
   // canonical tab nav. Trakt connect entry: trakt.connect() (window.trakt at line 865).
   if ((state.titles || []).length === 0 && state.familyCode) {
+    // Phase 16.4 review fix N-1 — hide the cinematic hero container on brand-new
+    // families so the empty Tonight tab stays clean (no orphan margin above the
+    // queue-empty CTA). The hero re-renders when titles arrive via the renderTonightHero
+    // call below the empty-state guards.
+    const heroEl0 = document.getElementById('tonight-hero-container');
+    if (heroEl0) heroEl0.innerHTML = '';
     el.innerHTML = `<div class="queue-empty">
       <span class="emoji">🛋️</span>
       <strong>Your couch is fresh</strong>
@@ -5751,6 +5986,8 @@ function renderTonight() {
     return;
   }
   if (state.members.length === 0) {
+    const heroEl0 = document.getElementById('tonight-hero-container');
+    if (heroEl0) heroEl0.innerHTML = '';
     el.innerHTML = `<div class="empty"><strong>No group yet</strong>Share your code so others can join.</div>`;
     countEl.textContent = '';
     if (actionsEl) actionsEl.innerHTML = '';
@@ -5846,6 +6083,13 @@ function renderTonight() {
 
   countEl.textContent = matches.length ? (matches.length + (matches.length===1?' match':' matches')) : '';
 
+  // Phase 16.4 — cinematic top-match hero. Top of the matches list becomes the
+  // full-bleed poster surface above the rest of the picks. The "really hook you in"
+  // moment per user 2026-05-28 redesign — content-first instead of configuration-first.
+  // Empty state (no matches) handled inside renderTonightHero — shows a gentle nudge,
+  // not a dead empty card.
+  renderTonightHero(matches[0] || null, couch);
+
   // Section-level actions: spin + veto-undo note, quietly
   const actions = [];
   if (matches.length >= 2) {
@@ -5900,7 +6144,9 @@ function renderTonight() {
   const matchesHtml = matches.length
     ? matches.map(t => card(t)).join('')
     : emptyHtml;
-  el.innerHTML = matchesHtml + considerHtml + vetoedHtml;
+  // v16.10c — append the Couch-loved peek at the bottom of the Tonight list
+  // so accumulated ratings get continuous visibility, not just on Family tab.
+  el.innerHTML = matchesHtml + considerHtml + vetoedHtml + buildCouchLovedTonightHtml();
   // D-06 (DECI-14-06) — render couch viz centerpiece. Container in app.html (Tonight tab top).
   // Safe to call on every renderTonight pass — innerHTML overwrite is the persistence model.
   if (typeof renderCouchViz === 'function') renderCouchViz();
@@ -5911,6 +6157,30 @@ function renderTonight() {
   // Renders into #cv15-pickup-container between #couch-viz-container and #flow-a-entry-container.
   // Hides entirely on zero tuples per UI-SPEC §Discretion Q7. ===
   renderPickupWidget();
+
+  // === Phase 16 / CAL-16-08 — Schedule-a-series CTA ===
+  // Injects into existing #t-section-actions slot (app.html:393). Visibility gate
+  // matches Flow A entry: family + me + at least 1 couch member. Append (not overwrite)
+  // so other section actions (spin, veto note) coexist. Idempotency guard prevents
+  // duplicate inject on re-renders. setAttribute (not dataset) so the literal source
+  // string 'data-action="open-series-create"' appears verbatim for smoke needles.
+  try {
+    const actionsEl2 = document.getElementById('t-section-actions');
+    if (actionsEl2 && state.familyCode && state.me) {
+      const hasCouch = Array.isArray(state.members) && state.members.length >= 1;
+      if (hasCouch) {
+        if (!actionsEl2.querySelector('[data-action="open-series-create"]')) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill';
+          btn.setAttribute('data-action', 'open-series-create');
+          btn.textContent = 'Schedule a series';
+          btn.onclick = function() { openSeriesCreate(); };
+          actionsEl2.appendChild(btn);
+        }
+      }
+    }
+  } catch(e) { console.warn('series CTA inject failed', e && e.message); }
 }
 
 // Combined filters-bar toggle + active state
@@ -6589,19 +6859,66 @@ function timeAgo(ts) {
   return Math.floor(diff/86400000) + 'd ago';
 }
 
-// Family Favorites card: top-rated watched titles with at least 2 raters, ranked by
-// mean score. The 2+ minimum keeps single-opinion picks from dominating. Shows up to 10.
-function renderFamilyFavorites() {
-  const card = document.getElementById('family-favs-card');
-  const list = document.getElementById('family-favs-list');
-  if (!card || !list) return;
-  // Solo families (just one member) don't need this view — a personal top-rated is already on Queue tab
-  if (state.members.length < 2) { card.style.display = 'none'; return; }
+// v16.10c — Tonight-tab "Couch loved" peek. Returns HTML for a horizontal
+// poster strip showing top 4 rated titles with their avg score, ending with
+// a "See all on Family tab" link. Returns '' when no rated titles exist so
+// the section disappears cleanly on brand-new families. Shares ranking logic
+// with renderFamilyFavorites but caps at 4 (peek, not full list) and renders
+// inline in renderTonight's matches-list innerHTML rather than into a
+// dedicated DOM container — fewer moving parts, simpler invalidation.
+function buildCouchLovedTonightHtml() {
+  if (!state.titles || !state.titles.length || !state.members) return '';
   const ranked = state.titles
     .filter(t => t.watched && t.ratings)
     .map(t => {
       const scores = state.members.map(m => getScore(t.ratings[m.id])).filter(s => s > 0);
-      if (scores.length < 2) return null;
+      if (scores.length < 1) return null;
+      const avg = scores.reduce((a,b) => a+b, 0) / scores.length;
+      return { t, avg, count: scores.length };
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.avg - a.avg || b.count - a.count)
+    .slice(0, 4);
+  if (!ranked.length) return '';
+  const items = ranked.map(({ t, avg, count }) => {
+    const safeId = escapeHtml(t.id);
+    const safeName = escapeHtml(t.name || '');
+    const poster = t.poster ? escapeHtml(t.poster) : '';
+    return `<div class="couch-loved-card" role="button" tabindex="0"
+      onclick="openDetailModal('${safeId}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailModal('${safeId}');}"
+      aria-label="${safeName}, rated ${formatScore(avg)} out of 10">
+      <div class="couch-loved-poster" style="background-image:url('${poster}')" aria-hidden="true"></div>
+      <div class="couch-loved-score">${formatScore(avg)}</div>
+      <div class="couch-loved-name">${safeName}</div>
+    </div>`;
+  }).join('');
+  return `<div class="t-section couch-loved-section">
+    <div class="t-section-head">
+      <div class="t-section-title">Couch loved</div>
+      <button type="button" class="action-link couch-loved-more" onclick="showScreen('family')">See all &rsaquo;</button>
+    </div>
+    <div class="couch-loved-strip">${items}</div>
+  </div>`;
+}
+
+// Family Favorites card: top-rated watched titles ranked by mean score.
+// v16.10c — Gates lowered from Phase 11 original:
+//   (1) Solo-family hide removed. Sub-profile kids (no auth) can't rate, so
+//       "≥2 members" was effectively excluding the realistic family shape.
+//   (2) Per-title raters-min lowered 2 -> 1 so single-rater watched titles
+//       still surface (especially relevant during dogfooding / early use).
+// Title-section heading switches between "Family favorites" and "Top rated"
+// depending on whether multiple raters or just one contributed.
+function renderFamilyFavorites() {
+  const card = document.getElementById('family-favs-card');
+  const list = document.getElementById('family-favs-list');
+  if (!card || !list) return;
+  const ranked = state.titles
+    .filter(t => t.watched && t.ratings)
+    .map(t => {
+      const scores = state.members.map(m => getScore(t.ratings[m.id])).filter(s => s > 0);
+      if (scores.length < 1) return null;
       const avg = scores.reduce((a,b) => a+b, 0) / scores.length;
       return { t, avg, count: scores.length };
     })
@@ -6610,6 +6927,12 @@ function renderFamilyFavorites() {
     .slice(0, 10);
   if (!ranked.length) { card.style.display = 'none'; return; }
   card.style.display = '';
+  // v16.10c — section heading reflects the rater-count situation. Multiple
+  // raters present anywhere -> "Family favorites"; otherwise "Top rated" so
+  // the copy doesn't claim consensus that doesn't exist.
+  const anyMultiRater = ranked.some(r => r.count >= 2);
+  const headEl = card.querySelector('.tab-section-h span:first-child');
+  if (headEl) headEl.textContent = anyMultiRater ? 'Family favorites' : 'Top rated';
   list.innerHTML = ranked.map((r, i) => {
     // Per-member score pills so you can see how opinions lined up
     const memberScores = state.members.map(m => {
@@ -6632,13 +6955,15 @@ function renderFamilyFavorites() {
 // Account tab renderer — device/personal stuff
 function renderSettings() {
   yirSettingsTeaser();
-  // Phase 11 / REFR-12 — YIR card hidden until Phase 10 ships.
-  // yirReady flag lives on state.family; when set, un-hide the entire settings-yir-section.
-  // Today Phase 10 hasn't shipped so the section stays hidden — static placeholder isn't exposed.
+  // v16.10d — Un-defer YIR surface for launch. Phase 10's "Story-mode" recap remains
+  // deferred (the JS for openYearStoryMode still gates internally on Dec/Jan +
+  // watchCount>=5 inside yirSettingsTeaser), but the openYearInReview modal and the
+  // teaser line both handle empty data gracefully ('Log some watches in the diary
+  // and your Year in Review will come to life.' / `yir-empty` div). Always-on
+  // teaser gives users a window into their watch history without waiting for
+  // Phase 10's full story-card deck.
   const yirSection = document.getElementById('settings-yir-section');
-  if (yirSection) {
-    yirSection.style.display = (state.family && state.family.yirReady) ? '' : 'none';
-  }
+  if (yirSection) yirSection.style.display = '';
   renderServicesPicker();
   renderTraktCard();
   // Plan 07: sub-profile list + owner-only admin panel (gated on state.ownerUid).
@@ -6655,6 +6980,7 @@ function renderSettings() {
   // Plan 09-07a: legacy self-claim CTA (state.ownerUid == null) + sign-in methods card.
   try { renderLegacyClaimCtaIfApplicable(); } catch(e) {}
   try { renderSignInMethodsCard(); } catch(e) {}
+  try { renderSeriesListCard(); } catch(e) {} // Phase 16 / CAL-16-10
   // Refresh identity strip in case name/avatar changed since boot
   if (state.me) {
     const me = state.members.find(x => x.id === state.me.id) || state.me;
@@ -6675,11 +7001,93 @@ function renderSettings() {
       famLabelEl.innerHTML = groupNounCap() +
         ' <span class="family-chip">' + escapeHtml(state.familyCode) + '</span>';
     }
+    // v16.10b — Account hero info expansion (email + signin provider + role + joined).
+    try { renderAccountIdentityExtras(me); } catch(e) {}
   }
   // Phase 12 / POL-02 — ABOUT section (version + feedback + changelog).
   // Idempotent — safe to call on every renderSettings.
   try { renderAboutSection(); } catch(e) {}
 }
+
+// v16.10b — Populate the Account hero identity strip with primary email, sign-in
+// provider chip, role badge, and member-since date. Pulls from auth.currentUser
+// for email/provider, member doc for role/joinedAt. Idempotent — safe to re-run.
+function renderAccountIdentityExtras(me) {
+  if (!me) return;
+  // Email (un-hide the existing #account-auth-email if we have one to show).
+  const emailEl = document.getElementById('account-auth-email');
+  if (emailEl) {
+    const email = (auth && auth.currentUser && auth.currentUser.email) || '';
+    if (email) {
+      emailEl.textContent = email;
+      emailEl.style.display = '';
+    } else {
+      emailEl.style.display = 'none';
+    }
+  }
+  const extrasEl = document.getElementById('account-identity-extras');
+  if (!extrasEl) return;
+  const chips = [];
+  // Sign-in provider chip — primary provider per Firebase Auth providerData[0].
+  // Falls back to email-link when no oauth provider but we have an email credential.
+  if (auth && auth.currentUser) {
+    const pd = auth.currentUser.providerData || [];
+    const ids = pd.map(p => p && p.providerId).filter(Boolean);
+    let providerLabel = '';
+    let providerIcon = '';
+    if (ids.includes('apple.com')) {
+      providerLabel = 'Apple';
+      providerIcon = '<svg viewBox="0 0 24 24" width="11" height="13" fill="currentColor" aria-hidden="true"><path d="M17.05 12.04c-.03-3.16 2.58-4.68 2.7-4.75-1.47-2.15-3.76-2.44-4.58-2.48-1.95-.2-3.81 1.15-4.8 1.15s-2.52-1.12-4.15-1.09c-2.13.03-4.11 1.24-5.21 3.15-2.22 3.86-.57 9.57 1.6 12.71 1.06 1.54 2.32 3.27 3.97 3.21 1.6-.06 2.2-1.03 4.13-1.03s2.47 1.03 4.15 1c1.72-.03 2.8-1.56 3.85-3.11 1.22-1.78 1.72-3.5 1.74-3.59-.04-.02-3.34-1.28-3.4-5.07zM14.32 3.62c.86-1.05 1.45-2.51 1.29-3.96-1.24.05-2.75.83-3.65 1.87-.8.93-1.51 2.41-1.32 3.84 1.39.11 2.81-.71 3.68-1.75z"/></svg>';
+    } else if (ids.includes('google.com')) {
+      providerLabel = 'Google';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">G</span>';
+    } else if (ids.includes('phone')) {
+      providerLabel = 'Phone';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">&#9742;</span>';
+    } else if (ids.includes('password') || ids.includes('emailLink')) {
+      providerLabel = 'Email';
+      providerIcon = '<span class="identity-chip-glyph" aria-hidden="true">@</span>';
+    }
+    if (providerLabel) {
+      chips.push(`<span class="identity-chip identity-chip--provider">${providerIcon}Signed in via ${escapeHtml(providerLabel)}</span>`);
+    }
+  }
+  // Role badge — derive from member doc bracket + isParent.
+  // Admin = bracket 'admin' OR explicit ownerUid match. Parent = isParent true.
+  // Otherwise show the bracket label (Kid/Teen/Adult).
+  let roleLabel = '';
+  let roleVariant = '';
+  const isOwner = state.ownerUid && state.auth && state.auth.uid === state.ownerUid;
+  if (me.bracket === 'admin' || isOwner) {
+    roleLabel = 'Family admin';
+    roleVariant = 'admin';
+  } else if (me.bracket === 'kid' || me.isKid === true) {
+    roleLabel = 'Kid';
+    roleVariant = 'kid';
+  } else if (me.bracket === 'teen') {
+    roleLabel = 'Teen';
+    roleVariant = 'teen';
+  } else if (me.isParent === true) {
+    roleLabel = 'Parent';
+    roleVariant = 'parent';
+  } else if (me.bracket === 'adult') {
+    roleLabel = 'Adult';
+    roleVariant = 'adult';
+  }
+  if (roleLabel) {
+    chips.push(`<span class="identity-chip identity-chip--role identity-chip--${roleVariant}">${escapeHtml(roleLabel)}</span>`);
+  }
+  // Member-since — joinedAt is ms; format as "Joined May 2026" for compactness.
+  if (typeof me.joinedAt === 'number' && me.joinedAt > 0) {
+    try {
+      const d = new Date(me.joinedAt);
+      const monthYear = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      chips.push(`<span class="identity-chip identity-chip--joined">Joined ${escapeHtml(monthYear)}</span>`);
+    } catch(e) {}
+  }
+  extrasEl.innerHTML = chips.join('');
+}
+window.renderAccountIdentityExtras = renderAccountIdentityExtras;
 
 // Phase 12 / POL-02 — Inject version + feedback + changelog + TMDB attribution
 // into #settings-about-section. Idempotent — safe to call on every renderSettings.
@@ -6844,52 +7252,49 @@ function renderMembersList() {
   if (!legacyEl && !activeEl && !subEl) return;
   const iAmParent = isCurrentUserParent();
   // Build the HTML for one member row — same contract as before. Used by both active + subprofile branches.
+  // === Phase 16.3 — unified bracket selector replaces the 3-control triple
+  // (maxTier dropdown + Adult checkbox + Parent checkbox). Single segmented
+  // pill: Kid / Teen / Adult / Adult+admin. Each bracket atomically writes
+  // {bracket, isKid, isAdult, isParent, maxTier} so every legacy gate keeps
+  // working unchanged. Non-family modes (duo, crew) suppress the admin bracket
+  // since there's no parent/admin distinction there.
   const renderRow = (m) => {
     const isMe = state.me && m.id === state.me.id;
-    const currentMax = m.maxTier != null ? m.maxTier : ageToMaxTier(m.age);
-    const ageLabel = (modeAllowsAgeTiers() && m.age) ? ` <span style="color:var(--ink-dim);font-size:var(--t-meta);">age ${m.age}</span>` : '';
-    // Only parents see editable controls. Non-parents see a static summary line instead.
-    let maxRatingHtml = '';
-    let adultToggleHtml = '';
-    let parentToggleHtml = '';
-    if (iAmParent) {
-      const opts = [1,2,3,4,5].map(t => `<option value="${t}" ${t===currentMax?'selected':''}>${TIER_LABELS[t]}</option>`).join('');
-      if (modeAllowsAgeTiers()) {
-        maxRatingHtml = `<div style="margin-top:4px;" onclick="event.stopPropagation()"><span style="font-size:var(--t-eyebrow);color:var(--ink-dim);">Max rating:</span>
-              <select class="maxrating-select" onchange="setMaxTier('${m.id}',this.value)">${opts}</select>
-            </div>`;
-      }
-      if (modeAllowsAdultScope()) {
-        adultToggleHtml = `<div class="adults-toggle" onclick="event.stopPropagation()">
-              <input type="checkbox" id="adult-${m.id}" ${isAdultMember(m)?'checked':''} onchange="toggleAdultMember('${m.id}',this.checked)">
-              <label for="adult-${m.id}">Adult (can see 18+ titles)</label>
-            </div>`;
-      }
-      if (currentMode() === 'family') {
-        // A parent can't remove parent status from themselves (would orphan the family of parents)
-        const lockSelf = isMe && countParents() <= 1;
-        parentToggleHtml = `<div class="adults-toggle" onclick="event.stopPropagation()">
-              <input type="checkbox" id="parent-${m.id}" ${m.isParent?'checked':''} ${lockSelf?'disabled':''} onchange="toggleParent('${m.id}',this.checked)">
-              <label for="parent-${m.id}">Parent (reviews kids' new title requests)</label>
-            </div>`;
-      }
-    } else {
-      // Non-parents: show status as read-only meta text
-      const chips = [];
-      if (modeAllowsAgeTiers()) chips.push(TIER_LABELS[currentMax]);
-      if (m.isParent && currentMode() === 'family') chips.push('Parent');
-      if (chips.length) {
-        maxRatingHtml = `<div style="margin-top:4px;font-size:var(--t-eyebrow);color:var(--ink-dim);">${chips.map(c => escapeHtml(c)).join(' · ')}</div>`;
+    const currentBracket = memberBracket(m);
+    const ageLabel = m.age ? ` <span style="color:var(--ink-dim);font-size:var(--t-meta);">age ${m.age}</span>` : '';
+    // Non-family modes don't expose age-tier or adult-scope gating, so the
+    // bracket selector collapses to a single static badge in those modes.
+    const tieredMode = modeAllowsAgeTiers() || modeAllowsAdultScope();
+    let bracketHtml = '';
+    if (iAmParent && tieredMode) {
+      // Family mode shows all 4 brackets. Duo/crew (if ever tiered) hide admin.
+      const order = currentMode() === 'family' ? BRACKET_ORDER : BRACKET_ORDER.filter(b => b !== 'admin');
+      // Lock self out of demoting if they're the only admin (mirrors old parent-toggle guard).
+      const isOnlyAdmin = isMe && (m.bracket === 'admin' || m.isParent === true) && countParents() <= 1;
+      const pills = order.map(b => {
+        const meta = BRACKETS[b];
+        const on = b === currentBracket ? ' on' : '';
+        const disabled = isOnlyAdmin && b !== 'admin' ? ' disabled' : '';
+        return `<button type="button" class="bracket-pill${on}"${disabled} onclick="event.stopPropagation();setMemberBracket('${m.id}','${b}')" data-bracket="${b}">${escapeHtml(meta.label)}</button>`;
+      }).join('');
+      const sub = BRACKETS[currentBracket] ? BRACKETS[currentBracket].sub : '';
+      bracketHtml = `<div class="bracket-control" onclick="event.stopPropagation()">
+            <div class="bracket-pills">${pills}</div>
+            <div class="bracket-sub">${escapeHtml(sub)}</div>
+          </div>`;
+    } else if (tieredMode) {
+      // Non-parent (read-only) — surface bracket label + sub as static meta.
+      const meta = BRACKETS[currentBracket];
+      if (meta) {
+        bracketHtml = `<div style="margin-top:4px;font-size:var(--t-eyebrow);color:var(--ink-dim);">${escapeHtml(meta.label)} · ${escapeHtml(meta.sub)}</div>`;
       }
     }
-    // Remove button: parents only, and never for oneself
+    // Remove button: family-admins only, and never for oneself
     const removeBtn = (iAmParent && !isMe) ? `<button onclick="removeMember('${m.id}')">Remove</button>` : '';
     return `<div class="member-row">
       <div class="who-avatar" style="background:${m.color};cursor:pointer;" onclick="openProfile('${m.id}')">${avatarContent(m)}</div>
       <div class="name" onclick="openProfile('${m.id}')" style="cursor:pointer;">${escapeHtml(m.name)}${ageLabel}${isMe?' <span style="color:var(--accent);font-size:var(--t-eyebrow);font-weight:600;">you</span>':''}
-        ${maxRatingHtml}
-        ${adultToggleHtml}
-        ${parentToggleHtml}
+        ${bracketHtml}
       </div>
       ${removeBtn}
     </div>`;
@@ -6942,6 +7347,31 @@ window.setMaxTier = async function(id, val) {
   if (!isCurrentUserParent()) { flashToast('Only parents can change this', { kind: 'warn' }); return; }
   try { await updateDoc(doc(membersRef(), id), { maxTier: parseInt(val) }); }
   catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
+};
+
+// === Phase 16.3 — bracket-write handler (replaces setMaxTier/toggleAdult/toggleParent
+// for the Family-tab UI; those legacy handlers stay around for any non-UI caller).
+// Atomically writes {bracket, isKid, isAdult, isParent, maxTier} from bracketToFlags()
+// so every legacy gate (isAdultMember, iAmParent, passesBaseFilter, needsApproval,
+// passesAdultScope, …) continues reading the same fields it always has — they just
+// flip together now instead of independently. ===
+window.setMemberBracket = async function(id, bracket) {
+  if (!isCurrentUserParent()) { flashToast('Only family admins can change this', { kind: 'warn' }); return; }
+  if (!BRACKETS[bracket]) { flashToast('Unknown bracket', { kind: 'warn' }); return; }
+  // Prevent demoting the last family-admin from admin to anything else (orphans approval workflow).
+  const target = state.members.find(m => m.id === id);
+  if (target && (target.bracket === 'admin' || target.isParent === true) && bracket !== 'admin' && countParents() <= 1) {
+    flashToast('Need at least one family admin', { kind: 'warn' });
+    renderFamily();
+    return;
+  }
+  try {
+    const flags = bracketToFlags(bracket);
+    await updateDoc(doc(membersRef(), id), flags);
+    try { haptic('light'); } catch(e) {}
+  } catch (e) {
+    flashToast('Could not save. Try again.', { kind: 'warn' });
+  }
 };
 
 window.toggleParent = async function(id, checked) {
@@ -7236,7 +7666,7 @@ window.doSearch = async function() {
       genreIds: x.genre_ids || [],
     }));
     renderSearchResults();
-  } catch(e) { alert('Search failed.'); }
+  } catch(e) { flashToast('Search failed — check your connection.', { kind: 'warn' }); }
   btn.textContent = 'Find'; btn.disabled = false;
 };
 
@@ -7788,6 +8218,10 @@ window.toggleFavGenre = async function(genre) {
 };
 
 // === Avatar picker ===
+// v16.10b — Render the 130+ palette grouped by category with section headings,
+// inside a scrollable modal. AVATAR_CATEGORIES is the source of truth; the prior
+// flat-grid pattern is preserved as the inner .avatar-section-grid so the same
+// .avatar-choice button styles + chooseAvatar handler keep working unchanged.
 window.openAvatarPicker = function() {
   if (!state.me) return;
   haptic('light');
@@ -7795,10 +8229,20 @@ window.openAvatarPicker = function() {
   if (!grid) return;
   const m = state.members.find(x => x.id === state.me.id);
   const current = m && m.avatar;
-  grid.innerHTML = AVATAR_OPTIONS.map(emoji => {
+  const renderButton = (emoji) => {
     const sel = emoji === current ? 'selected' : '';
     return `<button type="button" class="avatar-choice ${sel}" aria-label="Use ${emoji}" aria-pressed="${sel?'true':'false'}" onclick="chooseAvatar('${emoji}')">${emoji}</button>`;
-  }).join('');
+  };
+  grid.innerHTML = AVATAR_CATEGORIES.map(cat => `
+    <div class="avatar-section" data-cat="${cat.id}">
+      <h4 class="avatar-section-h">${escapeHtml(cat.label)}</h4>
+      <div class="avatar-section-grid">${cat.emojis.map(renderButton).join('')}</div>
+    </div>
+  `).join('');
+  // Scroll the picker back to the top each time it opens — last session's
+  // category scroll position would feel sticky/disorienting on a re-open.
+  const modal = document.querySelector('.avatar-picker-modal');
+  if (modal) modal.scrollTop = 0;
   document.getElementById('avatar-picker-bg').classList.add('on');
 };
 
@@ -7973,6 +8417,38 @@ window.saveReview = async function() {
     }
   } catch(e) { flashToast('Could not save. Try again.', { kind: 'warn' }); }
 };
+
+// v16.10c — Couch ratings strip for the detail modal. Shows the family average
+// + per-member rating chips for every member who scored the title. Renders
+// nothing when no one has rated yet so it doesn't add empty chrome to
+// unwatched titles. Sits above the existing reviews block so the at-a-glance
+// "what did the couch think" appears before any long-form prose.
+function renderCouchRatingsStrip(t) {
+  if (!t || !t.ratings || typeof t.ratings !== 'object') return '';
+  const members = state.members || [];
+  const scored = members.map(m => {
+    const score = getScore((t.ratings || {})[m.id]);
+    return score > 0 ? { m, score } : null;
+  }).filter(Boolean);
+  if (!scored.length) return '';
+  const avg = scored.reduce((s, r) => s + r.score, 0) / scored.length;
+  const chips = scored.map(({ m, score }) => {
+    const colorStyle = `background:${m.color || 'var(--surface-2)'}`;
+    return `<span class="couch-rating-chip" title="${escapeHtml(m.name)}: ${formatScore(score)}/10" aria-label="${escapeHtml(m.name)}: ${formatScore(score)} out of 10">
+      <span class="couch-rating-chip-avatar" style="${colorStyle}">${avatarContent(m)}</span>
+      <span class="couch-rating-chip-name">${escapeHtml((m.name || '').split(/\s+/)[0])}</span>
+      <span class="couch-rating-chip-score">${formatScore(score)}</span>
+    </span>`;
+  }).join('');
+  const countLabel = scored.length === 1 ? '1 rating' : `${scored.length} ratings`;
+  return `<div class="detail-section couch-ratings-section">
+    <h4 class="couch-ratings-h">
+      <span>Couch ratings</span>
+      <span class="couch-ratings-avg-wrap"><span class="couch-ratings-avg">${formatScore(avg)}</span><span class="couch-ratings-avg-sub">/10 · ${countLabel}</span></span>
+    </h4>
+    <div class="couch-ratings-chips">${chips}</div>
+  </div>`;
+}
 
 function renderReviewsForTitle(t) {
   const reviews = t.reviews || {};
@@ -8374,6 +8850,7 @@ function renderDetailShell(t) {
     ${state.me ? `<button class="pill" style="margin-bottom:8px;" onclick="addToList('${t.id}')">+ Add to list</button>` : ''}
     ${kidModeOverrideHtml}
     ${whyMatchHtml}
+    ${renderCouchRatingsStrip(t)}
     ${renderTvProgressSection(t)}
     ${trailerHtml}
     ${providersHtml}
@@ -9179,7 +9656,11 @@ function startActivitySync() {
     const cutoff = Date.now() - 7*24*60*60*1000;
     recentActivity = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.ts > cutoff).slice(0, 15);
     renderActivity();
-  }, e => console.error('activity sync', e));
+  }, (err) => {
+    // Null out so the early-return guard in startActivitySync lets it re-subscribe later.
+    unsubActivity = null;
+    snapshotErrorHandler('activity')(err);
+  });
 }
 
 let activityExpanded = false;
@@ -9189,9 +9670,18 @@ window.toggleActivityExpand_all = function() {
 };
 function renderActivity() {
   const el = document.getElementById('activity-list');
+  const sectionEl = document.getElementById('activity-section');
   updateActivityBadge();
   if (!el) return;
-  if (!recentActivity.length) { el.innerHTML = '<div class="activity-empty">Quiet on the couch. Start adding and voting to see activity here.</div>'; return; }
+  // Phase 16.4 — gate the ENTIRE section (heading + body) on having activity, not just
+  // the body. Previously the "Activity · Last 7 days" heading shipped above an empty
+  // div for new families — looked like a broken section.
+  if (!recentActivity.length) {
+    if (sectionEl) sectionEl.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  if (sectionEl) sectionEl.style.display = '';
   // Collapse-by-default with show-more — keep the Tonight tab from being dominated by
   // a 7-day scroll. First N entries shown; rest gated behind a "Show all" expand control.
   const COLLAPSED_N = 5;
@@ -10520,6 +11010,19 @@ let wpStartTitleId = null;
 let wpStartLead = 15; // default 15 min
 let wpStartScheduleMode = false;
 
+// === Phase 16 / CAL-16-08 — series-create/edit modal transient state ===
+// Reset by openSeriesCreate / openSeriesEdit (16-07). Persists across modal closes.
+state.seriesEdit = state.seriesEdit || {
+  mode: 'create',            // 'create' | 'edit'
+  id: null,                  // present when editing
+  titleType: 'tv',           // 'tv' | 'untitled'
+  titleId: null,
+  titleName: null,
+  daysOfWeek: [],            // 0=Sun..6=Sat
+  timeOfDay: '20:00',
+  memberIds: []              // member.id values (m_xxx)
+};
+
 window.openWatchpartyStart = function(titleId) {
   if (!state.me) { alert('Join the group first.'); return; }
   const t = state.titles.find(x => x.id === titleId);
@@ -11785,11 +12288,6 @@ async function onClickAddFamily(wp, idSuffix) {
       flashToast('Only the host can add families to this watchparty.', { kind: 'warn' });
     } else if (code === 'functions/resource-exhausted') {
       flashToast('No more room on this couch tonight.', { kind: 'warn' });
-    } else if (code === 'functions/failed-precondition') {
-      // W4 fix (revision): zero-member family — addFamilyToWp CF throws this when the
-      // family exists but has no qualifying members yet (no docs with a string `uid` field).
-      // Brand-voice toast matches the warm/playful UI-SPEC § Copywriting Contract.
-      flashToast("That family hasn't added any members yet — ask them to invite people first.", { kind: 'warn' });
     } else if (code === 'functions/unauthenticated') {
       flashToast('Sign in to add a family.', { kind: 'warn' });
     } else if (code === 'functions/invalid-argument') {
@@ -12529,7 +13027,26 @@ function renderWatchpartyLive() {
   const el = document.getElementById('wp-live-coordination');
   if (!el) return;
   const wp = state.watchparties.find(x => x.id === state.activeWatchpartyId);
-  if (!wp) { el.innerHTML = '<div style="padding:24px;">Watchparty not found.</div>'; return; }
+  if (!wp) {
+    // Phase 30 race-condition guard. The collectionGroup('watchparties') subscription
+    // does not always propagate local-cache writes immediately — fresh wp create can
+    // outrace the listener by 100-500ms. Show a graceful loading state and retry on a
+    // short tick rather than stranding the user on "Watchparty not found." Hard-fail
+    // only after ~3s of misses (genuine not-found: wp deleted, rules reject read, etc.)
+    // surface a Back-to-Tonight escape instead of the dead-end inline message.
+    const slot = '_wpLiveRetry_' + state.activeWatchpartyId;
+    window[slot] = (window[slot] || 0) + 1;
+    if (window[slot] <= 6) {
+      el.innerHTML = '<div style="padding:24px;color:var(--ink-dim);font-style:italic;">Loading watchparty…</div>';
+      setTimeout(() => { if (state.activeWatchpartyId) renderWatchpartyLive(); }, 500);
+      return;
+    }
+    el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="margin-bottom:16px;color:var(--ink-dim);">Couldn\'t load this watchparty.</div><button class="primary-btn" onclick="closeWatchpartyLive()">Back to Tonight</button></div>';
+    delete window[slot];
+    return;
+  }
+  // Found — clear any prior retry counter so a future re-entry starts fresh
+  delete window['_wpLiveRetry_' + wp.id];
   // Phase 26 / RPLY-26-04 + RPLY-26-13 — replay-variant gating.
   // Eligibility precondition: replay variant only renders when wp.status === 'archived'
   // (per D-06). Defensive: even if state.activeWatchpartyMode === 'revisit' was
@@ -13806,6 +14323,23 @@ window.openPostSession = function(wpId) {
   const pp = document.getElementById('wp-photo-preview'); if (pp) { pp.style.display = 'none'; pp.innerHTML = ''; }
   const pt = document.getElementById('wp-photo-upload-tile'); if (pt) pt.style.display = '';
   const pi = document.getElementById('wp-photo-input'); if (pi) pi.value = '';
+  // === Phase 16 / CAL-16-09 — Entry 2: TV-only make-recurring tile ===
+  // Runs unconditionally on every openPostSession call so the tile is correctly
+  // hidden for non-TV wps (movies, sports games, untitled) — even if a prior
+  // open left it visible. The actual show/hide decision is gated on t.kind === 'TV'.
+  try {
+    const recurringTile = document.getElementById('wp-make-recurring-cta');
+    if (recurringTile) {
+      const tForRecurring = wp.titleId ? state.titles.find(x => x && x.id === wp.titleId) : null;
+      if (tForRecurring && tForRecurring.kind === 'TV' && wp.titleId) {
+        recurringTile.style.display = 'block';
+        recurringTile.onclick = function() { openMakeRecurring(wpId); };
+      } else {
+        recurringTile.style.display = 'none';
+        recurringTile.onclick = null;
+      }
+    }
+  } catch(e) { console.warn('make-recurring tile toggle failed', e && e.message); }
   const bg = document.getElementById('wp-post-session-modal-bg');
   if (bg) bg.classList.add('on');
 };
@@ -15616,20 +16150,32 @@ async function seedBallotFromPack(pack) {
 // client-side guard even though 09-07b sets seenOnboarding:true at guest creation.
 
 let _onboardingCurrentStep = 1;
+// Session-scoped suppression — flips to true the first time the overlay is shown
+// (or unconditionally if a returning user is detected). Prevents re-show on every
+// onSnapshot tick of state.members (which fires on any member-doc change, e.g.
+// couch in/out taps), independent of any Firestore race on `seenOnboarding`.
+let _onboardingShownThisSession = false;
 
 function maybeShowFirstRunOnboarding() {
+  if (_onboardingShownThisSession) return;
   if (!state.me) return;
   // Pitfall 5: guests skip onboarding entirely. 09-07b adds CF-side guarantee; this
   // is the client-side double-guard.
-  if (state.me.type === 'guest') return;
+  if (state.me.type === 'guest') { _onboardingShownThisSession = true; return; }
   // Enrich state.me with the server-side seenOnboarding flag by reading the live
   // member doc from state.members (populated by the onSnapshot in startSync).
   const liveMe = (state.members || []).find(m => m.id === state.me.id);
   const seen = (liveMe && liveMe.seenOnboarding === true) || state.me.seenOnboarding === true;
-  if (seen) return;
+  if (seen) { _onboardingShownThisSession = true; return; }
   // Also respect the legacy localStorage flag so existing users who've seen the
   // old feature tour don't get bounced back through the new intro.
-  try { if (localStorage.getItem('qn_onboarded')) return; } catch(e) {}
+  try { if (localStorage.getItem('qn_onboarded')) { _onboardingShownThisSession = true; return; } } catch(e) {}
+  _onboardingShownThisSession = true;
+  // v16.10a — persist localStorage immediately so the intro doesn't re-fire if the user
+  // dismisses by force-quit / back-button / app-switch instead of tapping Skip or Got it.
+  // Firestore write still happens in skipOnboarding/completeOnboarding (which require
+  // state.familyCode), but localStorage is the durable client-side gate either way.
+  try { localStorage.setItem('qn_onboarded', '1'); } catch(e) {}
   showOnboardingStep(1);
 }
 
@@ -15808,6 +16354,20 @@ function renderSignInMethodsCard() {
       </div>
       ${providers.includes('google.com') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
     </div>`);
+  // Apple — display parity with Google so Account tab reflects the providers
+  // we now offer at sign-in (Tier 3 / App Store §4.8 spirit: if Apple is
+  // available at sign-in, it must appear equivalently in the linked-methods
+  // surface). Inline SVG renders consistently on Android/Chrome too — the
+  // U+F8FF Apple-logo char only renders on Apple-licensed fonts.
+  rows.push(`
+    <div class="signin-method-row">
+      <div class="signin-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="17" fill="currentColor"><path d="M17.05 12.04c-.03-3.16 2.58-4.68 2.7-4.75-1.47-2.15-3.76-2.44-4.58-2.48-1.95-.2-3.81 1.15-4.8 1.15s-2.52-1.12-4.15-1.09c-2.13.03-4.11 1.24-5.21 3.15-2.22 3.86-.57 9.57 1.6 12.71 1.06 1.54 2.32 3.27 3.97 3.21 1.6-.06 2.2-1.03 4.13-1.03s2.47 1.03 4.15 1c1.72-.03 2.8-1.56 3.85-3.11 1.22-1.78 1.72-3.5 1.74-3.59-.04-.02-3.34-1.28-3.4-5.07zM14.32 3.62c.86-1.05 1.45-2.51 1.29-3.96-1.24.05-2.75.83-3.65 1.87-.8.93-1.51 2.41-1.32 3.84 1.39.11 2.81-.71 3.68-1.75z"/></svg></div>
+      <div class="signin-method-body">
+        <div class="signin-method-label">Apple</div>
+        <div class="signin-method-meta">${providers.includes('apple.com') ? escapeHtml(auth.currentUser.email || 'Linked') : 'Not linked'}</div>
+      </div>
+      ${providers.includes('apple.com') ? '<span class="signin-method-check" aria-label="Linked">&#10003;</span>' : ''}
+    </div>`);
   // Phone
   rows.push(`
     <div class="signin-method-row">
@@ -15863,6 +16423,788 @@ function renderSignInMethodsCard() {
     </div>`);
   list.innerHTML = rows.join('');
 }
+
+// === Phase 16 / CAL-16-10 — Your series renderer (Account tab) ===
+// Mirrors renderSignInMethodsCard shape; richer rows with edit/pause/cancel actions.
+// Hidden when state.series has no rows in non-ended state OR when no family is loaded.
+
+function cadenceSummary(series) {
+  if (!series || !Array.isArray(series.daysOfWeek) || !series.daysOfWeek.length) return '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dows = series.daysOfWeek.slice().sort((a,b) => a - b).map(d => dayNames[d]);
+  const days = dows.length === 7 ? 'Every day'
+             : dows.length === 1 ? dows[0]
+             : dows.join(' + ');
+  const time = formatTimeOfDayLabel(series.timeOfDay || '20:00');
+  return `${days} at ${time}`;
+}
+
+function formatTimeOfDayLabel(hhmm) {
+  // Accept 'HH:MM' 24h; render '8:00 PM' style.
+  if (typeof hhmm !== 'string' || !/^[0-2][0-9]:[0-5][0-9]$/.test(hhmm)) return hhmm || '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2,'0')} ${period}`;
+}
+
+function formatNextFire(series) {
+  if (!series || !series.nextFireAt || typeof series.nextFireAt !== 'number') return '—';
+  try {
+    return new Date(series.nextFireAt).toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+      timeZone: series.timezone || undefined
+    });
+  } catch(e) { return '—'; }
+}
+
+function formatLastFire(series) {
+  if (!series || !series.lastFiredAt || typeof series.lastFiredAt !== 'number') return null;
+  try {
+    return new Date(series.lastFiredAt).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric',
+      timeZone: series.timezone || undefined
+    });
+  } catch(e) { return null; }
+}
+
+function renderSeriesListCard() {
+  const card = document.getElementById('series-list-card');
+  const list = document.getElementById('series-list');
+  if (!card || !list) return;
+  if (!state.familyCode || !state.me) { card.style.display = 'none'; return; }
+  const series = (state.series || []).filter(s => s && s.status !== 'ended');
+  if (!series.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const rows = series
+    .slice()
+    .sort((a, b) => (a.nextFireAt || Infinity) - (b.nextFireAt || Infinity))
+    .map(s => {
+      const safeId = escapeHtml(s.id || '');
+      const title = s.titleType === 'tv'
+        ? escapeHtml(s.titleName || 'Untitled show')
+        : escapeHtml(cadenceSummary(s) || 'Untitled series');
+      const cadence = escapeHtml(cadenceSummary(s));
+      const next = escapeHtml(formatNextFire(s));
+      const last = formatLastFire(s);
+      const isPaused = s.status === 'paused';
+      const statusBadge = isPaused
+        ? '<span class="series-row-status paused">paused</span>'
+        : '';
+      const lastMeta = last
+        ? `<span>Last fired ${escapeHtml(last)}</span>`
+        : '';
+      const actions = isPaused
+        ? `<button type="button" onclick="resumeSeries('${safeId}')">Resume</button>
+           <button type="button" class="danger" onclick="cancelSeries('${safeId}')">Cancel</button>`
+        : `<button type="button" onclick="openSeriesEdit('${safeId}')">Edit</button>
+           <button type="button" onclick="pauseSeries('${safeId}')">Pause</button>
+           <button type="button" class="danger" onclick="cancelSeries('${safeId}')">Cancel</button>`;
+      return `
+        <div class="series-row" data-series-id="${safeId}">
+          <div class="series-row-head">
+            <span class="series-row-title">${title}</span>
+            ${statusBadge}
+          </div>
+          <div class="series-row-cadence">${cadence}</div>
+          <div class="series-row-meta">
+            <span>Next: ${next}</span>
+            ${lastMeta}
+          </div>
+          <div class="series-row-actions">${actions}</div>
+        </div>`;
+    });
+  list.innerHTML = rows.join('');
+}
+
+// === Phase 16 / CAL-16-13 — series lifecycle handlers ===
+// Server-side rules (firestore.rules:993, Phase 16 / Plan 16-01) enforce creator-only writes
+// + affectedKeys allowlist; the UI doesn't pre-gate non-creators (T-16-06 disposition: mitigate
+// via rules — let the rejection surface as a toast on failure).
+window.pauseSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  try {
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'paused',
+      pausedAt: Date.now(),
+      nextFireAt: null
+    });
+    flashToast('Series paused.');
+  } catch(e) {
+    console.warn('pauseSeries failed', e && e.message);
+    flashToast('Could not pause — try again.', { kind: 'warn' });
+  }
+};
+
+window.resumeSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  try {
+    // Set nextFireAt to now (effectively in past) so the materializer CF recomputes the
+    // real next fire via computeNextFireAt on next tick (every 6h per Plan 16-03).
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'active',
+      pausedAt: null,
+      nextFireAt: Date.now()
+    });
+    flashToast('Series resumed.');
+  } catch(e) {
+    console.warn('resumeSeries failed', e && e.message);
+    flashToast('Could not resume — try again.', { kind: 'warn' });
+  }
+};
+
+window.cancelSeries = async function(id) {
+  if (!id) return;
+  if (guardReadOnlyWrite()) return;
+  // T-16-22 disposition: accept — surface a confirm() before the destructive flip.
+  // Past instances persist (soft-delete pattern); future fires stop.
+  if (!confirm('Cancel this series? Past instances are kept; future instances stop firing.')) return;
+  try {
+    await updateDoc(seriesRef(id), {
+      ...writeAttribution(),
+      status: 'ended',
+      endedAt: Date.now(),
+      nextFireAt: null
+    });
+    flashToast('Series cancelled.');
+  } catch(e) {
+    console.warn('cancelSeries failed', e && e.message);
+    flashToast('Could not cancel — try again.', { kind: 'warn' });
+  }
+};
+
+// === Phase 16 / CAL-16-10 — TEMPORARY stub (REMOVED in plan 16-07 EDIT B) ===
+// Plan 16-07 replaces this with the real openSeriesEdit handler (full-screen edit
+// surface). Until then, tapping Edit shows a friendly "coming soon" toast instead
+// of crashing the click handler with a ReferenceError.
+//
+// Defensive guard `if (typeof window.openSeriesEdit !== 'function')` means plan
+// 16-07's unconditional assignment wins (its assignment runs at module load AFTER
+// this stub, because plan 16-07's edits land later in this same file or in a
+// later module load — either way, the real handler overwrites the stub via plain
+// reassignment, NOT via this guard. The guard only protects against a hypothetical
+// hot-reload double-eval, not against the normal load order).
+//
+// openSeriesEdit stub (plan 16-05) sentinel — grepped by Plan 16-07's pre-edit
+// audit to confirm the stub is present before swap.
+if (typeof window.openSeriesEdit !== 'function') {
+  window.openSeriesEdit = function(id) {
+    console.log('openSeriesEdit stub (plan 16-05) — real handler ships in plan 16-07', id);
+    try { flashToast('Edit coming soon.', { kind: 'info' }); } catch(e) {}
+  };
+}
+
+// === Phase 16 / CAL-16-07 — Day-of-week picker UI primitive ===
+// Reusable: called from openSeriesCreate (this plan) + openSeriesEdit (plan 16-07) +
+// Entry 2 prompt (plan 16-08). Writes back to state.seriesEdit.daysOfWeek on toggle.
+// Renders 7 pills (S/M/T/W/T/F/S) into targetSelector; each pill toggles via window.toggleSeriesDow(i).
+function renderDayOfWeekPicker(targetSelector, currentDows) {
+  const el = typeof targetSelector === 'string'
+    ? document.querySelector(targetSelector)
+    : targetSelector;
+  if (!el) return;
+  const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const aria = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const dows = new Set(Array.isArray(currentDows) ? currentDows : []);
+  el.innerHTML = labels.map((lbl, i) => {
+    const on = dows.has(i) ? ' on' : '';
+    const pressed = dows.has(i) ? 'true' : 'false';
+    return `<button type="button" class="cadence-day-pill${on}" data-dow="${i}" aria-label="${aria[i]}" aria-pressed="${pressed}" onclick="toggleSeriesDow(${i})">${lbl}</button>`;
+  }).join('');
+}
+
+window.toggleSeriesDow = function(dow) {
+  if (typeof dow !== 'number' || dow < 0 || dow > 6) return;
+  const set = new Set(state.seriesEdit.daysOfWeek || []);
+  if (set.has(dow)) set.delete(dow); else set.add(dow);
+  state.seriesEdit.daysOfWeek = Array.from(set).sort((a,b) => a-b);
+  // Re-render picker to reflect toggle state
+  const pickerEl = document.getElementById('series-dow-picker');
+  if (pickerEl) renderDayOfWeekPicker(pickerEl, state.seriesEdit.daysOfWeek);
+};
+
+window.selectSeriesTitleType = function(titleType) {
+  if (titleType !== 'tv' && titleType !== 'untitled') return;
+  state.seriesEdit.titleType = titleType;
+  // Update titleType-picker active state
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.titletype === titleType);
+  });
+  // Show/hide the title-input field based on titleType
+  const titleField = document.getElementById('series-field-title');
+  if (titleField) titleField.style.display = titleType === 'tv' ? '' : 'none';
+  // Clear titleId/titleName if switching to untitled
+  if (titleType === 'untitled') {
+    state.seriesEdit.titleId = null;
+    state.seriesEdit.titleName = null;
+  }
+};
+
+function renderSeriesMembersChips() {
+  const el = document.getElementById('series-members-chips');
+  if (!el) return;
+  const members = Array.isArray(state.members) ? state.members : [];
+  const selectedSet = new Set(state.seriesEdit.memberIds || []);
+  el.innerHTML = members.map(m => {
+    const safeId = escapeHtml(m.id || '');
+    const safeName = escapeHtml(m.name || 'Member');
+    const on = selectedSet.has(m.id) ? ' on' : '';
+    return `<button type="button" class="series-member-chip${on}" data-mid="${safeId}" onclick="toggleSeriesMember('${safeId}')">${safeName}</button>`;
+  }).join('');
+}
+
+window.toggleSeriesMember = function(memberId) {
+  if (!memberId) return;
+  const set = new Set(state.seriesEdit.memberIds || []);
+  if (set.has(memberId)) set.delete(memberId); else set.add(memberId);
+  state.seriesEdit.memberIds = Array.from(set);
+  renderSeriesMembersChips();
+};
+
+// === openSeriesCreate / closeSeriesCreate ===
+// Plan 16-08 Entry 2 (post-wp prompt) will call openSeriesCreate(prefill) with a
+// pre-populated titleId/daysOfWeek/timeOfDay/memberIds derived from the just-created wp.
+window.openSeriesCreate = function(prefill) {
+  state.seriesEdit = {
+    mode: 'create',
+    id: null,
+    titleType: (prefill && prefill.titleType) || 'tv',
+    titleId: (prefill && prefill.titleId) || null,
+    titleName: (prefill && prefill.titleName) || null,
+    daysOfWeek: (prefill && Array.isArray(prefill.daysOfWeek)) ? prefill.daysOfWeek.slice() : [],
+    timeOfDay: (prefill && prefill.timeOfDay) || '20:00',
+    // Default to just the creator on the couch — user-feedback 2026-05-28: having
+    // every family member auto-selected felt presumptuous; let the user pick.
+    // Prefill (from Entry-2 post-wp prompt) still overrides with whoever was on
+    // that wp's couch, since that's the intentional source for that flow.
+    memberIds: (prefill && Array.isArray(prefill.memberIds))
+      ? prefill.memberIds.slice()
+      : (state.me && state.me.id ? [state.me.id] : [])
+  };
+  // Render initial picker + chips
+  const dowEl = document.getElementById('series-dow-picker');
+  if (dowEl) renderDayOfWeekPicker(dowEl, state.seriesEdit.daysOfWeek);
+  renderSeriesMembersChips();
+  // Sync title-input + time-input + titleType picker
+  const titleInput = document.getElementById('series-title-input');
+  if (titleInput) titleInput.value = state.seriesEdit.titleName || '';
+  // Wire title-input search (idempotent — multiple opens don't double-bind)
+  if (titleInput && !titleInput.dataset.bound) {
+    titleInput.dataset.bound = '1';
+    titleInput.addEventListener('input', e => searchSeriesTitle(e.target.value));
+  }
+  const timeInput = document.getElementById('series-time-input');
+  if (timeInput) timeInput.value = state.seriesEdit.timeOfDay || '20:00';
+  selectSeriesTitleType(state.seriesEdit.titleType);
+  // Clear any stale suggest dropdown from a prior open
+  const suggest = document.getElementById('series-title-suggest');
+  if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+  // Update modal title for create vs edit (edit mode set in plan 16-07)
+  const modalTitle = document.getElementById('series-modal-title');
+  if (modalTitle) modalTitle.textContent = 'Schedule a series';
+  // Show modal
+  const modal = document.getElementById('series-create-modal-bg');
+  if (modal) {
+    modal.classList.add('on');
+    try { activateFocusTrap(modal); } catch(e) {}
+  }
+};
+
+window.closeSeriesCreate = function() {
+  const modal = document.getElementById('series-create-modal-bg');
+  if (modal) modal.classList.remove('on');
+  try { deactivateFocusTrap(); } catch(e) {}
+
+  // === Phase 16 / CAL-16-12 — reset edit-mode UI tweaks ===
+  // Re-enable titleType picker for next open (regardless of mode it was)
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+  });
+  // Restore Save button to default text + create handler
+  const saveBtn = document.querySelector('#series-create-modal-bg .modal-close');
+  if (saveBtn) {
+    saveBtn.onclick = function() { confirmStartSeries(); };
+    saveBtn.textContent = 'Save series';
+  }
+  // Reset state.seriesEdit.mode for next open
+  if (state.seriesEdit) state.seriesEdit.mode = 'create';
+};
+
+// === Phase 16 / CAL-16-12 — In-place edit modal (DOM-shared with create) ===
+// Reuses #series-create-modal-bg via state.seriesEdit.mode toggle.
+// titleType is IMMUTABLE post-create (rules enforce — see T-16-09 in plan 16-01).
+//
+// NOTE: This is the REAL openSeriesEdit. Plan 16-05 EDIT G shipped a temporary stub
+// guarded by `if (typeof window.openSeriesEdit !== 'function')`. This assignment is
+// UNCONDITIONAL (no guard), and because this code is appended LATER in js/app.js than
+// the stub, this definition wins at module load (stub runs first, assigns; this assignment
+// then replaces). No re-define-detection needed; both paths land in the same window prop.
+
+window.openSeriesEdit = function(seriesId) {
+  if (!seriesId) return;
+  const series = (state.series || []).find(s => s && s.id === seriesId);
+  if (!series) { flashToast('Series not found.', { kind: 'warn' }); return; }
+  if (series.createdByUid !== (state.auth && state.auth.uid)) {
+    flashToast('Only the creator can edit this series.', { kind: 'warn' });
+    return;
+  }
+  if (series.status === 'ended') {
+    flashToast('Ended series cannot be edited.', { kind: 'warn' });
+    return;
+  }
+
+  // Map series.memberUids back to memberIds for the chip UI
+  const memberIds = (state.members || [])
+    .filter(m => m && m.uid && Array.isArray(series.memberUids) && series.memberUids.includes(m.uid))
+    .map(m => m.id);
+
+  // Open shared modal with prefill — same code path as create
+  openSeriesCreate({
+    titleType: series.titleType,
+    titleId: series.titleId || null,
+    titleName: series.titleName || null,
+    daysOfWeek: Array.isArray(series.daysOfWeek) ? series.daysOfWeek.slice() : [],
+    timeOfDay: series.timeOfDay || '20:00',
+    memberIds
+  });
+
+  // Toggle to edit mode + set id + disable titleType picker
+  state.seriesEdit.mode = 'edit';
+  state.seriesEdit.id = seriesId;
+
+  // Visual + interactive edit-mode tweaks
+  const modalTitle = document.getElementById('series-modal-title');
+  if (modalTitle) modalTitle.textContent = 'Edit series';
+
+  // Disable titleType picker (immutable post-create per rules)
+  document.querySelectorAll('#series-titletype-picker .cadence-day-pill').forEach(btn => {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  });
+
+  // Hide title-input field for 'untitled' series (no title to change)
+  // For 'tv' series, keep the title field visible (titleId/titleName ARE editable per CONTEXT)
+  const titleField = document.getElementById('series-field-title');
+  if (titleField) titleField.style.display = series.titleType === 'tv' ? '' : 'none';
+
+  // Save button → saveSeriesEdit (re-wire onclick on the modal's primary action)
+  const saveBtn = document.querySelector('#series-create-modal-bg .modal-close');
+  if (saveBtn) {
+    saveBtn.onclick = function() { saveSeriesEdit(); };
+    saveBtn.textContent = 'Save changes';
+  }
+
+  // The close button still uses closeSeriesCreate (which works for both modes)
+  // — the reset logic in closeSeriesCreate restores titleType picker + Save button.
+};
+
+window.saveSeriesEdit = async function() {
+  if (!state.me) return;
+  if (guardReadOnlyWrite()) return;
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to save.', { kind: 'warn' }); return; }
+
+  const ed = state.seriesEdit || {};
+  if (ed.mode !== 'edit' || !ed.id) {
+    flashToast('Edit context lost — close and reopen.', { kind: 'warn' });
+    return;
+  }
+
+  // Validate (mirror confirmStartSeries — but skip titleType validation since immutable)
+  if (ed.titleType === 'tv' && (!ed.titleId || !ed.titleName)) {
+    flashToast('Pick a show title.', { kind: 'warn' }); return;
+  }
+  if (!Array.isArray(ed.daysOfWeek) || ed.daysOfWeek.length < 1) {
+    flashToast('Pick at least one day.', { kind: 'warn' }); return;
+  }
+  const timeInput = document.getElementById('series-time-input');
+  const timeOfDay = timeInput && timeInput.value ? timeInput.value : (ed.timeOfDay || '20:00');
+  if (!/^[0-2][0-9]:[0-5][0-9]$/.test(timeOfDay)) {
+    flashToast('Invalid time. Use 24h HH:MM.', { kind: 'warn' }); return;
+  }
+  let memberIds = Array.isArray(ed.memberIds) ? ed.memberIds.filter(Boolean) : [];
+  if (memberIds.length === 0) memberIds = [state.me.id];
+  const memberUids = Array.from(new Set([
+    state.auth.uid,
+    ...((state.members || [])
+      .filter(m => m && memberIds.includes(m.id) && m.uid)
+      .map(m => m.uid))
+  ])).filter(Boolean);
+
+  if (memberUids.length === 0) {
+    flashToast('At least one couch member with sign-in required.', { kind: 'warn' });
+    return;
+  }
+
+  const timezone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+
+  // Build update payload — only allowlisted fields (rules enforce — plan 16-01 D6.3)
+  const update = {
+    daysOfWeek: ed.daysOfWeek.slice().sort((a,b) => a-b),
+    timeOfDay,
+    timezone,
+    memberUids,
+    // Reset nextFireAt to now — materializer CF will compute the real next fire on next 6h tick.
+    // Per CONTEXT: "On save: recompute nextFireAt from new cadence."
+    nextFireAt: Date.now(),
+    ...writeAttribution()
+  };
+
+  // titleId/titleName only included if titleType is 'tv' AND something changed
+  if (ed.titleType === 'tv') {
+    if (ed.titleId) update.titleId = ed.titleId;
+    if (ed.titleName) update.titleName = ed.titleName;
+  }
+
+  try {
+    await updateDoc(seriesRef(ed.id), update);
+    try { logActivity && logActivity('series_edited', { id: ed.id }); } catch(e) {}
+    flashToast('Series updated. Next fire recomputes within 6 hours.');
+    closeSeriesCreate();   // shared close — resets DOM via the wrapper above
+  } catch (e) {
+    console.warn('saveSeriesEdit failed', e && e.message);
+    flashToast('Could not save — try again.', { kind: 'warn' });
+  }
+};
+
+// === Phase 16 / CAL-16-09 — Entry 2: Make recurring? (TV-only) ===
+// Converts a just-finished one-off TV wp into a recurring series.
+// Pre-fills cadence (1-day daysOfWeek + time-of-day) from wp.startAt in wp.creatorTimeZone.
+window.openMakeRecurring = function(wpId) {
+  if (!wpId) return;
+  const wp = (state.watchparties || []).find(w => w && w.id === wpId);
+  if (!wp) { flashToast('Watchparty not found.', { kind: 'warn' }); return; }
+  if (!wp.titleId) { flashToast('Cannot make recurring without a title.', { kind: 'warn' }); return; }
+  const t = (state.titles || []).find(x => x && x.id === wp.titleId);
+  if (!t || t.kind !== 'TV') {
+    flashToast('Only TV shows can be recurring.', { kind: 'warn' });
+    return;
+  }
+
+  // Infer dow + timeOfDay from wp.startAt in wp's creator timezone (fall back to user's local).
+  const tz = wp.creatorTimeZone || (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+  let dow = 0;
+  let timeOfDay = '20:00';
+  try {
+    const startDate = new Date(wp.startAt);
+    // dow in target tz
+    const wkParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, weekday: 'short'
+    }).formatToParts(startDate);
+    const wkName = (wkParts.find(p => p.type === 'weekday') || {}).value;
+    const wkIdx = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(wkName);
+    if (wkIdx >= 0) dow = wkIdx;
+    // HH:MM in target tz (24h)
+    const hmParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(startDate);
+    const hh = (hmParts.find(p => p.type === 'hour') || {}).value;
+    const mm = (hmParts.find(p => p.type === 'minute') || {}).value;
+    if (hh && mm) timeOfDay = `${hh}:${mm}`;
+  } catch (e) {
+    console.warn('openMakeRecurring tz infer failed; defaulting to Sun 20:00', e && e.message);
+  }
+
+  // Member IDs from wp.memberUids back-resolved through state.members
+  const memberIds = (state.members || [])
+    .filter(m => m && m.uid && Array.isArray(wp.memberUids) && wp.memberUids.includes(m.uid))
+    .map(m => m.id);
+
+  // Close the post-session modal first so the series modal isn't stacked behind it
+  try {
+    const psModal = document.getElementById('wp-post-session-modal-bg');
+    if (psModal) psModal.classList.remove('on');
+  } catch(e) {}
+
+  // Open series-create modal pre-filled
+  openSeriesCreate({
+    titleType: 'tv',
+    titleId: wp.titleId,
+    titleName: wp.titleName || (t && t.name) || null,
+    daysOfWeek: [dow],
+    timeOfDay,
+    memberIds
+  });
+};
+
+// === Phase 16 / CAL-16-08 — TMDB title search for series title field ===
+// Debounced 250ms search-as-you-type. Renders into #series-title-suggest; pickSeriesTitle
+// commits the selection back into state.seriesEdit.titleId + .titleName. T-16-24 mitigation:
+// escapeHtml on all TMDB-supplied strings before innerHTML interpolation.
+window.searchSeriesTitle = (function() {
+  let debounceTimer = null;
+  return function(q) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      const suggest = document.getElementById('series-title-suggest');
+      if (!suggest) return;
+      const query = (q || '').trim();
+      if (query.length < 2) { suggest.style.display = 'none'; suggest.innerHTML = ''; return; }
+      try {
+        const url = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const rows = (json.results || []).slice(0, 6);
+        if (!rows.length) { suggest.style.display = 'none'; suggest.innerHTML = ''; return; }
+        suggest.innerHTML = rows.map(r => {
+          const tid = escapeHtml(String(r.id));
+          const name = escapeHtml(r.name || 'Untitled');
+          const year = r.first_air_date ? ` (${escapeHtml(r.first_air_date.slice(0,4))})` : '';
+          // Pass name as a JSON-encoded JS string literal; HTML-encode " and ' so they survive
+          // the outer onclick="..." attribute's double-quote delimiter (otherwise the parser
+          // closes the attribute at the first " inside JSON.stringify's wrapper and the handler
+          // never fires — broke any title without an apostrophe, e.g. "American Idol").
+          const nameLiteral = JSON.stringify(r.name || 'Untitled').replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+          return `<div class="suggest-row" onclick="pickSeriesTitle('${tid}', ${nameLiteral})">${name}${year}</div>`;
+        }).join('');
+        suggest.style.display = 'flex';
+      } catch (e) {
+        console.warn('series title search failed', e && e.message);
+        suggest.style.display = 'none';
+      }
+    }, 250);
+  };
+})();
+
+window.pickSeriesTitle = function(tid, name) {
+  state.seriesEdit.titleId = tid;
+  state.seriesEdit.titleName = name;
+  const input = document.getElementById('series-title-input');
+  if (input) input.value = name;
+  const suggest = document.getElementById('series-title-suggest');
+  if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+};
+
+// === confirmStartSeries — write watchpartySeries doc ===
+// Validates client-side (titleType / titleId-if-tv / daysOfWeek≥1 / HH:MM regex / member uids).
+// Server-side: firestore.rules block (plan 16-01) is the source-of-truth gate (T-16-23 mitigation).
+// nextFireAt=Date.now() at create — the materializer CF (plan 16-03) runs on the next 6h tick
+// and computes the real next-fire via computeNextFireAt(cadence) from plan 16-02.
+window.confirmStartSeries = async function() {
+  if (!state.me) return;
+  if (guardReadOnlyWrite()) return;
+  if (!state.auth || !state.auth.uid) { flashToast('Sign in to schedule a series.', { kind: 'warn' }); return; }
+  if (!state.familyCode) { flashToast('Join a couch first.', { kind: 'warn' }); return; }
+
+  const ed = state.seriesEdit || {};
+
+  // Validate
+  if (!ed.titleType || (ed.titleType !== 'tv' && ed.titleType !== 'untitled')) {
+    flashToast('Pick a title type.', { kind: 'warn' }); return;
+  }
+  if (ed.titleType === 'tv' && (!ed.titleId || !ed.titleName)) {
+    flashToast('Pick a show title.', { kind: 'warn' }); return;
+  }
+  if (!Array.isArray(ed.daysOfWeek) || ed.daysOfWeek.length < 1) {
+    flashToast('Pick at least one day.', { kind: 'warn' }); return;
+  }
+  // Read latest timeOfDay from input (user might have changed it without re-syncing state)
+  const timeInput = document.getElementById('series-time-input');
+  const timeOfDay = timeInput && timeInput.value ? timeInput.value : (ed.timeOfDay || '20:00');
+  if (!/^[0-2][0-9]:[0-5][0-9]$/.test(timeOfDay)) {
+    flashToast('Invalid time. Use 24h HH:MM.', { kind: 'warn' }); return;
+  }
+  // Members — at least 1 (the creator self)
+  let memberIds = Array.isArray(ed.memberIds) ? ed.memberIds.filter(Boolean) : [];
+  if (memberIds.length === 0) memberIds = [state.me.id];
+
+  // Map memberIds → memberUids (uids). Always include the creator's own uid (T-16-26 mitigation:
+  // CF lookup invariant — creator must be a memberUid to satisfy rules update branch later).
+  const memberUids = Array.from(new Set([
+    state.auth.uid,
+    ...((state.members || [])
+      .filter(m => m && memberIds.includes(m.id) && m.uid)
+      .map(m => m.uid))
+  ])).filter(Boolean);
+
+  if (memberUids.length === 0) {
+    flashToast('No couch members with sign-in. Add a member first.', { kind: 'warn' });
+    return;
+  }
+
+  const timezone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch (e) { return 'UTC'; }
+  })();
+
+  const id = 'series_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+
+  const series = {
+    id,
+    familyCode: state.familyCode,
+    createdBy: state.me.id,
+    createdByUid: state.auth.uid,
+    createdAt: Date.now(),
+    titleType: ed.titleType,
+    titleId: ed.titleType === 'tv' ? ed.titleId : null,
+    titleName: ed.titleType === 'tv' ? ed.titleName : null,
+    daysOfWeek: ed.daysOfWeek.slice().sort((a,b) => a-b),
+    timeOfDay,
+    timezone,
+    memberUids,
+    status: 'active',
+    nextFireAt: Date.now(),    // past — materializer CF computes real next fire on next 6h tick
+    ...writeAttribution()
+  };
+
+  try {
+    await setDoc(seriesRef(id), series);
+    try { logActivity && logActivity('series_created', { titleType: series.titleType, titleName: series.titleName }); } catch(e) {}
+    flashToast('Series scheduled. First fire within 6 hours.');
+    closeSeriesCreate();
+  } catch (e) {
+    console.warn('confirmStartSeries failed', e && e.message);
+    flashToast('Could not save series — try again.', { kind: 'warn' });
+  }
+};
+
+// === Phase 16 / CAL-16-11 — Week view modal (7-day calendar) ===
+// Greenfield component — RESEARCH §10. Mobile-first 1-column stack; 7-col grid on tablet+.
+// Data source: state.watchparties (already subscribed via state.unsubWatchparties).
+// Includes series-materialized wps (gated by memberUids — same auth surface as 16-05).
+// T-16-33 mitigation: escapeHtml on titleName + wpId + time before innerHTML render.
+
+state.weekViewAnchorMs = null;   // Sunday-of-visible-week, midnight in user's local tz
+
+function getWeekStartSundayMs(anchorMs) {
+  // Returns midnight local time of the Sunday that begins the week containing anchorMs.
+  const d = new Date(anchorMs);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();   // 0=Sun..6=Sat in local tz
+  d.setDate(d.getDate() - dow);
+  return d.getTime();
+}
+
+window.openWeekView = function() {
+  // Anchor to current week's Sunday
+  state.weekViewAnchorMs = getWeekStartSundayMs(Date.now());
+  renderWeekViewContent();
+  const modal = document.getElementById('week-view-modal-bg');
+  if (modal) {
+    modal.classList.add('on');
+    try { activateFocusTrap(modal); } catch(e) {}
+  }
+};
+
+window.closeWeekView = function() {
+  const modal = document.getElementById('week-view-modal-bg');
+  if (modal) modal.classList.remove('on');
+  try { deactivateFocusTrap(); } catch(e) {}
+};
+
+window.shiftWeekView = function(dayDelta) {
+  if (typeof state.weekViewAnchorMs !== 'number') return;
+  state.weekViewAnchorMs = state.weekViewAnchorMs + dayDelta * 24 * 60 * 60 * 1000;
+  renderWeekViewContent();
+};
+
+function renderWeekViewContent() {
+  const root = document.getElementById('week-view-content');
+  const emptyEl = document.getElementById('week-view-empty');
+  const titleEl = document.getElementById('week-view-title');
+  if (!root) return;
+
+  const anchor = state.weekViewAnchorMs || getWeekStartSundayMs(Date.now());
+  state.weekViewAnchorMs = anchor;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const weekStart = anchor;
+  const weekEnd = anchor + 7 * dayMs;
+  // todayStart: local-midnight of TODAY (today's date, hour 0). Used to highlight the "today" column.
+  const _now = new Date();
+  _now.setHours(0, 0, 0, 0);
+  const todayStart = _now.getTime();
+
+  // Filter wps to visible window — include scheduled + active, exclude archived/cancelled.
+  const wps = (state.watchparties || []).filter(wp => {
+    if (!wp || typeof wp.startAt !== 'number') return false;
+    if (wp.status === 'archived' || wp.status === 'cancelled') return false;
+    return wp.startAt >= weekStart && wp.startAt < weekEnd;
+  });
+
+  // Bucket wps by day index 0..6
+  const buckets = [[], [], [], [], [], [], []];
+  for (const wp of wps) {
+    const dayIdx = Math.floor((wp.startAt - weekStart) / dayMs);
+    if (dayIdx >= 0 && dayIdx < 7) buckets[dayIdx].push(wp);
+  }
+
+  // Sort each day's events by startAt
+  for (const b of buckets) b.sort((a, z) => a.startAt - z.startAt);
+
+  const totalEvents = wps.length;
+  if (emptyEl) emptyEl.style.display = totalEvents === 0 ? 'block' : 'none';
+  if (titleEl) {
+    const startLabel = new Date(weekStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = new Date(weekEnd - dayMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    titleEl.textContent = `${startLabel} – ${endLabel}`;
+  }
+
+  const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const html = buckets.map((bucket, i) => {
+    const dayMsAtStart = weekStart + i * dayMs;
+    const isToday = dayMsAtStart === todayStart;
+    const dateLabel = new Date(dayMsAtStart).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+    const eventsHtml = bucket.length === 0
+      ? ''
+      : bucket.map(wp => {
+          const safeWpId = escapeHtml(wp.id || '');
+          const safeTitle = escapeHtml(wp.titleName || 'Untitled');
+          const isSeries = !!wp.seriesId;
+          const time = new Date(wp.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          return `<div class="week-event${isSeries ? ' series-instance' : ''}" data-wpid="${safeWpId}" onclick="tapWeekEvent('${safeWpId}')"><span class="we-time">${escapeHtml(time)}</span><span class="we-title">${safeTitle}</span></div>`;
+        }).join('');
+    return `<div class="week-day-col${isToday ? ' today' : ''}">
+      <div class="week-day-col-h"><span class="dow">${dayLabels[i]}</span><span class="date">${escapeHtml(dateLabel)}</span></div>
+      ${eventsHtml}
+    </div>`;
+  }).join('');
+
+  root.innerHTML = html;
+}
+
+window.tapWeekEvent = function(wpId) {
+  if (!wpId) return;
+  // Close week-view first
+  closeWeekView();
+  // Navigate to the wp — match the existing wp-banner-tap / wp-deep-link pattern.
+  // Rule 1 deviation: plan said showScreen('home') but the canonical home tab name in
+  // this codebase is 'tonight' (verified via grep on existing showScreen calls).
+  try {
+    state.activeWatchpartyId = wpId;
+    // If the wp is live, open the live modal directly (matches openWatchpartyLive sites);
+    // otherwise surface it via the Tonight tab banner.
+    const wp = (state.watchparties || []).find(w => w && w.id === wpId);
+    const isLive = wp && (wp.status === 'live' || wp.status === 'started');
+    if (isLive && typeof renderWatchpartyLive === 'function') {
+      renderWatchpartyLive();
+      const liveBg = document.getElementById('wp-live-modal-bg');
+      if (liveBg) {
+        liveBg.classList.add('on');
+        try { activateFocusTrap(liveBg); } catch(e) {}
+      }
+    } else {
+      if (typeof window.showScreen === 'function') window.showScreen('tonight');
+      if (typeof renderTonight === 'function') renderTonight();
+    }
+    flashToast('Opening watchparty…');
+  } catch (e) {
+    console.warn('tapWeekEvent navigation failed', e && e.message);
+  }
+};
 
 window.openSetPasswordForm = function() {
   const form = document.getElementById('signin-methods-password-form');
@@ -16361,6 +17703,94 @@ function couchInTonightToMemberIds(cit) {
   return Object.keys(cit).filter(mid => cit[mid] && cit[mid].in === true);
 }
 
+// === Phase 16.4 — Cinematic top-match hero ===
+// Renders into #tonight-hero-container. Full-bleed backdrop (or poster fallback),
+// gradient overlay for readability, Fraunces title + Instrument Serif italic sub,
+// provider strip + primary CTA. Empty state when no matches — a gentle nudge to
+// vote, NOT a dead card.
+// Inputs:
+//   topMatch — the first item from the sorted matches list (or null if no matches)
+//   couch    — the couch member-ids array (used to choose a vote-tally subline)
+function renderTonightHero(topMatch, couch) {
+  const container = document.getElementById('tonight-hero-container');
+  if (!container) return;
+  if (!topMatch) {
+    // Empty state — quiet, not loud. Pulls the eye toward the matches section below.
+    container.innerHTML = `<div class="tonight-hero tonight-hero-empty">
+      <div class="tonight-hero-empty-inner">
+        <div class="tonight-hero-empty-eyebrow">Tonight's pick</div>
+        <h2 class="tonight-hero-empty-title">Vote on a few titles —<br>we'll surface the standout.</h2>
+      </div>
+    </div>`;
+    return;
+  }
+  const t = topMatch;
+  const bg = t.backdrop || t.poster || '';
+  const name = escapeHtml(t.name || '');
+  const year = t.year ? `<span class="th-meta-dot">·</span><span class="th-year">${escapeHtml(String(t.year))}</span>` : '';
+  const kindLabel = t.kind === 'TV' ? 'Series' : 'Film';
+  // Provider strip — show up to 3 logos, Inter caps fallback if no logo. Normalize
+  // brand names (Prime/Disney+/Max collapsing per constants.js mapping).
+  const providers = Array.isArray(t.providers) ? t.providers.slice(0, 3) : [];
+  const provHtml = providers.length
+    ? `<div class="th-providers">${providers.map(p => {
+        const pname = escapeHtml(normalizeProviderName(p.name) || p.name || '');
+        if (p.logo) {
+          return `<span class="th-provider"><img src="${p.logo}" alt="${pname}" /></span>`;
+        }
+        return `<span class="th-provider th-provider-text">${pname}</span>`;
+      }).join('')}</div>`
+    : '';
+  // Vote tally — couch yes-count from the existing sort. Says "everyone wants it"
+  // when unanimous; otherwise "N of M want it" with Fraunces num.
+  const votes = t.votes || {};
+  const couchYes = couch.filter(mid => votes[mid] === 'yes').length;
+  const couchTotal = couch.length;
+  let tallyText;
+  if (couchYes === couchTotal && couchTotal > 0) tallyText = `Whole couch wants it`;
+  else if (couchYes > 0) tallyText = `${couchYes} of ${couchTotal} want it`;
+  else tallyText = '';
+  // Launch-readiness audit fix (a11y): hero tally re-renders silently when family
+  // members vote from other devices; aria-live="polite" lets SR users hear updates.
+  const tallyHtml = tallyText
+    ? `<div class="th-tally" aria-live="polite"><em>${escapeHtml(tallyText)}</em></div>`
+    : '';
+  const bgStyle = bg ? `background-image: url('${bg}')` : '';
+  container.innerHTML = `<div class="tonight-hero" role="button" tabindex="0" aria-label="${name} — top pick tonight">
+    <div class="th-backdrop" style="${bgStyle}"></div>
+    <div class="th-gradient"></div>
+    <div class="th-content">
+      <div class="th-eyebrow">Tonight's pick</div>
+      <h2 class="th-title">${name}</h2>
+      <div class="th-meta"><span class="th-kind">${kindLabel}</span>${year}</div>
+      ${tallyHtml}
+      ${provHtml}
+      <div class="th-cta-row">
+        <button type="button" class="th-cta-primary" data-act="open">View</button>
+        <button type="button" class="th-cta-secondary" data-act="spin">🎲 Spin again</button>
+      </div>
+    </div>
+  </div>`;
+  // Wire interactions. Whole-card tap → open detail. Buttons → their actions.
+  const heroEl = container.querySelector('.tonight-hero');
+  const openDetail = (e) => {
+    e.stopPropagation();
+    if (typeof openDetailModal === 'function') openDetailModal(t.id);
+  };
+  const spinAgain = (e) => {
+    e.stopPropagation();
+    if (typeof spinPick === 'function') spinPick();
+  };
+  heroEl.addEventListener('click', openDetail);
+  heroEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (typeof openDetailModal === 'function') openDetailModal(t.id); }
+  });
+  const primary = heroEl.querySelector('[data-act="open"]');
+  const secondary = heroEl.querySelector('[data-act="spin"]');
+  if (primary) primary.addEventListener('click', openDetail);
+  if (secondary) secondary.addEventListener('click', spinAgain);
+}
+
 // V5 renderCouchViz — see variant-5-roster-control.html for the design contract.
 // Renders the family roster as a wrap-flex of toggleable pills. Tap = flip in/out.
 // Long-press out-pill (700ms) = send push (sendCouchPing). The "me" pill carries
@@ -16390,43 +17820,95 @@ function renderCouchViz() {
   else if (numIn === total && total > 0) subText = "Whole couch is in";
   else subText = `${numIn} ${numIn === 1 ? 'is' : 'are'} watching`;
 
-  // Render hero + headline + sub-line (V5 hero is 84px, smaller than 14-04's 280px)
-  // + roster pills + tally + action row + hint line.
+  // Phase 16.4 — compact chip-bar layout. Single row of initial-circles (40px),
+  // no inline name labels (kept in aria-label for screen readers). Tally folded
+  // into the headline row. Action row collapsed to ONE context-aware link.
+  // Verbose hint text removed — the interaction is discoverable through use.
+  // Replaces the ~300px wrap-flex pill layout that was burning vertical real estate
+  // before the user could see any movie content.
+  const isCompact = container.classList.contains('couch-viz-compact');
   const html = [];
-  html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
-  html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
-  html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
-  // Phase 19 / D-15 — subtle amber tint on roster surface when kid-mode active.
-  const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
-  html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
-  roster.forEach(m => {
-    const isIn = cit[m.id] && cit[m.id].in === true;
-    const isMe = meId && m.id === meId;
-    const initial = escapeHtml((m.name || '?')[0].toUpperCase());
-    const name = escapeHtml(m.name || 'Member');
-    const color = memberColor(m.id);
-    const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
-    const avStyle = isIn ? `background:${color}` : '';
-    const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
-    const ariaLabel = isIn
-      ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
-      : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
-    html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
-      <div class="av" style="${avStyle}">${initial}</div>
-      <span class="label">${name}${youTag}</span>
-      <div class="ping-hint" aria-hidden="true"></div>
-    </div>`);
-  });
-  html.push(`</div>`);
-  // Tally: Fraunces num + Instrument Serif italic "of N watching"
-  html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
-  // Action row — visibility-gated by current state
-  html.push(`<div class="pill-actions">`);
-  if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
-  if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
-  if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
-  html.push(`</div>`);
-  html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  if (isCompact) {
+    // Compact: small hero + headline inline; sub-line one-liner; chip row; subtle action link.
+    html.push(`<div class="couch-headline-row">`);
+    html.push(`<img class="couch-hero couch-hero-compact" src="${COUCH_HERO_SRC}" alt="" aria-hidden="true" />`);
+    html.push(`<div class="couch-headline-text">`);
+    html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+    html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+    html.push(`</div>`);
+    html.push(`</div>`);
+    const rosterCls = state.kidMode ? 'chip-roster kid-mode-on' : 'chip-roster';
+    html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
+    roster.forEach(m => {
+      const isIn = cit[m.id] && cit[m.id].in === true;
+      const isMe = meId && m.id === meId;
+      const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+      const name = escapeHtml(m.name || 'Member');
+      const color = memberColor(m.id);
+      const cls = `pill chip ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+      const avStyle = isIn ? `background:${color}` : '';
+      const ariaLabel = isIn
+        ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+        : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      // v16.10b — render chosen avatar (emoji) instead of just initial. avatarContent()
+      // returns initial as the fallback so legacy members without member.avatar see the
+      // same character as before. Pencil edit glyph appears only on the user's OWN chip
+      // and opens openAvatarPicker; stopPropagation guards against the chip's
+      // toggle-couch click + long-press-to-ping handlers.
+      const editGlyph = isMe ? `<button type="button" class="av-edit" aria-label="Customize your avatar" onclick="event.stopPropagation();event.preventDefault();openAvatarPicker();return false;" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()"><span aria-hidden="true">&#9998;</span></button>` : '';
+      html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}" title="${name}">
+        <div class="av" style="${avStyle}">${avatarContent(m)}</div>
+        ${editGlyph}
+        <div class="chip-name" aria-hidden="true">${name}</div>
+        <div class="ping-hint" aria-hidden="true"></div>
+      </div>`);
+    });
+    html.push(`</div>`);
+    // Single context-aware action — "Mark everyone in" when no one is in, "Clear couch"
+    // when someone is in. No "Send pushes" link by default (long-press on out-chip
+    // already does this — surfacing as a button doubles up the affordance).
+    if (numIn < total) {
+      html.push(`<div class="chip-action-row"><button type="button" class="action-link" data-act="mark-all">Mark everyone in</button></div>`);
+    } else if (numIn > 0) {
+      html.push(`<div class="chip-action-row"><button type="button" class="action-link" data-act="clear-all">Clear couch</button></div>`);
+    }
+  } else {
+    // Legacy verbose layout — kept for any caller that doesn't pass .couch-viz-compact.
+    html.push(`<img class="couch-hero couch-hero-v5" src="${COUCH_HERO_SRC}" alt="Couch" />`);
+    html.push(`<h3 class="couch-headline">On the couch tonight</h3>`);
+    html.push(`<p class="couch-sub">${escapeHtml(subText)}</p>`);
+    const rosterCls = state.kidMode ? 'roster kid-mode-on' : 'roster';
+    html.push(`<div class="${rosterCls}" role="group" aria-label="Family roster — tap to flip in or out">`);
+    roster.forEach(m => {
+      const isIn = cit[m.id] && cit[m.id].in === true;
+      const isMe = meId && m.id === meId;
+      const initial = escapeHtml((m.name || '?')[0].toUpperCase());
+      const name = escapeHtml(m.name || 'Member');
+      const color = memberColor(m.id);
+      const cls = `pill ${isIn ? 'in' : 'out'} ${isMe ? 'me' : ''}`;
+      const avStyle = isIn ? `background:${color}` : '';
+      const youTag = isMe ? `<span class="you-tag">YOU</span>` : '';
+      const ariaLabel = isIn
+        ? `${name}${isMe ? ' (you)' : ''} is on the couch — tap to flip out`
+        : `${name}${isMe ? ' (you)' : ''} is off the couch — tap to flip in; long-press to send a push`;
+      // v16.10b — same avatar-rendering + edit-glyph treatment as the compact path.
+      const editGlyphV = isMe ? `<button type="button" class="av-edit" aria-label="Customize your avatar" onclick="event.stopPropagation();event.preventDefault();openAvatarPicker();return false;" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()"><span aria-hidden="true">&#9998;</span></button>` : '';
+      html.push(`<div class="${cls}" data-mid="${m.id}" role="button" tabindex="0" aria-pressed="${isIn ? 'true' : 'false'}" aria-label="${ariaLabel}">
+        <div class="av" style="${avStyle}">${avatarContent(m)}</div>
+        ${editGlyphV}
+        <span class="label">${name}${youTag}</span>
+        <div class="ping-hint" aria-hidden="true"></div>
+      </div>`);
+    });
+    html.push(`</div>`);
+    html.push(`<div class="tally"><span class="num">${numIn}</span><span class="of">of ${total} watching</span></div>`);
+    html.push(`<div class="pill-actions">`);
+    if (numIn < total) html.push(`<button type="button" class="action-link" data-act="mark-all">Mark everyone in</button>`);
+    if (numIn > 0) html.push(`<button type="button" class="action-link" data-act="clear-all">Clear couch</button>`);
+    if (numOut > 0 && numIn > 0) html.push(`<button type="button" class="action-link" data-act="push-rest">Send pushes to the rest</button>`);
+    html.push(`</div>`);
+    html.push(`<p class="pill-hint">Tap to flip in/out. Long-press an out pill to send them a push.</p>`);
+  }
   // Phase 19 / D-01..D-03 — Kid-mode toggle row. Visibility gated on familyHasKids()
   // (re-evaluated each render per D-03). Idle = dashed border; active = amber-filled.
   // Helper hint copy locked at D-17.
@@ -16973,6 +18455,10 @@ function startListsSync() {
   unsubLists = onSnapshot(listsRef(), snap => {
     allLists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderLists();
+  }, (err) => {
+    // Null out so the early-return guard above lets startListsSync re-subscribe later.
+    unsubLists = null;
+    snapshotErrorHandler('lists')(err);
   });
 }
 

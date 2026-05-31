@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://couchtonight.app/">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -108,6 +108,18 @@
             }
           }
         }
+        // 5. Launch-readiness audit fix (H-1 / Apple §5.1.1): truncate exception
+        // values to first 80 chars so member display names (kid names = PII)
+        // that may appear in error strings ("Could not save Sasha-age-8") are
+        // bounded. privacy.html §5 commits to "PII removed before send".
+        if (event.exception && event.exception.values) {
+          event.exception.values = event.exception.values.map(function (v) {
+            return {
+              type: v.type,
+              value: (typeof v.value === 'string') ? v.value.slice(0, 80) : v.value
+            };
+          });
+        }
         return event;
       },
       // Pitfall 5 defense: drop Firestore transport noise from breadcrumbs.
@@ -161,7 +173,9 @@
 
 <section id="signin-screen" class="wrap" style="display:none;">
   <div class="signin-header">
-    <h1 class="signin-title">Couch</h1>
+    <div class="brand large brand-hero-large">
+      <img class="brand-logo" src="/logo-h200.png" alt="Couch" width="423" height="200">
+    </div>
     <p class="signin-tag">Who's on the couch tonight?</p>
     <p class="signin-subtag">Decide what to watch tonight in 30 seconds. Free.</p>
   </div>
@@ -321,8 +335,15 @@
     </div>
     <!-- D-06 (DECI-14-06) — Couch viz centerpiece. Rendered by renderCouchViz() in js/app.js
          (sketch 001 winner P: hero icon + avatar grid). Sits at the very top of the Tonight tab,
-         above the picker card, so "who's on the couch" is the first thing the user sees. -->
-    <div id="couch-viz-container" class="couch-viz-container" aria-label="Who's on the couch tonight"></div>
+         above the picker card, so "who's on the couch" is the first thing the user sees.
+         Phase 16.4 — compact chip-bar variant (initials only, single row) so a 7-member family
+         doesn't burn ~300px of vertical space here. -->
+    <div id="couch-viz-container" class="couch-viz-container couch-viz-compact" aria-label="Who's on the couch tonight"></div>
+    <!-- Phase 16.4 — Cinematic top-match hero. Rendered by renderTonightHero() in js/app.js.
+         Full-bleed backdrop poster, Fraunces title overlay, provider badge + CTA. The "hook"
+         that pulls users in — first content surface after the roster. Hidden when no matches
+         exist (handled by the renderer). -->
+    <div id="tonight-hero-container" class="tonight-hero-container"></div>
     <!-- Phase 28 / PICK-28-03 — Pick'em sub-surface inline-link affordance.
          Hidden by default; renderPickemTonightLink() in js/app.js toggles visibility based
          on whether the current week's slate has upcoming games for any active league
@@ -389,7 +410,7 @@
         <div class="t-section-meta" id="matches-count"></div>
       </div>
       <div class="t-section-action" id="t-section-actions"></div>
-      <div id="matches-list"></div>
+      <div id="matches-list" aria-live="polite" aria-atomic="false"></div>
     </div>
 
     <div id="upnext-section" class="t-section" style="display:none;">
@@ -399,7 +420,10 @@
       <div id="upnext-list"></div>
     </div>
 
-    <div id="continue-section" class="t-section" style="display:none;"></div>
+    <!-- Phase 16.4 — legacy per-member #continue-section removed. The tuple-aware
+         cross-show #cv15-pickup-container above (Phase 15 / S1) is now the sole
+         "continue watching" surface on the Tonight tab — eliminates the v1 dual-widget
+         that doubled vertical space for the same conceptual job. -->
 
     <div class="next3-section t-section" id="next3-section" style="display:none;">
       <div class="t-section-head">
@@ -647,6 +671,14 @@
           <div class="tab-identity-name" id="me-label"></div>
           <div class="tab-identity-meta" id="family-label"></div>
           <div class="tab-identity-auth" id="account-auth-email" style="display:none;"></div>
+          <!-- v16.10b — identity extras (role + signin provider + member-since). Populated
+               by renderAccountIdentityExtras() from renderSettings(). -->
+          <div class="tab-identity-extras" id="account-identity-extras"></div>
+          <div class="tab-identity-actions">
+            <button type="button" class="pill identity-edit-btn" onclick="openAvatarPicker()" aria-label="Customize your avatar">
+              <span aria-hidden="true">&#9998;</span> Customize avatar
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -673,6 +705,19 @@
       <div class="tab-section-h"><span>Sign-in methods</span></div>
       <p class="tab-section-sub">Your linked ways to sign in. Set a password so you can sign in faster on a new device.</p>
       <div id="signin-methods-list" class="tab-list-card"></div>
+    </div>
+
+    <!-- Phase 16 / CAL-16-10 — Your series (recurring watchparty management).
+         Rendered by renderSeriesListCard() from renderSettings(). Hidden when state.series
+         is empty. Mirrors #signin-methods-card composition; richer rows with Edit/Pause/Cancel
+         actions (Resume + Cancel when status === 'paused'). Sits with the conditional banners
+         above the 3 settings clusters. -->
+    <div class="tab-section" id="series-list-card" style="display:none;">
+      <div class="tab-section-h"><span>Your series</span></div>
+      <p class="tab-section-sub">Recurring watchparties. Pause, edit, or cancel from here.</p>
+      <div id="series-list" class="tab-list-card"></div>
+      <!-- Phase 16 / CAL-16-11 — Calendar (week) view entry point -->
+      <button type="button" class="pill" onclick="openWeekView()" style="margin-top:12px;">Calendar view</button>
     </div>
 
     <!-- ===== CLUSTER 1: YOU (identity continuation: sub-profiles) ===== -->
@@ -1023,7 +1068,7 @@
        Reuses .modal / .modal-bg base scaffold (BRAND.md §7 / css/app.css:478-491).
        Open via openWaitUpPicker() from movie-mode Custom… chip; close via Cancel, backdrop tap, or Set wait commit. -->
   <div class="modal-bg" id="wait-up-picker-bg" role="dialog" aria-modal="true" aria-labelledby="wait-up-picker-title" onclick="if(event.target.id==='wait-up-picker-bg')closeWaitUpPicker()">
-    <div class="modal wait-up-picker-modal" id="wait-up-picker-content" role="dialog" aria-labelledby="wait-up-picker-title" aria-modal="true">
+    <div class="modal wait-up-picker-modal" id="wait-up-picker-content">
       <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWaitUpPicker()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <h3 id="wait-up-picker-title" class="wait-up-picker-h">How long should we wait up?</h3>
       <div class="wup-input-row">
@@ -1059,7 +1104,7 @@
        Reuses .modal / .modal-bg base scaffold; subclassed via .past-parties-surface for full-height layout.
        Open via openPastParties() from the inline Tonight tab link; close via Close button or backdrop tap. -->
   <div class="modal-bg" id="past-parties-bg" role="dialog" aria-modal="true" aria-labelledby="past-parties-title" onclick="if(event.target.id==='past-parties-bg')closePastParties()">
-    <div class="modal past-parties-surface" id="past-parties-content" role="dialog" aria-labelledby="past-parties-title" aria-modal="true">
+    <div class="modal past-parties-surface" id="past-parties-content">
       <div class="past-parties-header">
         <span class="past-parties-eyebrow">Still rolling</span>
         <h3 id="past-parties-title" class="past-parties-h">Past parties</h3>
@@ -1098,7 +1143,7 @@
   </div>
 
   <div class="modal-bg" id="svc-suggest-bg" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title" onclick="if(event.target.id==='svc-suggest-bg')closeServiceSuggest()">
-    <div class="modal svc-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="svc-suggest-title">
+    <div class="modal svc-suggest-modal">
       <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeServiceSuggest()"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5l-10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       <div class="svc-suggest-icon" aria-hidden="true">📺</div>
       <h3 id="svc-suggest-title" class="svc-suggest-title"></h3>
@@ -1284,6 +1329,63 @@
     </div>
   </div>
 
+  <!-- Phase 16 / CAL-16-08 — Schedule a series modal (Entry 1) -->
+  <!-- DOM-shared with edit flow in plan 16-07 via state.seriesEdit.mode = 'create' | 'edit' -->
+  <div class="modal-bg" id="series-create-modal-bg" role="dialog" aria-modal="true" aria-label="Schedule a series">
+    <div class="modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeSeriesCreate()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 id="series-modal-title">Schedule a series</h3>
+      <p class="modal-sub">Recurring watchparties. Every selected day at the same time.</p>
+      <div class="modal-field-stack">
+        <div class="field" id="series-field-titletype">
+          <label class="field-label">What's this?</label>
+          <div class="cadence-picker" id="series-titletype-picker">
+            <button type="button" class="cadence-day-pill on" data-titletype="tv" onclick="selectSeriesTitleType('tv')">TV series</button>
+            <button type="button" class="cadence-day-pill" data-titletype="untitled" onclick="selectSeriesTitleType('untitled')">Decide together</button>
+          </div>
+        </div>
+        <div class="field" id="series-field-title">
+          <label class="field-label" for="series-title-input">Show title</label>
+          <input type="text" id="series-title-input" class="form-input-block" placeholder="e.g. American Idol" autocomplete="off">
+          <p class="field-hint">Pick from the catalog — we'll resolve the poster + metadata.</p>
+          <div id="series-title-suggest" class="series-title-suggest"></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Which days?</label>
+          <div class="cadence-picker series-dow-picker" id="series-dow-picker" role="group" aria-label="Days of the week"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="series-time-input">What time?</label>
+          <input type="time" id="series-time-input" class="form-input-block" value="20:00">
+        </div>
+        <div class="field">
+          <label class="field-label">Who's on the couch?</label>
+          <div id="series-members-chips" class="series-members-chips"></div>
+        </div>
+        <button type="button" class="modal-close" onclick="confirmStartSeries()">Save series</button>
+        <button type="button" class="pill modal-btn-block" onclick="closeSeriesCreate()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 16 / CAL-16-11 — Week view (7-day calendar) modal -->
+  <div class="modal-bg" id="week-view-modal-bg" role="dialog" aria-modal="true" aria-label="Calendar view">
+    <div class="modal week-view-modal">
+      <button type="button" class="modal-x-btn" data-action="close" aria-label="Close" onclick="closeWeekView()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="week-view-header">
+        <button type="button" class="pill week-view-nav-btn" onclick="shiftWeekView(-7)" aria-label="Previous week">&larr; Prev</button>
+        <h3 id="week-view-title">This week</h3>
+        <button type="button" class="pill week-view-nav-btn" onclick="shiftWeekView(7)" aria-label="Next week">Next &rarr;</button>
+      </div>
+      <div id="week-view-content" class="week-view"></div>
+      <p class="week-view-empty" id="week-view-empty" style="display:none;">No couch nights this week.</p>
+    </div>
+  </div>
+
   <div class="modal-bg" id="wp-live-modal-bg" role="dialog" aria-modal="true" aria-label="Live watchparty">
     <div class="modal wp-live-modal" id="wp-live-content">
       <!-- Phase 24 / REVIEWS H1 — Persistent player surface (#wp-video-surface).
@@ -1320,6 +1422,9 @@
         <button type="button" class="wp-photo-upload-trigger" onclick="document.getElementById('wp-photo-input').click()">Add a couch photo</button>
       </div>
       <div id="wp-photo-preview" style="display:none;"></div>
+      <!-- Phase 16 / CAL-16-09 — Entry 2: Make recurring? prompt (TV-only).
+           Hidden by default; openPostSession un-hides when t.kind === 'TV'. -->
+      <button type="button" class="wp-make-recurring-cta" id="wp-make-recurring-cta" style="display:none;">Make this recurring</button>
       <button type="button" class="wp-schedule-next-cta" onclick="openScheduleNext()">Schedule another night</button>
       <button type="button" class="wp-post-session-skip" onclick="closePostSession()">Maybe later</button>
     </div>

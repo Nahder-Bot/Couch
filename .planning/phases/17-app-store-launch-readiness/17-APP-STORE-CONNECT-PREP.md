@@ -84,7 +84,7 @@ Mood Filter — "Cozy," "action," "short" — narrow tonight's matches to the ro
 
 Veto — Anyone can reject a pick. Before the spin (drops it from the pool) or after (re-spin). Fairness rules so the vetoer doesn't control the replacement.
 
-Pick'em — Predict winners on the big games. Per-family leaderboard tracks accuracy across the season. NFL, NBA, EPL, college, F1, UFC, and more. Free, no real-money wagering.
+Pick'em — Predict winners on the big games. Per-family leaderboard tracks accuracy across the season. NFL, NBA, NHL, EPL, college basketball, college football, F1. Free, no real-money wagering.
 
 Kid Mode — One toggle hides anything above a chosen age tier from tonight's matches. Filters mood, runtime, providers, and ratings.
 

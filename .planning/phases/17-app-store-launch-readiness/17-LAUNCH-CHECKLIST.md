@@ -7,7 +7,7 @@ related: 17-CONTEXT.md, 17-PWABUILDER-FINDINGS-2026-05-07.md, 17-PLAY-CONSOLE-PR
 
 # Phase 17 — Launch checklist
 
-Combines every TODO scattered across the supplemental docs into one ordered list. Status updated 2026-05-07.
+Combines every TODO scattered across the supplemental docs into one ordered list. Status updated 2026-05-26 (post-TD-12-close + Build 104 TestFlight + Apple Sign-In E2E verified).
 
 **Legend:**
 - ✅ Done
@@ -67,7 +67,7 @@ Combines every TODO scattered across the supplemental docs into one ordered list
 
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
-| 21 | Backup Android signing.keystore + password to 1Password | ⬜ | 👤 | **CRITICAL.** From `~/Downloads/Couch - Google Play package.zip`. Lose this = lose Play Store update continuity. |
+| 21 | Backup Android signing.keystore + password to encrypted Couch-secrets | ⬜ | 👤 | **CRITICAL.** From `~/Downloads/Couch - Google Play package.zip`. Encrypt to `~/Documents/Couch-secrets/` using the existing 7-Zip AES-256 pattern (see `encrypt-asc-key.ps1` / `encrypt-cert-key.ps1` as templates). Lose the keystore = lose Play Store update continuity. (Original guidance referenced 1Password; user uses local Couch-secrets pattern instead.) |
 | 22 | DNS forwarding for support@/security@/dmca@/**review-apple@**couchtonight.app | ✅ | 👤+🤖 | Done 2026-05-08 via Namecheap email forwarding (NS = `dns{1,2}.registrar-servers.com`, MX = `eforward{1-5}.registrar-servers.com`). 4 forwards added in Namecheap UI; test email landed in nahderz@gmail.com within 5 sec. |
 | 23 | Legal review of privacy.html + terms.html (recommended) | ⬜ | 👤 | Drafts are professional but launch-grade legal eyes are wise |
 | 24 | Lock final Bundle ID at /gsd-discuss-phase 17 | ✅ | 👤+🤖 | Locked at `app.couchtonight.couch` per `17-APPLE-CONFIRMED-2026-05-07.md`. Permanent post-publish. |
@@ -84,16 +84,16 @@ Per `17-PWABUILDER-FINDINGS-2026-05-07.md` Wave 1 cleanup checklist:
 | # | Task | Status | Owner | Notes |
 |---|---|---|---|---|
 | 26 | Replace stub `GoogleService-Info.plist` with real Firebase iOS config | 🟡 | 👤+🤖 | Done autonomously 2026-05-11: Firebase iOS app registered (App ID `1:928451125383:ios:4ce434c2037bb93a1c1822`, bundle `app.couchtonight.couch`); real plist downloaded to `.planning/phases/17-app-store-launch-readiness/GoogleService-Info.plist`. **User step**: drag into Xcode at `Couch Tonight/GoogleService-Info.plist` per `17-XCODE-PATCHES-2026-05-11.md` §6. |
-| 27 | Set `CFBundleIdentifier` to final locked value | ⬜ | 👤 | After #24 lock |
-| 28 | Change `LSApplicationCategoryType` → `public.app-category.entertainment` | ⬜ | 👤 | Was `public.app-category.productivity` — wrong category |
-| 29 | Remove `NSAllowsArbitraryLoads: true` (ATS disabled) | ⬜ | 👤 | App Review may flag; couchtonight.app is HTTPS-only anyway |
-| 30 | Replace generic permission strings (NSCameraUsageDescription etc.) — Apple WILL reject "Capture Video by user request" | ⬜ | 👤 | Either replace with specific reason or delete the keys if feature unused |
-| 31 | Validate `UIBackgroundModes` matches actual needs | ⬜ | 👤 | Currently `processing` + `remote-notification`; remove `processing` if not used |
-| 32 | Wire Apple Sign-In capability (Signing & Capabilities → +Capability → Sign in with Apple) | ⬜ | 👤 | Phase 17 D-02. Required by §4.8. ~1 day. |
-| 33 | Configure code-signing — Xcode automatic signing per CONTEXT D-19 | ⬜ | 👤 | Pulls cert from your Apple Developer account |
-| 34 | Add `PrivacyInfo.xcprivacy` to Xcode project at `Couch Tonight/PrivacyInfo.xcprivacy` | ⬜ | 👤 | Already drafted; right-click "Couch Tonight" group → Add Files |
+| 27 | Set `CFBundleIdentifier` to final locked value | ✅ | 🤖 | Done 2026-05-18 via couch-ios `.pbxproj` patch — `app.couchtonight.couch` set in both Debug + Release configs |
+| 28 | Change `LSApplicationCategoryType` → `public.app-category.entertainment` | ✅ | 🤖 | Done 2026-05-18 via couch-ios Info.plist patch |
+| 29 | Remove `NSAllowsArbitraryLoads: true` (ATS disabled) | ✅ | 🤖 | Done 2026-05-18 via couch-ios Info.plist patch |
+| 30 | Replace generic permission strings (NSCameraUsageDescription etc.) | ✅ | 🤖 | Done 2026-05-18 — 3 unused permission descriptions (camera/mic/location) removed from couch-ios Info.plist |
+| 31 | Validate `UIBackgroundModes` matches actual needs | ✅ | 🤖 | Done 2026-05-18 — `processing` dropped, only `remote-notification` remains |
+| 32 | Wire Apple Sign-In capability (`com.apple.developer.applesignin`) | ✅ | 🤖 | Done 2026-05-18 via couch-ios Entitlements.plist patch; provisioning profile auto-created by Codemagic `fetch-signing-files --create` carries the Sign In with Apple capability — no manual Xcode "+Capability" step needed in cloud CI flow |
+| 33 | Configure code-signing — Xcode automatic signing per CONTEXT D-19 | ✅ | 🤖 | Done 2026-05-20 — Codemagic script-based auto-signing via `fetch-signing-files` + `keychain add-certificates` + `xcode-project use-profiles`. Distribution cert + App Store provisioning profile persist in Apple Developer account post-build #3 |
+| 34 | Add `PrivacyInfo.xcprivacy` to Xcode project at `Couch Tonight/PrivacyInfo.xcprivacy` | ✅ | 🤖 | Done 2026-05-18 — added as build resource in couch-ios `.pbxproj` |
 | 35 | Author `apple-app-site-association` from template, deploy to `.well-known/` | ✅ | 🤖 | Authored 2026-05-07 + deployed; Content-Type fixed to `application/json` via `firebase.json` headers rule (this session). Curl-verified at https://couchtonight.app/.well-known/apple-app-site-association. |
-| 36 | Wire Apple Sign-In in `js/firebase.js` — `OAuthProvider('apple.com')` + signin button above Google per Apple HIG | ✅ source-side | 🤖 | Done 2026-05-11 commit `46c7013`. `signInWithApple` was already in js/auth.js; this commit added: `<button id=signin-apple>` (above Google per HIG) in app.html with inline Apple-logo SVG, `handleSigninApple` in js/app.js mirroring Google handler with sanitized error toast, `.provider-apple` in css/app.css (black bg per HIG). **Still pending #32**: Xcode-side capability flip (Signing & Capabilities → +Capability → Sign in with Apple) before TestFlight upload — source wiring is inert until that lands. |
+| 36 | Wire Apple Sign-In in `js/firebase.js` — `OAuthProvider('apple.com')` + signin button above Google per Apple HIG | ✅ | 🤖 | Web source-side done 2026-05-11 commit `46c7013` (button + handler + CSS). Backend done 2026-05-14 commit `bb2c8eb` (Apple Dev Services ID `app.couchtonight.couch.signin` + Sign-In Key `PFGQNA2UTR` + Firebase Console Apple provider — all via Chrome MCP). E2E verified on Build 104 WKWebView 2026-05-26 — TD-12 CLOSED. |
 
 ### Android — open Google Play Console after device verification (#6) complete
 
@@ -139,8 +139,8 @@ Per `17-PWABUILDER-FINDINGS-2026-05-07.md` Wave 1 cleanup checklist:
 | 58 | Fill App Privacy Nutrition Labels — answers in §4 | ✅ | 👤 | Published 2026-05-08; 11 data types declared, all linked/not-linked + tracking=No verified this session. Minor under-claim: Name/Email/Phone/User ID list only `App Functionality` not also `Account Management`; conservative, not a blocker. |
 | 59 | Set up Reviewer demo account (`review-apple@couchtonight.app`) | ✅ (no prepop needed) | 👤 | Email forwarding done (#22). Pivoted away from pre-populating a demo family — Notes-for-Reviewer §5 now self-contained, reviewer creates own family during onboarding. Two earlier attempts (REVIEWAPPLE collision + CCHDEMO2026 join silent-fail) led to this pivot. (Optional follow-up: pre-populate later with a unique code; see §5 "Optional follow-up".) |
 | 60 | Paste Notes for Reviewer | ⬜ | 👤 | `17-APP-STORE-CONNECT-PREP.md` §5 (rewritten 2026-05-08 for passwordless email-link + reviewer-creates-own-family flow) includes §4.2 mitigation + Pick'em §5.3.4 analysis + 5-min walkthrough + 2-min first-run setup guide |
-| 61 | Xcode → Archive → Validate → Upload to TestFlight | ⬜ | 👤 | First TestFlight build from Xcode after Wave 1 cleanup |
-| 62 | TestFlight beta — 5-7 day minimum | ⬜ | 👤 | Per CONTEXT D-20 |
+| 61 | Codemagic CI → signed `.ipa` → Upload to TestFlight | ✅ | 🤖 | Done via Codemagic cloud CI (no Mac required). Build 103 uploaded 2026-05-20; Build 104 uploaded 2026-05-26. Pipeline: git push → Codemagic mac_mini_m2 → fetch-signing-files → xcodebuild archive → ASC upload. See `couch-ios/CONTINUE_HERE.md`. |
+| 62 | TestFlight beta — 5-7 day minimum | 🟡 | 👤 | Per CONTEXT D-20. Build 104 live in TestFlight Internal Testing 2026-05-26; Apple Sign-In E2E verified. Beta window started 2026-05-26. |
 | 63 | Submit for App Review | ⬜ | 👤 | Phased Release enabled per CONTEXT D-24 |
 | 64 | App Review approval (typically 1-3 days median) | ⬜🔒 | Apple | |
 

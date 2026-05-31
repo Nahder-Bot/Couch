@@ -20,22 +20,87 @@ export function traktIsConfigured() {
 
 export const COLORS = ['#e8a04a','#d97757','#c44536','#a87354','#7fb069','#5e8c6a','#b08968','#9c6f4a'];
 
-// Rating tiers: 1=all ages, 5=adults only. Used for per-member age filtering.
+// Rating tiers: 1=all ages, 5=full / unrestricted. Used for per-member age filtering.
+// TV-MA pairs with R at tier 4 (industry-equivalent "adults" content). Tier 5 is the
+// unrestricted ceiling — labeled "All" rather than NC-17 since NC-17 is effectively
+// extinct in modern streaming catalogs and Apple disallows it on the App Store anyway.
 export const RATING_TIERS = {
   // Movies (US)
   'G':1,'PG':2,'PG-13':3,'R':4,'NC-17':5,'NR':3,'UR':3,
-  // TV (US)
-  'TV-Y':1,'TV-Y7':1,'TV-G':1,'TV-PG':2,'TV-14':3,'TV-MA':5
+  // TV (US) — TV-MA paired with R at tier 4 (was tier 5; legacy members with maxTier=4
+  // gain TV-MA access in the same step, which is the desired modernization).
+  'TV-Y':1,'TV-Y7':1,'TV-G':1,'TV-PG':2,'TV-14':3,'TV-MA':4
 };
-export const TIER_LABELS = {1:'G / TV-Y',2:'PG / TV-PG',3:'PG-13 / TV-14',4:'R',5:'NC-17 / TV-MA'};
+export const TIER_LABELS = {1:'G / TV-Y',2:'PG / TV-PG',3:'PG-13 / TV-14',4:'R / TV-MA',5:'All'};
 export function tierFor(rating) { return RATING_TIERS[rating] || null; }
 export function ageToMaxTier(age) {
+  // Aligned with the 4-bracket member model below:
+  //   kid   (<13)   → max PG / TV-PG    (tier 2)
+  //   teen  (13-17) → max PG-13 / TV-14 (tier 3)
+  //   adult (17+)   → all                (tier 5)
+  // Used as a fallback only when a member doc has no explicit maxTier.
   if (age == null) return 5;
-  if (age < 7) return 1;
-  if (age < 10) return 2;
-  if (age < 13) return 3;
-  if (age < 17) return 4;
+  if (age < 13) return 2;
+  if (age < 17) return 3;
   return 5;
+}
+
+// === Member bracket model (replaces the isAdult/isParent/maxTier triple control) ===
+// Single canonical field on a member doc: bracket ∈ {'kid','teen','adult','admin'}.
+// Underlying isKid/isAdult/isParent/maxTier still written for backward compat with
+// every existing gate (isAdultMember, iAmParent, passesBaseFilter, needsApproval, …).
+// Read path: prefer member.bracket if present; else derive from legacy flags +
+// age via memberBracket(). Write path: bracketToFlags() returns the full payload
+// to setDoc atomically.
+export const BRACKETS = Object.freeze({
+  kid:   { id: 'kid',   label: 'Kid',                    sub: 'Under 13 · max PG / TV-PG' },
+  teen:  { id: 'teen',  label: 'Teen',                   sub: '13–17 · max PG-13 / TV-14' },
+  adult: { id: 'adult', label: 'Adult',                  sub: '18+ · all content' },
+  admin: { id: 'admin', label: 'Adult + family admin',   sub: '18+ · can manage family' }
+});
+export const BRACKET_ORDER = ['kid','teen','adult','admin'];
+
+// Compute the bracket for an existing member doc. Prefers member.bracket if set
+// (the new canonical field). Otherwise derives from legacy flags using the most-
+// restrictive interpretation when flags conflict (so a kid mis-flagged as adult
+// gets the safer label until a family-admin re-classifies them).
+export function memberBracket(m) {
+  if (!m) return 'adult';
+  if (m.bracket && BRACKETS[m.bracket]) return m.bracket;
+  // Legacy derivation:
+  //   parent flag → admin (the only role that can manage the family)
+  //   isKid flag  → kid OR teen depending on age
+  //   adult flag  → adult
+  //   else fall back on age
+  if (m.isParent === true) return 'admin';
+  if (m.isKid === true) {
+    if (typeof m.age === 'number' && m.age >= 13) return 'teen';
+    return 'kid';
+  }
+  if (m.isAdult === true) return 'adult';
+  if (typeof m.age === 'number') {
+    if (m.age < 13) return 'kid';
+    if (m.age < 17) return 'teen';
+    return 'adult';
+  }
+  return 'adult';
+}
+
+// Map a bracket → the full {isKid, isAdult, isParent, maxTier, bracket} payload.
+// This is what the Family-tab bracket selector writes via setDoc(member, merge).
+export function bracketToFlags(bracket) {
+  switch (bracket) {
+    case 'kid':
+      return { bracket: 'kid',   isKid: true,  isAdult: false, isParent: false, maxTier: 2 };
+    case 'teen':
+      return { bracket: 'teen',  isKid: true,  isAdult: false, isParent: false, maxTier: 3 };
+    case 'adult':
+      return { bracket: 'adult', isKid: false, isAdult: true,  isParent: false, maxTier: 5 };
+    case 'admin':
+      return { bracket: 'admin', isKid: false, isAdult: true,  isParent: true,  maxTier: 5 };
+    default:
+      return { bracket: 'adult', isKid: false, isAdult: true,  isParent: false, maxTier: 5 };
+  }
 }
 
 export function normalizeProviderName(raw) {
@@ -797,6 +862,10 @@ export const COUCH_NIGHTS_PACKS = [
 // 'couch-v32-pre-launch-polish' → APP_VERSION 32). BUILD_DATE is the deploy
 // date in ISO 8601 (UTC); set at hand-edit time when shipping a release.
 // Surfaced in Account → ABOUT and used as mailto subject suffix.
-export const APP_VERSION = 35;
-export const BUILD_DATE = '2026-04-27';
+// Bumped 2026-05-28 to track Phase 16 (Calendar Layer) + same-day bugfix bundle +
+// rating UX refactor + Tonight tab redesign. Cache convention shifted to decimal
+// phase-tagged (couch-v16.X-{slug}) for this milestone — APP_VERSION takes the
+// major number to stay legible in Settings → About.
+export const APP_VERSION = 43;
+export const BUILD_DATE = '2026-05-28';
 

@@ -11,6 +11,31 @@ Living document. Items move to closed when they ship; new items append at the to
 
 ## Active
 
+### TD-14. `.detail-close` hit area is 40px (below 44px iOS HIG minimum)
+
+**Severity:** low-medium · **Effort:** trivial (CSS one-liner) · **Risk:** App Store reviewer may flag; users with motor-control needs may struggle
+
+**Source:** 2026-05-26 — Chrome MCP DOM probe during Phase 17-NAV pre-flight. The `.detail-close` button (top-right X on title-detail modal at `js/app.js:openDetailModal`) computes to `width:40px; height:40px` per CSS at `css/app.css:1618`. Apple HIG and WCAG both require ≥44pt × 44pt for touch targets. Phase 30 Wave 5B (`commit 1f65cc3`) raised hit areas to 44px on other surfaces but missed this one.
+
+**Fix:** change `css/app.css:1618` `width:40px;height:40px` → `width:44px;height:44px`. The icon glyph inside doesn't need to grow — just the touch box.
+
+**Plan path:** trivial one-line CSS edit; can fold into next deploy that bumps cache.
+
+### TD-13. onSnapshot listeners across js/app.js have silent error handlers (qnLog-only)
+
+**Severity:** medium · **Effort:** small (audit + add toast to each listener) · **Risk:** future Firestore rule/index breakage stays invisible to users
+
+**Source:** 2026-05-26 — Phase 30 collectionGroup permission-denied (root cause of #8/#9 wp-not-found) went undetected for 24 days because `js/app.js:5167` watchparty listener had `e => qnLog('[watchparties] snapshot error', e && e.message)` — console-only, no toast, no Sentry breadcrumb. Users saw "nothing loading" with no feedback.
+
+**Pattern:** every `onSnapshot(query, success, error)` callback should surface user-facing feedback (at least a one-time toast like "Connection issue — refresh to reload") AND a Sentry breadcrumb on first error. Make it impossible to silently swallow listener failures.
+
+**Files to audit (grep for `onSnapshot`):**
+- `js/app.js:5101` (intents listener — already has error handler, console-only)
+- `js/app.js:5125` (watchparties listener — the root-cause site)
+- Any other `onSnapshot(...)` call sites in js/app.js
+
+**Plan path:** one-touch audit + small refactor of error callbacks. Could be a Phase 17.2 or rolled into a "listener hardening" hotfix.
+
 ### TD-9. Smoke "deploy receipt" anti-pattern: hardcoded version literals
 
 **Severity:** low · **Effort:** trivial per occurrence · **Risk:** low (causes deploy-gate false-failures, not production bugs — but bad ones, see TD-10/TD-11)
@@ -36,19 +61,6 @@ The deploy receipt itself is preserved by git history (commit messages + cache b
 **Trigger:** any new `scripts/smoke-*.cjs` that wants to assert against `sw.js` cache version. Use the convention-check pattern above; do NOT capture a literal version.
 
 **Pointer:** `scripts/smoke-app-parse.cjs` (foundation gate, closes TD-10) and `scripts/smoke-guest-rsvp.cjs:193-195` (the relaxation comment block) are the canonical references for the right shape.
-
-### TD-7. Firestore index spec in 13-01 was redundant (already-covered by single-field auto-index)
-
-**Severity:** trivial · **Effort:** 0 (already resolved) · **Risk:** none
-
-**Source:** Phase 13 / Plan 13-01 — discovered during HUMAN-VERIFY follow-through 2026-04-25 when `firebase deploy --only firestore:indexes --project queuenight-84044` returned `HTTP 400, this index is not necessary, configure using single field index controls`.
-
-**Resolution applied:** `queuenight/firestore.indexes.json` had its sole composite index entry removed (file is now `{ "indexes": [], "fieldOverrides": [] }`). The `discoverFamilyCodes` collectionGroup fallback (`collectionGroup('members').where('uid', '==', uid)`) works on Firestore's auto-managed single-field index for `uid`; no extra config needed.
-
-**Why this is worth recording**
-Plan 13-01's review fix HIGH-2 specified the composite index as part of the fallback safety net. The reviewer assumed all collection-group queries need an explicit composite index — they don't, when the query is single-field equality. This is a Firestore-quirk worth catching at planning time in future phases that touch Firestore indexes: simple equality-on-single-field queries don't need a composite entry.
-
-**Action item:** none. Record-only.
 
 ### TD-6. Sentry Replay deferred (post-launch +30 days)
 
@@ -288,6 +300,29 @@ Next time anyone touches Settings UI for any reason — pick a surface and remov
 **How it bit:** Today's `couch-v40-tsd-key-fix` deploy was blocked when a Java process from an 11:15 AM emulator session was still holding port 8080 four hours later. ~10 minutes lost to manual `Get-NetTCPConnection -LocalPort 8080 → Stop-Process -Id ... -Force` diagnosis.
 
 **How it was closed:** `deploy.sh §0.5` (this commit) runs a Node-based pre-flight that opens a probe socket on port 8080. If `EADDRINUSE`, it aborts with a clear remediation message including the cross-platform commands to find + kill the orphan. Cross-platform (no `lsof` / `netstat` dependency — uses Node which is already required by deploy.sh). Verified by holding port 8080 in a background Node process and re-running the pre-flight: aborts with exit 1 and the remediation message; passes when port released.
+
+### TD-7. Firestore index spec in 13-01 was redundant — closed 2026-04-25
+
+**What it was:** Plan 13-01 review-fix HIGH-2 specified a composite index for the `discoverFamilyCodes` collectionGroup fallback (`collectionGroup('members').where('uid', '==', uid)`). Reviewer assumed all collection-group queries need an explicit composite index — they don't, when the query is single-field equality.
+
+**How it bit:** `firebase deploy --only firestore:indexes --project queuenight-84044` returned `HTTP 400, this index is not necessary, configure using single field index controls` during HUMAN-VERIFY follow-through 2026-04-25.
+
+**How it was closed:** `queuenight/firestore.indexes.json` had its sole composite index entry removed (file is now `{ "indexes": [], "fieldOverrides": [] }`). Firestore's auto-managed single-field index for `uid` covers the query. Worth recording as a Firestore quirk for future plans touching indexes: simple equality-on-single-field queries don't need an explicit composite entry — Firestore creates these single-field indexes automatically.
+
+### TD-12. Google OAuth blocked in iOS WKWebView / App Store §4.8 — closed 2026-05-26
+
+**What it was:** TestFlight Build 103 surfaced two coupled issues with one fix: (1) Google OAuth was rejected inside WKWebView because Google blocks embedded-WebView user-agents system-wide as a phishing defense (policy since 2021), and (2) App Store Review Guideline §4.8 mandates Apple Sign-In whenever an app offers any third-party social login. Couch was on track to ship the wrapper with Google as the only social provider — automatic §4.8 rejection AND no working iOS Google auth for users.
+
+**How it bit:** Original Phase 17 plan deferred Apple Sign-In to a separate sub-plan (17-03), and the JS/HTML/CSS surfacing landed early but the backend (Apple Developer Services ID + Sign-In Key + Firebase Console Apple provider config) was a separate user-action task that wasn't immediately visible in the codebase. Even after backend wiring landed 2026-05-14 (commit `bb2c8eb` via Chrome MCP), no end-to-end UAT was run, so when Build 103 hit the user's iPhone and Google failed, TD-12 was authored on 2026-05-26 as if Apple Sign-In wiring still needed to be done — duplicating work that was already complete and risking re-issuance of the single-use .p8 key. Secondary fallout: the .p8 backup at `Documents/Couch-secrets/Couch-Apple-Key-PFGQNA2UTR.7z` was mislabeled "APNs Auth Key" in `project_couch_ios.md` memory and in the ASC sidecar, when in fact Apple Developer Console confirms PFGQNA2UTR's only enabled service is Sign In with Apple (there's no APNs Auth Key in this team — push uses an APNs SSL certificate auto-managed by Codemagic's `fetch-signing-files`).
+
+**How it was closed:**
+1. **Audit pass (2026-05-26)** — confirmed via git log + Chrome MCP probe that the Apple Sign-In stack was already fully wired (web code from Phase 17 / launch-checklist #36 via commit `46c7013`; iOS entitlement + WKAppBoundDomains from Phase 17 patches; Apple Dev Services ID `app.couchtonight.couch.signin` + Sign-In Key PFGQNA2UTR + Firebase Console Apple provider all wired 2026-05-14 via commit `bb2c8eb`).
+2. **Mislabel correction** — wrote accurate `Couch-Apple-Key-PFGQNA2UTR.txt` sidecar, edited the ASC sidecar to correct its sibling-key reference, and updated `project_couch_ios.md` memory to reflect that PFGQNA2UTR is the Sign In with Apple key (not APNs).
+3. **Stale FAQ copy** — landing.html FAQ #0 dropped the "coming with the App Store launch" qualifier (commit `ca42fb5`, deployed 2026-05-26 — cache stayed at `couch-vtd-13-listener-visibility`, no app-shell change → no bump).
+4. **Web E2E proof (commit `c4c2f5b`)** — invoked `window.handleSigninApple()` on production via Chrome MCP. Page navigated to `https://appleid.apple.com/auth/authorize` with all OAuth params matching (`client_id=app.couchtonight.couch.signin` / `redirect_uri=https://couchtonight.app/__/auth/handler` / `scope=email+name` / `response_mode=form_post` / `context_uri=https://couchtonight.app`). Apple's authorization server accepted Firebase's signed request and rendered the interstitial → .p8 signature valid, Services ID Return URL matches, Firebase Apple provider bindings all correct.
+5. **Build 104 WKWebView confirmation (2026-05-26)** — user installed Build 104 (uploaded ~02:19 UTC) on iPhone via TestFlight, tapped Continue with Apple, completed Apple ID auth, returned to `/app` signed in. End-to-end inside the WKWebView wrapper works as expected — `WKAppBoundDomains` allowlist for `appleid.apple.com` + `queuenight-84044.firebaseapp.com` plus Apple's lack of UA filtering (unlike Google) makes the wrapper path behave identically to web.
+
+**Lesson:** the TD register is descriptive of intent at one moment in time, not authoritative on current state. When opening a TD claiming "X needs to be done," check git log + planning artifacts first to avoid duplicating completed work — especially for setups involving single-issue credentials (.p8 keys, etc.) where rework is destructive.
 
 ---
 

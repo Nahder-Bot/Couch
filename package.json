@@ -19,5 +19,9 @@
     "smoke:pickem": "node scripts/smoke-pickem.cjs",
     "smoke:couch-groups": "node scripts/smoke-couch-groups.cjs",
     "smoke:app-parse": "node scripts/smoke-app-parse.cjs"
+  },
+  "devDependencies": {
+    "potrace": "^2.1.8",
+    "sharp": "^0.34.5"
   }
 }

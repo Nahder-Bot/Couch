@@ -1,0 +1,12 @@
+# Local working artifacts — staged here for ASC upload, not version-controlled
+node_modules/
+raw/
+uat-evidence/
+asc-text-audit.json
+restore-pickem-raw.js
+sharp-pipeline.js
+favicon-gen.js
+1242x2688/
+1284x2778/
+1290x2796/
+1320x2868/

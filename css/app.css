@@ -59,6 +59,11 @@
   --border-strong:rgba(245,237,224,0.16);
   --border-accent:rgba(232,160,74,0.30);
 
+  /* — Color: Banners (solid warm bg + accent borders, distinct from --surface-* and translucent --border-* above) — */
+  --banner-bg-warm:#2a1f14;
+  --banner-border-mute:#4a3820;
+  --banner-border-prompt:#c97b5f;
+
   /* — Spacing (consistent scale) — */
   --s1:4px;
   --s2:8px;
@@ -246,10 +251,11 @@ h3{font-size:var(--t-h3)}
    just "Couch" in Instrument Serif Italic as text. */
 .brand{display:block;text-align:center;line-height:1}
 .brand .brand-logo{display:block;max-width:320px;height:auto;margin:0 auto;
-  /* mix-blend-mode: lighten erases the wordmark PNG's pure-black backdrop against the
-     warm-dark page bg (#14110f). Leather pixels are all brighter than the bg and pass
-     through unchanged. The amber drop-shadow halo survives because it's brighter too. */
-  mix-blend-mode:lighten;
+  /* Post-Phase-15.3 (2026-05-27): logo-h{N}.png masters now have native alpha
+     transparency via scripts/regenerate-icons.cjs; the mix-blend-mode: lighten
+     workaround that compensated for the wordmark's solid-black backdrop has
+     been deleted. The drop-shadow filters stay — they're the warm halo design,
+     not the workaround compensator. */
   filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3)) drop-shadow(0 0 40px rgba(232,160,74,0.06))}
 .brand.large .brand-logo{max-width:260px}
 .brand.hero .brand-logo{max-width:340px}
@@ -482,7 +488,7 @@ h3{font-size:var(--t-h3)}
 .modal-bg{display:none;position:fixed;inset:0;
   background:rgba(8,6,5,0.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   z-index:100;align-items:flex-end;justify-content:center;
-  animation:modal-fade-in var(--t-base) var(--var(--ease-out))}
+  animation:modal-fade-in var(--t-base) var(--ease-out)}
 .modal-bg.on{display:flex}
 @keyframes modal-fade-in{from{opacity:0}to{opacity:1}}
 @keyframes modal-slide-up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -492,7 +498,7 @@ h3{font-size:var(--t-h3)}
   padding:var(--s5) var(--s5) var(--s6);width:100%;max-width:480px;max-height:85vh;
   overflow-y:auto;position:relative;
   box-shadow:0 -24px 80px rgba(0,0,0,0.65),0 0 0 1px rgba(232,160,74,0.04);
-  animation:modal-slide-up var(--t-cinema) var(--var(--ease-out)-cinema)}
+  animation:modal-slide-up var(--t-cinema) var(--ease-cinema)}
 .modal h3{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;
   font-size:var(--t-h2);font-weight:400;letter-spacing:-0.02em;color:var(--ink);
   margin:0 0 var(--s1)}
@@ -598,7 +604,7 @@ h3{font-size:var(--t-h3)}
   font-family:'Inter',sans-serif;font-style:normal;box-shadow:var(--shadow-warm)}
 .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:flex;z-index:50;
   background:rgba(20,17,15,0.82);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);
-  border-top:1px solid var(--border-strong);padding:12px 0 22px;box-shadow:0 -8px 32px rgba(0,0,0,0.4)}
+  border-top:1px solid var(--border-strong);padding:12px 0 calc(22px + env(safe-area-inset-bottom, 0px));box-shadow:0 -8px 32px rgba(0,0,0,0.4)}
 .tab{flex:1;text-align:center;background:none;border:none;color:var(--ink-faint);font-family:inherit;
   font-size:var(--t-micro);text-transform:uppercase;letter-spacing:0.12em;font-weight:600;
   cursor:pointer;padding:6px 0;transition:color var(--t-base)}
@@ -614,9 +620,9 @@ h3{font-size:var(--t-h3)}
 .ptr-indicator{position:fixed;top:-40px;left:50%;margin-left:-16px;width:32px;height:32px;border-radius:50%;background:var(--surface);border:1px solid var(--border-strong);color:var(--accent);display:flex;align-items:center;justify-content:center;z-index:45;opacity:0;pointer-events:none;box-shadow:var(--shadow-1)}
 .ptr-indicator.ready{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .ptr-indicator svg{width:18px;height:18px}
-.who-mini{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(20,17,15,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:10px 20px;z-index:30;display:flex;align-items:center;gap:var(--s3);animation:slide-down var(--t-base) var(--ease-out)}
+.who-mini{position:fixed;top:env(safe-area-inset-top, 0px);left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(20,17,15,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:10px 20px;z-index:30;display:flex;align-items:center;gap:var(--s3);animation:slide-down var(--t-base) var(--ease-out)}
 @keyframes slide-down{from{transform:translateX(-50%) translateY(-100%)}to{transform:translateX(-50%) translateY(0)}}
-.who-mini-avatars{display:flex;gap:-6px;flex:1}
+.who-mini-avatars{display:flex;flex:1}
 .who-mini-avatars .who-mini-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--t-meta);color:#14110f;margin-right:-6px;border:2px solid var(--bg);font-family:'Instrument Serif','Fraunces',serif}
 .who-mini-avatars .who-mini-av:last-child{margin-right:0}
 /* Wave 5B / Gemini P2 — tap-target lift to WCAG/Apple HIG/MD 44px minimum
@@ -634,6 +640,43 @@ h3{font-size:var(--t-h3)}
 .maxrating-select{background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:7px 12px;border-radius:var(--r-sm);font-family:inherit;font-size:var(--t-meta);margin-left:8px;cursor:pointer;transition:border-color var(--t-quick)}
 .maxrating-select:hover{border-color:var(--border-strong)}
 .maxrating-select:focus{border-color:var(--accent);outline:none}
+
+/* === Phase 16.3 — bracket selector (replaces the maxTier/adult/parent triple).
+   One segmented control per member row. Pills wrap on narrow viewports so 4
+   labels never overflow off-screen. Sub-line below describes what the active
+   bracket entitles the member to (e.g. "13–17 · max PG-13 / TV-14"). === */
+.bracket-control { margin-top: 6px; }
+.bracket-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bracket-pill {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--ink-warm);
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: background var(--t-quick), border-color var(--t-quick), color var(--t-quick);
+  white-space: nowrap;
+}
+.bracket-pill:hover { border-color: var(--border-strong); color: var(--ink); }
+.bracket-pill.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+.bracket-pill[disabled] { opacity: 0.45; cursor: not-allowed; }
+.bracket-sub {
+  margin-top: 4px;
+  font-size: var(--t-eyebrow);
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
 .providers{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;align-items:center}
 .provider-logo{width:24px;height:24px;border-radius:5px;background:#fff;background-size:cover;background-position:center;border:1px solid var(--border)}
 .providers-label{font-size:var(--t-micro);color:var(--ink-dim);margin-right:4px;text-transform:uppercase;letter-spacing:0.06em}
@@ -872,7 +915,7 @@ input.field-invalid{border-color:var(--bad)}
 /* Intent match banner (Phase 8 Plan 03) — creator-only overlay when threshold crossed.
    Fixed-position snackbar at top-center with inline action buttons. Stacks if multiple. */
 .intent-match-host{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));left:50%;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:10px;max-width:min(420px, calc(100vw - 32px));width:calc(100vw - 32px);pointer-events:none}
-.intent-match-banner{pointer-events:auto;background:linear-gradient(135deg,rgba(232,160,74,0.95) 0%,rgba(229,49,112,0.92) 100%);color:var(--bg);border-radius:var(--r-xl);padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.18);display:flex;gap:12px;align-items:center;animation:intent-match-in var(--t-deliberate) var(--var(--ease-out)-spring)}
+.intent-match-banner{pointer-events:auto;background:linear-gradient(135deg,rgba(232,160,74,0.95) 0%,rgba(229,49,112,0.92) 100%);color:var(--bg);border-radius:var(--r-xl);padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.18);display:flex;gap:12px;align-items:center;animation:intent-match-in var(--t-deliberate) var(--ease-spring)}
 .intent-match-bar{width:3px;align-self:stretch;background:rgba(20,17,15,0.4);border-radius:3px}
 .intent-match-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .intent-match-eyebrow{font-size:var(--t-micro);font-weight:700;letter-spacing:0.09em;text-transform:uppercase;opacity:0.85}
@@ -1253,6 +1296,26 @@ input.field-invalid{border-color:var(--bad)}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .tab-identity-auth::before{content:'';width:6px;height:6px;border-radius:50%;
   background:#4ade80;flex:0 0 6px;box-shadow:0 0 6px rgba(74,222,128,0.4)}
+/* v16.10b — Account hero info expansion: provider/role/joined chip row + Customize-avatar button. */
+.tab-identity-extras{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.identity-chip{display:inline-flex;align-items:center;gap:5px;font-family:'Inter',sans-serif;
+  font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-warm);border:1px solid var(--border);
+  letter-spacing:0.02em;line-height:1.4}
+.identity-chip-glyph{display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;background:var(--surface);color:var(--ink);
+  font-weight:700;font-size:9px;line-height:1}
+.identity-chip svg{display:inline-block;vertical-align:middle}
+.identity-chip--role{font-weight:600}
+.identity-chip--admin{background:rgba(232,160,74,0.18);color:var(--accent);border-color:rgba(232,160,74,0.4)}
+.identity-chip--parent{background:rgba(90,138,132,0.18);color:#a3d5cf;border-color:rgba(90,138,132,0.4)}
+.identity-chip--kid{background:rgba(180,123,52,0.15);color:#d4a878;border-color:rgba(180,123,52,0.35)}
+.identity-chip--teen{background:rgba(232,160,74,0.10);color:#d4a878;border-color:rgba(232,160,74,0.3)}
+.identity-chip--joined{color:var(--ink-dim);font-style:italic}
+.tab-identity-actions{margin-top:10px}
+.identity-edit-btn{font-size:12px;padding:5px 11px;font-family:'Inter',sans-serif}
+.identity-edit-btn:hover{border-color:var(--accent);color:var(--accent)}
+
 .tab-identity-meta .family-chip{display:inline-flex;align-items:center;gap:4px;
   font-family:'Geist Mono','SF Mono',Menlo,monospace;font-size:var(--t-micro);
   color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;
@@ -1541,8 +1604,8 @@ input.field-invalid{border-color:var(--bad)}
 .lib-search-input::-webkit-search-cancel-button{display:none}
 .lib-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);
   background:transparent;border:none;color:var(--ink-dim);
-  width:24px;height:24px;border-radius:50%;cursor:pointer;
-  display:grid;place-items:center;font-size:var(--t-body);line-height:1;
+  min-width:44px;min-height:44px;border-radius:50%;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;font-size:var(--t-body);line-height:1;
   transition:background var(--t-quick),color var(--t-quick)}
 .lib-search-clear:hover{background:var(--surface-2);color:var(--ink)}
 .profile-services-sub{margin:-6px 0 var(--s2);font-size:var(--t-meta);color:var(--ink-dim);
@@ -1586,7 +1649,7 @@ input.field-invalid{border-color:var(--bad)}
 .swipe-header{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
 .swipe-header .title{font-family:'Instrument Serif','Fraunces',serif;font-size:var(--t-h3);font-weight:400}
 .swipe-header .progress{font-size:var(--t-meta);color:var(--ink-dim)}
-.swipe-header .close{background:var(--surface);border:none;color:var(--ink);width:32px;height:32px;border-radius:50%;font-size:var(--t-h3);cursor:pointer}
+.swipe-header .close{background:var(--surface);border:none;color:var(--ink);min-width:44px;min-height:44px;border-radius:50%;font-size:var(--t-h3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .swipe-stage{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:16px}
 .swipe-card{position:absolute;width:calc(100% - 32px);max-width:380px;height:calc(100% - 32px);max-height:600px;background:linear-gradient(180deg,var(--surface) 0%,var(--bg-2) 100%);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,0.55),0 0 0 1px rgba(232,160,74,0.08);touch-action:none;user-select:none;transition:transform var(--t-deliberate) var(--ease-out), opacity var(--t-deliberate) var(--ease-out)}
 .swipe-card.dragging{transition:none}
@@ -1615,7 +1678,7 @@ input.field-invalid{border-color:var(--bad)}
 /* fixed (not absolute) so the close button stays visible while the detail view scrolls.
    position:fixed inside a transformed parent would break; detail-modal-bg doesn't transform, so fixed
    pins against the viewport correctly. iOS safe-area inset keeps the button clear of the notch. */
-.detail-close{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));right:calc(var(--s3) + env(safe-area-inset-right, 0px));background:rgba(0,0,0,0.65);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);color:white;width:40px;height:40px;border-radius:50%;font-size:var(--t-h3);cursor:pointer;z-index:10;transition:background var(--t-quick);display:flex;align-items:center;justify-content:center}
+.detail-close{position:fixed;top:calc(var(--s3) + env(safe-area-inset-top, 0px));right:calc(var(--s3) + env(safe-area-inset-right, 0px));background:rgba(0,0,0,0.65);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);color:white;width:44px;height:44px;border-radius:50%;font-size:var(--t-h3);cursor:pointer;z-index:10;transition:background var(--t-quick);display:flex;align-items:center;justify-content:center}
 .detail-close:hover,.detail-close:active{background:rgba(0,0,0,0.82)}
 .detail-body{padding:var(--s4) var(--s5) var(--s5);margin-top:-60px;position:relative;z-index:1}
 .detail-name{font-family:'Instrument Serif','Fraunces',serif;font-style:italic;font-size:var(--t-h1);font-weight:400;line-height:1.1;letter-spacing:-0.02em;margin-bottom:var(--s2);color:var(--ink)}
@@ -1627,6 +1690,60 @@ input.field-invalid{border-color:var(--bad)}
 .detail-overview{font-size:var(--fs-body);line-height:1.6;color:var(--ink);margin-bottom:var(--s4)}
 .detail-section{margin-top:var(--s5)}
 .detail-section h4{font-family:'Inter',sans-serif;font-size:var(--t-micro);color:var(--accent);text-transform:uppercase;letter-spacing:0.18em;margin:0 0 var(--s3);font-weight:600}
+/* v16.10c — Couch ratings strip on detail modal. Surfaces per-member ratings
+   above the long-form reviews block. */
+.couch-ratings-section{margin-top:var(--s4)}
+.couch-ratings-h{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3);flex-wrap:wrap}
+.couch-ratings-avg-wrap{display:inline-flex;align-items:baseline;gap:6px;
+  font-family:'Fraunces','Instrument Serif',serif;font-style:italic;
+  color:var(--ink);text-transform:none;letter-spacing:0}
+.couch-ratings-avg{font-size:var(--t-h3);font-weight:400;color:var(--accent)}
+.couch-ratings-avg-sub{font-size:var(--t-meta);font-family:'Inter',sans-serif;
+  font-style:normal;color:var(--ink-dim);letter-spacing:0.02em}
+.couch-ratings-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.couch-rating-chip{display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px 4px 4px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border);
+  font-family:'Inter',sans-serif;font-size:12px;color:var(--ink-warm)}
+.couch-rating-chip-avatar{display:inline-grid;place-items:center;
+  width:24px;height:24px;border-radius:50%;
+  font-size:12px;font-weight:700;color:#14110f;flex-shrink:0}
+.couch-rating-chip-avatar .avatar-emoji{font-size:16px;line-height:1}
+.couch-rating-chip-name{font-weight:500;color:var(--ink)}
+.couch-rating-chip-score{font-family:'Fraunces','Instrument Serif',serif;
+  font-style:italic;color:var(--accent);font-weight:500;padding-left:4px;
+  border-left:1px solid var(--border);font-size:13px}
+/* v16.10c — Tonight tab "Couch loved" peek strip. Horizontal-scroll row of
+   top-rated posters, capped at 4 entries by buildCouchLovedTonightHtml. */
+.couch-loved-section{margin-top:var(--s5)}
+.couch-loved-section .t-section-head{display:flex;align-items:baseline;
+  justify-content:space-between;gap:var(--s2);margin-bottom:var(--s2)}
+.couch-loved-more{background:transparent;border:none;color:var(--accent);
+  font-family:'Inter',sans-serif;font-size:var(--t-micro);cursor:pointer;
+  padding:4px 8px;border-radius:var(--r-pill);letter-spacing:0.04em}
+.couch-loved-more:hover{background:var(--surface)}
+.couch-loved-strip{display:grid;grid-template-columns:repeat(4,1fr);
+  gap:10px;margin-top:6px}
+.couch-loved-card{display:flex;flex-direction:column;gap:4px;cursor:pointer;
+  transition:transform var(--t-quick);text-align:left;min-width:0}
+.couch-loved-card:hover{transform:translateY(-2px)}
+.couch-loved-poster{aspect-ratio:2/3;background-size:cover;background-position:center;
+  background-color:var(--surface-2);border-radius:var(--r-md);
+  box-shadow:0 4px 12px rgba(0,0,0,0.35);position:relative;overflow:hidden}
+.couch-loved-score{position:absolute;top:6px;right:6px;
+  background:rgba(20,17,15,0.85);color:var(--accent);
+  font-family:'Fraunces','Instrument Serif',serif;font-style:italic;
+  font-size:13px;font-weight:500;padding:2px 7px;border-radius:999px;
+  pointer-events:none;backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px)}
+.couch-loved-card{position:relative}
+.couch-loved-name{font-family:'Inter',sans-serif;font-size:11px;
+  color:var(--ink-warm);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;margin-top:2px}
+@media (max-width:420px){
+  .couch-loved-strip{grid-template-columns:repeat(3,1fr)}
+  .couch-loved-card:nth-child(4){display:none}
+}
 .detail-prov-group{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s2);flex-wrap:wrap}
 .detail-prov-label{font-size:var(--t-micro);color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;min-width:40px}
 .detail-prov-empty{font-size:var(--fs-meta);color:var(--ink-dim);font-style:italic}
@@ -1698,7 +1815,7 @@ input.field-invalid{border-color:var(--bad)}
   animation:spin-flick var(--t-quick) var(--ease-out) forwards;opacity:0}
 @keyframes spin-flick{0%{transform:translateY(100%);opacity:0.8}
   60%{opacity:1}100%{transform:translateY(0);opacity:1}}
-.spin-flicker-poster.landing{animation:spin-land var(--t-cinema) var(--var(--ease-out)-cinema) forwards;
+.spin-flicker-poster.landing{animation:spin-land var(--t-cinema) var(--ease-cinema) forwards;
   box-shadow:0 12px 30px rgba(0,0,0,0.4),0 0 0 0 rgba(232,160,74,0)}
 @keyframes spin-land{0%{transform:translateY(100%);opacity:0.8}
   70%{transform:translateY(-4%);opacity:1}
@@ -1841,7 +1958,7 @@ input.field-invalid{border-color:var(--bad)}
 .next3-queued-by{font-size:var(--t-micro);color:var(--accent);margin-top:3px;font-style:italic}
 
 .queue-controls{display:flex;gap:4px;margin-left:auto}
-.queue-btn{background:rgba(245,237,224,0.06);border:1px solid var(--border);color:var(--ink-dim);width:30px;height:30px;border-radius:8px;font-size:var(--t-body);cursor:pointer;font-family:inherit;display:grid;place-items:center}
+.queue-btn{background:rgba(245,237,224,0.06);border:1px solid var(--border);color:var(--ink-dim);min-width:44px;min-height:44px;border-radius:8px;font-size:var(--t-body);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center}
 .queue-btn:active{transform:scale(0.92)}
 .queue-btn.in-queue{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 
@@ -1951,7 +2068,16 @@ input.field-invalid{border-color:var(--bad)}
   display:grid;place-items:center;font-size:var(--t-meta);font-weight:700;
   box-shadow:0 2px 6px rgba(0,0,0,0.4);border:2px solid var(--bg)}
 .avatar-picker-modal{max-width:440px;width:92vw;max-height:80vh;overflow-y:auto;padding:var(--s5);position:relative}
-.avatar-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s2)}
+/* v16.10b — Category-grouped avatar picker. .avatar-grid is now a vertical stack
+   of .avatar-section blocks; each section holds an inner .avatar-section-grid
+   (the 6-col emoji grid that previously was the only layout). */
+.avatar-grid{display:flex;flex-direction:column;gap:var(--s4)}
+.avatar-section{display:flex;flex-direction:column;gap:var(--s2)}
+.avatar-section-h{font-family:'Inter',sans-serif;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-dim);
+  margin:0;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.avatar-section-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s2)}
+@media (max-width:400px){.avatar-section-grid{grid-template-columns:repeat(5,1fr)}}
 .avatar-choice{aspect-ratio:1;border-radius:50%;background:var(--surface);
   border:2px solid var(--border-mid);cursor:pointer;font-size:var(--t-h1);
   display:grid;place-items:center;transition:all var(--t-quick);padding:0;line-height:1}
@@ -2292,6 +2418,9 @@ input.field-invalid{border-color:var(--bad)}
 .action-sheet-divider{height:1px;background:var(--border);margin:var(--s2) 0}
 
 .discover-row-wrap{position:relative}
+/* v16.10a — collapse the mood discovery row + scroll buttons when no mood chip is .on,
+   removing the "Pick a mood above" empty-state dead space. :has() supported on Safari 15.4+. */
+#add-mood-section:not(:has(.mood-chip.on)) .discover-row-wrap{display:none}
 .discover-scroll-btn{display:none;position:absolute;top:50%;transform:translateY(-60%);width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--surface) 0%,var(--bg-2) 100%);border:1px solid var(--border-strong);color:var(--ink);cursor:pointer;z-index:2;font-size:var(--t-body);box-shadow:0 6px 16px rgba(0,0,0,0.45),0 0 0 1px rgba(232,160,74,0.08);transition:all var(--t-quick)}
 .discover-scroll-btn:hover{border-color:var(--accent)}
 .discover-scroll-btn.left{left:-4px}
@@ -2352,7 +2481,6 @@ input.field-invalid{border-color:var(--bad)}
 /* ===== Phase 5 sign-in screen — functional styling on existing tokens; polish in Phase 9 ===== */
 #signin-screen { padding: 24px 20px; max-width: 420px; margin: 0 auto; }
 .signin-header { text-align: center; margin: 40px 0 32px; }
-.signin-title { font-family: 'Fraunces', serif; font-size: 48px; margin: 0; letter-spacing: -0.02em; color: var(--ink); }
 .signin-tag { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--ink-warm); margin: 8px 0 0; font-style: italic; }
 .signin-subtag { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-warm); margin: 14px 0 0; opacity: 0.85; line-height: 1.45; }
 .signin-providers { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
@@ -2474,7 +2602,7 @@ input.field-invalid{border-color:var(--bad)}
 .claim-link-out button { padding: 6px 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 6px; cursor: pointer; font-size: 13px; }
 
 /* Grace-window countdown — warm accent border, subdued background */
-.grace-banner { background: #2a1f14; border: 1px solid #4a3820; border-radius: var(--r-md); padding: 12px 16px; font-size: 13px; color: var(--ink-warm); margin-bottom: 12px; }
+.grace-banner { background: var(--banner-bg-warm); border: 1px solid var(--banner-border-mute); border-radius: var(--r-md); padding: 12px 16px; font-size: 13px; color: var(--ink-warm); margin-bottom: 12px; }
 .grace-banner p { margin: 0; line-height: 1.5; }
 .grace-banner strong { color: var(--ink); }
 
@@ -2489,7 +2617,7 @@ input.field-invalid{border-color:var(--bad)}
 .claim-actions button { width: 100%; }
 
 /* Read-only prompt banner on Tonight (D-15) */
-.claim-prompt-banner { background: #2a1f14; border: 1px solid #c97b5f; border-radius: var(--r-md); padding: 14px 18px; margin: 12px 0; font-size: 14px; color: var(--ink-warm); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.claim-prompt-banner { background: var(--banner-bg-warm); border: 1px solid var(--banner-border-prompt); border-radius: var(--r-md); padding: 14px 18px; margin: 12px 0; font-size: 14px; color: var(--ink-warm); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .claim-prompt-banner p { margin: 0; flex: 1; min-width: 220px; line-height: 1.5; }
 
 /* Visually disable write-action buttons post-grace for unclaimed members (D-15) */
@@ -3563,14 +3691,22 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 
 .couch-hero {
   /* Legacy 14-04 — kept in case other surfaces reference .couch-hero alone.
-     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo. */
+     V5 surfaces use .couch-hero-v5 below which overrides size + drops halo.
+     Post-Phase-15.3 (2026-05-27): mark-{N}.png masters now have native alpha
+     transparency (sharp alpha-keys the leather brown out from the black bg
+     in scripts/regenerate-icons.cjs). The mix-blend-mode: lighten workaround
+     that compensated for the solid-black backdrop has been deleted; the C
+     now floats cleanly against any page bg. Filter drop-shadow gives the
+     silhouette weight + the amber halo that matches .brand .brand-logo on
+     entry screens. */
   display: block;
   width: 100%;
   max-width: 280px;
   aspect-ratio: 1;
-  border-radius: 22px;
   margin-bottom: var(--s3);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--c-border-soft, #2a241f);
+  filter:
+    drop-shadow(0 8px 24px rgba(0, 0, 0, 0.30))
+    drop-shadow(0 0 40px rgba(232, 160, 74, 0.10));
   /* Subtle warm halo around the hero (firelight) — fades into the dark bg */
   background:
     radial-gradient(ellipse at center, rgba(217, 122, 60, 0.10) 0%, transparent 65%);
@@ -3587,7 +3723,8 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   aspect-ratio: 1;
   margin-bottom: var(--s3);
   border-radius: 22px;
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  /* mix-blend-mode + drop-shadow inherited from .couch-hero above; box-shadow
+     replaced by drop-shadow there so the V5 surface gets the same treatment. */
   background: none;
 }
 
@@ -3619,6 +3756,337 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   justify-content: center;
   margin: 28px auto 22px;
   max-width: 580px;
+}
+
+/* === Phase 16.4 — compact chip-bar layout (Direction A from 2026-05-28 redesign).
+   7-member family fits in ONE row at 390px viewport (45px avg per chip × 7 + gap).
+   Replaces the ~300px wrap-flex pill bock with a ~48px chip strip so the cinematic
+   hero below it lands above the fold. === */
+.couch-viz-compact { padding-top: 0; padding-bottom: var(--s2); }
+.couch-headline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s3) auto var(--s2);
+  max-width: 580px;
+  padding: 0 var(--s2);
+}
+.couch-hero-compact {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.couch-headline-text { flex: 1; min-width: 0; }
+.couch-headline-text .couch-headline {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.couch-headline-text .couch-sub {
+  margin: 2px 0 0;
+  font-family: var(--font-serif-italic);
+  font-style: italic;
+  color: var(--ink-warm);
+  font-size: var(--t-meta);
+  line-height: 1.3;
+}
+/* v16.10b — Reverse Phase 16.4 single-row chip-bar. Grid of 4-per-row bubbles
+   with bigger 64px avatars, optional name label, and own-bubble edit affordance.
+   3-per-row on narrow phones (<=380px) so a 7-member family wraps to 2 rows
+   without overflow. The 'above-the-fold' goal that drove Phase 16.4 trades off
+   here for stronger identity surfacing — user wants to see who's on the couch
+   as faces, not letters. */
+.chip-roster {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 10px;
+  justify-items: center;
+  margin: var(--s2) auto var(--s3);
+  max-width: 580px;
+  padding: 0 var(--s2);
+}
+@media (max-width: 380px) {
+  .chip-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
+}
+.chip-roster.kid-mode-on {
+  background: rgba(232, 160, 74, 0.05);
+  border-radius: var(--r-md);
+  padding: var(--s3) var(--s2);
+}
+/* Chip variant — overrides the verbose .pill rules: NO inline label, NO YOU tag visible
+   (still in aria), compact 40px circle. Keeps mouse + touch + keyboard handlers from
+   the existing .pill bindings in renderCouchViz. */
+.pill.chip {
+  padding: 0;
+  gap: 0;
+  border: none;
+  background: transparent;
+  flex: 0 0 auto;
+  position: relative;
+  /* v16.10b — column layout so avatar + name + edit-glyph stack vertically. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pill.chip .label { display: none; }
+.pill.chip .av {
+  /* v16.10b — bigger 64px bubbles. Was 44px (Phase 16.4 compact). */
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 28px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  color: var(--bg);
+  transition: transform var(--t-quick), box-shadow var(--t-quick);
+  border: 2px solid var(--border);
+  overflow: hidden;
+}
+/* v16.10b — chosen emoji avatars render at large scale inside the bubble. */
+.pill.chip .av .avatar-emoji {
+  font-size: 36px;
+  line-height: 1;
+  display: inline-block;
+}
+.pill.chip.out .av .avatar-emoji { opacity: 0.45; filter: grayscale(0.6); }
+/* v16.10b — small name label below each bubble (replaces aria-only labelling
+   so quick visual scan of "who's on the couch" is direct). */
+.pill.chip .chip-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-warm);
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  margin-top: 6px;
+  letter-spacing: 0.01em;
+}
+.pill.chip.out .chip-name { color: var(--ink-dim); }
+.pill.chip.me .chip-name { color: var(--accent); font-weight: 600; }
+/* v16.10b — pencil overlay opens openAvatarPicker. Top-right corner of the
+   bubble. Only rendered for the user's own chip. stopPropagation on
+   click/touch in JS keeps the chip-tap (toggle in/out) + long-press
+   (send-ping) handlers from firing through. */
+.av-edit {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-2, var(--surface));
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+  z-index: 3;
+  transition: transform var(--t-quick), background var(--t-quick);
+}
+.av-edit:hover { transform: scale(1.12); background: var(--accent); color: var(--bg); }
+.av-edit:active { transform: scale(0.94); }
+.av-edit span { display: inline-block; line-height: 1; }
+.pill.chip.in .av {
+  border-color: transparent;
+  /* color comes from inline style (member color), set in JS */
+}
+.pill.chip.out .av {
+  background: transparent;
+  color: var(--ink-warm);
+  border-color: var(--border);
+}
+.pill.chip.me .av {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pill.chip:hover .av { transform: scale(1.08); }
+.pill.chip:active .av { transform: scale(0.94); }
+.pill.chip.pinging .av { box-shadow: 0 0 0 4px rgba(232, 160, 74, 0.35); }
+/* Single context-aware action link below the chip row. */
+.chip-action-row {
+  text-align: center;
+  margin: var(--s2) 0 0;
+}
+.chip-action-row .action-link {
+  background: transparent;
+  border: none;
+  color: var(--ink-warm);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  transition: color var(--t-quick), background var(--t-quick);
+}
+.chip-action-row .action-link:hover {
+  color: var(--accent);
+  background: var(--surface);
+}
+
+/* === Phase 16.4 — Cinematic top-match hero (Direction B from 2026-05-28 redesign).
+   Full-bleed backdrop, Fraunces title overlay, provider strip + CTA row. Sits between
+   the compact roster and the rest of the Tonight tab — the "really hook you in" surface
+   per user request. === */
+.tonight-hero-container { margin: var(--s3) auto var(--s4); max-width: 580px; padding: 0 var(--s2); }
+.tonight-hero {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--r-lg, 12px);
+  overflow: hidden;
+  background: var(--bg-2);
+  cursor: pointer;
+  isolation: isolate;
+  border: 1px solid var(--border);
+  transition: transform var(--t-quick), border-color var(--t-quick);
+  min-height: 240px;
+}
+.tonight-hero:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.tonight-hero:active { transform: translateY(0); }
+.th-backdrop {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+.th-gradient {
+  position: absolute;
+  inset: 0;
+  /* Launch-readiness audit fix (WCAG 1.4.11): deepened floor so .th-eyebrow always
+     sits on >=0.75 overlay; intermediate stop at 32% prevents mid-image hot spots. */
+  background: linear-gradient(180deg,
+    rgba(20, 17, 15, 0.15) 0%,
+    rgba(20, 17, 15, 0.75) 32%,
+    rgba(20, 17, 15, 0.55) 50%,
+    rgba(20, 17, 15, 0.97) 100%);
+  z-index: 1;
+}
+.th-content {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--s4) var(--s4) var(--s4);
+  z-index: 2;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.th-eyebrow {
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+.th-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: clamp(22px, 5vw, 32px);
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+.th-meta {
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.th-meta-dot { color: var(--ink-dim); margin: 0 2px; }
+.th-tally {
+  font-family: var(--font-serif-italic);
+  font-style: italic;
+  color: var(--ink-warm);
+  font-size: var(--t-meta);
+}
+.th-providers { display: flex; gap: 6px; margin-top: 2px; align-items: center; }
+.th-provider { width: 24px; height: 24px; border-radius: 6px; overflow: hidden; background: var(--surface); }
+.th-provider img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.th-provider-text {
+  width: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  font-size: var(--t-micro);
+  color: var(--ink-warm);
+  white-space: nowrap;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  height: 24px;
+}
+.th-cta-row { display: flex; gap: 8px; margin-top: var(--s2); flex-wrap: wrap; }
+.th-cta-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--t-quick), transform var(--t-quick);
+}
+.th-cta-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.th-cta-primary:active { transform: translateY(0); }
+.th-cta-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  /* Launch-readiness audit fix (WCAG 1.4.11 Non-text Contrast): rgba 0.12 over
+     --bg #14110f is ~1.4:1; 0.24 hits the 3:1 floor. */
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: background var(--t-quick), border-color var(--t-quick);
+}
+.th-cta-secondary:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.2); }
+
+/* Hero empty state — quiet, not loud. Same dimensions so layout doesn't jump
+   when the first match arrives. */
+.tonight-hero-empty {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px dashed var(--border);
+  cursor: default;
+}
+.tonight-hero-empty:hover { transform: none; border-color: var(--border); }
+.tonight-hero-empty-inner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  text-align: center;
+}
+.tonight-hero-empty-eyebrow {
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: var(--s2);
+}
+.tonight-hero-empty-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(18px, 4vw, 24px);
+  line-height: 1.3;
+  color: var(--ink-warm);
+  margin: 0;
 }
 
 /* Pill base — avatar + name + optional YOU tag + ping-hint underline. */
@@ -4942,23 +5410,50 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
   color: var(--accent);
   font-weight: 600;
 }
+/* Top-right floating close — sits at corner of the banner card, well outside the
+   inline text flow. Larger hit target (40x40) for thumb-tappability. The negative
+   top/right offsets pull it OUT of the card so it reads as "close this thing"
+   rather than "close something inside this thing." */
 .ios-pwa-nudge-close {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--ink-dim);
-  font-size: 18px;
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  font-size: 24px;
   line-height: 1;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   border-radius: 50%;
   cursor: pointer;
   display: grid;
   place-items: center;
   flex-shrink: 0;
   font-family: inherit;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+  z-index: 1;
 }
-.ios-pwa-nudge-close:hover { background: var(--surface-2); color: var(--ink); }
+.ios-pwa-nudge-close:hover,
+.ios-pwa-nudge-close:active { background: var(--surface-2); color: var(--accent); }
+/* Required to anchor the corner-floating close button. */
+.ios-pwa-nudge { position: fixed; }
+/* Explicit "Not now" labeled dismiss — backstop in case the corner × is missed. */
+.ios-pwa-nudge-dismiss-text {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ios-pwa-nudge-dismiss-text:hover,
+.ios-pwa-nudge-dismiss-text:active { background: var(--surface-2); color: var(--ink); }
 @keyframes ios-pwa-nudge-rise {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -5272,5 +5767,233 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* === Phase 16 / CAL-16-10 — Series list card styling ===
+   Mirrors .signin-method-row composition; richer because rows have action buttons.
+   Tokens swapped from plan-literal --ink-2/--ink-3/--fs-md/--fs-sm/--fs-xs/--danger
+   (which do not exist in the Couch token set) to the canonical equivalents
+   --ink-warm/--ink-dim/--t-body/--t-meta/--t-micro/--bad — preserves the plan's
+   structural intent while honoring CLAUDE.md "use existing semantic tokens" rule. */
+.series-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.series-row:last-child { border-bottom: none; }
+.series-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.series-row-title {
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.series-row-status {
+  font-size: var(--t-eyebrow);
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.series-row-status.paused { color: var(--warn); }
+.series-row-cadence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  font-size: var(--t-meta);
+  color: var(--ink-warm);
+}
+.series-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+}
+.series-row-meta > span { white-space: nowrap; }
+.series-row-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s1);
+}
+.series-row-actions button {
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick);
+}
+.series-row-actions button:hover { border-color: var(--accent); }
+.series-row-actions button.danger { color: var(--bad); }
+
+/* === Phase 16 / CAL-16-07 — Cadence picker (day-of-week + titleType chooser) === */
+/* Mirrors .wp-lead-grid + .wp-lead-btn shape — same color tokens, same active-state. */
+.cadence-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.series-dow-picker {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cadence-day-pill {
+  padding: var(--s3) var(--s2);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick), background var(--t-quick), color var(--t-quick);
+  min-height: 44px;     /* touch target — Apple HIG */
+  min-width: 32px;
+}
+.cadence-day-pill:hover { border-color: var(--accent); }
+.cadence-day-pill.on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Members chip row */
+.series-members-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.series-member-chip {
+  padding: var(--s2) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--t-quick), background var(--t-quick), color var(--t-quick);
+}
+.series-member-chip:hover { border-color: var(--accent); }
+.series-member-chip.on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Title suggest dropdown — minimal */
+.series-title-suggest {
+  display: none;       /* JS toggles to flex when populated */
+  flex-direction: column;
+  gap: var(--s1);
+  margin-top: var(--s2);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.series-title-suggest .suggest-row {
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: var(--t-meta);
+}
+.series-title-suggest .suggest-row:hover { background: var(--bg-2); }
+
+/* Modal sub + field-label + field-hint — used by #series-create-modal-bg + reusable across future modals */
+.modal-sub { color: var(--ink-warm); font-size: var(--t-meta); margin-top: calc(-1 * var(--s2)); margin-bottom: var(--s3); }
+.field-label { display: block; font-size: var(--t-eyebrow); color: var(--ink-warm); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; margin-bottom: var(--s2); }
+.field-hint { font-size: var(--t-meta); color: var(--ink-dim); margin-top: var(--s1); margin-bottom: 0; line-height: 1.4; }
+
+/* === Phase 16 / CAL-16-11 — Week view modal === */
+/* Greenfield component — RESEARCH §10. Mobile-first 1-column stack; 7-col grid on tablet+. */
+/* Rule 2 token swap (mirrors plan 16-05 precedent): plan-literal --fs-md/--fs-sm/--fs-xs/--ink-2 */
+/* don't exist in Couch token set; substituted canonical --t-body/--t-meta/--t-micro/--ink-warm. */
+.week-view-modal {
+  max-width: min(900px, 96vw);
+  width: 100%;
+}
+.week-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  margin: 8px 0 16px;
+}
+.week-view-header h3 {
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+/* Launch-readiness audit fix: Apple HIG 44pt minimum touch target. Base .pill is
+   ~28-30px tall — too small for the week-view prev/next chrome controls. */
+.week-view-nav-btn { min-height: 44px; min-width: 44px; padding: 10px 16px; }
+.week-view {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  min-height: 320px;
+}
+.week-day-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  min-height: 280px;
+}
+.week-day-col.today {
+  background: var(--bg-2);
+  outline: 1px solid var(--accent);
+}
+.week-day-col-h {
+  font-family: var(--font-serif);
+  font-size: var(--t-meta);
+  color: var(--ink);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.week-day-col-h .dow { font-weight: 600; }
+.week-day-col-h .date { color: var(--ink-warm); font-size: var(--t-micro); margin-left: 4px; }
+.week-event {
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  font-size: var(--t-micro);
+  color: var(--ink);
+  cursor: pointer;
+  border-left: 2px solid var(--surface);
+  transition: border-color var(--t-quick);
+}
+.week-event:hover { border-left-color: var(--accent); }
+.week-event.series-instance { border-left-color: var(--accent); }
+.week-event .we-time { color: var(--ink-warm); font-weight: 600; margin-right: 6px; }
+.week-event .we-title { color: var(--ink); }
+.week-view-empty {
+  text-align: center;
+  color: var(--ink-warm);
+  font-style: italic;
+  padding: 40px 0;
+}
+
+/* === Mobile: 1-column day stack === */
+@media (max-width: 599px) {
+  .week-view { grid-template-columns: 1fr; }
+  .week-day-col { min-height: 100px; }
+  .week-day-col:empty { display: none; }   /* hide empty days on mobile to save scroll */
 }
 

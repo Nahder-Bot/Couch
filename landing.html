@@ -101,6 +101,18 @@
             }
           }
         }
+        // 5. Launch-readiness audit fix (H-1 / Apple §5.1.1): truncate exception
+        // values to first 80 chars so member display names (kid names = PII)
+        // that may appear in error strings ("Could not save Sasha-age-8") are
+        // bounded. privacy.html §5 commits to "PII removed before send".
+        if (event.exception && event.exception.values) {
+          event.exception.values = event.exception.values.map(function (v) {
+            return {
+              type: v.type,
+              value: (typeof v.value === 'string') ? v.value.slice(0, 80) : v.value
+            };
+          });
+        }
         return event;
       },
       // Pitfall 5 defense: drop Firestore transport noise from breadcrumbs.
@@ -140,6 +152,7 @@
   <section class="hero">
     <img class="hero-wordmark" src="/logo-h300.png" alt="Couch — a film-reel forming the letter C" width="634" height="300">
     <p class="hero-tagline">Who's on the couch tonight?</p>
+    <p class="hero-subtagline"><em>Decide what to watch in 30 seconds. Together.</em></p>
     <div class="hero-cta">
       <a class="cta-primary" href="/app">Pull up a seat</a>
       <a class="cta-secondary" href="#how">See how it works ↓</a>
@@ -244,7 +257,6 @@
     <div class="screenshot-grid">
       <figure class="screenshot-card"><img src="/marketing/tonight-couch-viz.png" alt="Tonight tab: V5 couch viz hero with the family's avatar grid showing who's on the couch tonight, plus matches grid below" loading="lazy" width="1170" height="2532"><figcaption>Everyone's on the couch</figcaption></figure>
       <figure class="screenshot-card"><img src="/marketing/archive-phase-9/watchparty-live.png" alt="Watchparty live with Wait Up delay slider visible, reactions feed, and per-member spoiler delay" loading="lazy" width="1170" height="2532"><!-- Phase-9 fallback; refresh in next marketing-refresh --><figcaption>Watch together, hours apart</figcaption></figure>
-      <figure class="screenshot-card"><img src="/marketing/archive-phase-9/watchparty-live.png" alt="Multi-family watchparty roster with FamilyName chips on each participant — cousins three states away joined the Sunday-night ritual" loading="lazy" width="1170" height="2532"><!-- Phase-9 fallback; refresh in next marketing-refresh --><figcaption>Bring another family in</figcaption></figure>
       <figure class="screenshot-card"><img src="/marketing/tonight-pickup.png" alt="Tonight tab Pickup widget showing two watching groups with last-watched episode positions" loading="lazy" width="1170" height="2532"><figcaption>Pick up where you left off</figcaption></figure>
       <figure class="screenshot-card"><img src="/marketing/pickem-leaderboard.png" alt="Pick'em surface: league leaderboard with rank ordering, picks for upcoming games, and live scores ribbon" loading="lazy" width="1170" height="2532"><figcaption>Pick'em on the big games</figcaption></figure>
     </div>
@@ -255,7 +267,7 @@
     <div class="faq-list">
       <details class="faq-item" data-faq-index="0">
         <summary>Do I need to log in?</summary>
-        <p>Yes. Google or email-link or phone — pick one. Apple Sign-In is coming with the App Store launch.</p>
+        <p>Yes. Apple, Google, email-link, or phone — pick one.</p>
       </details>
       <details class="faq-item" data-faq-index="1">
         <summary>Does Grandma need an account?</summary>
@@ -271,7 +283,7 @@
       </details>
       <details class="faq-item" data-faq-index="4">
         <summary>What devices does it work on?</summary>
-        <p>Web today. iOS and Android home-screen install today. Native App Store apps coming.</p>
+        <p>Web today. iOS app and Android home-screen install — pull up a seat from any device.</p>
       </details>
       <details class="faq-item" data-faq-index="5">
         <summary>What happens to my data?</summary>
@@ -304,7 +316,7 @@
 
   <footer class="landing-footer">
     <p>© Couch</p>
-    <p class="landing-legal"><a href="/privacy.html">Privacy</a><span class="sep">·</span><a href="/terms.html">Terms</a><span class="sep">·</span><a href="/support.html">Support</a></p>
+    <p class="landing-legal"><a href="/privacy.html">Privacy</a><span class="sep">·</span><a href="/terms.html">Terms</a><span class="sep">·</span><a href="/support.html">Support</a><span class="sep">·</span><a href="mailto:press@couchtonight.app">Press</a></p>
     <p class="landing-tmdb-attr"><em>Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a></em></p>
   </footer>
 

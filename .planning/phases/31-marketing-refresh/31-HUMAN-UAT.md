@@ -62,7 +62,7 @@ resume_signal: "uat passed"
 1. Locate the FAQ section heading `FAQ`.
 2. Verify exactly 7 `<details>` items, all collapsed by default, each showing a `+` glyph at right.
 3. Tap `Do I need to log in?` (first question).
-4. Verify the `<details>` expands, revealing the 2-sentence answer ending with `Apple Sign-In is coming with the App Store launch.`
+4. Verify the `<details>` expands, revealing the answer exactly `Yes. Apple, Google, email-link, or phone — pick one.` (the original "Apple Sign-In is coming with the App Store launch." qualifier was dropped 2026-05-26 commit `ca42fb5` — TD-12 close — once Apple Sign-In shipped to production).
 5. Verify the marker glyph swaps from `+` to `−` and the marker color shifts from var(--ink-dim) to var(--accent) #e8a04a.
 6. Tap the same summary again to collapse.
 7. Tap each remaining 6 summaries in order: Grandma → streaming services → cost → devices → data → vs-Teleparty.
