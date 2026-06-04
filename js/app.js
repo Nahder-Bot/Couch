@@ -8795,7 +8795,7 @@ function renderDetailShell(t) {
   // Phase 18 / D-16: confidence/source attribution. Push body itself doesn't
   // carry "via TMDB" (too verbose for a push); the affordance lives here in
   // the detail surface where users dig in to verify availability.
-  const providerAttribution = `<div class="detail-prov-attribution" style="margin-top:var(--s1);font-size:var(--t-micro);font-style:italic;opacity:0.6;">Provider data via TMDB</div>`;
+  const providerAttribution = `<div class="detail-prov-attribution" style="margin-top:var(--s1);font-size:var(--t-micro);font-style:italic;opacity:0.6;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" aria-label="The Movie Database (TMDB)" style="display:inline-flex;"><img src="/brand/tmdb-logo.svg" alt="TMDB" width="56" height="7" style="vertical-align:middle;"></a><span>Provider data via TMDB. Couch is not endorsed or certified by TMDB.</span></div>`;
   const providersHtml = anyAvail
     ? `<div class="detail-section"><h4>Where to watch</h4>${streamStrip}${rentStrip}${buyStrip}${refreshBtn}${providerAttribution}</div>`
     : (t.providersChecked

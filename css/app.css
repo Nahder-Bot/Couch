@@ -3600,6 +3600,10 @@ body.picker-ui-hidden #picker-sheet-bg { display: none !important; }
 }
 .about-attribution a{color:var(--ink-warm);text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px}
 .about-attribution a:hover,.about-attribution a:focus-visible{color:var(--ink);text-decoration-color:var(--accent)}
+/* TMDB attribution logo (terms-required mark; kept less prominent than Couch's own marks per TMDB API Terms) */
+.about-attribution{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tmdb-attr-logo{display:block;height:10px;width:auto;opacity:.85}
+.about-attribution a:has(.tmdb-attr-logo){text-decoration:none}
 
 /* === D-08 Flow B nominate — DECI-14-08 (Phase 14 Plan 08) === */
 /* Nominate UI (Task 1) */
