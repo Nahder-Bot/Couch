@@ -30,19 +30,6 @@ function _shouldUsePopup() {
   } catch(e) { return false; }
 }
 
-// Decide whether to use signInWithPopup (Safari non-PWA) vs signInWithRedirect (everywhere else).
-function _shouldUsePopup() {
-  try {
-    // iOS standalone PWA (Add to Home Screen): popups are blocked. Must use redirect.
-    if (typeof navigator !== 'undefined' && navigator.standalone === true) return false;
-    // Android / desktop standalone PWA: same constraint.
-    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return false;
-    // Safari = Apple WebKit on iOS/macOS, excluding the in-iOS variants of Chrome/Firefox/Edge/Opera.
-    const ua = navigator.userAgent || '';
-    return /Safari\//.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/.test(ua);
-  } catch(e) { return false; }
-}
-
 // ===== Bootstrap: call ONCE at app boot before any UI render =====
 // Returns the redirect result if the user just returned from an OAuth redirect, else null.
 export async function bootstrapAuth() {
